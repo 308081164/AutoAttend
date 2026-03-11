@@ -3,7 +3,6 @@ package org.example.atuo_attend_backend.commit;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -71,17 +70,4 @@ public class CommitController {
         data.put("committedAt", record.getCommittedAt());
         return ApiResponse.ok(data);
     }
-
-    @PostMapping("/commits/{commitSha}/diff/fetch")
-    public ApiResponse<?> fetchDiff(@PathVariable("commitSha") String commitSha,
-                                   @RequestParam("repoFullName") String repoFullName) {
-        if (repoFullName == null || repoFullName.isBlank()) {
-            return ApiResponse.error(40000, "repoFullName is required");
-        }
-        if (commitService.findCommit(repoFullName, commitSha).isEmpty()) {
-            return ApiResponse.error(40400, "commit not found");
-        }
-        commitService.fetchAndSaveDiff(repoFullName, commitSha);
-        return ApiResponse.ok("diff 已从 GitHub 拉取并入库");
-    }
-
+}

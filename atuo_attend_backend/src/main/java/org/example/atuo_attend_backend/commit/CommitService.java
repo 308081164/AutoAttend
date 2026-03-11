@@ -2,6 +2,8 @@ package org.example.atuo_attend_backend.commit;
 
 import org.example.atuo_attend_backend.commit.mapper.CommitDiffMapper;
 import org.example.atuo_attend_backend.commit.mapper.CommitMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -11,6 +13,12 @@ import java.util.Optional;
 
 @Service
 public class CommitService {
+
+    private static final Logger log = LoggerFactory.getLogger(CommitService.class);
+    /** 重试次数：首次拉取 + 后续自动重试 */
+    private static final int DIFF_FETCH_RETRY_TIMES = 6;
+    /** 每次尝试前的等待毫秒数（首次 0，后续逐步延长，温和退避） */
+    private static final long[] DIFF_FETCH_BACKOFF_MS = { 0, 1000, 2000, 4000, 8000, 16000 };
 
     private final CommitMapper commitMapper;
     private final CommitDiffMapper commitDiffMapper;
@@ -64,7 +72,7 @@ public class CommitService {
         }
         String diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
         if (diffText == null || diffText.isBlank()) {
-            fetchAndSaveDiff(repoFullName, commitSha);
+            fetchAndSaveDiffWithRetry(repoFullName, commitSha);
             diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
         }
         record.setDiffText(diffText);
@@ -72,16 +80,44 @@ public class CommitService {
     }
 
     /**
-     * 从 GitHub API 拉取该 commit 的 diff 并写入 aa_commit_diff，供查看与后续 AI 分析使用。
+     * 从 GitHub API 拉取该 commit 的 diff 并写入 aa_commit_diff（单次尝试，用于 webhook 等不阻塞场景）。
      */
     public void fetchAndSaveDiff(String repoFullName, String commitSha) {
+        trySaveFetchedDiff(repoFullName, commitSha);
+    }
+
+    /**
+     * 首次拉取失败后自动重试，共 6 次；间隔依次 0、1s、2s、4s、8s、16s 逐步延长，温和退避。
+     * 用于查看 diff 时按需补全，提高成功率且不对 GitHub API 造成压力。
+     */
+    public void fetchAndSaveDiffWithRetry(String repoFullName, String commitSha) {
+        for (int i = 0; i < DIFF_FETCH_RETRY_TIMES; i++) {
+            if (i > 0 && i < DIFF_FETCH_BACKOFF_MS.length && DIFF_FETCH_BACKOFF_MS[i] > 0) {
+                try {
+                    Thread.sleep(DIFF_FETCH_BACKOFF_MS[i]);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Diff fetch retry interrupted for {}@{}", repoFullName, commitSha);
+                    break;
+                }
+            }
+            if (trySaveFetchedDiff(repoFullName, commitSha)) {
+                if (i > 0) log.info("Diff fetched on retry {} for {}@{}", i + 1, repoFullName, commitSha);
+                return;
+            }
+        }
+        log.debug("Diff still missing after {} retries for {}@{}", DIFF_FETCH_RETRY_TIMES, repoFullName, commitSha);
+    }
+
+    private boolean trySaveFetchedDiff(String repoFullName, String commitSha) {
         String diffText = githubDiffFetcher.fetchDiff(repoFullName, commitSha);
-        if (diffText == null || diffText.isBlank()) return;
+        if (diffText == null || diffText.isBlank()) return false;
         long size = diffText.getBytes().length;
         try {
             commitDiffMapper.insert(repoFullName, commitSha, diffText, size);
+            return true;
         } catch (Exception ignoreDuplicate) {
-            // 已存在则忽略
+            return true; // 已存在视为成功
         }
     }
 

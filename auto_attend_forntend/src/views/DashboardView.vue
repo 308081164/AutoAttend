@@ -110,9 +110,6 @@
           Diff 详情（代码变更）：{{ selectedCommit.repoFullName }} @ {{ shortSha(selectedCommit.commitSha) }}
         </h2>
         <div class="diff-actions">
-          <button v-if="!diffText && !diffLoading" class="link-button" @click="fetchDiffFromGitHub">
-            从 GitHub 拉取 diff
-          </button>
           <button v-if="diffText" class="link-button" @click="copyDiffForAi">复制给 AI 分析</button>
           <button class="link-button" @click="selectedCommit = null">收起</button>
         </div>
@@ -121,7 +118,7 @@
         加载 diff 中...
       </div>
       <div v-else-if="diffText" class="diff-box diff-content" v-html="diffHtml"></div>
-      <pre v-else class="diff-box"><code>（当前 diff 为空。可点击「从 GitHub 拉取 diff」补全，或等待新推送由系统自动拉取。）</code></pre>
+      <pre v-else class="diff-box"><code>（diff 尚未就绪时，系统会自动重试拉取，请稍后刷新页面查看。）</code></pre>
     </section>
   </div>
 </template>
@@ -240,20 +237,6 @@ export default {
         }
       } catch (e) {
         this.diffText = '加载 diff 失败'
-      } finally {
-        this.diffLoading = false
-      }
-    },
-    async fetchDiffFromGitHub () {
-      if (!this.selectedCommit) return
-      this.diffLoading = true
-      try {
-        await this.$http.post(`/admin/commits/${this.selectedCommit.commitSha}/diff/fetch`, null, {
-          params: { repoFullName: this.selectedCommit.repoFullName }
-        })
-        await this.viewDiff(this.selectedCommit)
-      } catch (e) {
-        this.diffText = '从 GitHub 拉取 diff 失败'
       } finally {
         this.diffLoading = false
       }
