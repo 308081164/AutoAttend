@@ -20,7 +20,8 @@ RUN printf '%s\n' \
   > /root/.m2/settings.xml
 
 COPY . .
-RUN ./mvnw -q -DskipTests package
+# 确保 mvnw 在 Linux 下可执行；跳过测试避免 CI 环境差异导致失败
+RUN chmod +x ./mvnw && ./mvnw -q -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
