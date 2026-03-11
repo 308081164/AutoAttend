@@ -109,12 +109,19 @@
         <h2 class="section-title">
           Diff 详情（代码变更）：{{ selectedCommit.repoFullName }} @ {{ shortSha(selectedCommit.commitSha) }}
         </h2>
-        <button class="link-button" @click="selectedCommit = null">收起</button>
+        <div class="diff-actions">
+          <button v-if="!diffText && !diffLoading" class="link-button" @click="fetchDiffFromGitHub">
+            从 GitHub 拉取 diff
+          </button>
+          <button v-if="diffText" class="link-button" @click="copyDiffForAi">复制给 AI 分析</button>
+          <button class="link-button" @click="selectedCommit = null">收起</button>
+        </div>
       </div>
       <div class="diff-box" v-if="diffLoading">
         加载 diff 中...
       </div>
-      <pre v-else class="diff-box"><code>{{ diffText || '（当前 diff 为空，后端尚未生成实际 diff 文本）' }}</code></pre>
+      <div v-else-if="diffText" class="diff-box diff-content" v-html="diffHtml"></div>
+      <pre v-else class="diff-box"><code>（当前 diff 为空。可点击「从 GitHub 拉取 diff」补全，或等待新推送由系统自动拉取。）</code></pre>
     </section>
   </div>
 </template>
@@ -129,10 +136,22 @@ export default {
       commitsLoading: false,
       selectedCommit: null,
       diffText: '',
+      diffMeta: null,
       diffLoading: false,
       repos: [],
       selectedRepo: '',
       authors: []
+    }
+  },
+  computed: {
+    diffHtml () {
+      if (!this.diffText) return ''
+      return this.diffText.split('\n').map(line => {
+        const escaped = this.escapeHtml(line || ' ')
+        if (line.startsWith('+') && !line.startsWith('+++')) return '<span class="diff-line diff-add">' + escaped + '</span>'
+        if (line.startsWith('-') && !line.startsWith('---')) return '<span class="diff-line diff-del">' + escaped + '</span>'
+        return '<span class="diff-line">' + escaped + '</span>'
+      }).join('\n')
     }
   },
   created () {
@@ -203,6 +222,7 @@ export default {
     async viewDiff (item) {
       this.selectedCommit = item
       this.diffText = ''
+      this.diffMeta = null
       this.diffLoading = true
       try {
         const resp = await this.$http.get(`/admin/commits/${item.commitSha}/diff`, {
@@ -212,7 +232,9 @@ export default {
           }
         })
         if (resp.data && resp.data.code === 0) {
-          this.diffText = (resp.data.data && resp.data.data.diffText) || ''
+          const d = resp.data.data
+          this.diffText = (d && d.diffText) || ''
+          this.diffMeta = d ? { repoFullName: d.repoFullName, commitSha: d.commitSha, message: d.message, authorName: d.authorName, authorEmail: d.authorEmail, committedAt: d.committedAt } : null
         } else {
           this.diffText = '加载 diff 失败'
         }
@@ -221,6 +243,59 @@ export default {
       } finally {
         this.diffLoading = false
       }
+    },
+    async fetchDiffFromGitHub () {
+      if (!this.selectedCommit) return
+      this.diffLoading = true
+      try {
+        await this.$http.post(`/admin/commits/${this.selectedCommit.commitSha}/diff/fetch`, null, {
+          params: { repoFullName: this.selectedCommit.repoFullName }
+        })
+        await this.viewDiff(this.selectedCommit)
+      } catch (e) {
+        this.diffText = '从 GitHub 拉取 diff 失败'
+      } finally {
+        this.diffLoading = false
+      }
+    },
+    escapeHtml (s) {
+      const div = document.createElement('div')
+      div.textContent = s
+      return div.innerHTML
+    },
+    copyDiffForAi () {
+      const meta = this.diffMeta || {}
+      const header = [
+        `仓库: ${meta.repoFullName || this.selectedCommit?.repoFullName || ''}`,
+        `提交: ${meta.commitSha || this.selectedCommit?.commitSha || ''}`,
+        `说明: ${meta.message || ''}`,
+        `作者: ${meta.authorName || ''} <${meta.authorEmail || ''}>`,
+        `时间: ${meta.committedAt || ''}`,
+        '--- diff ---'
+      ].join('\n')
+      const text = header + '\n' + (this.diffText || '')
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('已复制到剪贴板，可粘贴到 AI 智能体进行跟进分析。')
+        }).catch(() => {
+          this.fallbackCopy(text)
+        })
+      } else {
+        this.fallbackCopy(text)
+      }
+    },
+    fallbackCopy (text) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+        alert('已复制到剪贴板，可粘贴到 AI 智能体进行跟进分析。')
+      } catch (e) {
+        alert('复制失败，请手动选择下方 diff 内容复制。')
+      }
+      document.body.removeChild(ta)
     }
   }
 }
@@ -348,6 +423,32 @@ export default {
   background-color: #111827;
   color: #e5e7eb;
   font-size: 12px;
+}
+
+.diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.diff-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.diff-line {
+  display: block;
+}
+
+.diff-add {
+  color: #34d399;
+  background-color: rgba(52, 211, 153, 0.08);
+}
+
+.diff-del {
+  color: #f87171;
+  background-color: rgba(248, 113, 113, 0.08);
 }
 </style>
 

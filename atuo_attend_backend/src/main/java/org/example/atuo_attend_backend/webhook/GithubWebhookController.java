@@ -37,6 +37,7 @@ public class GithubWebhookController {
                         c.getTimestamp(),
                         c.getMessage(),
                         "");
+                commitService.fetchAndSaveDiff(repoFullName, c.getId());
             }
         }
         return ApiResponse.ok(null);

@@ -14,10 +14,12 @@ public class CommitService {
 
     private final CommitMapper commitMapper;
     private final CommitDiffMapper commitDiffMapper;
+    private final GithubDiffFetcher githubDiffFetcher;
 
-    public CommitService(CommitMapper commitMapper, CommitDiffMapper commitDiffMapper) {
+    public CommitService(CommitMapper commitMapper, CommitDiffMapper commitDiffMapper, GithubDiffFetcher githubDiffFetcher) {
         this.commitMapper = commitMapper;
         this.commitDiffMapper = commitDiffMapper;
+        this.githubDiffFetcher = githubDiffFetcher;
     }
 
     public void saveCommit(String repoFullName,
@@ -61,8 +63,26 @@ public class CommitService {
             return Optional.empty();
         }
         String diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+        if (diffText == null || diffText.isBlank()) {
+            fetchAndSaveDiff(repoFullName, commitSha);
+            diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+        }
         record.setDiffText(diffText);
         return Optional.of(record);
+    }
+
+    /**
+     * 从 GitHub API 拉取该 commit 的 diff 并写入 aa_commit_diff，供查看与后续 AI 分析使用。
+     */
+    public void fetchAndSaveDiff(String repoFullName, String commitSha) {
+        String diffText = githubDiffFetcher.fetchDiff(repoFullName, commitSha);
+        if (diffText == null || diffText.isBlank()) return;
+        long size = diffText.getBytes().length;
+        try {
+            commitDiffMapper.insert(repoFullName, commitSha, diffText, size);
+        } catch (Exception ignoreDuplicate) {
+            // 已存在则忽略
+        }
     }
 
     public List<CommitRecord> listPaged(int page, int pageSize) {
