@@ -14,8 +14,8 @@ services:
       MYSQL_USER: autoattend
       MYSQL_PASSWORD: autoattend_pwd
       TZ: Asia/Shanghai
-    ports:
-      - "3306:3306"
+    # 不映射 3306 到主机，避免与服务器上已有 MySQL 冲突；backend 通过 Docker 网络访问 mysql:3306
+    # 若需从主机连接：docker exec -it autoattend-mysql mysql -u root -p
     volumes:
       - autoattend_mysql_data:/var/lib/mysql
       - ./atuo_attend_backend/src/main/resources/db/schema_mysql.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
