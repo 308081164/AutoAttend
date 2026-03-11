@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jdk AS build
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # 为 Maven 配置国内镜像（阿里云），加速依赖下载
@@ -19,9 +19,12 @@ RUN printf '%s\n' \
   '</settings>' \
   > /root/.m2/settings.xml
 
+COPY pom.xml .
+# 先拉依赖（可利用 Docker 层缓存）
+RUN mvn -q -B dependency:go-offline -Dmaven.test.skip=true
+
 COPY . .
-# 确保 mvnw 在 Linux 下可执行；跳过测试避免 CI 环境差异导致失败
-RUN chmod +x ./mvnw && ./mvnw -q -Dmaven.test.skip=true package
+RUN mvn -q -B -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app

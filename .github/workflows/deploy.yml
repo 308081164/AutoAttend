@@ -11,6 +11,8 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     permissions:
       contents: read
       packages: write
@@ -58,7 +60,8 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.DEPLOY_PATH || '/opt/AutoAttend' }}
-            git pull || true
+            git fetch origin
+            git reset --hard origin/${{ github.ref_name }}
             export IMAGE_BACKEND=${{ steps.images.outputs.backend }}
             export IMAGE_FRONTEND=${{ steps.images.outputs.frontend }}
             docker compose -f docker-compose.prod.yml pull
