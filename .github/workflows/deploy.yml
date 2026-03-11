@@ -1,0 +1,65 @@
+# push 到 main 分支时：在 GitHub 云端构建 backend/frontend 镜像 → 推送到 ghcr.io → SSH 到服务器拉取并重启
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main, master]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image names
+        id: images
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          OWNER_LC=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "backend=$REGISTRY/$OWNER_LC/autoattend-backend:latest" >> $GITHUB_OUTPUT
+          echo "frontend=$REGISTRY/$OWNER_LC/autoattend-frontend:latest" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./atuo_attend_backend
+          push: true
+          tags: ${{ steps.images.outputs.backend }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./auto_attend_forntend
+          push: true
+          tags: ${{ steps.images.outputs.frontend }}
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH || '/opt/AutoAttend' }}
+            git pull || true
+            export IMAGE_BACKEND=${{ steps.images.outputs.backend }}
+            export IMAGE_FRONTEND=${{ steps.images.outputs.frontend }}
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
