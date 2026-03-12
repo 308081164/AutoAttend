@@ -1,27 +1,9 @@
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# 为 Maven 配置国内镜像（阿里云），加速依赖下载
-RUN mkdir -p /root/.m2
-RUN printf '%s\n' \
-  '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"' \
-  '  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' \
-  '  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0' \
-  '                      https://maven.apache.org/xsd/settings-1.0.0.xsd">' \
-  '  <mirrors>' \
-  '    <mirror>' \
-  '      <id>aliyunmaven</id>' \
-  '      <mirrorOf>central</mirrorOf>' \
-  '      <name>Aliyun Maven</name>' \
-  '      <url>https://maven.aliyun.com/repository/central</url>' \
-  '    </mirror>' \
-  '  </mirrors>' \
-  '</settings>' \
-  > /root/.m2/settings.xml
-
+# CI 使用 Maven Central（阿里云镜像在 GitHub Actions 上易遇 302 导致 go-offline 失败）
 COPY pom.xml .
-# 先拉依赖（可利用 Docker 层缓存）
-RUN mvn -q -B dependency:go-offline -Dmaven.test.skip=true
+RUN mvn -q -B -Dmaven.test.skip=true dependency:resolve
 
 COPY . .
 RUN mvn -q -B -Dmaven.test.skip=true package
