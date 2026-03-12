@@ -107,6 +107,7 @@ public class CommitService {
             }
         }
         log.debug("Diff still missing after {} retries for {}@{}", DIFF_FETCH_RETRY_TIMES, repoFullName, commitSha);
+        log.warn("Diff unavailable after {} retries for {}@{} - check GITHUB_TOKEN, rate limit, or network", DIFF_FETCH_RETRY_TIMES, repoFullName, commitSha);
     }
 
     private boolean trySaveFetchedDiff(String repoFullName, String commitSha) {

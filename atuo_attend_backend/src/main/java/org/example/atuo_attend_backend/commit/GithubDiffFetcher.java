@@ -54,7 +54,7 @@ public class GithubDiffFetcher {
             }
             return body;
         } catch (Exception e) {
-            log.debug("Fetch diff failed for repo={} sha={}: {}", repoFullName, commitSha, e.getMessage());
+            log.warn("Fetch diff failed for repo={} sha={}: {} - {}", repoFullName, commitSha, e.getClass().getSimpleName(), e.getMessage());
             return null;
         }
     }
