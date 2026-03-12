@@ -51,6 +51,18 @@ jobs:
           tags: ${{ steps.images.outputs.frontend }}
 
       - name: Deploy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: |
+            docker-compose.prod.yml
+            atuo_attend_backend
+          target: ${{ secrets.DEPLOY_PATH || '/opt/AutoAttend' }}
+
+      - name: Start containers on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -60,8 +72,6 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.DEPLOY_PATH || '/opt/AutoAttend' }}
-            git fetch origin
-            git reset --hard origin/${{ github.ref_name }}
             export IMAGE_BACKEND=${{ steps.images.outputs.backend }}
             export IMAGE_FRONTEND=${{ steps.images.outputs.frontend }}
             docker compose -f docker-compose.prod.yml pull
