@@ -173,7 +173,7 @@ export default {
         if (resp.data && resp.data.code === 0) {
           this.comments = resp.data.data.items || []
         }
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
     },
     async loadAttachments () {
       if (!this.drawerRecord) return
@@ -182,7 +182,7 @@ export default {
         if (resp.data && resp.data.code === 0) {
           this.attachments = resp.data.data.items || []
         }
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
     },
     async submitComment () {
       if (!this.drawerRecord || !this.newComment.trim()) return
@@ -192,7 +192,7 @@ export default {
         })
         this.newComment = ''
         this.loadComments()
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
     },
     onFileSelected (e) {
       const file = e.target.files && e.target.files[0]
@@ -204,7 +204,7 @@ export default {
       }).then(() => {
         this.loadAttachments()
         e.target.value = ''
-      }).catch(() => {})
+      }).catch(() => { /* ignore */ })
     },
     downloadAttachment (a) {
       const token = window.localStorage.getItem('autoattend_collab_token')
@@ -218,7 +218,7 @@ export default {
           link.click()
           URL.revokeObjectURL(link.href)
         })
-        .catch(() => {})
+        .catch(() => { /* ignore */ })
     },
     formatSize (bytes) {
       if (bytes < 1024) return bytes + ' B'
@@ -237,7 +237,7 @@ export default {
         await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields: {} })
         this.showAddModal = false
         this.loadRecords()
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
     }
   }
 }
