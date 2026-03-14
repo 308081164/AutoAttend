@@ -99,14 +99,14 @@ GitHub Actions 触发
    docker compose -f docker-compose.prod.yml up -d
    ```
 
-4. **可选：配置 GITHUB_TOKEN 以拉取 Commit Diff**  
-   管理后台「查看 Diff」会从 GitHub API 拉取该 commit 的 diff；未配置 token 时易触发限流或拉取失败，页面会显示占位提示。在服务器上设置环境变量后重启 backend 即可：
-   ```bash
-   export GITHUB_TOKEN=ghp_你的PersonalAccessToken
-   cd /mnt/newdisk/app/AutoAttend
-   docker compose -f docker-compose.prod.yml up -d backend
-   ```
-   建议将 `GITHUB_TOKEN` 写入 `~/.bashrc` 或单独 env 文件，以便每次部署后仍生效。
+4. **可选：配置 GITHUB_TOKEN 与代理以拉取 Commit Diff**  
+   管理后台「查看 Diff」会从 GitHub API 拉取该 commit 的 diff；未配置 token 时易触发限流或拉取失败，页面会显示占位提示。
+
+   - **GITHUB_TOKEN**：在服务器上设置后重启 backend，建议写入 `~/.bashrc` 或 env 文件：
+     ```bash
+     export GITHUB_TOKEN=ghp_你的PersonalAccessToken
+     ```
+   - **大陆服务器（阿里云等）**：境内服务器通常无法直连 api.github.com。若**没有可访问外网的代理**，后端无法拉取 diff，管理后台「查看 Diff」会显示占位提示；此时可点击 **「在 GitHub 上查看」** 链接，在浏览器中打开该提交（需您本机或浏览器能访问 GitHub，如本机 VPN）。若日后有可用代理，可设置 **GITHUB_API_PROXY**（如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`），仅拉取 diff 的请求会经代理发出，然后重启 backend 即可。
 
 之后每次 **push 到 main**，由 GitHub Actions 自动构建镜像并 SSH 到服务器执行 `pull + up -d`，无需再在服务器上执行 `compose build`。
 

@@ -52,6 +52,8 @@ services:
       ADMIN_PASSWORD: admin123
       # 配置 GITHUB_TOKEN 后可拉取 commit diff（否则易受限流或拉取失败，查看 Diff 会显示占位提示）
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # 大陆服务器可设置 HTTP/SOCKS 代理以访问 api.github.com，如 http://127.0.0.1:7890
+      GITHUB_API_PROXY: ${GITHUB_API_PROXY:-}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}

@@ -2,20 +2,20 @@
   <div class="collab-table-page">
     <div class="table-header">
       <div class="header-left">
-        <router-link to="/collab/projects" class="back-link">← 项目列表</router-link>
+        <router-link to="/collab/projects" class="back-link">{{ $t('collabTable.backToList') }}</router-link>
         <h2 class="table-title">{{ tableName }}</h2>
       </div>
-      <button class="primary-button" @click="openAddRecord">新建记录</button>
+      <button class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
     </div>
 
-    <div v-if="tableLoading" class="placeholder">加载表结构中...</div>
-    <div v-else-if="!columns.length" class="placeholder">暂无列定义</div>
+    <div v-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
+    <div v-else-if="!columns.length" class="placeholder">{{ $t('collabTable.noColumns') }}</div>
     <div v-else class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
             <th v-for="col in columns" :key="col.id" class="col-header">{{ col.name }}</th>
-            <th width="80">操作</th>
+            <th width="80">{{ $t('collabTable.operations') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -24,26 +24,26 @@
               {{ formatCell(row['c' + col.id], col) }}
             </td>
             <td>
-              <button class="link-button" @click.stop="openRecord(row)">详情</button>
+              <button class="link-button" @click.stop="openRecord(row)">{{ $t('collabTable.detail') }}</button>
             </td>
           </tr>
         </tbody>
       </table>
-      <div v-if="!records.length && !recordsLoading" class="empty-tip">暂无记录，点击「新建记录」添加</div>
-      <div v-if="recordsLoading" class="loading-tip">加载中...</div>
+      <div v-if="!records.length && !recordsLoading" class="empty-tip">{{ $t('collabTable.noRecords') }}</div>
+      <div v-if="recordsLoading" class="loading-tip">{{ $t('collabTable.loadingRecords') }}</div>
     </div>
 
     <!-- 记录详情抽屉 -->
     <div v-if="drawerRecord" class="drawer-mask" @click="drawerRecord = null">
       <div class="drawer" @click.stop>
         <div class="drawer-header">
-          <h3>记录详情</h3>
+          <h3>{{ $t('collabTable.recordDetail') }}</h3>
           <button class="close-btn" @click="drawerRecord = null">×</button>
         </div>
         <div class="drawer-tabs">
-          <button :class="{ active: drawerTab === 'fields' }" @click="drawerTab = 'fields'">字段</button>
-          <button :class="{ active: drawerTab === 'comments' }" @click="drawerTab = 'comments'; loadComments()">讨论</button>
-          <button :class="{ active: drawerTab === 'attachments' }" @click="drawerTab = 'attachments'; loadAttachments()">附件</button>
+          <button :class="{ active: drawerTab === 'fields' }" @click="drawerTab = 'fields'">{{ $t('collabTable.fields') }}</button>
+          <button :class="{ active: drawerTab === 'comments' }" @click="drawerTab = 'comments'; loadComments()">{{ $t('collabTable.discussion') }}</button>
+          <button :class="{ active: drawerTab === 'attachments' }" @click="drawerTab = 'attachments'; loadAttachments()">{{ $t('collabTable.attachments') }}</button>
         </div>
         <div class="drawer-body">
           <div v-if="drawerTab === 'fields'" class="field-list">
@@ -61,14 +61,14 @@
               </div>
             </div>
             <div class="comment-form">
-              <textarea v-model="newComment" placeholder="输入留言..." rows="2"></textarea>
-              <button class="primary-button small" @click="submitComment">发送</button>
+              <textarea v-model="newComment" :placeholder="$t('collabTable.inputComment')" rows="2"></textarea>
+              <button class="primary-button small" @click="submitComment">{{ $t('collabTable.send') }}</button>
             </div>
           </div>
           <div v-if="drawerTab === 'attachments'" class="attachment-panel">
             <div class="upload-area">
               <input ref="fileInput" type="file" @change="onFileSelected" style="display:none">
-              <button class="primary-button small" @click="$refs.fileInput.click()">上传附件</button>
+              <button class="primary-button small" @click="$refs.fileInput.click()">{{ $t('collabTable.uploadAttachment') }}</button>
             </div>
             <ul class="attachment-list">
               <li v-for="a in attachments" :key="a.id">
@@ -85,12 +85,12 @@
     <div v-if="showAddModal" class="drawer-mask" @click="showAddModal = false">
       <div class="drawer add-modal" @click.stop>
         <div class="drawer-header">
-          <h3>新建记录</h3>
+          <h3>{{ $t('collabTable.newRecordTitle') }}</h3>
           <button class="close-btn" @click="showAddModal = false">×</button>
         </div>
         <div class="drawer-body">
-          <p class="tip">创建后可点击行编辑字段。</p>
-          <button class="primary-button" @click="createRecord">创建</button>
+          <p class="tip">{{ $t('collabTable.createThenEdit') }}</p>
+          <button class="primary-button" @click="createRecord">{{ $t('collabTable.create') }}</button>
         </div>
       </div>
     </div>
@@ -128,7 +128,7 @@ export default {
         const resp = await this.$http.get(`/collab/projects/${this.projectId}/table`)
         if (resp.data && resp.data.code === 0) {
           const d = resp.data.data
-          this.tableName = d.name || '任务表'
+          this.tableName = d.name || this.$t('collabTable.defaultTableName')
           this.columns = (d.columns || []).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
         }
       } catch (e) {

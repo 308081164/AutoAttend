@@ -1,28 +1,28 @@
 <template>
   <div class="collab-page">
     <div class="page-header">
-      <h1>项目协作</h1>
+      <h1>{{ $t('collab.projectsTitle') }}</h1>
       <div class="header-actions">
         <span class="user-info">{{ userEmail }}</span>
-        <button class="link-button" @click="logout">退出</button>
+        <button class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </div>
-    <p class="page-desc">选择有权限的项目进入多维表格</p>
-    <div v-if="loading" class="placeholder">加载中...</div>
+    <p class="page-desc">{{ $t('collab.selectProject') }}</p>
+    <div v-if="loading" class="placeholder">{{ $t('collab.loading') }}</div>
     <div v-else-if="!projects.length" class="placeholder">
-      暂无有权限的项目。请先通过 GitHub 推送代码，系统将根据仓库自动创建项目并同步成员。
+      {{ $t('collab.noProjects') }}
     </div>
     <ul v-else class="project-list">
       <li v-for="p in projects" :key="p.id" class="project-item">
         <router-link :to="{ name: 'collab-table', params: { projectId: p.id } }" class="project-link">
           <span class="project-name">{{ p.name }}</span>
           <span v-if="p.description" class="project-desc">{{ p.description }}</span>
-          <span class="project-repo">仓库：{{ p.repoId }}</span>
+          <span class="project-repo">{{ $t('collab.repoLabel') }}：{{ p.repoId }}</span>
         </router-link>
       </li>
     </ul>
     <div class="back-link">
-      <router-link to="/">返回首页</router-link>
+      <router-link to="/">{{ $t('collab.backHome') }}</router-link>
     </div>
   </div>
 </template>

@@ -2,13 +2,14 @@
   <div class="dashboard">
     <section class="section">
       <div class="section-header">
-        <h2 class="section-title">状态总览（Status Overview）</h2>
+        <h2 class="section-title">{{ $t('dashboard.statusOverview') }}</h2>
         <div class="header-actions">
-          <router-link to="/collab/projects" class="link-button collab-entry">项目协作</router-link>
+          <router-link to="/test" class="link-button test-entry">{{ $t('test.title') }}</router-link>
+          <router-link to="/collab/projects" class="link-button collab-entry">{{ $t('dashboard.collabEntry') }}</router-link>
           <div class="repo-filter">
-            <label>项目（Project）：</label>
+            <label>{{ $t('dashboard.project') }}：</label>
             <select v-model="selectedRepo" @change="onRepoChange">
-            <option value="">全部项目（All Projects）</option>
+            <option value="">{{ $t('dashboard.allProjects') }}</option>
             <option v-for="repo in repos" :key="repo" :value="repo">
               {{ repo }}
             </option>
@@ -18,50 +19,50 @@
       </div>
       <div class="summary-grid" v-if="dashboard">
         <div class="summary-card">
-          <div class="label">活跃开发（Active Coding）</div>
+          <div class="label">{{ $t('dashboard.activeCoding') }}</div>
           <div class="value">{{ dashboard.summary.activeCoding || 0 }}</div>
         </div>
         <div class="summary-card">
-          <div class="label">评审中（In Review）</div>
+          <div class="label">{{ $t('dashboard.inReview') }}</div>
           <div class="value">{{ dashboard.summary.inReview || 0 }}</div>
         </div>
         <div class="summary-card">
-          <div class="label">评审他人（Reviewing Others）</div>
+          <div class="label">{{ $t('dashboard.reviewingOthers') }}</div>
           <div class="value">{{ dashboard.summary.reviewingOthers || 0 }}</div>
         </div>
         <div class="summary-card">
-          <div class="label">修复构建（CI Fixing）</div>
+          <div class="label">{{ $t('dashboard.ciFixing') }}</div>
           <div class="value">{{ dashboard.summary.ciFixing || 0 }}</div>
         </div>
         <div class="summary-card">
-          <div class="label">阻塞（Blocked）</div>
+          <div class="label">{{ $t('dashboard.blocked') }}</div>
           <div class="value">{{ dashboard.summary.blocked || 0 }}</div>
         </div>
         <div class="summary-card">
-          <div class="label">无信号（Idle）</div>
+          <div class="label">{{ $t('dashboard.idle') }}</div>
           <div class="value">{{ dashboard.summary.idle || 0 }}</div>
         </div>
       </div>
-      <div v-else class="placeholder">加载中...</div>
+      <div v-else class="placeholder">{{ $t('collab.loading') }}</div>
     </section>
 
     <section class="section">
       <div class="section-header">
-        <h2 class="section-title">提交列表（最近 / Recent Commits）</h2>
+        <h2 class="section-title">{{ $t('dashboard.recentCommits') }}</h2>
         <button class="link-button" @click="loadCommits" :disabled="commitsLoading">
-          刷新
+          {{ $t('dashboard.refresh') }}
         </button>
       </div>
       <div class="table-wrapper" v-if="commits.length">
         <table class="table">
           <thead>
           <tr>
-            <th>仓库（Repo）</th>
-            <th>提交哈希（Commit）</th>
-            <th>作者（Author）</th>
-            <th>时间（Time）</th>
-            <th>提交说明（Message）</th>
-            <th>操作</th>
+            <th>{{ $t('dashboard.repo') }}</th>
+            <th>{{ $t('dashboard.commit') }}</th>
+            <th>{{ $t('dashboard.author') }}</th>
+            <th>{{ $t('dashboard.time') }}</th>
+            <th>{{ $t('dashboard.message') }}</th>
+            <th>{{ $t('dashboard.actions') }}</th>
           </tr>
           </thead>
           <tbody>
@@ -72,27 +73,27 @@
             <td>{{ formatTime(item.committedAt) }}</td>
             <td>{{ item.message }}</td>
             <td>
-              <button class="link-button" @click="viewDiff(item)">查看 Diff（代码变更）</button>
+              <button class="link-button" @click="viewDiff(item)">{{ $t('dashboard.viewDiff') }}</button>
             </td>
           </tr>
           </tbody>
         </table>
       </div>
       <div v-else class="placeholder">
-        暂无提交记录，可先配置 GitHub Webhook 并推送一次代码。
+        {{ $t('dashboard.noCommits') }}
       </div>
     </section>
 
     <section class="section" v-if="authors.length">
-      <h2 class="section-title">开发者统计（当前项目 / Developers by Project）</h2>
+      <h2 class="section-title">{{ $t('dashboard.developers') }}</h2>
       <div class="table-wrapper">
         <table class="table">
           <thead>
           <tr>
-            <th>开发者（Author）</th>
-            <th>邮箱（Email）</th>
-            <th>提交次数（Commits）</th>
-            <th>最近提交时间（Last Commit）</th>
+            <th>{{ $t('dashboard.author') }}</th>
+            <th>{{ $t('dashboard.email') }}</th>
+            <th>{{ $t('dashboard.commits') }}</th>
+            <th>{{ $t('dashboard.lastCommit') }}</th>
           </tr>
           </thead>
           <tbody>
@@ -110,18 +111,21 @@
     <section v-if="selectedCommit" class="section">
       <div class="section-header">
         <h2 class="section-title">
-          Diff 详情（代码变更）：{{ selectedCommit.repoFullName }} @ {{ shortSha(selectedCommit.commitSha) }}
+          {{ $t('dashboard.diffTitle') }}：{{ selectedCommit.repoFullName }} @ {{ shortSha(selectedCommit.commitSha) }}
         </h2>
         <div class="diff-actions">
-          <button v-if="diffText" class="link-button" @click="copyDiffForAi">复制给 AI 分析</button>
-          <button class="link-button" @click="selectedCommit = null">收起</button>
+          <button v-if="diffText" class="link-button" @click="copyDiffForAi">{{ $t('dashboard.copyForAi') }}</button>
+          <button class="link-button" @click="selectedCommit = null">{{ $t('dashboard.collapse') }}</button>
         </div>
       </div>
       <div class="diff-box" v-if="diffLoading">
-        加载 diff 中...
+        {{ $t('dashboard.loadingDiff') }}
       </div>
-      <div v-else-if="diffText" class="diff-box diff-content" v-html="diffHtml"></div>
-      <pre v-else class="diff-box"><code>（diff 尚未就绪时，系统会自动重试拉取，请稍后刷新页面查看。）</code></pre>
+      <div v-else-if="diffText" class="diff-box-wrapper">
+        <div class="diff-box diff-content" v-html="diffHtml"></div>
+        <a v-if="isDiffPlaceholder(diffText)" :href="githubCommitUrl" target="_blank" rel="noopener noreferrer" class="view-on-github-link">{{ $t('dashboard.viewOnGitHub') }}</a>
+      </div>
+      <pre v-else class="diff-box"><code>{{ $t('dashboard.diffNotReady') }}</code></pre>
     </section>
   </div>
 </template>
@@ -144,6 +148,13 @@ export default {
     }
   },
   computed: {
+    githubCommitUrl () {
+      if (!this.selectedCommit) return ''
+      const repo = this.selectedCommit.repoFullName || ''
+      const sha = this.selectedCommit.commitSha || ''
+      if (!repo || !sha) return ''
+      return `https://github.com/${repo}/commit/${sha}`
+    },
     diffHtml () {
       if (!this.diffText) return ''
       return this.diffText.split('\n').map(line => {
@@ -207,6 +218,9 @@ export default {
         this.commitsLoading = false
       }
     },
+    isDiffPlaceholder (text) {
+      return text && (text.indexOf('(Diff 暂不可用') !== -1 || text.indexOf('(Diff will be') !== -1)
+    },
     shortSha (sha) {
       if (!sha) return ''
       return sha.substring(0, 8)
@@ -236,10 +250,10 @@ export default {
           this.diffText = (d && d.diffText) || ''
           this.diffMeta = d ? { repoFullName: d.repoFullName, commitSha: d.commitSha, message: d.message, authorName: d.authorName, authorEmail: d.authorEmail, committedAt: d.committedAt } : null
         } else {
-          this.diffText = '加载 diff 失败'
+          this.diffText = this.$t('dashboard.diffLoadFailed')
         }
       } catch (e) {
-        this.diffText = '加载 diff 失败'
+        this.diffText = this.$t('dashboard.diffLoadFailed')
       } finally {
         this.diffLoading = false
       }
@@ -262,7 +276,7 @@ export default {
       const text = header + '\n' + (this.diffText || '')
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
-          alert('已复制到剪贴板，可粘贴到 AI 智能体进行跟进分析。')
+          alert(this.$t('dashboard.copied'))
         }).catch(() => {
           this.fallbackCopy(text)
         })
@@ -277,9 +291,9 @@ export default {
       ta.select()
       try {
         document.execCommand('copy')
-        alert('已复制到剪贴板，可粘贴到 AI 智能体进行跟进分析。')
+        alert(this.$t('dashboard.copied'))
       } catch (e) {
-        alert('复制失败，请手动选择下方 diff 内容复制。')
+        alert(this.$t('dashboard.copyFailed'))
       }
       document.body.removeChild(ta)
     }
@@ -410,6 +424,21 @@ export default {
 .placeholder {
   font-size: 13px;
   color: #6b7280;
+}
+
+.diff-box-wrapper {
+  margin-top: 8px;
+}
+
+.diff-box-wrapper .view-on-github-link {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #2563eb;
+}
+
+.diff-box-wrapper .view-on-github-link:hover {
+  text-decoration: underline;
 }
 
 .diff-box {

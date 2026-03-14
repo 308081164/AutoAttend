@@ -1,36 +1,36 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h2 class="login-title">项目协作登录</h2>
-      <p class="login-desc">使用 commit 作者邮箱 + 默认密码 123456 登录（可由管理员重置）</p>
+      <h2 class="login-title">{{ $t('collabLogin.title') }}</h2>
+      <p class="login-desc">{{ $t('collabLogin.desc') }}</p>
       <form @submit.prevent="onSubmit">
         <div class="form-item">
-          <label>邮箱</label>
+          <label>{{ $t('collabLogin.email') }}</label>
           <input
             v-model="form.email"
             type="email"
             autocomplete="email"
-            placeholder="author@example.com"
+            :placeholder="$t('collabLogin.placeholderEmail')"
             required
           >
         </div>
         <div class="form-item">
-          <label>密码</label>
+          <label>{{ $t('collabLogin.password') }}</label>
           <input
             v-model="form.password"
             type="password"
             autocomplete="current-password"
-            placeholder="默认 123456"
+            :placeholder="$t('collabLogin.placeholderPassword')"
             required
           >
         </div>
         <div v-if="error" class="error-text">{{ error }}</div>
         <button class="primary-button" type="submit" :disabled="loading">
-          {{ loading ? '登录中...' : '登录' }}
+          {{ loading ? $t('collabLogin.submitting') : $t('collabLogin.submit') }}
         </button>
       </form>
       <div class="back-link">
-        <router-link to="/">返回首页</router-link>
+        <router-link to="/">{{ $t('collabLogin.backHome') }}</router-link>
       </div>
     </div>
   </div>
@@ -60,12 +60,12 @@ export default {
           window.localStorage.setItem('autoattend_collab_token', token)
           this.$router.push({ name: 'collab-projects' })
         } else {
-          this.error = (resp.data && resp.data.message) || '登录失败'
+          this.error = (resp.data && resp.data.message) || this.$t('collabLogin.failed')
         }
       } catch (e) {
         this.error = e.response && e.response.data && e.response.data.message
           ? e.response.data.message
-          : '登录失败，请检查后端服务'
+          : this.$t('collabLogin.failedBackend')
       } finally {
         this.loading = false
       }

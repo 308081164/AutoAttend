@@ -25,6 +25,7 @@
 - **管理员 API**：`/api/admin/*`（登录、看板、仓库、提交、Diff 等），JWT 鉴权。
 - **协作 API**：`/api/collab/*`（登录、项目、表、记录、讨论、附件），JWT 鉴权。
 - **Webhook**：`POST /api/webhooks/github`，签名校验与幂等去重。
+- **国际化**：前端支持中文、English、Русский、日本語、Français，页头下拉切换，语言偏好存入 localStorage。
 
 ---
 
@@ -32,7 +33,7 @@
 
 | 层级     | 技术 |
 |----------|------|
-| 前端     | Vue 2、Vue Router、Axios |
+| 前端     | Vue 2、Vue Router、Vue I18n、Axios |
 | 后端     | Spring Boot（Java 17） |
 | 数据库   | MySQL 8.4 |
 | 对象存储 | MinIO（附件） |

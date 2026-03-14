@@ -310,4 +310,55 @@
 
 ---
 
-**文档结束。可按本设计实现「每 commit 单条请求 → AI 三项推断 → 结果落库与管理员查看」；若需增强，可在此基础上增加「与多维表格联动」的输入/输出与回写策略（第 10 节），由 AI 推断对应功能开发状态并驱动多维表更新。**
+## 11. Webhook 信息极限与国内无 Diff 场景下的降级方案
+
+### 11.1 服务器仅凭 Webhook 能拿到的信息极限
+
+Push 事件是 **GitHub 主动推送到你服务器** 的，不要求服务器能访问外网。Payload 中与单次提交相关的信息**上限**如下（均来自请求体，无需再调 GitHub API）：
+
+| 来源 | 字段 | 说明 |
+|------|------|------|
+| **push.commits[]** | `id` | 完整 commit SHA |
+| | `message` | 提交说明全文 |
+| | `timestamp` | 提交时间（ISO 8601） |
+| | `url` | 该 commit 在 GitHub 上的链接（如 `https://github.com/owner/repo/commit/xxx`） |
+| | `author.name`, `author.email`, `author.username` | 作者信息 |
+| | `committer` | 同结构，提交者信息 |
+| | **`added[]`** | **本次 commit 新增文件的路径列表**（仅路径，无内容） |
+| | **`modified[]`** | **本次 commit 修改文件的路径列表**（仅路径，无内容） |
+| | **`removed[]`** | **本次 commit 删除文件的路径列表**（仅路径） |
+| **push** | `repository.full_name`, `ref`, `before`, `after`, `compare` | 仓库、分支、前后 SHA、对比页 URL |
+
+**服务器拿不到的（需访问 GitHub API 或 git 仓库）：**
+
+- **Diff 文本**（行级增删内容）：需请求 `GET /repos/{owner}/{repo}/commits/{ref}` 且 `Accept: application/vnd.github.v3.diff`，境内服务器往往无法直连 api.github.com。
+- **文件内容**：需再调 Contents API 或本地 clone 后读文件。
+- **行级统计**（insertions/deletions）：部分在 payload 的 `head_commit` 或需 API。
+
+因此：**在国内仅能收到 Webhook 且无法访问 GitHub API 的前提下，服务器能稳定拿到的是「commit 元信息 + 本 commit 的 added/modified/removed 文件路径列表」，拿不到 diff 与文件内容。**
+
+### 11.2 国内场景下如何尽量实现「AI 分析」相关功能
+
+在**无 diff、仅 commit 元信息 + 文件路径列表**的前提下，仍可做的能力与取舍如下。
+
+| 能力 | 有 Diff 时 | 无 Diff（仅 Webhook）时 |
+|------|------------|---------------------------|
+| **工作内容推断** | 根据 message + diff 精确推断 | 根据 **message + added/modified/removed 路径** 推断（如：路径含 `frontend/src/views/Login.vue` → 登录相关；`*.lock` → 依赖更新）。准确度略降但可用。 |
+| **有效性推断** | 根据 diff 内容判断仅空白/注释/lockfile | 根据 **路径与 message** 判断：路径仅含 `package-lock.json`、`yarn.lock`、`*.md`、`docs/` 等可标为弱有效/无效；结合 message 关键词（如 "chore", "bump"）提高准确度。 |
+| **代码质量推断** | 可根据代码内容评分与建议 | **不可做**（无代码内容），对应字段留空或标记「仅元信息模式无此项」。 |
+| **多维表联动（关联需求 + 状态建议）** | 根据 diff 与需求描述精确匹配 | 根据 **message + 路径 + 多维表候选记录摘要** 做关联与状态建议（如 message 含「登录」、路径含 `auth` → 关联到「登录需求」记录）。精确度略降，仍可落库并走「建议 + 人工确认」回写。 |
+
+**实现要点：**
+
+1. **Webhook 解析**：在接收 Push 时解析每个 commit 的 `added`、`modified`、`removed`（若当前 DTO 未包含则补充），与现有 `message/author/timestamp` 一并落库（如扩展 `aa_commit` 或单独表存「每 commit 的文件路径列表」），**不依赖** `aa_commit_diff` 是否有数据。
+2. **AI 任务创建**：  
+   - **有 diff**：沿用现有设计，创建「完整分析」任务（三项推断 + 可选多维表联动）。  
+   - **无 diff**：创建「仅元信息 + 路径」任务，输入中**不包含** `diff_text`，仅包含 message、author、timestamp、added/modified/removed 路径列表；调用国内可达的大模型 API（如 DeepSeek、通义、文心等），输出中**工作内容**与**有效性**必填，**代码质量**为空或固定占位（如 `quality_level: "no_diff"`）。
+3. **多维表联动**：输入中仍可带「当前项目多维表候选记录摘要」；AI 根据 message + 路径推断 `related_records` 与状态建议，回写策略与 10 节一致（建议采用「待确认后写回」）。
+4. **结果落库**：统一写入 `aa_ai_analysis_result`，用字段（如 `input_mode` = `full_diff` / `metadata_only`）或「代码质量为空」区分来源，便于统计与展示时标注「仅基于提交说明与路径，未含代码内容」。
+
+这样，**在国内仅能拿到 commit 信息与多维表数据的场景下**，仍可尽量实现：  
+- 基于 message + 路径的**工作内容**与**有效性** AI 分析；  
+- **多维表联动**（关联需求 + 状态建议 + 经确认回写）；  
+- 与「阅读多维表格」一致的数据源与权限模型。  
+仅「代码质量」一项在无 diff 时不做，其余能力可最大程度保留。

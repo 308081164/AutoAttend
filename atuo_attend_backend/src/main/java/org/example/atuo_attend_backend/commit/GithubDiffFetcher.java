@@ -2,6 +2,7 @@ package org.example.atuo_attend_backend.commit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 /**
  * 从 GitHub API 拉取指定 commit 的 diff 文本，用于入库或按需补全。
  * 配置 GITHUB_TOKEN（可选）可提高限流并支持私有仓库。
+ * 大陆服务器若无法直连 api.github.com，可配置 GITHUB_API_PROXY（如 http://127.0.0.1:7890）经代理访问。
  */
 @Component
 public class GithubDiffFetcher {
@@ -24,7 +26,7 @@ public class GithubDiffFetcher {
     private final RestTemplate restTemplate;
     private final String githubToken;
 
-    public GithubDiffFetcher(RestTemplate restTemplate,
+    public GithubDiffFetcher(@Qualifier("githubApiRestTemplate") RestTemplate restTemplate,
                             @Value("${github.token:}") String githubToken) {
         this.restTemplate = restTemplate;
         this.githubToken = (githubToken != null && !githubToken.isBlank()) ? githubToken.trim() : null;

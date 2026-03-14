@@ -116,6 +116,10 @@ public class GithubPushPayload {
         private String timestamp;
         private String url;
         private Author author;
+        /** 本 commit 新增/修改/删除的文件路径列表（仅路径，无内容；国内无 diff 时可据此做 AI 降级分析） */
+        private java.util.List<String> added;
+        private java.util.List<String> modified;
+        private java.util.List<String> removed;
 
         public String getId() {
             return id;
@@ -155,6 +159,30 @@ public class GithubPushPayload {
 
         public void setAuthor(Author author) {
             this.author = author;
+        }
+
+        public java.util.List<String> getAdded() {
+            return added;
+        }
+
+        public void setAdded(java.util.List<String> added) {
+            this.added = added;
+        }
+
+        public java.util.List<String> getModified() {
+            return modified;
+        }
+
+        public void setModified(java.util.List<String> modified) {
+            this.modified = modified;
+        }
+
+        public java.util.List<String> getRemoved() {
+            return removed;
+        }
+
+        public void setRemoved(java.util.List<String> removed) {
+            this.removed = removed;
         }
 
         public static class Author {

@@ -1,10 +1,10 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h2 class="login-title">管理员登录</h2>
+      <h2 class="login-title">{{ $t('login.title') }}</h2>
       <form @submit.prevent="onSubmit">
         <div class="form-item">
-          <label>用户名</label>
+          <label>{{ $t('login.username') }}</label>
           <input
             v-model="form.username"
             type="text"
@@ -13,7 +13,7 @@
           >
         </div>
         <div class="form-item">
-          <label>密码</label>
+          <label>{{ $t('login.password') }}</label>
           <input
             v-model="form.password"
             type="password"
@@ -23,7 +23,7 @@
         </div>
         <div v-if="error" class="error-text">{{ error }}</div>
         <button class="primary-button" type="submit" :disabled="loading">
-          {{ loading ? '登录中...' : '登录' }}
+          {{ loading ? $t('login.submitting') : $t('login.submit') }}
         </button>
       </form>
     </div>
@@ -55,10 +55,10 @@ export default {
           window.localStorage.setItem('autoattend_username', this.form.username)
           this.$router.push({ name: 'dashboard' })
         } else {
-          this.error = (resp.data && resp.data.message) || '登录失败'
+          this.error = (resp.data && resp.data.message) || this.$t('login.failed')
         }
       } catch (e) {
-        this.error = '登录失败，请检查后端服务是否已启动'
+        this.error = this.$t('login.failedBackend')
       } finally {
         this.loading = false
       }

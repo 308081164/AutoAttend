@@ -1,10 +1,13 @@
 <template>
   <div id="app">
     <header class="app-header">
-      <div class="app-title">AutoAttend 管理后台（MVP）</div>
+      <div class="app-title">{{ $t('app.title') }}</div>
       <div class="app-header-right">
-        <span v-if="username" class="app-username">管理员：{{ username }}</span>
-        <button v-if="username" class="link-button" @click="logout">退出</button>
+        <select v-model="currentLocale" class="lang-select" @change="onLocaleChange">
+          <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <span v-if="username" class="app-username">{{ $t('app.adminLabel') }}：{{ username }}</span>
+        <button v-if="username" class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </header>
     <main class="app-main">
@@ -14,14 +17,25 @@
 </template>
 
 <script>
+import { localeOptions, setLocale } from './locales'
+
 export default {
   name: 'App',
+  data () {
+    return {
+      localeOptions,
+      currentLocale: this.$i18n.locale
+    }
+  },
   computed: {
     username () {
       return window.localStorage.getItem('autoattend_username') || ''
     }
   },
   methods: {
+    onLocaleChange () {
+      setLocale(this.currentLocale)
+    },
     logout () {
       window.localStorage.removeItem('autoattend_token')
       window.localStorage.removeItem('autoattend_username')
@@ -67,6 +81,16 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.lang-select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .app-username {

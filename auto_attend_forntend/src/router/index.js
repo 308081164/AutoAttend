@@ -2,6 +2,7 @@ import Vue from 'vue'
 import VueRouter from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import TestView from '../views/TestView.vue'
 import CollabLoginView from '../views/CollabLoginView.vue'
 import CollabProjectListView from '../views/CollabProjectListView.vue'
 import CollabTableView from '../views/CollabTableView.vue'
@@ -18,6 +19,11 @@ const routes = [
     path: '/',
     name: 'dashboard',
     component: DashboardView
+  },
+  {
+    path: '/test',
+    name: 'test',
+    component: TestView
   },
   {
     path: '/collab-login',
