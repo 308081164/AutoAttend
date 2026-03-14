@@ -366,7 +366,7 @@ export default {
     },
     revokeAttachmentPreviewUrls () {
       Object.values(this.attachmentPreviewUrls).forEach(u => {
-        try { URL.revokeObjectURL(u) } catch (e) {}
+        try { URL.revokeObjectURL(u) } catch (_e) { /* revoke may throw in edge cases */ }
       })
       this.attachmentPreviewUrls = {}
     },
@@ -493,7 +493,7 @@ export default {
       const file = e.target.files && e.target.files[0]
       if (!file) return
       if (this.newRecordImagePreviewUrl) {
-        try { URL.revokeObjectURL(this.newRecordImagePreviewUrl) } catch (err) {}
+        try { URL.revokeObjectURL(this.newRecordImagePreviewUrl) } catch (_err) { /* ignore */ }
       }
       this.newRecordImageFile = file
       this.newRecordImageFileName = file.name
@@ -656,7 +656,7 @@ export default {
     },
     async openAddRecord () {
       if (this.newRecordImagePreviewUrl) {
-        try { URL.revokeObjectURL(this.newRecordImagePreviewUrl) } catch (err) {}
+        try { URL.revokeObjectURL(this.newRecordImagePreviewUrl) } catch (_err) { /* ignore */ }
       }
       this.newRecordFields = {}
       this.newRecordImageFile = null

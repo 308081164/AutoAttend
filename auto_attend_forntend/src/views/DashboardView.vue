@@ -279,7 +279,8 @@ export default {
     })
   },
   beforeDestroy () {
-    ;['trend', 'repo', 'author'].forEach(k => {
+    const chartKeys = ['trend', 'repo', 'author']
+    chartKeys.forEach(k => {
       if (this.chartInstances[k]) {
         this.chartInstances[k].destroy()
         this.chartInstances[k] = null
