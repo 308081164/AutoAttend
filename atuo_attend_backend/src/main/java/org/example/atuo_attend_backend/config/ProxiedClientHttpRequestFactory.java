@@ -19,7 +19,7 @@ public class ProxiedClientHttpRequestFactory extends SimpleClientHttpRequestFact
     }
 
     @Override
-    protected java.net.HttpURLConnection openConnection(URL url) throws IOException {
-        return (java.net.HttpURLConnection) url.openConnection(proxy);
+    protected java.net.HttpURLConnection openConnection(URL url, Proxy proxy) throws IOException {
+        return (java.net.HttpURLConnection) url.openConnection(this.proxy);
     }
 }

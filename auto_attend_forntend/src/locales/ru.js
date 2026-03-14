@@ -103,7 +103,12 @@ export default {
     send: 'Отправить',
     uploadAttachment: 'Загрузить',
     newRecordTitle: 'Новая запись',
-    createThenEdit: 'После создания нажмите на строку для редактирования.',
-    create: 'Создать'
+    create: 'Создать',
+    save: 'Сохранить',
+    delete: 'Удалить',
+    deleteRecord: 'Удалить запись',
+    confirmDelete: 'Удалить эту запись?',
+    fieldPlaceholder: 'Введите значение',
+    pleaseSelect: 'Выберите'
   }
 }

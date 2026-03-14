@@ -23,8 +23,9 @@
             <td v-for="col in columns" :key="col.id" class="cell">
               {{ formatCell(row['c' + col.id], col) }}
             </td>
-            <td>
+            <td class="ops-cell">
               <button class="link-button" @click.stop="openRecord(row)">{{ $t('collabTable.detail') }}</button>
+              <button class="link-button danger" @click.stop="confirmDeleteRow(row)" :title="$t('collabTable.deleteRecord')">{{ $t('collabTable.delete') }}</button>
             </td>
           </tr>
         </tbody>
@@ -49,7 +50,44 @@
           <div v-if="drawerTab === 'fields'" class="field-list">
             <div v-for="col in columns" :key="col.id" class="field-row">
               <span class="field-label">{{ col.name }}</span>
-              <span class="field-value">{{ formatCell(drawerRecord['c' + col.id], col) || '—' }}</span>
+              <div class="field-input-wrap">
+                <input v-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
+                  :value="drawerEditValues['c' + col.id]"
+                  @input="setDrawerField(col.id, $event.target.value)"
+                  class="field-input"
+                >
+                <select v-else-if="isSingleSelect(col)" :value="drawerEditValues['c' + col.id]"
+                  @change="setDrawerField(col.id, $event.target.value)"
+                  class="field-input"
+                >
+                  <option value="">{{ $t('collabTable.pleaseSelect') }}</option>
+                  <option v-for="opt in getSelectOptions(col)" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
+                <input v-else-if="col.columnType === 'number'" type="number" step="any"
+                  :value="drawerEditValues['c' + col.id]"
+                  @input="setDrawerField(col.id, $event.target.value === '' ? null : Number($event.target.value))"
+                  class="field-input"
+                >
+                <input v-else-if="col.columnType === 'date'" type="date"
+                  :value="formatDateForInput(drawerEditValues['c' + col.id])"
+                  @input="setDrawerField(col.id, $event.target.value || null)"
+                  class="field-input"
+                >
+                <input v-else-if="col.columnType === 'datetime'" type="datetime-local"
+                  :value="formatDateTimeForInput(drawerEditValues['c' + col.id])"
+                  @input="setDrawerField(col.id, $event.target.value || null)"
+                  class="field-input"
+                >
+                <input v-else type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
+                  :value="drawerEditValues['c' + col.id]"
+                  @input="setDrawerField(col.id, $event.target.value)"
+                  class="field-input"
+                >
+              </div>
+            </div>
+            <div class="drawer-actions">
+              <button class="primary-button" @click="saveRecord" :disabled="drawerSaving">{{ $t('collabTable.save') }}</button>
+              <button class="danger-button" @click="confirmDeleteRecord">{{ $t('collabTable.deleteRecord') }}</button>
             </div>
           </div>
           <div v-if="drawerTab === 'comments'" class="comment-panel">
@@ -81,7 +119,7 @@
       </div>
     </div>
 
-    <!-- 新建记录弹窗（简化：只提交空记录） -->
+    <!-- 新建记录弹窗：可编辑各字段 -->
     <div v-if="showAddModal" class="drawer-mask" @click="showAddModal = false">
       <div class="drawer add-modal" @click.stop>
         <div class="drawer-header">
@@ -89,8 +127,46 @@
           <button class="close-btn" @click="showAddModal = false">×</button>
         </div>
         <div class="drawer-body">
-          <p class="tip">{{ $t('collabTable.createThenEdit') }}</p>
-          <button class="primary-button" @click="createRecord">{{ $t('collabTable.create') }}</button>
+          <div class="field-list">
+            <div v-for="col in columns" :key="'new-' + col.id" class="field-row">
+              <span class="field-label">{{ col.name }}</span>
+              <div class="field-input-wrap">
+                <input v-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
+                  :value="newRecordFields['c' + col.id]"
+                  @input="setNewRecordField(col.id, $event.target.value)"
+                  class="field-input"
+                >
+                <select v-else-if="isSingleSelect(col)" :value="newRecordFields['c' + col.id]"
+                  @change="setNewRecordField(col.id, $event.target.value)"
+                  class="field-input"
+                >
+                  <option value="">{{ $t('collabTable.pleaseSelect') }}</option>
+                  <option v-for="opt in getSelectOptions(col)" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
+                <input v-else-if="col.columnType === 'number'" type="number" step="any"
+                  :value="newRecordFields['c' + col.id]"
+                  @input="setNewRecordField(col.id, $event.target.value === '' ? null : Number($event.target.value))"
+                  class="field-input"
+                >
+                <input v-else-if="col.columnType === 'date'" type="date"
+                  :value="formatDateForInput(newRecordFields['c' + col.id])"
+                  @input="setNewRecordField(col.id, $event.target.value || null)"
+                  class="field-input"
+                >
+                <input v-else-if="col.columnType === 'datetime'" type="datetime-local"
+                  :value="formatDateTimeForInput(newRecordFields['c' + col.id])"
+                  @input="setNewRecordField(col.id, $event.target.value || null)"
+                  class="field-input"
+                >
+                <input v-else type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
+                  :value="newRecordFields['c' + col.id]"
+                  @input="setNewRecordField(col.id, $event.target.value)"
+                  class="field-input"
+                >
+              </div>
+            </div>
+          </div>
+          <button class="primary-button" @click="createRecord" :disabled="createSaving">{{ $t('collabTable.create') }}</button>
         </div>
       </div>
     </div>
@@ -109,11 +185,15 @@ export default {
       recordsLoading: false,
       tableLoading: true,
       drawerRecord: null,
+      drawerEditValues: {},
       drawerTab: 'fields',
+      drawerSaving: false,
       comments: [],
       attachments: [],
       newComment: '',
-      showAddModal: false
+      showAddModal: false,
+      newRecordFields: {},
+      createSaving: false
     }
   },
   created () {
@@ -161,10 +241,84 @@ export default {
     },
     openRecord (row) {
       this.drawerRecord = row
+      this.drawerEditValues = {}
+      this.columns.forEach(col => {
+        let v = row['c' + col.id]
+        if (v != null && (col.columnType === 'datetime' || col.columnType === 'date')) {
+          v = String(v).slice(0, 19).replace('T', ' ')
+        }
+        this.$set(this.drawerEditValues, 'c' + col.id, v != null && v !== '' ? v : null)
+      })
       this.drawerTab = 'fields'
       this.comments = []
       this.attachments = []
       this.newComment = ''
+    },
+    isTextLike (col) {
+      const t = (col.columnType || 'text').toLowerCase()
+      return t === 'text' || (t === 'single_select' && !(col.optionGroup && col.optionGroup.options && col.optionGroup.options.length))
+    },
+    isSingleSelect (col) {
+      return (col.columnType || '').toLowerCase() === 'single_select' && col.optionGroup && col.optionGroup.options && col.optionGroup.options.length
+    },
+    getSelectOptions (col) {
+      if (!col.optionGroup || !col.optionGroup.options) return []
+      return col.optionGroup.options
+    },
+    setDrawerField (colId, value) {
+      this.$set(this.drawerEditValues, 'c' + colId, value === '' ? null : value)
+    },
+    setNewRecordField (colId, value) {
+      this.$set(this.newRecordFields, 'c' + colId, value === '' ? null : value)
+    },
+    formatDateForInput (val) {
+      if (val == null || val === '') return ''
+      const s = String(val).slice(0, 10)
+      return s
+    },
+    formatDateTimeForInput (val) {
+      if (val == null || val === '') return ''
+      const s = String(val).slice(0, 19).replace(' ', 'T')
+      return s
+    },
+    normalizeFieldValue (col, v) {
+      if (v === undefined || v === null || v === '') return null
+      if (col.columnType === 'date' && typeof v === 'string') return v.length === 10 ? v + 'T00:00:00' : v
+      if (col.columnType === 'datetime' && typeof v === 'string' && v.length === 16) return v + ':00'
+      return v
+    },
+    async saveRecord () {
+      if (!this.drawerRecord || this.drawerSaving) return
+      this.drawerSaving = true
+      try {
+        const fields = {}
+        this.columns.forEach(col => {
+          const v = this.normalizeFieldValue(col, this.drawerEditValues['c' + col.id])
+          if (v !== null) fields['c' + col.id] = v
+        })
+        await this.$http.put(`/collab/records/${this.drawerRecord.id}`, { fields })
+        Object.assign(this.drawerRecord, this.drawerEditValues)
+        this.loadRecords()
+      } catch (e) { /* ignore */ } finally {
+        this.drawerSaving = false
+      }
+    },
+    confirmDeleteRecord () {
+      if (!this.drawerRecord) return
+      if (!window.confirm(this.$t('collabTable.confirmDelete'))) return
+      this.doDeleteRecord(this.drawerRecord.id)
+      this.drawerRecord = null
+    },
+    confirmDeleteRow (row) {
+      if (!window.confirm(this.$t('collabTable.confirmDelete'))) return
+      this.doDeleteRecord(row.id)
+    },
+    async doDeleteRecord (recordId) {
+      try {
+        await this.$http.delete(`/collab/records/${recordId}`)
+        if (this.drawerRecord && this.drawerRecord.id === recordId) this.drawerRecord = null
+        this.loadRecords()
+      } catch (e) { /* ignore */ }
     },
     async loadComments () {
       if (!this.drawerRecord) return
@@ -230,14 +384,25 @@ export default {
       return String(t).slice(0, 19).replace('T', ' ')
     },
     openAddRecord () {
+      this.newRecordFields = {}
       this.showAddModal = true
     },
     async createRecord () {
+      if (this.createSaving) return
+      this.createSaving = true
       try {
-        await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields: {} })
+        const fields = {}
+        this.columns.forEach(col => {
+          const v = this.normalizeFieldValue(col, this.newRecordFields['c' + col.id])
+          if (v !== null) fields['c' + col.id] = v
+        })
+        await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields })
         this.showAddModal = false
+        this.newRecordFields = {}
         this.loadRecords()
-      } catch (e) { /* ignore */ }
+      } catch (e) { /* ignore */ } finally {
+        this.createSaving = false
+      }
     }
   }
 }
@@ -414,6 +579,59 @@ export default {
 
 .field-value {
   font-size: 14px;
+}
+
+.field-input-wrap {
+  margin-top: 4px;
+}
+
+.field-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.drawer-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.danger-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: #dc2626;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.danger-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ops-cell {
+  white-space: nowrap;
+}
+
+.ops-cell .link-button {
+  margin-right: 8px;
+}
+
+.ops-cell .link-button.danger {
+  color: #dc2626;
 }
 
 .comment-item {

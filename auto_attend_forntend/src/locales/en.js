@@ -103,7 +103,12 @@ export default {
     send: 'Send',
     uploadAttachment: 'Upload',
     newRecordTitle: 'New Record',
-    createThenEdit: 'After creating, click a row to edit fields.',
-    create: 'Create'
+    create: 'Create',
+    save: 'Save',
+    delete: 'Delete',
+    deleteRecord: 'Delete Record',
+    confirmDelete: 'Are you sure you want to delete this record?',
+    fieldPlaceholder: 'Enter value',
+    pleaseSelect: 'Please select'
   }
 }

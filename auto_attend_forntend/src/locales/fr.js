@@ -103,7 +103,12 @@ export default {
     send: 'Envoyer',
     uploadAttachment: 'Téléverser',
     newRecordTitle: 'Nouvelle entrée',
-    createThenEdit: 'Après création, cliquez sur une ligne pour modifier.',
-    create: 'Créer'
+    create: 'Créer',
+    save: 'Enregistrer',
+    delete: 'Supprimer',
+    deleteRecord: 'Supprimer l\'entrée',
+    confirmDelete: 'Supprimer cette entrée ?',
+    fieldPlaceholder: 'Saisir',
+    pleaseSelect: 'Choisir'
   }
 }

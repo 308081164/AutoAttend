@@ -103,7 +103,12 @@ export default {
     send: '送信',
     uploadAttachment: 'アップロード',
     newRecordTitle: '新規レコード',
-    createThenEdit: '作成後、行をクリックしてフィールドを編集できます。',
-    create: '作成'
+    create: '作成',
+    save: '保存',
+    delete: '削除',
+    deleteRecord: 'レコードを削除',
+    confirmDelete: 'このレコードを削除してもよろしいですか？',
+    fieldPlaceholder: '入力',
+    pleaseSelect: '選択してください'
   }
 }

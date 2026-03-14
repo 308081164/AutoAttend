@@ -103,7 +103,12 @@ export default {
     send: '发送',
     uploadAttachment: '上传附件',
     newRecordTitle: '新建记录',
-    createThenEdit: '创建后可点击行编辑字段。',
-    create: '创建'
+    create: '创建',
+    save: '保存',
+    delete: '删除',
+    deleteRecord: '删除记录',
+    confirmDelete: '确定要删除该记录吗？',
+    fieldPlaceholder: '请输入',
+    pleaseSelect: '请选择'
   }
 }
