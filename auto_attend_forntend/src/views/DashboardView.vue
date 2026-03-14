@@ -3,14 +3,17 @@
     <section class="section">
       <div class="section-header">
         <h2 class="section-title">状态总览（Status Overview）</h2>
-        <div class="repo-filter">
-          <label>项目（Project）：</label>
-          <select v-model="selectedRepo" @change="onRepoChange">
+        <div class="header-actions">
+          <router-link to="/collab/projects" class="link-button collab-entry">项目协作</router-link>
+          <div class="repo-filter">
+            <label>项目（Project）：</label>
+            <select v-model="selectedRepo" @change="onRepoChange">
             <option value="">全部项目（All Projects）</option>
             <option v-for="repo in repos" :key="repo" :value="repo">
               {{ repo }}
             </option>
           </select>
+          </div>
         </div>
       </div>
       <div class="summary-grid" v-if="dashboard">
@@ -308,6 +311,18 @@ export default {
 .section-title {
   margin: 0 0 12px;
   font-size: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.collab-entry {
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 14px;
 }
 
 .repo-filter {
