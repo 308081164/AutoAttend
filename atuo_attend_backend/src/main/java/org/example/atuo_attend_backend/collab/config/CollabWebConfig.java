@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 public class CollabWebConfig {
 
     @Bean
-    public FilterRegistrationBean<CollabAuthFilter> collabAuthFilter(CollabAuthFilter filter) {
+    public FilterRegistrationBean<CollabAuthFilter> collabAuthFilterRegistration(CollabAuthFilter filter) {
         FilterRegistrationBean<CollabAuthFilter> reg = new FilterRegistrationBean<>(filter);
         reg.addUrlPatterns("/api/collab/*");
         reg.setOrder(1);
