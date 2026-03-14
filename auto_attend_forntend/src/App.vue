@@ -7,6 +7,7 @@
           <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
         <span v-if="username" class="app-username">{{ $t('app.adminLabel') }}：{{ username }}</span>
+        <router-link v-if="username" to="/ai-config" class="link-button">{{ $t('aiConfig.navTitle') }}</router-link>
         <button v-if="username" class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </header>

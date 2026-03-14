@@ -114,6 +114,78 @@ public interface CommitMapper {
     @Select("SELECT DISTINCT repo_full_name FROM aa_commit ORDER BY repo_full_name")
     List<String> listDistinctRepos();
 
+    /** 按日统计提交数与代码量，since 起至今（含当日） */
+    @Select("""
+            SELECT DATE(committed_at) AS day, COUNT(*) AS count,
+                   COALESCE(SUM(insertions), 0) AS insertions, COALESCE(SUM(deletions), 0) AS deletions
+            FROM aa_commit
+            WHERE committed_at >= #{since}
+            GROUP BY DATE(committed_at)
+            ORDER BY day
+            """)
+    List<CommitByDay> listCommitsByDay(@Param("since") java.time.OffsetDateTime since);
+
+    @Select("""
+            SELECT DATE(committed_at) AS day, COUNT(*) AS count,
+                   COALESCE(SUM(insertions), 0) AS insertions, COALESCE(SUM(deletions), 0) AS deletions
+            FROM aa_commit
+            WHERE committed_at >= #{since} AND repo_full_name = #{repoFullName}
+            GROUP BY DATE(committed_at)
+            ORDER BY day
+            """)
+    List<CommitByDay> listCommitsByDayByRepo(@Param("since") java.time.OffsetDateTime since, @Param("repoFullName") String repoFullName);
+
+    /** 各仓库提交数，用于饼图 */
+    @Select("""
+            SELECT repo_full_name AS repoFullName, COUNT(*) AS count
+            FROM aa_commit
+            GROUP BY repo_full_name
+            ORDER BY count DESC
+            """)
+    List<RepoCount> listCommitsByRepo();
+
+    /** 去重作者数（按 author_name + author_email） */
+    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM aa_commit GROUP BY author_name, author_email) t")
+    long countDistinctAuthors();
+
+    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM aa_commit WHERE repo_full_name = #{repoFullName} GROUP BY author_name, author_email) t")
+    long countDistinctAuthorsByRepo(@Param("repoFullName") String repoFullName);
+
+    /** 全库作者聚合（用于「全部」时的开发者排名） */
+    @Select("""
+            SELECT author_name AS authorName, author_email AS authorEmail,
+                   COUNT(*) AS commitCount, MAX(committed_at) AS lastCommittedAt
+            FROM aa_commit
+            GROUP BY author_name, author_email
+            ORDER BY commitCount DESC
+            LIMIT 50
+            """)
+    List<AuthorAggregate> aggregateByAuthorAll();
+
+    class CommitByDay {
+        private java.util.Date day;
+        private long count;
+        private long insertions;
+        private long deletions;
+        public java.util.Date getDay() { return day; }
+        public void setDay(java.util.Date day) { this.day = day; }
+        public long getCount() { return count; }
+        public void setCount(long count) { this.count = count; }
+        public long getInsertions() { return insertions; }
+        public void setInsertions(long insertions) { this.insertions = insertions; }
+        public long getDeletions() { return deletions; }
+        public void setDeletions(long deletions) { this.deletions = deletions; }
+    }
+
+    class RepoCount {
+        private String repoFullName;
+        private long count;
+        public String getRepoFullName() { return repoFullName; }
+        public void setRepoFullName(String repoFullName) { this.repoFullName = repoFullName; }
+        public long getCount() { return count; }
+        public void setCount(long count) { this.count = count; }
+    }
+
     @Select("""
             SELECT
               author_name AS authorName,

@@ -58,6 +58,7 @@ public class CollabAttachmentController {
             m.put("fileName", a.getFileName());
             m.put("fileSize", a.getFileSize());
             m.put("createdAt", a.getCreatedAt());
+            m.put("isImage", isImageFileName(a.getFileName()));
             return m;
         }).collect(Collectors.toList());
         Map<String, Object> data = new HashMap<>();
@@ -120,6 +121,37 @@ public class CollabAttachmentController {
         }
     }
 
+    /** 预览附件（图片内联展示，带正确 Content-Type） */
+    @GetMapping("/attachments/{id}/preview")
+    public ResponseEntity<InputStream> preview(@PathVariable long id, HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("collabUserId");
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        BizAttachment att = attachmentMapper.findById(id);
+        if (att == null) return ResponseEntity.notFound().build();
+        long projectId = recordService.getProjectIdByRecordId(att.getRecordId());
+        if (projectId < 0 || !projectService.canAccessProject(userId, projectId)) {
+            return ResponseEntity.status(403).build();
+        }
+        try {
+            InputStream stream = minioService.download(att.getStorageKey());
+            String filename = att.getFileName() != null ? att.getFileName().toLowerCase() : "";
+            MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+            if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) mediaType = MediaType.IMAGE_JPEG;
+            else if (filename.endsWith(".png")) mediaType = MediaType.IMAGE_PNG;
+            else if (filename.endsWith(".gif")) mediaType = MediaType.IMAGE_GIF;
+            else if (filename.endsWith(".webp")) mediaType = MediaType.parseMediaType("image/webp");
+            else if (filename.endsWith(".svg")) mediaType = MediaType.parseMediaType("image/svg+xml");
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + att.getFileName() + "\"")
+                    .contentType(mediaType)
+                    .body(stream);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @DeleteMapping("/attachments/{id}")
     public ApiResponse<?> deleteAttachment(@PathVariable long id, HttpServletRequest req) {
         long userId = requireUserId(req);
@@ -134,5 +166,12 @@ public class CollabAttachmentController {
         } catch (Exception ignored) {}
         attachmentMapper.deleteById(id);
         return ApiResponse.ok(null);
+    }
+
+    private static boolean isImageFileName(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        return n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png")
+                || n.endsWith(".gif") || n.endsWith(".webp") || n.endsWith(".svg");
     }
 }

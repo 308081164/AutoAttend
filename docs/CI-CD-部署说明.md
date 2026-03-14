@@ -86,8 +86,8 @@ GitHub Actions 触发
 2. **首次启动 MySQL 并建表**（只需一次）：
    ```bash
    docker compose -f docker-compose.prod.yml up -d mysql
-   # 等待几秒后，若需执行建表脚本可进入 mysql 容器执行，或已通过 volume 挂载 init 脚本则自动完成
    ```
+   等待几秒即可。MySQL 首次初始化时会自动执行 `01_schema.sql`、`02_schema_collab.sql`、`03_schema_ai.sql`（由 docker-compose 挂载到 `docker-entrypoint-initdb.d/`），无需手动执行任何建表脚本。
 
 3. **配置镜像地址并启动全部服务**：  
    GitHub Actions 会在部署时设置 `IMAGE_BACKEND`、`IMAGE_FRONTEND`。  
@@ -108,6 +108,10 @@ GitHub Actions 触发
      ```
    - **大陆服务器（阿里云等）**：境内服务器通常无法直连 api.github.com。若**没有可访问外网的代理**，后端无法拉取 diff，管理后台「查看 Diff」会显示占位提示；此时可点击 **「在 GitHub 上查看」** 链接，在浏览器中打开该提交（需您本机或浏览器能访问 GitHub，如本机 VPN）。若日后有可用代理，可设置 **GITHUB_API_PROXY**（如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`），仅拉取 diff 的请求会经代理发出，然后重启 backend 即可。
 
+5. **（可选）启用「单次提交 AI 分析」**  
+   AI 分析相关表（`aa_ai_analysis_config` 等）会随部署自动创建：**全新 MySQL** 由容器首次启动时执行 `03_schema_ai.sql`；**已有数据目录** 的实例会在后端首次启动时自动执行建表，无需手动跑 SQL。  
+   启用方式：在管理后台 **「AI 配置」** 页填写 DeepSeek API Key（需自行到 [DeepSeek 平台](https://platform.deepseek.com) 获取）并开启分析。
+
 之后每次 **push 到 main**，由 GitHub Actions 自动构建镜像并 SSH 到服务器执行 `pull + up -d`，无需再在服务器上执行 `compose build`。
 
 ---
@@ -117,7 +121,7 @@ GitHub Actions 触发
 | 文件 | 作用 |
 |------|------|
 | `.github/workflows/deploy.yml` | push 时在 GitHub 上构建 backend/frontend 镜像、推送到 ghcr.io、SSH 到服务器执行拉取与重启。 |
-| `docker-compose.prod.yml` | 生产环境用：backend/frontend 使用镜像（不 build），MySQL 仍用本地挂载的建表脚本。 |
+| `docker-compose.prod.yml` | 生产环境用：backend/frontend 使用镜像（不 build），MySQL 使用本地挂载的建表脚本（01/02/03 含 MVP、协作、AI 分析表）。 |
 | `docker-compose.yml` | 本地/自建用：含 `build`，适合在未使用 CI/CD 时本地或服务器直接 build。 |
 
 ---

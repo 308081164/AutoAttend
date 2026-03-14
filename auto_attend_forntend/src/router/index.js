@@ -3,6 +3,7 @@ import VueRouter from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import TestView from '../views/TestView.vue'
+import AiConfigView from '../views/AiConfigView.vue'
 import CollabLoginView from '../views/CollabLoginView.vue'
 import CollabProjectListView from '../views/CollabProjectListView.vue'
 import CollabTableView from '../views/CollabTableView.vue'
@@ -24,6 +25,11 @@ const routes = [
     path: '/test',
     name: 'test',
     component: TestView
+  },
+  {
+    path: '/ai-config',
+    name: 'ai-config',
+    component: AiConfigView
   },
   {
     path: '/collab-login',

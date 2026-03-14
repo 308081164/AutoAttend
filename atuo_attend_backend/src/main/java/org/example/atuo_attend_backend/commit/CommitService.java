@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -166,6 +167,33 @@ public class CommitService {
 
     public List<CommitMapper.AuthorAggregate> aggregateByAuthor(String repoFullName) {
         return commitMapper.aggregateByAuthor(repoFullName);
+    }
+
+    /** 按日统计：最近 N 天，可选按仓库 */
+    public List<CommitMapper.CommitByDay> listCommitsByDay(int days, String repoFullName) {
+        OffsetDateTime since = OffsetDateTime.now().truncatedTo(ChronoUnit.DAYS).minusDays(days);
+        if (repoFullName != null && !repoFullName.isBlank()) {
+            return commitMapper.listCommitsByDayByRepo(since, repoFullName.trim());
+        }
+        return commitMapper.listCommitsByDay(since);
+    }
+
+    /** 各仓库提交数 */
+    public List<CommitMapper.RepoCount> listCommitsByRepo() {
+        return commitMapper.listCommitsByRepo();
+    }
+
+    /** 去重作者数 */
+    public long countDistinctAuthors(String repoFullName) {
+        if (repoFullName != null && !repoFullName.isBlank()) {
+            return commitMapper.countDistinctAuthorsByRepo(repoFullName.trim());
+        }
+        return commitMapper.countDistinctAuthors();
+    }
+
+    /** 全库作者提交排名（Top 50） */
+    public List<CommitMapper.AuthorAggregate> aggregateByAuthorAll() {
+        return commitMapper.aggregateByAuthorAll();
     }
 }
 

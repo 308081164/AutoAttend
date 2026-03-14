@@ -35,11 +35,11 @@
     </div>
 
     <!-- 记录详情抽屉 -->
-    <div v-if="drawerRecord" class="drawer-mask" @click="drawerRecord = null">
+    <div v-if="drawerRecord" class="drawer-mask" @click="closeDrawer">
       <div class="drawer" @click.stop>
         <div class="drawer-header">
           <h3>{{ $t('collabTable.recordDetail') }}</h3>
-          <button class="close-btn" @click="drawerRecord = null">×</button>
+          <button class="close-btn" @click="closeDrawer">×</button>
         </div>
         <div class="drawer-tabs">
           <button :class="{ active: drawerTab === 'fields' }" @click="drawerTab = 'fields'">{{ $t('collabTable.fields') }}</button>
@@ -78,6 +78,30 @@
                   @input="setDrawerField(col.id, $event.target.value || null)"
                   class="field-input"
                 >
+                <!-- 负责人等多选人 -->
+                <div v-else-if="isMultiUserColumn(col)" class="multi-select-wrap">
+                  <label v-for="m in projectMembers" :key="m.userId" class="multi-select-item">
+                    <input type="checkbox" :value="m.userId"
+                      :checked="isDrawerResponsibleSelected(col.id, m.userId)"
+                      @change="toggleDrawerResponsible(col.id, m.userId, $event.target.checked)"
+                    >
+                    <span>{{ m.name || m.email || ('ID ' + m.userId) }}</span>
+                  </label>
+                  <span v-if="!projectMembers.length" class="text-muted">{{ $t('collabTable.noMembers') }}</span>
+                </div>
+                <!-- 图像展示：附件预览 + 上传 -->
+                <div v-else-if="isAttachmentColumn(col)" class="attachment-field-preview">
+                  <div class="attachment-thumb-list">
+                    <template v-for="aid in getAttachmentIdsFromField(drawerEditValues['c' + col.id])">
+                      <div v-if="getAttachmentById(aid)" :key="aid" class="thumb-wrap">
+                        <img v-if="getAttachmentById(aid).isImage && attachmentPreviewUrls[aid]" :src="attachmentPreviewUrls[aid]" class="thumb-img" alt="">
+                        <span v-else class="thumb-name">{{ getAttachmentById(aid).fileName }}</span>
+                      </div>
+                    </template>
+                  </div>
+                  <input ref="drawerFileInput" type="file" accept="image/*" style="display:none" @change="onDrawerFileSelected">
+                  <button type="button" class="primary-button small" @click="triggerDrawerUpload(col.id)">{{ $t('collabTable.uploadImage') }}</button>
+                </div>
                 <input v-else type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
                   :value="drawerEditValues['c' + col.id]"
                   @input="setDrawerField(col.id, $event.target.value)"
@@ -109,9 +133,20 @@
               <button class="primary-button small" @click="$refs.fileInput.click()">{{ $t('collabTable.uploadAttachment') }}</button>
             </div>
             <ul class="attachment-list">
-              <li v-for="a in attachments" :key="a.id">
-                <button class="link-button" @click="downloadAttachment(a)">{{ a.fileName }}</button>
-                <span class="file-size">({{ formatSize(a.fileSize) }})</span>
+              <li v-for="a in attachments" :key="a.id" class="attachment-item">
+                <template v-if="a.isImage && attachmentPreviewUrls[a.id]">
+                  <div class="attachment-preview-wrap">
+                    <img :src="attachmentPreviewUrls[a.id]" class="attachment-preview-img" alt="" @click="downloadAttachment(a)">
+                    <span class="attachment-meta">
+                      <button class="link-button" @click="downloadAttachment(a)">{{ a.fileName }}</button>
+                      <span class="file-size">({{ formatSize(a.fileSize) }})</span>
+                    </span>
+                  </div>
+                </template>
+                <template v-else>
+                  <button class="link-button" @click="downloadAttachment(a)">{{ a.fileName }}</button>
+                  <span class="file-size">({{ formatSize(a.fileSize) }})</span>
+                </template>
               </li>
             </ul>
           </div>
@@ -147,12 +182,16 @@
                   </label>
                   <span v-if="!projectMembers.length" class="text-muted">{{ $t('collabTable.noMembers') }}</span>
                 </div>
-                <!-- 图像展示：上传附件 -->
+                <!-- 图像展示：上传附件 + 实时预览 -->
                 <div v-else-if="isAttachmentColumn(col)" class="upload-field">
+                  <div v-if="newRecordAttachmentColId === col.id && newRecordImageFile" class="new-record-preview">
+                    <img :src="newRecordImagePreviewUrl" class="new-record-preview-img" alt="">
+                    <span class="file-name-tag">{{ newRecordImageFileName }}</span>
+                  </div>
                   <button type="button" class="primary-button small" @click="triggerNewRecordFile(col.id)">
                     {{ $t('collabTable.uploadImage') }}
                   </button>
-                  <span v-if="newRecordAttachmentColId === col.id && newRecordImageFileName" class="file-name-tag">{{ newRecordImageFileName }}</span>
+                  <span v-if="newRecordAttachmentColId === col.id && newRecordImageFileName && !newRecordImageFile" class="file-name-tag">{{ newRecordImageFileName }}</span>
                 </div>
                 <input v-else-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
                   :value="newRecordFields['c' + col.id]"
@@ -221,13 +260,17 @@ export default {
       projectMembers: [],
       newRecordImageFile: null,
       newRecordImageFileName: '',
-      newRecordAttachmentColId: null
+      newRecordAttachmentColId: null,
+      newRecordImagePreviewUrl: '',
+      attachmentPreviewUrls: {},
+      drawerUploadColId: null
     }
   },
   created () {
     this.projectId = Number(this.$route.params.projectId)
     this.loadTable()
     this.loadRecords()
+    this.loadProjectMembers()
   },
   methods: {
     async loadTable () {
@@ -265,7 +308,32 @@ export default {
       if (col.columnType === 'datetime' || col.columnType === 'date') {
         return String(val).slice(0, 19).replace('T', ' ')
       }
+      if ((col.columnType || '').toLowerCase() === 'multi_user') {
+        return this.formatMultiUserCell(val)
+      }
       return String(val)
+    },
+    /** 将负责人等 multi_user 的 ID 数组转为名称展示 */
+    formatMultiUserCell (val) {
+      let ids = []
+      try {
+        ids = typeof val === 'string' ? JSON.parse(val) : (Array.isArray(val) ? val : [])
+      } catch (e) {
+        return String(val)
+      }
+      if (!ids.length) return ''
+      const names = ids.map(id => {
+        const m = this.projectMembers.find(mem => mem.userId === id || mem.userId === Number(id))
+        return m ? (m.name || m.email || m.userName || '') || ('ID ' + id) : ('ID ' + id)
+      }).filter(Boolean)
+      return names.length ? names.join('、') : ''
+    },
+    loadProjectMembers () {
+      this.$http.get(`/collab/projects/${this.projectId}/members`).then(resp => {
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
+          this.projectMembers = resp.data.data.items
+        }
+      }).catch(() => {})
     },
     openRecord (row) {
       this.drawerRecord = row
@@ -281,6 +349,26 @@ export default {
       this.comments = []
       this.attachments = []
       this.newComment = ''
+      this.loadAttachments()
+      this.loadProjectMembersForDrawer()
+    },
+    closeDrawer () {
+      this.revokeAttachmentPreviewUrls()
+      this.drawerRecord = null
+    },
+    loadProjectMembersForDrawer () {
+      if (this.projectMembers.length) return
+      this.$http.get(`/collab/projects/${this.projectId}/members`).then(resp => {
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
+          this.projectMembers = resp.data.data.items
+        }
+      }).catch(() => {})
+    },
+    revokeAttachmentPreviewUrls () {
+      Object.values(this.attachmentPreviewUrls).forEach(u => {
+        try { URL.revokeObjectURL(u) } catch (e) {}
+      })
+      this.attachmentPreviewUrls = {}
     },
     isTextLike (col) {
       const t = (col.columnType || 'text').toLowerCase()
@@ -309,6 +397,69 @@ export default {
     },
     isAttachmentColumn (col) {
       return (col.columnType || '').toLowerCase() === 'attachment'
+    },
+    getAttachmentIdsFromField (val) {
+      if (val == null) return []
+      try {
+        const arr = typeof val === 'string' ? JSON.parse(val) : val
+        return Array.isArray(arr) ? arr : []
+      } catch (e) {
+        return []
+      }
+    },
+    getAttachmentById (id) {
+      return this.attachments.find(a => a.id === id)
+    },
+    isDrawerResponsibleSelected (colId, userId) {
+      const raw = this.drawerEditValues['c' + colId]
+      if (raw == null) return false
+      let arr = []
+      try {
+        arr = typeof raw === 'string' ? JSON.parse(raw) : raw
+      } catch (e) { return false }
+      return Array.isArray(arr) && arr.indexOf(userId) !== -1
+    },
+    toggleDrawerResponsible (colId, userId, checked) {
+      const raw = this.drawerEditValues['c' + colId]
+      let arr = []
+      try {
+        arr = (raw != null && typeof raw === 'string') ? JSON.parse(raw) : (Array.isArray(raw) ? raw : [])
+      } catch (e) { arr = [] }
+      if (!Array.isArray(arr)) arr = []
+      const idx = arr.indexOf(userId)
+      if (checked && idx === -1) arr.push(userId)
+      if (!checked && idx !== -1) arr.splice(idx, 1)
+      this.$set(this.drawerEditValues, 'c' + colId, arr.length ? arr : null)
+    },
+    triggerDrawerUpload (colId) {
+      this.drawerUploadColId = colId
+      this.$nextTick(() => {
+        const el = this.$refs.drawerFileInput
+        if (el) (el.click && el.click()) || (el[0] && el[0].click())
+      })
+    },
+    async onDrawerFileSelected (e) {
+      const file = e.target.files && e.target.files[0]
+      e.target.value = ''
+      if (!file || !this.drawerRecord || this.drawerUploadColId == null) return
+      const colId = this.drawerUploadColId
+      try {
+        const form = new FormData()
+        form.append('file', file)
+        const upResp = await this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        const attId = upResp.data && upResp.data.data && upResp.data.data.id
+        if (attId != null) {
+          const ids = this.getAttachmentIdsFromField(this.drawerEditValues['c' + colId])
+          ids.push(attId)
+          this.$set(this.drawerEditValues, 'c' + colId, ids)
+          await this.loadAttachments()
+          await this.saveRecord()
+        }
+      } catch (err) { /* ignore */ } finally {
+        this.drawerUploadColId = null
+      }
     },
     isResponsibleSelected (colId, userId) {
       const raw = this.newRecordFields['c' + colId]
@@ -341,8 +492,12 @@ export default {
     onNewRecordFile (e) {
       const file = e.target.files && e.target.files[0]
       if (!file) return
+      if (this.newRecordImagePreviewUrl) {
+        try { URL.revokeObjectURL(this.newRecordImagePreviewUrl) } catch (err) {}
+      }
       this.newRecordImageFile = file
       this.newRecordImageFileName = file.name
+      this.newRecordImagePreviewUrl = URL.createObjectURL(file)
       e.target.value = ''
     },
     getDefaultForSingleSelect (col) {
@@ -390,7 +545,11 @@ export default {
       try {
         const fields = {}
         this.columns.forEach(col => {
-          const v = this.normalizeFieldValue(col, this.drawerEditValues['c' + col.id])
+          let v = this.drawerEditValues['c' + col.id]
+          if (col.columnType === 'multi_user' && v != null) {
+            v = Array.isArray(v) ? v : (typeof v === 'string' ? this.tryParseJson(v) : v)
+          }
+          v = this.normalizeFieldValue(col, v)
           if (v !== null) fields['c' + col.id] = v
         })
         await this.$http.put(`/collab/records/${this.drawerRecord.id}`, { fields })
@@ -428,10 +587,25 @@ export default {
     },
     async loadAttachments () {
       if (!this.drawerRecord) return
+      this.revokeAttachmentPreviewUrls()
       try {
         const resp = await this.$http.get(`/collab/records/${this.drawerRecord.id}/attachments`)
         if (resp.data && resp.data.code === 0) {
           this.attachments = resp.data.data.items || []
+          const token = window.localStorage.getItem('autoattend_collab_token')
+          const base = this.$http.defaults.baseURL || '/api'
+          for (const a of this.attachments) {
+            if (!a.isImage) continue
+            try {
+              const r = await fetch(base + '/collab/attachments/' + a.id + '/preview', {
+                headers: { Authorization: 'Bearer ' + token }
+              })
+              if (r.ok) {
+                const blob = await r.blob()
+                this.$set(this.attachmentPreviewUrls, a.id, URL.createObjectURL(blob))
+              }
+            } catch (e) { /* ignore */ }
+          }
         }
       } catch (e) { /* ignore */ }
     },
@@ -481,9 +655,13 @@ export default {
       return String(t).slice(0, 19).replace('T', ' ')
     },
     async openAddRecord () {
+      if (this.newRecordImagePreviewUrl) {
+        try { URL.revokeObjectURL(this.newRecordImagePreviewUrl) } catch (err) {}
+      }
       this.newRecordFields = {}
       this.newRecordImageFile = null
       this.newRecordImageFileName = ''
+      this.newRecordImagePreviewUrl = ''
       this.newRecordAttachmentColId = null
       this.showAddModal = true
       try {
@@ -874,8 +1052,81 @@ export default {
   font-size: 14px;
 }
 
-.attachment-list a {
+.attachment-item .attachment-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attachment-preview-img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+}
+
+.attachment-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.attachment-list a,
+.attachment-list .link-button {
   color: #2563eb;
+}
+
+.attachment-field-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.attachment-thumb-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.thumb-wrap {
+  flex-shrink: 0;
+}
+
+.thumb-img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+  border: 1px solid #e5e7eb;
+}
+
+.thumb-name {
+  font-size: 12px;
+  color: #6b7280;
+  display: block;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-record-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.new-record-preview-img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
 }
 
 .file-size {

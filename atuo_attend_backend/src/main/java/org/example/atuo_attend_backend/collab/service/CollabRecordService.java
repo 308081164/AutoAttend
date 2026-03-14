@@ -150,6 +150,11 @@ public class CollabRecordService {
 
     private void setFieldValue(BizRecordField rf, String columnType, Object val) {
         if (val == null) return;
+        // 只保留当前类型的值，避免 update 后 getFieldValue 仍读到旧列（如 valueText 覆盖 valueJson）
+        rf.setValueText(null);
+        rf.setValueNumber(null);
+        rf.setValueDate(null);
+        rf.setValueJson(null);
         if ("text".equals(columnType) || "single_select".equals(columnType)) {
             rf.setValueText(val.toString());
         } else if ("multi_user".equals(columnType) || "attachment".equals(columnType) || "multi_select".equals(columnType)) {

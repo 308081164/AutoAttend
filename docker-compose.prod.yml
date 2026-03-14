@@ -20,6 +20,7 @@ services:
       - autoattend_mysql_data:/var/lib/mysql
       - ./atuo_attend_backend/src/main/resources/db/schema_mysql.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./atuo_attend_backend/src/main/resources/db/schema_collab_mysql.sql:/docker-entrypoint-initdb.d/02_schema_collab.sql:ro
+      - ./atuo_attend_backend/src/main/resources/db/schema_ai_mysql.sql:/docker-entrypoint-initdb.d/03_schema_ai.sql:ro
     command: ["--character-set-server=utf8mb4","--collation-server=utf8mb4_unicode_ci"]
 
   minio:
