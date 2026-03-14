@@ -18,12 +18,27 @@ services:
       - ./atuo_attend_backend/src/main/resources/db/schema_mysql.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     command: ["--character-set-server=utf8mb4","--collation-server=utf8mb4_unicode_ci"]
 
+  minio:
+    image: minio/minio:latest
+    container_name: autoattend-minio
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - autoattend_minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
   backend:
     build:
       context: ./atuo_attend_backend
     container_name: autoattend-backend
     depends_on:
       - mysql
+      - minio
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
@@ -32,6 +47,10 @@ services:
       DB_PASSWORD: autoattend_pwd
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin123
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: autoattend-attachments
     ports:
       - "8848:8848"
     restart: unless-stopped
@@ -48,4 +67,5 @@ services:
 
 volumes:
   autoattend_mysql_data:
+  autoattend_minio_data:
 
