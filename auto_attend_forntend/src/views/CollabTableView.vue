@@ -14,7 +14,7 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th v-for="col in columns" :key="col.id" class="col-header">{{ col.name }}</th>
+            <th v-for="col in columns" :key="col.id" class="col-header">{{ getColumnDisplayName(col) }}</th>
             <th width="80">{{ $t('collabTable.operations') }}</th>
           </tr>
         </thead>
@@ -49,7 +49,7 @@
         <div class="drawer-body">
           <div v-if="drawerTab === 'fields'" class="field-list">
             <div v-for="col in columns" :key="col.id" class="field-row">
-              <span class="field-label">{{ col.name }}</span>
+              <span class="field-label">{{ getColumnDisplayName(col) }}</span>
               <div class="field-input-wrap">
                 <input v-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
                   :value="drawerEditValues['c' + col.id]"
@@ -127,11 +127,34 @@
           <button class="close-btn" @click="showAddModal = false">×</button>
         </div>
         <div class="drawer-body">
+          <input ref="newRecordFileInput" type="file" accept="image/*" style="display:none" @change="onNewRecordFile">
           <div class="field-list">
             <div v-for="col in columns" :key="'new-' + col.id" class="field-row">
-              <span class="field-label">{{ col.name }}</span>
+              <span class="field-label">{{ getColumnDisplayName(col) }}</span>
               <div class="field-input-wrap">
-                <input v-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
+                <!-- 创建人：只读，默认当前登录用户 -->
+                <input v-if="isCreatorColumn(col)" type="text" :value="newRecordFields['c' + col.id]"
+                  readonly class="field-input field-readonly"
+                >
+                <!-- 负责人：多选，数据来自项目成员 -->
+                <div v-else-if="isMultiUserColumn(col)" class="multi-select-wrap">
+                  <label v-for="m in projectMembers" :key="m.userId" class="multi-select-item">
+                    <input type="checkbox" :value="m.userId"
+                      :checked="isResponsibleSelected(col.id, m.userId)"
+                      @change="toggleResponsible(col.id, m.userId, $event.target.checked)"
+                    >
+                    <span>{{ m.name || m.email || ('ID ' + m.userId) }}</span>
+                  </label>
+                  <span v-if="!projectMembers.length" class="text-muted">{{ $t('collabTable.noMembers') }}</span>
+                </div>
+                <!-- 图像展示：上传附件 -->
+                <div v-else-if="isAttachmentColumn(col)" class="upload-field">
+                  <button type="button" class="primary-button small" @click="triggerNewRecordFile(col.id)">
+                    {{ $t('collabTable.uploadImage') }}
+                  </button>
+                  <span v-if="newRecordAttachmentColId === col.id && newRecordImageFileName" class="file-name-tag">{{ newRecordImageFileName }}</span>
+                </div>
+                <input v-else-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
                   :value="newRecordFields['c' + col.id]"
                   @input="setNewRecordField(col.id, $event.target.value)"
                   class="field-input"
@@ -193,7 +216,12 @@ export default {
       newComment: '',
       showAddModal: false,
       newRecordFields: {},
-      createSaving: false
+      createSaving: false,
+      currentUser: null,
+      projectMembers: [],
+      newRecordImageFile: null,
+      newRecordImageFileName: '',
+      newRecordAttachmentColId: null
     }
   },
   created () {
@@ -264,6 +292,75 @@ export default {
     getSelectOptions (col) {
       if (!col.optionGroup || !col.optionGroup.options) return []
       return col.optionGroup.options
+    },
+    tryParseJson (v) {
+      if (v == null) return null
+      try { return typeof v === 'string' ? JSON.parse(v) : v } catch (e) { return null }
+    },
+    getColumnDisplayName (col) {
+      if (col.name === '解决情况') return this.$t('collabTable.currentStatus')
+      return col.name
+    },
+    isCreatorColumn (col) {
+      return (col.name || '').trim() === '创建人'
+    },
+    isMultiUserColumn (col) {
+      return (col.columnType || '').toLowerCase() === 'multi_user'
+    },
+    isAttachmentColumn (col) {
+      return (col.columnType || '').toLowerCase() === 'attachment'
+    },
+    isResponsibleSelected (colId, userId) {
+      const raw = this.newRecordFields['c' + colId]
+      if (raw == null) return false
+      let arr = []
+      try {
+        arr = typeof raw === 'string' ? JSON.parse(raw) : raw
+      } catch (e) { return false }
+      return Array.isArray(arr) && arr.indexOf(userId) !== -1
+    },
+    toggleResponsible (colId, userId, checked) {
+      const raw = this.newRecordFields['c' + colId]
+      let arr = []
+      try {
+        arr = (raw != null && typeof raw === 'string') ? JSON.parse(raw) : (Array.isArray(raw) ? raw : [])
+      } catch (e) { arr = [] }
+      if (!Array.isArray(arr)) arr = []
+      const idx = arr.indexOf(userId)
+      if (checked && idx === -1) arr.push(userId)
+      if (!checked && idx !== -1) arr.splice(idx, 1)
+      this.$set(this.newRecordFields, 'c' + colId, arr.length ? arr : null)
+    },
+    triggerNewRecordFile (colId) {
+      this.newRecordAttachmentColId = colId
+      this.$nextTick(() => {
+        const el = this.$refs.newRecordFileInput
+        if (el) (el.click && el.click()) || (el[0] && el[0].click())
+      })
+    },
+    onNewRecordFile (e) {
+      const file = e.target.files && e.target.files[0]
+      if (!file) return
+      this.newRecordImageFile = file
+      this.newRecordImageFileName = file.name
+      e.target.value = ''
+    },
+    getDefaultForSingleSelect (col) {
+      const opts = this.getSelectOptions(col)
+      if (!opts.length) return null
+      const name = String((col.optionGroup && col.optionGroup.name) || col.name || '').trim()
+      if (name === '当前状态' || name === '解决情况') return opts.indexOf('已创建') !== -1 ? '已创建' : opts[0]
+      if (name === '验收结果') return opts.indexOf('未验收') !== -1 ? '未验收' : (opts.indexOf('待验收') !== -1 ? '待验收' : opts[0])
+      return null
+    },
+    getDefaultCreateTime () {
+      const now = new Date()
+      const y = now.getFullYear()
+      const m = String(now.getMonth() + 1).padStart(2, '0')
+      const d = String(now.getDate()).padStart(2, '0')
+      const h = String(now.getHours()).padStart(2, '0')
+      const min = String(now.getMinutes()).padStart(2, '0')
+      return `${y}-${m}-${d}T${h}:${min}`
     },
     setDrawerField (colId, value) {
       this.$set(this.drawerEditValues, 'c' + colId, value === '' ? null : value)
@@ -383,9 +480,39 @@ export default {
       if (!t) return ''
       return String(t).slice(0, 19).replace('T', ' ')
     },
-    openAddRecord () {
+    async openAddRecord () {
       this.newRecordFields = {}
+      this.newRecordImageFile = null
+      this.newRecordImageFileName = ''
+      this.newRecordAttachmentColId = null
       this.showAddModal = true
+      try {
+        const meResp = await this.$http.get('/collab/auth/me')
+        if (meResp.data && meResp.data.code === 0 && meResp.data.data) {
+          this.currentUser = meResp.data.data
+        }
+      } catch (e) { this.currentUser = null }
+      try {
+        const memResp = await this.$http.get(`/collab/projects/${this.projectId}/members`)
+        if (memResp.data && memResp.data.code === 0 && memResp.data.data && memResp.data.data.items) {
+          this.projectMembers = memResp.data.data.items
+        } else {
+          this.projectMembers = []
+        }
+      } catch (e) { this.projectMembers = [] }
+      this.$nextTick(() => {
+        this.columns.forEach(col => {
+          if (this.isCreatorColumn(col)) {
+            const name = this.currentUser ? (this.currentUser.name || this.currentUser.email || '') : ''
+            this.$set(this.newRecordFields, 'c' + col.id, name)
+          } else if (col.columnType === 'datetime' && (col.name || '').trim() === '创建时间') {
+            this.$set(this.newRecordFields, 'c' + col.id, this.getDefaultCreateTime())
+          } else if (this.isSingleSelect(col)) {
+            const def = this.getDefaultForSingleSelect(col)
+            if (def != null) this.$set(this.newRecordFields, 'c' + col.id, def)
+          }
+        })
+      })
     },
     async createRecord () {
       if (this.createSaving) return
@@ -393,12 +520,33 @@ export default {
       try {
         const fields = {}
         this.columns.forEach(col => {
-          const v = this.normalizeFieldValue(col, this.newRecordFields['c' + col.id])
-          if (v !== null) fields['c' + col.id] = v
+          let v = this.newRecordFields['c' + col.id]
+          if (col.columnType === 'multi_user' && v != null) {
+            v = Array.isArray(v) ? v : (typeof v === 'string' ? (tryParseJson(v) || v) : v)
+          }
+          v = this.normalizeFieldValue(col, v)
+          if (v !== null && v !== undefined) fields['c' + col.id] = v
         })
-        await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields })
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields })
+        const recordId = resp.data && resp.data.data && resp.data.data.id
+        if (recordId && this.newRecordImageFile && this.newRecordAttachmentColId) {
+          const form = new FormData()
+          form.append('file', this.newRecordImageFile)
+          const upResp = await this.$http.post(`/collab/records/${recordId}/attachments`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+          const attId = upResp.data && upResp.data.data && upResp.data.data.id
+          if (attId != null) {
+            await this.$http.put(`/collab/records/${recordId}`, {
+              fields: { ['c' + this.newRecordAttachmentColId]: [attId] }
+            })
+          }
+        }
         this.showAddModal = false
         this.newRecordFields = {}
+        this.newRecordImageFile = null
+        this.newRecordImageFileName = ''
+        this.newRecordAttachmentColId = null
         this.loadRecords()
       } catch (e) { /* ignore */ } finally {
         this.createSaving = false
@@ -632,6 +780,46 @@ export default {
 
 .ops-cell .link-button.danger {
   color: #dc2626;
+}
+
+.field-readonly {
+  background: #f3f4f6;
+  color: #374151;
+  cursor: default;
+}
+
+.multi-select-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.multi-select-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.multi-select-item input {
+  margin: 0;
+}
+
+.text-muted {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.upload-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-name-tag {
+  font-size: 13px;
+  color: #059669;
 }
 
 .comment-item {

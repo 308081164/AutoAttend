@@ -109,6 +109,9 @@ export default {
     deleteRecord: 'Supprimer l\'entrée',
     confirmDelete: 'Supprimer cette entrée ?',
     fieldPlaceholder: 'Saisir',
-    pleaseSelect: 'Choisir'
+    pleaseSelect: 'Choisir',
+    currentStatus: 'État actuel',
+    noMembers: 'Aucun membre du projet',
+    uploadImage: 'Téléverser une image'
   }
 }

@@ -109,6 +109,9 @@ export default {
     deleteRecord: 'Удалить запись',
     confirmDelete: 'Удалить эту запись?',
     fieldPlaceholder: 'Введите значение',
-    pleaseSelect: 'Выберите'
+    pleaseSelect: 'Выберите',
+    currentStatus: 'Текущий статус',
+    noMembers: 'Нет участников проекта',
+    uploadImage: 'Загрузить изображение'
   }
 }

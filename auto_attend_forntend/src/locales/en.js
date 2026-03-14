@@ -109,6 +109,9 @@ export default {
     deleteRecord: 'Delete Record',
     confirmDelete: 'Are you sure you want to delete this record?',
     fieldPlaceholder: 'Enter value',
-    pleaseSelect: 'Please select'
+    pleaseSelect: 'Please select',
+    currentStatus: 'Current Status',
+    noMembers: 'No project members',
+    uploadImage: 'Upload image'
   }
 }

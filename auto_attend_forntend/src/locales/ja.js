@@ -109,6 +109,9 @@ export default {
     deleteRecord: 'レコードを削除',
     confirmDelete: 'このレコードを削除してもよろしいですか？',
     fieldPlaceholder: '入力',
-    pleaseSelect: '選択してください'
+    pleaseSelect: '選択してください',
+    currentStatus: '現在の状態',
+    noMembers: 'プロジェクトメンバーがいません',
+    uploadImage: '画像をアップロード'
   }
 }

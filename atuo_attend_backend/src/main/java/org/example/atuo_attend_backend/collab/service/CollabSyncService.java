@@ -103,15 +103,15 @@ public class CollabSyncService {
         optionGroupMapper.insert(important);
 
         BizOptionGroup resolve = new BizOptionGroup();
-        resolve.setName("解决情况");
-        resolve.setOptions("[\"已解决待审核\",\"未解决\",\"无法复现\"]");
+        resolve.setName("当前状态");
+        resolve.setOptions("[\"已创建\",\"开发中\",\"修复中\",\"待测试\",\"测试中\",\"已验收\"]");
         resolve.setScope("global");
         resolve.setProjectId(null);
         optionGroupMapper.insert(resolve);
 
         BizOptionGroup accept = new BizOptionGroup();
         accept.setName("验收结果");
-        accept.setOptions("[\"通过任务关闭\",\"待验收\"]");
+        accept.setOptions("[\"未验收\",\"待验收\",\"通过任务关闭\"]");
         accept.setScope("global");
         accept.setProjectId(null);
         optionGroupMapper.insert(accept);
@@ -131,7 +131,7 @@ public class CollabSyncService {
         insertColumn(tableId, "负责人", "multi_user", null, order++);
         insertColumn(tableId, "重要程度", "single_select", important.getId(), order++);
         insertColumn(tableId, "创建人", "text", null, order++);
-        insertColumn(tableId, "解决情况", "single_select", resolve.getId(), order++);
+        insertColumn(tableId, "当前状态", "single_select", resolve.getId(), order++);
         insertColumn(tableId, "验收结果", "single_select", accept.getId(), order++);
         insertColumn(tableId, "创建时间", "datetime", null, order++);
     }

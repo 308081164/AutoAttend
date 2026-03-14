@@ -109,6 +109,9 @@ export default {
     deleteRecord: '删除记录',
     confirmDelete: '确定要删除该记录吗？',
     fieldPlaceholder: '请输入',
-    pleaseSelect: '请选择'
+    pleaseSelect: '请选择',
+    currentStatus: '当前状态',
+    noMembers: '暂无项目成员',
+    uploadImage: '上传图片'
   }
 }
