@@ -99,6 +99,15 @@ GitHub Actions 触发
    docker compose -f docker-compose.prod.yml up -d
    ```
 
+4. **可选：配置 GITHUB_TOKEN 以拉取 Commit Diff**  
+   管理后台「查看 Diff」会从 GitHub API 拉取该 commit 的 diff；未配置 token 时易触发限流或拉取失败，页面会显示占位提示。在服务器上设置环境变量后重启 backend 即可：
+   ```bash
+   export GITHUB_TOKEN=ghp_你的PersonalAccessToken
+   cd /mnt/newdisk/app/AutoAttend
+   docker compose -f docker-compose.prod.yml up -d backend
+   ```
+   建议将 `GITHUB_TOKEN` 写入 `~/.bashrc` 或单独 env 文件，以便每次部署后仍生效。
+
 之后每次 **push 到 main**，由 GitHub Actions 自动构建镜像并 SSH 到服务器执行 `pull + up -d`，无需再在服务器上执行 `compose build`。
 
 ---
@@ -143,6 +152,44 @@ location / {
 ```
 
 删除或注释掉原来的 `root ...` 和 `index ...`（在该 `location /` 内）。保存后执行 **Nginx 重载**。
+
+### /api 接口 502（前端正常、接口报 502）
+
+页面能打开，但 `/api/admin/repos`、`/api/admin/dashboard` 等接口返回 **502**：说明请求已到达前端容器，但前端容器内 Nginx 把 `/api/` 转给 **backend:8848** 时失败（后端未响应或报错）。
+
+**排查步骤：**
+
+1. **确认后端与 MySQL 都在运行**：
+   ```bash
+   docker ps --format "table {{.Names}}\t{{.Status}}" | grep autoattend
+   ```
+   若 `autoattend-mysql` 为 Restarting 或 `autoattend-backend` 未 Up，先按上文「MySQL 容器反复重启」处理磁盘与 MySQL，再 `docker compose -f docker-compose.prod.yml up -d`。
+
+2. **看后端日志**（常见为连不上 MySQL）：
+   ```bash
+   docker logs --tail 80 autoattend-backend
+   ```
+   若有数据库连接错误，先保证 MySQL 容器稳定 Up 后再重启 backend：  
+   `docker compose -f docker-compose.prod.yml restart backend`
+
+3. **确认本机访问后端**（可选）：
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8848/api/admin/repos
+   ```
+   若返回 200/401 等非 502，说明后端正常，502 多半是前端容器内 Nginx 到 backend 的网络或超时；可重新部署一次前端镜像（已加强 /api 代理超时与转发头）后再试。
+
+### 协作登录 500 / Table 'biz_user' doesn't exist
+
+若调用 **POST /api/collab/auth/login** 返回 500，后端日志出现 `Table 'autoattend.biz_user' doesn't exist`：说明协作模块的数据库表未创建。MySQL 的 init 脚本只在**首次初始化空数据目录**时执行；若服务器上 MySQL 此前已跑过且未挂载协作建表脚本，需要**手动执行一次**协作表结构。
+
+**一次性修复（在服务器项目目录下执行）：**
+
+```bash
+cd /mnt/newdisk/app/AutoAttend   # 或你的 DEPLOY_PATH
+docker exec -i autoattend-mysql mysql -u root -proot autoattend < atuo_attend_backend/src/main/resources/db/schema_collab_mysql.sql
+```
+
+执行成功后，再尝试协作登录。之后新部署的服务器若使用当前 `docker-compose.prod.yml`（已挂载 `02_schema_collab.sql`），全新 MySQL 数据目录会自动建协作表；**已有数据目录的实例仍需上述手动执行一次**。
 
 ### MySQL 容器反复重启 / 502 / ERR_EMPTY_RESPONSE
 
