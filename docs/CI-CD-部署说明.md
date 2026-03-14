@@ -32,8 +32,9 @@ GitHub Actions 触发
 - 服务器上有一份项目目录（用于 `docker-compose.prod.yml` 和 MySQL 建表脚本），例如：
   ```bash
   # 在服务器上执行一次
-  git clone https://github.com/你的用户名/AutoAttend.git /opt/AutoAttend
+  git clone https://github.com/你的用户名/AutoAttend.git /mnt/newdisk/app/AutoAttend
   ```
+  （若使用其他目录，需在仓库 Secrets 中设置 `DEPLOY_PATH` 与之一致。）
 - 为 GitHub Actions 准备一个 **SSH 登录方式**（见下文「配置 Secrets」）。
 
 ### 3. GitHub 仓库配置
@@ -49,7 +50,7 @@ GitHub Actions 触发
 | `SSH_HOST`        | 服务器 IP 或域名，例如 `123.45.67.89`。 |
 | `SSH_USER`        | SSH 登录用户名，例如 `root`。 |
 | `SSH_PORT`        | （可选）SSH 端口，默认 22。 |
-| `DEPLOY_PATH`     | （可选）服务器上项目目录，默认 `/opt/AutoAttend`。 |
+| `DEPLOY_PATH`     | （可选）服务器上项目目录，默认 `/mnt/newdisk/app/AutoAttend`。 |
 
 ### 如何生成并配置 SSH 公钥/私钥
 
@@ -78,8 +79,8 @@ GitHub Actions 触发
 
 1. **克隆仓库**（若未克隆）：
    ```bash
-   git clone https://github.com/你的用户名/AutoAttend.git /opt/AutoAttend
-   cd /opt/AutoAttend
+   git clone https://github.com/你的用户名/AutoAttend.git /mnt/newdisk/app/AutoAttend
+   cd /mnt/newdisk/app/AutoAttend
    ```
 
 2. **首次启动 MySQL 并建表**（只需一次）：
@@ -117,3 +118,61 @@ GitHub Actions 触发
 - **镜像拉取慢**：服务器若在国内，ghcr.io 可能较慢，可考虑将镜像同步到阿里云 ACR 或在 workflow 中推送到阿里云，再在 `docker-compose.prod.yml` 中改用 ACR 地址。
 - **SSH 连接失败**：检查 `SSH_HOST`、`SSH_USER`、`SSH_PRIVATE_KEY` 是否正确；服务器 `sshd` 是否允许密钥登录；防火墙是否放行 `SSH_PORT`。
 - **权限错误**：若使用私有仓库，需在 workflow 中为 `GITHUB_TOKEN` 配置 `packages: write`（当前 workflow 已包含）。
+
+### 502 Bad Gateway（宝塔 Nginx 反代前端）
+
+若 `curl http://127.0.0.1:8849/` 在服务器上返回 200，但浏览器访问域名报 502，多半是 **Nginx 没有反代到前端容器**（例如站点被配成「网站目录」而不是「反向代理」）。
+
+**处理步骤（宝塔）：**
+
+1. 在宝塔里打开该站点 → **设置** → **反向代理** → **添加反向代理**。
+2. 代理名称随意（如 `前端`）；**目标 URL** 填：`http://127.0.0.1:8849`。
+3. 发送域名留空或填 `$host`；**提交** 后再 **重载 Nginx**。
+
+若站点当前是「根目录」模式，可改为仅用反代提供内容：在 **配置文件** 里把 `location /` 改为走反代，例如：
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8849;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+删除或注释掉原来的 `root ...` 和 `index ...`（在该 `location /` 内）。保存后执行 **Nginx 重载**。
+
+### MySQL 容器反复重启 / 502 / ERR_EMPTY_RESPONSE
+
+若 `docker ps` 显示 `autoattend-mysql` 为 **Restarting**，或页面出现 **ERR_EMPTY_RESPONSE**，先查 MySQL 日志：
+
+```bash
+docker logs --tail 100 autoattend-mysql
+```
+
+**若日志出现 “No space left on device” / “out of disk space”**：说明**服务器磁盘已满**。MySQL 无法写 redo log 和临时表，会一直启动失败；磁盘满还会导致 Nginx 或系统异常，进而 502 或连接被关闭无数据返回。
+
+**处理步骤：**
+
+1. **在服务器上查看磁盘占用**：
+   ```bash
+   df -h
+   du -sh /var/lib/docker/* 2>/dev/null
+   du -sh /www/wwwroot/* 2>/dev/null
+   ```
+2. **腾出空间**（按需执行）：
+   - 清理 Docker 未用镜像与容器：`docker system prune -a`（会删掉未使用的镜像，确认无再执行）
+   - 或只删未用镜像：`docker image prune -a`
+   - 清理 Docker 构建缓存：`docker builder prune -f`
+   - 清理系统/宝塔日志、临时文件（如 `/www/server/panel/logs`、`/tmp`）
+   - 删除其他不用的 Docker 卷或大文件
+3. **确认有可用空间后**再重启 MySQL：
+   ```bash
+   cd /mnt/newdisk/app/AutoAttend   # 或你的 DEPLOY_PATH
+   docker compose -f docker-compose.prod.yml up -d mysql
+   ```
+4. 等 MySQL 稳定（`docker ps` 显示 Up）后，再访问前端；若仍有问题可再查 `docker logs autoattend-backend`。
+
+其他常见原因：数据目录权限、与宿主机已有 MySQL 冲突（端口/数据）、init 脚本报错。按日志修正后同样执行 `docker compose -f docker-compose.prod.yml up -d mysql`。
