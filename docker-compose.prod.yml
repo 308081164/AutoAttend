@@ -33,7 +33,7 @@ services:
       - autoattend_minio_data:/data
     ports:
       - "9000:9000"
-      - "9001:9001"
+      - "9002:9001"   # 控制台用 9002，避免与主机已占用的 9001 冲突
 
   backend:
     image: ${IMAGE_BACKEND:-ghcr.io/please-set/autoattend-backend:latest}
