@@ -74,7 +74,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 60m
+          command_timeout: 3h
           script: |
             set -e
             cd ${{ secrets.DEPLOY_PATH || '/opt/AutoAttend' }}
