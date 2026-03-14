@@ -69,6 +69,13 @@ public class CommitService {
     private static final String DIFF_UNAVAILABLE_PLACEHOLDER =
         "(Diff 暂不可用：请配置服务器环境变量 GITHUB_TOKEN 后重试，或检查网络与 GitHub API 限流。详见部署说明。)";
 
+    /** 仅按 commitSha 查一条记录（用于 getDiff 时未传 repo 的兜底），不拉取 diff。 */
+    public Optional<CommitRecord> findAnyCommitBySha(String commitSha) {
+        if (commitSha == null || commitSha.isBlank()) return Optional.empty();
+        CommitRecord r = commitMapper.findOneByCommitSha(commitSha);
+        return r != null ? Optional.of(r) : Optional.empty();
+    }
+
     public Optional<CommitRecord> findCommit(String repoFullName, String commitSha) {
         CommitRecord record = commitMapper.findOne(repoFullName, commitSha);
         if (record == null) {
@@ -78,6 +85,12 @@ public class CommitService {
         if (diffText == null || diffText.isBlank()) {
             fetchAndSaveDiffWithRetry(repoFullName, commitSha);
             diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+        }
+        if (diffText == null || diffText.isBlank()) {
+            try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            if (trySaveFetchedDiff(repoFullName, commitSha)) {
+                diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+            }
         }
         if (diffText == null || diffText.isBlank()) {
             diffText = DIFF_UNAVAILABLE_PLACEHOLDER;

@@ -58,6 +58,7 @@ export default {
     diffNotReady: '(Le diff sera récupéré automatiquement. Actualisez si besoin.)',
     diffLoadFailed: 'Échec du chargement du diff',
     viewOnGitHub: 'Voir sur GitHub (accès réseau requis)',
+    retryFetchDiff: 'Réessayer de récupérer le Diff',
     copied: 'Copié dans le presse-papiers. Collez dans l\'IA pour analyse.',
     copyFailed: 'Échec de la copie. Sélectionnez et copiez manuellement.'
   },

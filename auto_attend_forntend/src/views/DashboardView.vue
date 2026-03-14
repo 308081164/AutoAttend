@@ -123,7 +123,10 @@
       </div>
       <div v-else-if="diffText" class="diff-box-wrapper">
         <div class="diff-box diff-content" v-html="diffHtml"></div>
-        <a v-if="isDiffPlaceholder(diffText)" :href="githubCommitUrl" target="_blank" rel="noopener noreferrer" class="view-on-github-link">{{ $t('dashboard.viewOnGitHub') }}</a>
+        <div v-if="isDiffPlaceholder(diffText)" class="diff-placeholder-actions">
+          <button type="button" class="primary-button small" :disabled="diffLoading" @click="retryFetchDiff">{{ $t('dashboard.retryFetchDiff') }}</button>
+          <a :href="githubCommitUrl" target="_blank" rel="noopener noreferrer" class="view-on-github-link">{{ $t('dashboard.viewOnGitHub') }}</a>
+        </div>
       </div>
       <pre v-else class="diff-box"><code>{{ $t('dashboard.diffNotReady') }}</code></pre>
     </section>
@@ -233,18 +236,18 @@ export default {
         return t
       }
     },
+    retryFetchDiff () {
+      if (this.selectedCommit) this.viewDiff(this.selectedCommit)
+    },
     async viewDiff (item) {
       this.selectedCommit = item
       this.diffText = ''
       this.diffMeta = null
       this.diffLoading = true
       try {
-        const resp = await this.$http.get(`/admin/commits/${item.commitSha}/diff`, {
-          params: {
-            repoFullName: item.repoFullName,
-            mode: 'raw'
-          }
-        })
+        const params = { mode: 'raw' }
+        if (item.repoFullName) params.repoFullName = item.repoFullName
+        const resp = await this.$http.get(`/admin/commits/${item.commitSha}/diff`, { params })
         if (resp.data && resp.data.code === 0) {
           const d = resp.data.data
           this.diffText = (d && d.diffText) || ''
@@ -430,9 +433,16 @@ export default {
   margin-top: 8px;
 }
 
+.diff-placeholder-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
 .diff-box-wrapper .view-on-github-link {
   display: inline-block;
-  margin-top: 12px;
   font-size: 13px;
   color: #2563eb;
 }

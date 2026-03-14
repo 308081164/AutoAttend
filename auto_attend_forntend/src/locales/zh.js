@@ -58,6 +58,7 @@ export default {
     diffNotReady: '（diff 尚未就绪时，系统会自动重试拉取，请稍后刷新页面查看。）',
     diffLoadFailed: '加载 diff 失败',
     viewOnGitHub: '在 GitHub 上查看（需本机网络可访问 GitHub）',
+    retryFetchDiff: '重新拉取 Diff',
     copied: '已复制到剪贴板，可粘贴到 AI 智能体进行跟进分析。',
     copyFailed: '复制失败，请手动选择下方 diff 内容复制。'
   },

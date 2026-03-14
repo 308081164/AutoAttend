@@ -52,10 +52,13 @@ public class CommitController {
                                   @RequestParam(value = "repoFullName", required = false) String repoFullName,
                                   @RequestParam(value = "mode", required = false, defaultValue = "raw") String mode,
                                   @RequestParam(value = "chunk", required = false, defaultValue = "1") int chunk) {
-        if (repoFullName == null || repoFullName.isBlank()) {
-            return ApiResponse.error(40000, "repoFullName is required");
+        String repo = (repoFullName != null && !repoFullName.isBlank()) ? repoFullName.trim() : null;
+        if (repo == null) {
+            Optional<CommitRecord> any = commitService.findAnyCommitBySha(commitSha);
+            if (any.isEmpty()) return ApiResponse.error(40000, "repoFullName is required or commit not found");
+            repo = any.get().getRepoFullName();
         }
-        Optional<CommitRecord> recordOpt = commitService.findCommit(repoFullName, commitSha);
+        Optional<CommitRecord> recordOpt = commitService.findCommit(repo, commitSha);
         if (recordOpt.isEmpty()) return ApiResponse.error(40400, "commit not found");
         CommitRecord record = recordOpt.get();
         Map<String, Object> data = new HashMap<>();

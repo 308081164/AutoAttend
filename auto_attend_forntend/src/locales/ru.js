@@ -58,6 +58,7 @@ export default {
     diffNotReady: '(Diff будет загружен автоматически. Обновите страницу позже.)',
     diffLoadFailed: 'Не удалось загрузить diff',
     viewOnGitHub: 'Открыть на GitHub (нужен доступ в сеть)',
+    retryFetchDiff: 'Повторить загрузку Diff',
     copied: 'Скопировано в буфер. Вставьте в AI для анализа.',
     copyFailed: 'Ошибка копирования. Скопируйте вручную.'
   },

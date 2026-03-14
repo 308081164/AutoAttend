@@ -58,6 +58,7 @@ export default {
     diffNotReady: '（Diff は自動取得されます。必要に応じて更新してください。）',
     diffLoadFailed: 'Diff の読み込みに失敗しました',
     viewOnGitHub: 'GitHub で表示（GitHub にアクセスできる環境が必要）',
+    retryFetchDiff: 'Diff を再取得',
     copied: 'クリップボードにコピーしました。AI に貼り付けて分析できます。',
     copyFailed: 'コピーに失敗しました。手動で選択してコピーしてください。'
   },

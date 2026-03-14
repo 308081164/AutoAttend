@@ -93,6 +93,12 @@ body {
   cursor: pointer;
 }
 
+/* 下拉选项：浅色背景 + 深色文字，保证可读性 */
+.lang-select option {
+  background: #ffffff;
+  color: #1f2937;
+}
+
 .app-username {
   font-size: 13px;
   opacity: 0.85;

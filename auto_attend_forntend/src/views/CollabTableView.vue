@@ -522,7 +522,7 @@ export default {
         this.columns.forEach(col => {
           let v = this.newRecordFields['c' + col.id]
           if (col.columnType === 'multi_user' && v != null) {
-            v = Array.isArray(v) ? v : (typeof v === 'string' ? (tryParseJson(v) || v) : v)
+            v = Array.isArray(v) ? v : (typeof v === 'string' ? (this.tryParseJson(v) || v) : v)
           }
           v = this.normalizeFieldValue(col, v)
           if (v !== null && v !== undefined) fields['c' + col.id] = v

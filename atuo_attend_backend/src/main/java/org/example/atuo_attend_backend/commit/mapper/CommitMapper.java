@@ -40,6 +40,28 @@ public interface CommitMapper {
             """)
     CommitRecord findOne(@Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha);
 
+    /** 仅按 commit_sha 查一条（用于 getDiff 时前端未传 repoFullName 的兜底） */
+    @Select("""
+            SELECT
+              repo_full_name AS repoFullName,
+              commit_sha AS commitSha,
+              parent_sha AS parentSha,
+              author_name AS authorName,
+              author_email AS authorEmail,
+              committed_at AS committedAt,
+              message AS message,
+              files_changed AS filesChanged,
+              insertions AS insertions,
+              deletions AS deletions,
+              valid_commit AS validCommit,
+              valid_reason AS validReason
+            FROM aa_commit
+            WHERE commit_sha = #{commitSha}
+            ORDER BY committed_at DESC
+            LIMIT 1
+            """)
+    CommitRecord findOneByCommitSha(@Param("commitSha") String commitSha);
+
     @Select("""
             SELECT
               repo_full_name AS repoFullName,

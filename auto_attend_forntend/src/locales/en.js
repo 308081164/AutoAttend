@@ -58,6 +58,7 @@ export default {
     diffNotReady: '(Diff will be fetched automatically. Refresh later if needed.)',
     diffLoadFailed: 'Failed to load diff',
     viewOnGitHub: 'View on GitHub (requires network access to GitHub)',
+    retryFetchDiff: 'Retry fetch Diff',
     copied: 'Copied to clipboard. Paste into AI for analysis.',
     copyFailed: 'Copy failed. Please select and copy manually.'
   },
