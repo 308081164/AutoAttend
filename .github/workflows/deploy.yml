@@ -62,9 +62,9 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${SSH_PORT}" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P "${SSH_PORT}" \
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P "${SSH_PORT}" -r \
             docker-compose.prod.yml \
-            -r atuo_attend_backend \
+            atuo_attend_backend \
             "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
 
       - name: Start containers on server
