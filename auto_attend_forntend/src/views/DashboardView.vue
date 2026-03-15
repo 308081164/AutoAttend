@@ -292,14 +292,14 @@ export default {
     }
   },
   created () {
+    this.loadDashboard()
+    this.loadCommits().then(() => this.tryOpenCommitFromQuery())
+    this.loadStatsOverview()
+    this.loadStatsCommitsByDay()
+    this.loadStatsAuthors()
     this.loadRepos().then(() => {
-      this.loadDashboard()
-      this.loadCommits().then(() => this.tryOpenCommitFromQuery())
-      this.loadStatsOverview()
-      this.loadStatsCommitsByDay()
-      this.loadStatsAuthors()
       if (this.selectedRepo) this.loadRepoInfo()
-    })
+    }).catch(() => {})
   },
   mounted () {
     this.$nextTick(() => {
