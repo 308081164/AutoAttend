@@ -278,6 +278,15 @@ export default {
       this.loadStatsAuthors()
     })
   },
+  mounted () {
+    this.$nextTick(() => {
+      setTimeout(() => {
+        this.renderTrendChart()
+        this.renderRepoChart()
+        this.renderAuthorChart()
+      }, 100)
+    })
+  },
   beforeDestroy () {
     const chartKeys = ['trend', 'repo', 'author']
     chartKeys.forEach(k => {
@@ -323,8 +332,30 @@ export default {
         const el = this.$refs.trendChart
         if (!el) return
         if (this.chartInstances.trend) this.chartInstances.trend.destroy()
-        const labels = (this.commitsByDay || []).map(d => (d.date || '').toString().slice(5))
-        const counts = (this.commitsByDay || []).map(d => d.count || 0)
+        const days = this.trendRange === '30d' ? 30 : 7
+        const formatDayLabel = (d) => {
+          const v = d.date
+          if (v == null) return ''
+          if (typeof v === 'string') return v.slice(0, 10).slice(5)
+          if (typeof v === 'number') {
+            const t = new Date(v)
+            return String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0')
+          }
+          return String(v).slice(0, 10).slice(5)
+        }
+        let labels = (this.commitsByDay || []).map(formatDayLabel)
+        let counts = (this.commitsByDay || []).map(d => d.count || 0)
+        if (labels.length === 0) {
+          const d = new Date()
+          for (let i = days - 1; i >= 0; i--) {
+            const t = new Date(d)
+            t.setDate(t.getDate() - i)
+            const m = String(t.getMonth() + 1).padStart(2, '0')
+            const day = String(t.getDate()).padStart(2, '0')
+            labels.push(m + '-' + day)
+            counts.push(0)
+          }
+        }
         this.chartInstances.trend = new ChartJS(el, {
           type: 'bar',
           data: {
@@ -350,13 +381,16 @@ export default {
         if (!el) return
         if (this.chartInstances.repo) this.chartInstances.repo.destroy()
         const data = this.commitsByRepo || []
-        if (!data.length) return
+        const noDataLabel = '暂无数据'
+        const labels = data.length ? data.map(r => r.repoFullName || '') : [noDataLabel]
+        const counts = data.length ? data.map(r => r.count || 0) : [1]
         const colors = ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#65a30d', '#be185d']
+        const backgroundColor = data.length ? data.map((_, i) => colors[i % colors.length]) : ['#e5e7eb']
         this.chartInstances.repo = new ChartJS(el, {
           type: 'doughnut',
           data: {
-            labels: data.map(r => r.repoFullName || ''),
-            datasets: [{ data: data.map(r => r.count || 0), backgroundColor: data.map((_, i) => colors[i % colors.length]) }]
+            labels,
+            datasets: [{ data: counts, backgroundColor }]
           },
           options: {
             responsive: true,
@@ -372,8 +406,9 @@ export default {
         if (!el) return
         if (this.chartInstances.author) this.chartInstances.author.destroy()
         const data = this.authorsStats || []
-        const labels = data.map(a => a.authorName || a.authorEmail || '')
-        const counts = data.map(a => a.commitCount || 0)
+        const noDataLabel = '暂无数据'
+        const labels = data.length ? data.map(a => a.authorName || a.authorEmail || '') : [noDataLabel]
+        const counts = data.length ? data.map(a => a.commitCount || 0) : [0]
         this.chartInstances.author = new ChartJS(el, {
           type: 'bar',
           data: {

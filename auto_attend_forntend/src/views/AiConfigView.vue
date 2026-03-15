@@ -7,6 +7,7 @@
     <p class="page-desc">{{ $t('aiConfig.desc') }}</p>
 
     <div class="config-card" v-if="config">
+      <p v-if="configLoadedHint" class="config-loaded-hint">{{ $t('aiConfig.configLoadedHint') }}</p>
       <form @submit.prevent="saveConfig">
         <div class="form-row">
           <label class="form-label">{{ $t('aiConfig.provider') }}</label>
@@ -14,6 +15,7 @@
         </div>
         <div class="form-row">
           <label class="form-label">{{ $t('aiConfig.apiKey') }}</label>
+          <p v-if="config.apiKeyMasked" class="api-key-set">{{ $t('aiConfig.apiKeySetHint') }}（{{ config.apiKeyMasked }}）</p>
           <input
             v-model="form.apiKey"
             type="password"
@@ -63,14 +65,23 @@ export default {
   created () {
     this.loadConfig()
   },
+  computed: {
+    configLoadedHint () {
+      if (!this.config) return false
+      const hasKey = this.config.hasApiKey === true || !!(this.config.apiKeyMasked && String(this.config.apiKeyMasked).trim())
+      const isEnabled = this.config.enabled === true || this.config.enabled === 'true' || this.config.enabled === 1
+      return hasKey || isEnabled
+    }
+  },
   methods: {
     async loadConfig () {
       try {
         const resp = await this.$http.get('/admin/ai-analysis/config')
         if (resp.data && resp.data.code === 0 && resp.data.data) {
-          this.config = resp.data.data
-          this.form.enabled = !!this.config.enabled
-          this.form.model = this.config.model || 'deepseek-chat'
+          const data = resp.data.data
+          this.config = data
+          this.form.enabled = data.enabled === true || data.enabled === 'true' || data.enabled === 1
+          this.form.model = (data.model && String(data.model).trim()) || 'deepseek-chat'
           this.form.apiKey = ''
         }
       } catch (e) {
@@ -132,6 +143,19 @@ export default {
   color: #6b7280;
   font-size: 14px;
   margin-bottom: 24px;
+}
+.config-loaded-hint {
+  font-size: 13px;
+  color: #059669;
+  margin: 0 0 16px 0;
+  padding: 8px 12px;
+  background: #ecfdf5;
+  border-radius: 6px;
+}
+.api-key-set {
+  font-size: 13px;
+  color: #059669;
+  margin: 0 0 8px 0;
 }
 .config-card {
   background: #fff;

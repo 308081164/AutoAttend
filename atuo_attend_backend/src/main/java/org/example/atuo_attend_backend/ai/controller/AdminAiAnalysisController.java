@@ -37,8 +37,9 @@ public class AdminAiAnalysisController {
         Map<String, Object> data = new HashMap<>();
         data.put("provider", c.getProvider());
         data.put("apiKeyMasked", c.getApiKey());
-        data.put("enabled", c.getEnabled());
-        data.put("model", c.getModel());
+        data.put("hasApiKey", c.getApiKey() != null && !c.getApiKey().isEmpty());
+        data.put("enabled", Boolean.TRUE.equals(c.getEnabled()));
+        data.put("model", c.getModel() != null ? c.getModel() : "deepseek-chat");
         data.put("promptVersion", c.getPromptVersion());
         data.put("maxDiffChars", c.getMaxDiffChars());
         return ApiResponse.ok(data);
