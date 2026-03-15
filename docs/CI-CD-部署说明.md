@@ -144,6 +144,39 @@ GitHub Actions 触发
 - **SSH 连接失败**：检查 `SSH_HOST`、`SSH_USER`、`SSH_PRIVATE_KEY` 是否正确；服务器 `sshd` 是否允许密钥登录；防火墙是否放行 `SSH_PORT`。
 - **权限错误**：若使用私有仓库，需在 workflow 中为 `GITHUB_TOKEN` 配置 `packages: write`（当前 workflow 已包含）。
 
+### 整站 502（打开域名即 502）
+
+按下面顺序在**服务器上**执行，定位是「前端容器未跑起来」还是「外层 Nginx 未反代到前端」：
+
+1. **看三个容器是否都在运行**：
+   ```bash
+   docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep autoattend
+   ```
+   应看到 `autoattend-frontend`、`autoattend-backend`、`autoattend-mysql` 均为 **Up**。若 `autoattend-frontend` 没有或状态异常，执行下一步。
+
+2. **看前端容器日志**（若上一步发现 frontend 未 Up 或反复重启）：
+   ```bash
+   docker logs --tail 80 autoattend-frontend
+   ```
+   若有启动报错（如 nginx 配置错误），需修复镜像或配置后重新部署。若日志正常但容器退出了，可尝试：
+   ```bash
+   cd /mnt/newdisk/app/AutoAttend   # 或你的 DEPLOY_PATH
+   docker compose -f docker-compose.prod.yml up -d frontend
+   ```
+
+3. **在服务器本机测前端端口**：
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8849/
+   ```
+   - 若返回 **200**：说明前端容器正常，502 来自**外层 Nginx/宝塔未把域名反代到 8849**，请按下一小节「502 Bad Gateway（宝塔 Nginx 反代前端）」配置反代。
+   - 若返回 **000** 或连接失败：说明 8849 无进程监听，前端未启动或端口未映射，回到步骤 1、2 并确认 `docker compose -f docker-compose.prod.yml up -d` 已拉齐并启动 frontend。
+
+4. **确认后端可访问**（可选，用于区分「整站 502」与「仅 /api 502」）：
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8848/api/admin/repos
+   ```
+   返回 200/401 表示后端正常；若后端也 502，先看 `docker logs --tail 80 autoattend-backend` 和 MySQL 是否 Up。
+
 ### 502 Bad Gateway（宝塔 Nginx 反代前端）
 
 若 `curl http://127.0.0.1:8849/` 在服务器上返回 200，但浏览器访问域名报 502，多半是 **Nginx 没有反代到前端容器**（例如站点被配成「网站目录」而不是「反向代理」）。

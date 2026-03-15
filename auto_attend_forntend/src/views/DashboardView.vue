@@ -455,8 +455,13 @@ export default {
           params: { range: '24h', repoFullName: this.selectedRepo || undefined }
         })
         if (resp.data && resp.data.code === 0) {
-          this.dashboard = resp.data.data
-          this.authors = resp.data.data.authors || []
+          const data = resp.data.data
+          this.dashboard = data
+          this.authors = data.authors || []
+          // 兜底：dashboard 接口返回的是 data.commits，若当前提交列表为空则用其填充（与 /admin/commits 的 data.items 为两套接口）
+          if (data.commits && Array.isArray(data.commits) && this.commits.length === 0) {
+            this.commits = data.commits
+          }
         }
       } catch (e) {
         console.error('loadDashboard failed', e)
@@ -472,8 +477,13 @@ export default {
             repoFullName: this.selectedRepo || undefined
           }
         })
-        if (resp.data && resp.data.code === 0) {
-          this.commits = resp.data.data.items || []
+        const d = resp.data
+        if (!d) return
+        const ok = d.code === 0 || d.code === '0'
+        const payload = d.data
+        const list = (payload && payload.items) || d.items
+        if (ok && Array.isArray(list)) {
+          this.commits = list
         }
       } catch (e) {
         console.error('loadCommits failed', e)
