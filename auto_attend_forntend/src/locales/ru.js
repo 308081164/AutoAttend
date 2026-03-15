@@ -48,6 +48,7 @@ export default {
     message: 'Сообщение',
     actions: 'Действия',
     viewDiff: 'Просмотр Diff',
+    commitAnalysisBoard: 'Панель анализа коммита',
     noCommits: 'Нет коммитов. Настройте GitHub Webhook и сделайте push.',
     developers: 'Разработчики по проекту',
     email: 'Email',

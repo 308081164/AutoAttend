@@ -29,13 +29,22 @@ public class DeepSeekClient {
      * 发送 chat completion 请求，返回助手消息的 content；失败返回 null。
      */
     public String chat(String apiKey, String model, List<ChatMessage> messages, boolean requestJson) {
+        ChatResult result = chatWithUsage(apiKey, model, messages, requestJson);
+        return result != null ? result.getContent() : null;
+    }
+
+    /**
+     * 发送 chat 请求并解析 usage，用于记录 Token 消耗。
+     */
+    public ChatResult chatWithUsage(String apiKey, String model, List<ChatMessage> messages, boolean requestJson) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("DeepSeek API key is empty");
             return null;
         }
         try {
+            String modelStr = model != null && !model.isBlank() ? model : "deepseek-chat";
             ObjectNode body = objectMapper.createObjectNode();
-            body.put("model", model != null && !model.isBlank() ? model : "deepseek-chat");
+            body.put("model", modelStr);
             ArrayNode msgArray = objectMapper.createArrayNode();
             for (ChatMessage m : messages) {
                 ObjectNode msg = objectMapper.createObjectNode();
@@ -59,7 +68,14 @@ public class DeepSeekClient {
                 if (choices != null && choices.isArray() && choices.size() > 0) {
                     JsonNode msg = choices.get(0).get("message");
                     if (msg != null && msg.has("content")) {
-                        return msg.get("content").asText();
+                        String content = msg.get("content").asText();
+                        int inputTokens = 0, outputTokens = 0;
+                        JsonNode usage = root.get("usage");
+                        if (usage != null) {
+                            inputTokens = usage.has("prompt_tokens") ? usage.get("prompt_tokens").asInt(0) : 0;
+                            outputTokens = usage.has("completion_tokens") ? usage.get("completion_tokens").asInt(0) : 0;
+                        }
+                        return new ChatResult(content, inputTokens, outputTokens, modelStr);
                     }
                 }
             }
@@ -67,6 +83,25 @@ public class DeepSeekClient {
             log.warn("DeepSeek chat failed: {} - {}", e.getClass().getSimpleName(), e.getMessage());
         }
         return null;
+    }
+
+    public static class ChatResult {
+        private final String content;
+        private final int inputTokens;
+        private final int outputTokens;
+        private final String model;
+
+        public ChatResult(String content, int inputTokens, int outputTokens, String model) {
+            this.content = content;
+            this.inputTokens = inputTokens;
+            this.outputTokens = outputTokens;
+            this.model = model;
+        }
+        public String getContent() { return content; }
+        public int getInputTokens() { return inputTokens; }
+        public int getOutputTokens() { return outputTokens; }
+        public String getModel() { return model; }
+        public int getTotalTokens() { return inputTokens + outputTokens; }
     }
 
     public static class ChatMessage {

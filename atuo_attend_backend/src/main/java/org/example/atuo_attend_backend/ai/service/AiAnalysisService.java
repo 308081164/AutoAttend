@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
+import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisJob;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisResult;
 import org.example.atuo_attend_backend.ai.mapper.AiAnalysisJobMapper;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -32,17 +34,31 @@ public class AiAnalysisService {
     private final AiAnalysisConfigService configService;
     private final AiAnalysisJobMapper jobMapper;
     private final AiAnalysisResultMapper resultMapper;
+    private final AiTokenUsageMapper tokenUsageMapper;
     private final CommitService commitService;
     private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AiAnalysisService(AiAnalysisConfigService configService, AiAnalysisJobMapper jobMapper,
-                             AiAnalysisResultMapper resultMapper, CommitService commitService, DeepSeekClient deepSeekClient) {
+                             AiAnalysisResultMapper resultMapper, AiTokenUsageMapper tokenUsageMapper,
+                             CommitService commitService, DeepSeekClient deepSeekClient) {
         this.configService = configService;
         this.jobMapper = jobMapper;
         this.resultMapper = resultMapper;
+        this.tokenUsageMapper = tokenUsageMapper;
         this.commitService = commitService;
         this.deepSeekClient = deepSeekClient;
+    }
+
+    private void recordTokenUsage(DeepSeekClient.ChatResult chatResult, String repoFullName, String commitSha) {
+        if (chatResult == null || tokenUsageMapper == null) return;
+        try {
+            int total = chatResult.getInputTokens() + chatResult.getOutputTokens();
+            tokenUsageMapper.insert(LocalDateTime.now(), PROVIDER_DEEPSEEK, chatResult.getModel(),
+                chatResult.getInputTokens(), chatResult.getOutputTokens(), total, repoFullName, commitSha);
+        } catch (Exception e) {
+            log.warn("Record token usage failed: {}", e.getMessage());
+        }
     }
 
     public Optional<AiAnalysisResult> getResult(String repoFullName, String commitSha) {
@@ -100,13 +116,15 @@ public class AiAnalysisService {
         List<DeepSeekClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new DeepSeekClient.ChatMessage("system", systemPrompt));
         messages.add(new DeepSeekClient.ChatMessage("user", userContent));
-        String response = deepSeekClient.chat(config.getApiKey(), config.getModel(), messages, true);
-        if (response == null || response.isBlank()) {
+        DeepSeekClient.ChatResult chatResult = deepSeekClient.chatWithUsage(config.getApiKey(), config.getModel(), messages, true);
+        if (chatResult == null || chatResult.getContent() == null || chatResult.getContent().isBlank()) {
             job.setStatus("failed");
             job.setLastError("DeepSeek API 返回为空或调用失败");
             jobMapper.update(job);
             return Optional.empty();
         }
+        recordTokenUsage(chatResult, repoFullName, commitSha);
+        String response = chatResult.getContent();
         AiAnalysisResult result = parseResult(repoFullName, commitSha, config.getPromptVersion(), response);
         if (result == null) {
             job.setStatus("failed");

@@ -48,6 +48,7 @@ export default {
     message: 'メッセージ',
     actions: '操作',
     viewDiff: 'Diff を表示',
+    commitAnalysisBoard: 'コミット分析ボード',
     noCommits: 'コミットがありません。GitHub Webhook を設定してプッシュしてください。',
     developers: 'プロジェクト別開発者',
     email: 'メール',

@@ -44,6 +44,68 @@
     </div>
     <div v-else class="placeholder">{{ $t('aiConfig.loading') }}</div>
 
+    <div class="config-card token-usage-card">
+      <h2 class="config-card-title">{{ $t('aiConfig.tokenUsageTitle') }}</h2>
+      <p class="config-card-desc">{{ $t('aiConfig.tokenUsageDesc') }}</p>
+      <div v-if="usageLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
+      <template v-else-if="usage">
+        <div class="usage-summary">
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usage.summary.callCount) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageCallCount') }}</span>
+          </div>
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usage.summary.inputTokens) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageInputTokens') }}</span>
+          </div>
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usage.summary.outputTokens) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageOutputTokens') }}</span>
+          </div>
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usage.summary.totalTokens) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageTotalTokens') }}</span>
+          </div>
+        </div>
+        <p class="usage-since">{{ $t('aiConfig.usageSince', { days: usageDays }) }}</p>
+        <div class="usage-actions">
+          <select v-model.number="usageDays" @change="loadUsage" class="usage-days-select">
+            <option :value="7">7 {{ $t('aiConfig.usageDays') }}</option>
+            <option :value="30">30 {{ $t('aiConfig.usageDays') }}</option>
+            <option :value="90">90 {{ $t('aiConfig.usageDays') }}</option>
+          </select>
+          <button type="button" class="link-button" @click="loadUsage">{{ $t('dashboard.refresh') }}</button>
+        </div>
+        <div v-if="usage.items && usage.items.length" class="usage-table-wrap">
+          <table class="usage-table">
+            <thead>
+              <tr>
+                <th>{{ $t('aiConfig.usageTime') }}</th>
+                <th>Repo</th>
+                <th>Commit</th>
+                <th>Model</th>
+                <th class="num">{{ $t('aiConfig.usageInputTokens') }}</th>
+                <th class="num">{{ $t('aiConfig.usageOutputTokens') }}</th>
+                <th class="num">{{ $t('aiConfig.usageTotalTokens') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in usage.items" :key="i">
+                <td>{{ formatUsageTime(row.usedAt) }}</td>
+                <td class="repo-cell">{{ row.repoFullName || '—' }}</td>
+                <td class="mono">{{ shortSha(row.commitSha) }}</td>
+                <td>{{ row.model || '—' }}</td>
+                <td class="num">{{ formatNum(row.inputTokens) }}</td>
+                <td class="num">{{ formatNum(row.outputTokens) }}</td>
+                <td class="num">{{ formatNum(row.totalTokens) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="usage-empty">{{ $t('aiConfig.usageEmpty') }}</p>
+      </template>
+    </div>
+
     <div class="config-card github-config-card" v-if="githubConfig !== undefined">
       <h2 class="config-card-title">{{ $t('githubConfig.title') }}</h2>
       <p class="config-card-desc">{{ $t('githubConfig.desc') }}</p>
@@ -100,12 +162,16 @@ export default {
       },
       githubSaving: false,
       githubSaveMessage: '',
-      githubSaveSuccess: false
+      githubSaveSuccess: false,
+      usage: null,
+      usageLoading: false,
+      usageDays: 30
     }
   },
   created () {
     this.loadConfig()
     this.loadGitHubConfig()
+    this.loadUsage()
   },
   computed: {
     configLoadedHint () {
@@ -175,6 +241,40 @@ export default {
         if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
         else this.githubConfig = {}
       }
+    },
+    async loadUsage () {
+      this.usageLoading = true
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/usage', { params: { days: this.usageDays } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.usage = resp.data.data
+          if (!this.usage.summary) this.usage.summary = {}
+        } else {
+          this.usage = { summary: {}, items: [] }
+        }
+      } catch (e) {
+        this.usage = { summary: {}, items: [] }
+      } finally {
+        this.usageLoading = false
+      }
+    },
+    formatNum (v) {
+      if (v == null || v === '') return '0'
+      const n = Number(v)
+      if (isNaN(n)) return String(v)
+      return n.toLocaleString()
+    },
+    formatUsageTime (t) {
+      if (!t) return '—'
+      try {
+        return new Date(t).toLocaleString()
+      } catch (e) {
+        return String(t)
+      }
+    },
+    shortSha (sha) {
+      if (!sha || sha.length < 8) return sha || '—'
+      return sha.substring(0, 7)
     },
     async saveGitHubConfig () {
       this.githubSaving = true
@@ -247,6 +347,81 @@ export default {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 24px;
+}
+.token-usage-card {
+  margin-top: 24px;
+}
+.usage-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 12px;
+}
+.usage-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.usage-summary-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.usage-summary-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+.usage-since {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 12px;
+}
+.usage-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.usage-days-select {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.usage-table-wrap {
+  overflow-x: auto;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.usage-table th,
+.usage-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+.usage-table th.num,
+.usage-table td.num {
+  text-align: right;
+}
+.usage-table .mono {
+  font-family: ui-monospace, monospace;
+}
+.repo-cell {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-empty {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+.placeholder.small {
+  padding: 12px;
 }
 .github-config-card {
   margin-top: 24px;

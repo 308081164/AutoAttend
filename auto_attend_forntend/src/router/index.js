@@ -8,6 +8,7 @@ import CollabProjectListView from '../views/CollabProjectListView.vue'
 import CollabTableView from '../views/CollabTableView.vue'
 import MemberHomeView from '../views/MemberHomeView.vue'
 import TeamManageView from '../views/TeamManageView.vue'
+import CommitAnalysisView from '../views/CommitAnalysisView.vue'
 
 Vue.use(VueRouter)
 
@@ -41,6 +42,11 @@ const routes = [
     path: '/ai-config',
     name: 'ai-config',
     component: AiConfigView
+  },
+  {
+    path: '/commit/:commitSha',
+    name: 'commit-analysis',
+    component: CommitAnalysisView
   },
   {
     path: '/collab-login',

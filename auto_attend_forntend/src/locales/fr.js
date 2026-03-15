@@ -48,6 +48,7 @@ export default {
     message: 'Message',
     actions: 'Actions',
     viewDiff: 'Voir le diff',
+    commitAnalysisBoard: 'Tableau d\'analyse du commit',
     noCommits: 'Aucun commit. Configurez le webhook GitHub et poussez du code.',
     developers: 'Développeurs par projet',
     email: 'Email',

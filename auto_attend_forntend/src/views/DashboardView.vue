@@ -117,6 +117,7 @@
               <td>{{ item.message }}</td>
               <td>
                 <button class="link-button" @click="viewDiff(item)">{{ $t('dashboard.viewDiff') }}</button>
+                <router-link :to="commitAnalysisRoute(item)" class="link-button commit-analysis-link">{{ $t('dashboard.commitAnalysisBoard') }}</router-link>
               </td>
             </tr>
           </tbody>
@@ -155,6 +156,7 @@
           {{ $t('dashboard.diffTitle') }}：{{ selectedCommit.repoFullName }} @ {{ shortSha(selectedCommit.commitSha) }}
         </h2>
         <div class="diff-actions">
+          <router-link v-if="selectedCommit" :to="commitAnalysisRoute(selectedCommit)" class="link-button">{{ $t('dashboard.commitAnalysisBoard') }}</router-link>
           <button v-if="diffText" class="link-button" @click="copyDiffForAi">{{ $t('dashboard.copyForAi') }}</button>
           <button class="link-button" @click="selectedCommit = null">{{ $t('dashboard.collapse') }}</button>
         </div>
@@ -272,6 +274,13 @@ export default {
       if (!repo || !sha) return ''
       return `https://github.com/${repo}/commit/${sha}`
     },
+    commitAnalysisRoute (item) {
+      if (!item || !item.commitSha) return { path: '/' }
+      return {
+        path: `/commit/${item.commitSha}`,
+        query: item.repoFullName ? { repoFullName: item.repoFullName } : {}
+      }
+    },
     diffHtml () {
       if (!this.diffText) return ''
       return this.diffText.split('\n').map(line => {
@@ -285,7 +294,7 @@ export default {
   created () {
     this.loadRepos().then(() => {
       this.loadDashboard()
-      this.loadCommits()
+      this.loadCommits().then(() => this.tryOpenCommitFromQuery())
       this.loadStatsOverview()
       this.loadStatsCommitsByDay()
       this.loadStatsAuthors()
@@ -487,6 +496,12 @@ export default {
         return t
       }
     },
+    tryOpenCommitFromQuery () {
+      const q = this.$route.query
+      if (!q || !q.commitSha || !q.repoFullName || !this.commits.length) return
+      const item = this.commits.find(c => c.commitSha === q.commitSha && c.repoFullName === q.repoFullName)
+      if (item) this.viewDiff(item)
+    },
     retryFetchDiff () {
       if (this.selectedCommit) this.viewDiff(this.selectedCommit)
     },
@@ -545,6 +560,9 @@ export default {
         this.diffText = this.$t('dashboard.diffLoadFailed')
       } finally {
         this.diffLoading = false
+        this.loadAiAnalysisResult().then(() => {
+          if (!this.aiAnalysisResult && this.diffText && !this.isDiffPlaceholder(this.diffText)) this.runAiAnalysis()
+        })
       }
     },
     escapeHtml (s) {
