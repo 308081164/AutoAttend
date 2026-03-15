@@ -30,7 +30,7 @@ public class AdminStatsController {
     public ApiResponse<Map<String, Object>> repoInfo(
             @RequestParam("repoFullName") String repoFullName) {
         if (repoFullName == null || repoFullName.isBlank()) {
-            return ApiResponse.fail(40000, "repoFullName required");
+            return ApiResponse.error(40000, "repoFullName required");
         }
         Map<String, Object> info = githubRepoInfoFetcher.fetchRepoInfo(repoFullName.trim());
         return ApiResponse.ok(info != null ? info : new HashMap<>());
