@@ -55,10 +55,15 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       # 大陆服务器可设置 HTTP/SOCKS 代理以访问 api.github.com，如 http://127.0.0.1:7890
       GITHUB_API_PROXY: ${GITHUB_API_PROXY:-}
+      # 本地 Git 兜底：API 失败时自动用 git clone/fetch + git show 拉取 diff，默认启用，无需上机配置
+      GIT_WORKSPACE: ${GIT_WORKSPACE:-/data/git-repos}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: autoattend-attachments
+    volumes:
+      # 持久化本地 clone 的仓库，供 Diff 兜底使用
+      - autoattend_git_repos:/data/git-repos
     ports:
       - "8848:8848"
     restart: unless-stopped
@@ -75,3 +80,4 @@ services:
 volumes:
   autoattend_mysql_data:
   autoattend_minio_data:
+  autoattend_git_repos:

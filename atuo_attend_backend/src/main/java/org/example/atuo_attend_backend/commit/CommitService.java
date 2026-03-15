@@ -24,11 +24,14 @@ public class CommitService {
     private final CommitMapper commitMapper;
     private final CommitDiffMapper commitDiffMapper;
     private final GithubDiffFetcher githubDiffFetcher;
+    private final LocalGitDiffFetcher localGitDiffFetcher;
 
-    public CommitService(CommitMapper commitMapper, CommitDiffMapper commitDiffMapper, GithubDiffFetcher githubDiffFetcher) {
+    public CommitService(CommitMapper commitMapper, CommitDiffMapper commitDiffMapper,
+                         GithubDiffFetcher githubDiffFetcher, LocalGitDiffFetcher localGitDiffFetcher) {
         this.commitMapper = commitMapper;
         this.commitDiffMapper = commitDiffMapper;
         this.githubDiffFetcher = githubDiffFetcher;
+        this.localGitDiffFetcher = localGitDiffFetcher;
     }
 
     public void saveCommit(String repoFullName,
@@ -72,9 +75,9 @@ public class CommitService {
         }
     }
 
-    /** 当无法从库或 GitHub 获取 diff 时返回的提示，便于前端展示原因 */
+    /** 当无法从库、GitHub API 或本地 Git 获取 diff 时返回的提示，便于前端展示原因 */
     private static final String DIFF_UNAVAILABLE_PLACEHOLDER =
-        "(Diff 暂不可用：请配置服务器环境变量 GITHUB_TOKEN 后重试，或检查网络与 GitHub API 限流。详见部署说明。)";
+        "(Diff 暂不可用：请配置 GITHUB_TOKEN 或配置 git.workspace 启用本地 Git 兜底后重试；并检查网络与 API 限流。详见部署说明。)";
 
     /** 仅按 commitSha 查一条记录（用于 getDiff 时未传 repo 的兜底），不拉取 diff。 */
     public Optional<CommitRecord> findAnyCommitBySha(String commitSha) {
@@ -148,8 +151,14 @@ public class CommitService {
         log.warn("Diff unavailable after {} retries for {}@{} - check GITHUB_TOKEN, rate limit, or network", DIFF_FETCH_RETRY_TIMES, repoFullName, commitSha);
     }
 
+    /**
+     * 多方式获取 diff：先 GitHub API，失败则本地 Git 兜底；保留外层重试机制。
+     */
     private boolean trySaveFetchedDiff(String repoFullName, String commitSha) {
         String diffText = githubDiffFetcher.fetchDiff(repoFullName, commitSha);
+        if ((diffText == null || diffText.isBlank()) && localGitDiffFetcher.isEnabled()) {
+            diffText = localGitDiffFetcher.fetchDiff(repoFullName, commitSha);
+        }
         if (diffText == null || diffText.isBlank()) return false;
         long size = diffText.getBytes().length;
         try {

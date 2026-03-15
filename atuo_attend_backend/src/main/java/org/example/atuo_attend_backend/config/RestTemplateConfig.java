@@ -15,8 +15,10 @@ import java.net.URI;
 
 /**
  * 默认 RestTemplate 与供 GitHub API 使用的 RestTemplate（可选代理，便于大陆服务器访问 api.github.com）。
+ * 依赖 systemConfigSchemaBootstrap 确保 aa_system_config 表在读取前已创建（兼容已有库未执行迁移的部署）。
  */
 @Configuration
+@org.springframework.context.annotation.DependsOn("systemConfigSchemaBootstrap")
 public class RestTemplateConfig {
 
     private static final Logger log = LoggerFactory.getLogger(RestTemplateConfig.class);

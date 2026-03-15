@@ -134,6 +134,9 @@ GitHub Actions 触发
    - 再次执行 `docker compose -f docker-compose.prod.yml up -d backend`。仅拉取 GitHub API 的请求会经该代理发出。
    - 若无代理，可点击管理后台中的 **「在 GitHub 上查看」** 链接，在浏览器中打开该提交（需本机或浏览器能访问 GitHub）。
 
+   **本地 Git 兜底（已默认启用，无需上机配置）**  
+   当 GitHub API 拉取 diff 失败时，系统会自动用本地 `git clone/fetch + git show` 拉取（方式 3）。CI/CD 构建的 backend 镜像已预装 git，`docker-compose.prod.yml` 已默认配置 `GIT_WORKSPACE=/data/git-repos` 并挂载持久化 volume，**部署后即具备此能力，无需在服务器上手动建目录或改配置**。若需改用其他目录，可在 `.env` 中设置 `GIT_WORKSPACE=/你的路径` 并在 compose 中增加对应 volume。
+
 5. **（可选）启用「单次提交 AI 分析」**  
    AI 分析相关表（`aa_ai_analysis_config` 等）会随部署自动创建：**全新 MySQL** 由容器首次启动时执行 `03_schema_ai.sql`；**已有数据目录** 的实例会在后端首次启动时自动执行建表，无需手动跑 SQL。  
    启用方式：在管理后台 **「AI 配置」** 页填写 DeepSeek API Key（需自行到 [DeepSeek 平台](https://platform.deepseek.com) 获取）并开启分析。

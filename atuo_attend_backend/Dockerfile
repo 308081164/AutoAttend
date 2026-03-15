@@ -10,6 +10,10 @@ RUN mvn -q -B -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
+# 安装 git，用于 Diff 拉取本地兜底（API 失败时 clone/fetch + git show）
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/target/*.jar app.jar
 
 ENV DB_HOST=mysql \
