@@ -454,14 +454,16 @@ export default {
         const resp = await this.$http.get('/admin/dashboard', {
           params: { range: '24h', repoFullName: this.selectedRepo || undefined }
         })
-        if (resp.data && resp.data.code === 0) {
-          const data = resp.data.data
-          this.dashboard = data
-          this.authors = data.authors || []
-          // 兜底：dashboard 接口返回的是 data.commits，若当前提交列表为空则用其填充（与 /admin/commits 的 data.items 为两套接口）
-          if (data.commits && Array.isArray(data.commits) && this.commits.length === 0) {
-            this.commits = data.commits
-          }
+        const d = resp.data
+        if (!d) return
+        const ok = d.code === 0 || d.code === '0'
+        const data = d.data || d
+        if (!ok || !data) return
+        this.dashboard = data
+        this.authors = data.authors || []
+        // 以 dashboard 的 data.commits 为主数据源，确保表格有数据（/admin/commits 为 data.items，两套接口字段名不同）
+        if (data.commits && Array.isArray(data.commits)) {
+          this.commits = data.commits
         }
       } catch (e) {
         console.error('loadDashboard failed', e)
@@ -478,9 +480,9 @@ export default {
           }
         })
         const d = resp.data
-        if (!d) return
+        if (!d) { this.commitsLoading = false; return }
         const ok = d.code === 0 || d.code === '0'
-        const payload = d.data
+        const payload = d.data != null ? d.data : d
         const list = (payload && payload.items) || d.items
         if (ok && Array.isArray(list)) {
           this.commits = list
