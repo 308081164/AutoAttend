@@ -8,6 +8,9 @@ public class BizUser {
     private String name;
     private String passwordHash;
     private String role;
+    private String avatar;
+    private String remarkName;
+    private String jobTitle;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -21,6 +24,12 @@ public class BizUser {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
+    public String getRemarkName() { return remarkName; }
+    public void setRemarkName(String remarkName) { this.remarkName = remarkName; }
+    public String getJobTitle() { return jobTitle; }
+    public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

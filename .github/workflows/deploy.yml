@@ -82,3 +82,8 @@ jobs:
             export IMAGE_FRONTEND=${{ steps.images.outputs.frontend }}
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
+            # 团队管理表结构迁移：已有库补全 biz_user 头像/备注名/职务列（新库建表脚本已含，执行报错可忽略）
+            sleep 5
+            docker run --rm --network container:autoattend-mysql \
+              -v "$(pwd)/atuo_attend_backend/src/main/resources/db/schema_collab_team_migration.sql:/migrate.sql:ro" \
+              mysql:8.4 sh -c "mysql -h 127.0.0.1 -u autoattend -pautoattend_pwd autoattend < /migrate.sql" || true

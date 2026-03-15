@@ -128,6 +128,9 @@ GitHub Actions 触发
 
 ## 六、常见问题
 
+- **团队管理：已有库升级**  
+  若在**本次更新前**已部署过 AutoAttend，MySQL 中的 `biz_user` 表可能缺少「头像、备注名、职务」列。**无需在服务器上手动执行**：下次通过 CI/CD 部署（push 到 main 后）会自动执行 `schema_collab_team_migration.sql`（在 `up -d` 之后由 workflow 挂载并运行）；若列已存在会报错，workflow 已忽略该错误，不影响部署。全新 MySQL 的建表脚本已包含这些列，同样无需额外操作。
+
 - **镜像拉取慢**：服务器若在国内，ghcr.io 可能较慢，可考虑将镜像同步到阿里云 ACR 或在 workflow 中推送到阿里云，再在 `docker-compose.prod.yml` 中改用 ACR 地址。
 - **SSH 连接失败**：检查 `SSH_HOST`、`SSH_USER`、`SSH_PRIVATE_KEY` 是否正确；服务器 `sshd` 是否允许密钥登录；防火墙是否放行 `SSH_PORT`。
 - **权限错误**：若使用私有仓库，需在 workflow 中为 `GITHUB_TOKEN` 配置 `packages: write`（当前 workflow 已包含）。

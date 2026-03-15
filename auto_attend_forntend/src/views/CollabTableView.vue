@@ -14,14 +14,26 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th v-for="col in columns" :key="col.id" class="col-header">{{ getColumnDisplayName(col) }}</th>
-            <th width="80">{{ $t('collabTable.operations') }}</th>
+            <th v-for="col in columns" :key="col.id" class="col-header" :class="getColumnHeaderClass(col)">{{ getColumnDisplayName(col) }}</th>
+            <th class="col-ops">{{ $t('collabTable.operations') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in records" :key="row.id" @click="openRecord(row)">
-            <td v-for="col in columns" :key="col.id" class="cell">
-              {{ formatCell(row['c' + col.id], col) }}
+            <td v-for="col in columns" :key="col.id" class="cell" :class="getCellClass(col)">
+              <template v-if="isAttachmentColumn(col)">
+                <div class="list-thumbs">
+                  <template v-for="aid in getAttachmentIdsFromField(row['c' + col.id])">
+                    <div v-if="getListAttachmentById(row.id, aid)" :key="aid" class="list-thumb-wrap">
+                      <img v-if="getListAttachmentById(row.id, aid).isImage && listAttachmentPreviewUrls[aid]" :src="listAttachmentPreviewUrls[aid]" class="list-thumb-img" alt="">
+                      <span v-else class="list-thumb-name">{{ getListAttachmentById(row.id, aid).fileName }}</span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+              <template v-else>
+                {{ formatCell(row['c' + col.id], col) }}
+              </template>
             </td>
             <td class="ops-cell">
               <button class="link-button" @click.stop="openRecord(row)">{{ $t('collabTable.detail') }}</button>
@@ -51,7 +63,13 @@
             <div v-for="col in columns" :key="col.id" class="field-row">
               <span class="field-label">{{ getColumnDisplayName(col) }}</span>
               <div class="field-input-wrap">
-                <input v-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
+                <textarea v-else-if="isProblemDescColumn(col)" :placeholder="$t('collabTable.fieldPlaceholder')"
+                  :value="drawerEditValues['c' + col.id]"
+                  @input="setDrawerField(col.id, $event.target.value)"
+                  class="field-input field-textarea"
+                  rows="3"
+                ></textarea>
+                <input v-else-if="isTextLike(col)" type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
                   :value="drawerEditValues['c' + col.id]"
                   @input="setDrawerField(col.id, $event.target.value)"
                   class="field-input"
@@ -263,7 +281,9 @@ export default {
       newRecordAttachmentColId: null,
       newRecordImagePreviewUrl: '',
       attachmentPreviewUrls: {},
-      drawerUploadColId: null
+      drawerUploadColId: null,
+      recordAttachmentsMap: {},
+      listAttachmentPreviewUrls: {}
     }
   },
   created () {
@@ -271,6 +291,9 @@ export default {
     this.loadTable()
     this.loadRecords()
     this.loadProjectMembers()
+  },
+  beforeDestroy () {
+    this.revokeListAttachmentPreviewUrls()
   },
   methods: {
     async loadTable () {
@@ -283,9 +306,7 @@ export default {
           this.columns = (d.columns || []).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
         }
       } catch (e) {
-        if (e.response && e.response.status === 401) {
-          this.$router.push({ name: 'collab-login' })
-        }
+        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
       } finally {
         this.tableLoading = false
       }
@@ -298,13 +319,71 @@ export default {
         })
         if (resp.data && resp.data.code === 0) {
           this.records = resp.data.data.items || []
+          this.revokeListAttachmentPreviewUrls()
+          this.loadListAttachmentPreviews()
         }
       } finally {
         this.recordsLoading = false
       }
     },
+    getColumnHeaderClass (col) {
+      if ((col.name || '').trim() === '问题描述') return 'col-problem'
+      if (this.isAttachmentColumn(col)) return 'col-attachment'
+      return ''
+    },
+    getCellClass (col) {
+      if ((col.name || '').trim() === '问题描述') return 'cell-problem'
+      if (this.isAttachmentColumn(col)) return 'cell-attachment'
+      return ''
+    },
+    getListAttachmentById (recordId, attachmentId) {
+      const list = this.recordAttachmentsMap[recordId]
+      if (!list) return null
+      const id = Number(attachmentId)
+      return list.find(a => a.id === id || a.id === attachmentId)
+    },
+    revokeListAttachmentPreviewUrls () {
+      Object.values(this.listAttachmentPreviewUrls).forEach(u => {
+        try { URL.revokeObjectURL(u) } catch (_e) { /* ignore */ }
+      })
+      this.listAttachmentPreviewUrls = {}
+      this.recordAttachmentsMap = {}
+    },
+    async loadListAttachmentPreviews () {
+      const token = window.localStorage.getItem('autoattend_collab_token')
+      const base = this.$http.defaults.baseURL || '/api'
+      for (const row of this.records) {
+        const ids = []
+        this.columns.forEach(col => {
+          if (!this.isAttachmentColumn(col)) return
+          ids.push(...this.getAttachmentIdsFromField(row['c' + col.id]))
+        })
+        if (!ids.length) continue
+        try {
+          const resp = await this.$http.get(`/collab/records/${row.id}/attachments`)
+          if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
+            this.$set(this.recordAttachmentsMap, row.id, resp.data.data.items)
+            for (const a of resp.data.data.items) {
+              if (!a.isImage) continue
+              try {
+                const r = await fetch(base + '/collab/attachments/' + a.id + '/preview', {
+                  headers: { Authorization: 'Bearer ' + token }
+                })
+                if (r.ok) {
+                  const blob = await r.blob()
+                  if (blob.type && blob.type.startsWith('image/')) {
+                    this.$set(this.listAttachmentPreviewUrls, a.id, URL.createObjectURL(blob))
+                  }
+                }
+              } catch (e) { /* ignore */ }
+            }
+          }
+        } catch (e) { /* ignore */ }
+      }
+    },
     formatCell (val, col) {
       if (val == null) return ''
+      if ((col.columnType || '').toLowerCase() === 'attachment') return ''
       if (col.columnType === 'datetime' || col.columnType === 'date') {
         return String(val).slice(0, 19).replace('T', ' ')
       }
@@ -335,7 +414,7 @@ export default {
         }
       }).catch(() => {})
     },
-    openRecord (row) {
+    async openRecord (row) {
       this.drawerRecord = row
       this.drawerEditValues = {}
       this.columns.forEach(col => {
@@ -349,7 +428,7 @@ export default {
       this.comments = []
       this.attachments = []
       this.newComment = ''
-      this.loadAttachments()
+      await this.loadAttachments()
       this.loadProjectMembersForDrawer()
     },
     closeDrawer () {
@@ -392,6 +471,9 @@ export default {
     isCreatorColumn (col) {
       return (col.name || '').trim() === '创建人'
     },
+    isProblemDescColumn (col) {
+      return (col.name || '').trim() === '问题描述'
+    },
     isMultiUserColumn (col) {
       return (col.columnType || '').toLowerCase() === 'multi_user'
     },
@@ -408,7 +490,8 @@ export default {
       }
     },
     getAttachmentById (id) {
-      return this.attachments.find(a => a.id === id)
+      const n = Number(id)
+      return this.attachments.find(a => a.id === n || a.id === id)
     },
     isDrawerResponsibleSelected (colId, userId) {
       const raw = this.drawerEditValues['c' + colId]
@@ -741,8 +824,11 @@ export default {
 
 <style scoped>
 .collab-table-page {
-  max-width: 1200px;
+  max-width: 98%;
+  width: 100%;
   margin: 0 auto;
+  padding: 0 12px;
+  box-sizing: border-box;
 }
 
 .table-header {
@@ -788,10 +874,12 @@ export default {
   background: #fff;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
+  width: 100%;
 }
 
 .data-table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
 }
 
@@ -799,6 +887,7 @@ export default {
   padding: 10px 12px;
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
 }
 
 .data-table th {
@@ -806,6 +895,12 @@ export default {
   font-weight: 600;
   font-size: 13px;
 }
+
+.data-table th.col-problem,
+.data-table td.cell-problem { min-width: 200px; max-width: 380px; }
+.data-table th.col-attachment,
+.data-table td.cell-attachment { width: 120px; }
+.data-table th.col-ops { width: 100px; }
 
 .data-table tbody tr {
   cursor: pointer;
@@ -816,7 +911,48 @@ export default {
 }
 
 .cell {
-  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-problem {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-attachment {
+  white-space: normal;
+  width: 120px;
+  vertical-align: middle;
+}
+
+.list-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.list-thumb-wrap {
+  flex-shrink: 0;
+}
+
+.list-thumb-img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+  border: 1px solid #e5e7eb;
+}
+
+.list-thumb-name {
+  font-size: 11px;
+  color: #6b7280;
+  display: block;
+  max-width: 56px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -839,8 +975,8 @@ export default {
 }
 
 .drawer {
-  width: 420px;
-  max-width: 100%;
+  width: 540px;
+  max-width: 96vw;
   height: 100%;
   background: #fff;
   box-shadow: -4px 0 16px rgba(0,0,0,0.1);
@@ -894,11 +1030,19 @@ export default {
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 20px 24px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.field-list {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .field-list .field-row {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .field-label {
@@ -914,10 +1058,12 @@ export default {
 
 .field-input-wrap {
   margin-top: 4px;
+  max-width: 100%;
 }
 
 .field-input {
   width: 100%;
+  max-width: 100%;
   padding: 8px 10px;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
@@ -928,6 +1074,12 @@ export default {
 .field-input:focus {
   outline: none;
   border-color: #2563eb;
+}
+
+.field-input.field-textarea {
+  min-height: 64px;
+  resize: vertical;
+  white-space: pre-wrap;
 }
 
 .drawer-actions {

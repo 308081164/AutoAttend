@@ -34,7 +34,7 @@
     </section>
 
     <div class="back-link">
-      <router-link to="/collab-login">{{ $t('memberHome.backToLogin') }}</router-link>
+      <router-link to="/login">{{ $t('memberHome.backToLogin') }}</router-link>
     </div>
   </div>
 </template>
@@ -61,7 +61,7 @@ export default {
           this.userEmail = resp.data.data.email || ''
         }
       } catch (e) {
-        this.$router.push({ name: 'collab-login' })
+        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
       }
     },
     async loadOverview () {
@@ -72,16 +72,15 @@ export default {
           this.overview = resp.data.data || {}
         }
       } catch (e) {
-        if (e.response && e.response.status === 401) {
-          this.$router.push({ name: 'collab-login' })
-        }
+        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
       } finally {
         this.statsLoading = false
       }
     },
     logout () {
       window.localStorage.removeItem('autoattend_collab_token')
-      this.$router.push({ name: 'collab-login' })
+      window.localStorage.removeItem('autoattend_token')
+      this.$router.push({ name: 'login' })
     }
   }
 }

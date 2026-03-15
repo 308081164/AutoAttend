@@ -61,6 +61,7 @@ public class CollabSyncService {
         user.setName(name != null ? name.trim() : email);
         user.setPasswordHash(passwordService.hash(DEFAULT_PASSWORD));
         user.setRole("member");
+        user.setJobTitle("开发工程师");
         userMapper.insert(user);
         log.info("Collab user created: email={}", user.getEmail());
         return user;

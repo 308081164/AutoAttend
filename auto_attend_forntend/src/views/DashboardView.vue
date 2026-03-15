@@ -2,6 +2,7 @@
   <div class="dashboard">
     <section class="section section-header-bar">
       <div class="header-actions">
+        <router-link to="/team" class="link-button">{{ $t('teamManage.navTitle') }}</router-link>
         <router-link to="/ai-config" class="link-button">{{ $t('aiConfig.navTitle') }}</router-link>
         <router-link to="/test" class="link-button test-entry">{{ $t('test.title') }}</router-link>
         <router-link to="/collab/projects" class="link-button collab-entry">{{ $t('dashboard.collabEntry') }}</router-link>

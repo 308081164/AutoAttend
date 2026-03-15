@@ -25,9 +25,6 @@
         <button class="primary-button" type="submit" :disabled="loading">
           {{ loading ? $t('login.submitting') : $t('login.submit') }}
         </button>
-        <p class="employee-login-hint">
-          <router-link to="/collab-login">{{ $t('login.employeeLoginLink') }}</router-link>
-        </p>
       </form>
     </div>
   </div>
@@ -51,20 +48,33 @@ export default {
       this.error = ''
       this.loading = true
       try {
-        const resp = await this.$http.post('/admin/auth/login', this.form)
-        if (resp.data && resp.data.code === 0) {
-          const data = resp.data.data
+        const adminResp = await this.$http.post('/admin/auth/login', this.form)
+        if (adminResp.data && adminResp.data.code === 0) {
+          const data = adminResp.data.data
           window.localStorage.setItem('autoattend_token', data.token)
           window.localStorage.setItem('autoattend_username', this.form.username)
           if (data.collabToken) {
             window.localStorage.setItem('autoattend_collab_token', data.collabToken)
           }
           this.$router.push({ name: 'dashboard' })
-        } else {
-          this.error = (resp.data && resp.data.message) || this.$t('login.failed')
+          return
         }
+        const collabResp = await this.$http.post('/collab/auth/login', {
+          email: this.form.username.trim(),
+          password: this.form.password
+        })
+        if (collabResp.data && collabResp.data.code === 0) {
+          window.localStorage.setItem('autoattend_collab_token', collabResp.data.data.token)
+          this.$router.push({ name: 'member-home' })
+          return
+        }
+        this.error = (adminResp.data && adminResp.data.message) || this.$t('login.failed')
       } catch (e) {
-        this.error = this.$t('login.failedBackend')
+        if (e.response && e.response.status === 401) {
+          this.error = this.$t('login.failed')
+        } else {
+          this.error = this.$t('login.failedBackend')
+        }
       } finally {
         this.loading = false
       }

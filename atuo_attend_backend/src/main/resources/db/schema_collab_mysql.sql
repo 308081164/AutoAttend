@@ -1,17 +1,21 @@
 -- 多维表格协作模块：项目随仓库自动创建，用户由 commit 作者同步
 -- 执行顺序：在 schema_mysql.sql 之后
 
--- 协作用户（来自 commit author_email，默认密码 123456）
+-- 协作用户（来自 commit 作者或管理员创建；默认密码 123456；同步创建默认职务为开发工程师）
 CREATE TABLE IF NOT EXISTS biz_user (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     email VARCHAR(255) NOT NULL,
     name VARCHAR(128) NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(32) NOT NULL DEFAULT 'member',
+    avatar VARCHAR(512) NULL COMMENT '头像 URL',
+    remark_name VARCHAR(128) NULL COMMENT '备注名',
+    job_title VARCHAR(64) NULL DEFAULT '开发工程师' COMMENT '职务',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_email (email),
-    KEY idx_role (role)
+    KEY idx_role (role),
+    KEY idx_job_title (job_title)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 项目（与仓库一一对应，repo_id = repo_full_name；随仓库首次 commit 自动创建）

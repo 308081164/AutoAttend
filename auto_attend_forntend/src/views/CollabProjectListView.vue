@@ -49,7 +49,7 @@ export default {
           this.userEmail = resp.data.data.email || ''
         }
       } catch (e) {
-        this.$router.push({ name: 'collab-login' })
+        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
       }
     },
     async loadProjects () {
@@ -60,16 +60,15 @@ export default {
           this.projects = resp.data.data.items || []
         }
       } catch (e) {
-        if (e.response && e.response.status === 401) {
-          this.$router.push({ name: 'collab-login' })
-        }
+        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
       } finally {
         this.loading = false
       }
     },
     logout () {
       window.localStorage.removeItem('autoattend_collab_token')
-      this.$router.push({ name: 'collab-login' })
+      window.localStorage.removeItem('autoattend_token')
+      this.$router.push({ name: 'login' })
     }
   }
 }

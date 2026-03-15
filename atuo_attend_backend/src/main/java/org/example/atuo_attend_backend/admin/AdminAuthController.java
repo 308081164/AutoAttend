@@ -37,5 +37,14 @@ public class AdminAuthController {
         AdminUser admin = adminAuthService.currentAdmin();
         return ApiResponse.ok(admin);
     }
+
+    /** 获取协作模块 JWT，供已登录管理员访问项目协作时使用，无需再次登录 */
+    @GetMapping("/collab-token")
+    public ApiResponse<AdminLoginResponse> collabToken() {
+        adminAuthService.currentAdmin();
+        AdminLoginResponse resp = new AdminLoginResponse();
+        resp.setCollabToken(collabAuthService.issueCollabTokenForAdmin());
+        return ApiResponse.ok(resp);
+    }
 }
 

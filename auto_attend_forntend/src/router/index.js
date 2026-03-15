@@ -4,10 +4,10 @@ import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import TestView from '../views/TestView.vue'
 import AiConfigView from '../views/AiConfigView.vue'
-import CollabLoginView from '../views/CollabLoginView.vue'
 import CollabProjectListView from '../views/CollabProjectListView.vue'
 import CollabTableView from '../views/CollabTableView.vue'
 import MemberHomeView from '../views/MemberHomeView.vue'
+import TeamManageView from '../views/TeamManageView.vue'
 
 Vue.use(VueRouter)
 
@@ -33,14 +33,18 @@ const routes = [
     component: TestView
   },
   {
+    path: '/team',
+    name: 'team-manage',
+    component: TeamManageView
+  },
+  {
     path: '/ai-config',
     name: 'ai-config',
     component: AiConfigView
   },
   {
     path: '/collab-login',
-    name: 'collab-login',
-    component: CollabLoginView
+    redirect: { name: 'login' }
   },
   {
     path: '/collab/projects',
@@ -59,10 +63,10 @@ const router = new VueRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const isCollabPath = to.path.indexOf('/collab') === 0
   const isMemberHome = to.name === 'member-home'
-  const isCollabLogin = to.name === 'collab-login'
+  const isCollabLoginPath = to.path === '/collab-login'
   const adminToken = window.localStorage.getItem('autoattend_token')
   const collabToken = window.localStorage.getItem('autoattend_collab_token')
 
@@ -72,12 +76,30 @@ router.beforeEach((to, from, next) => {
     else next()
     return
   }
+  if (isCollabLoginPath) {
+    if (adminToken) next({ name: 'collab-projects' })
+    else next()
+    return
+  }
   if (isCollabPath || isMemberHome) {
-    if (!collabToken && !isCollabLogin) {
-      next({ name: 'collab-login' })
-    } else {
-      next()
+    if (adminToken && !collabToken) {
+      try {
+        const r = await fetch('/api/admin/auth/collab-token', { headers: { Authorization: 'Bearer ' + adminToken } })
+        const data = await r.json()
+        if (data.data && data.data.collabToken) {
+          window.localStorage.setItem('autoattend_collab_token', data.data.collabToken)
+          next()
+        } else next({ name: 'login' })
+      } catch (e) {
+        next({ name: 'login' })
+      }
+      return
     }
+    if (!collabToken && !adminToken) {
+      next({ name: 'login' })
+      return
+    }
+    next()
     return
   }
   if (to.name === 'dashboard' || to.path === '/') {

@@ -17,6 +17,9 @@ public interface BizProjectMemberMapper {
     @Select("SELECT project_id FROM biz_project_member WHERE user_id = #{userId}")
     List<Long> listProjectIdsByUserId(@Param("userId") long userId);
 
+    @Select("SELECT id, project_id AS projectId, user_id AS userId, role, source, created_at AS createdAt FROM biz_project_member WHERE user_id = #{userId}")
+    List<BizProjectMember> listByUserId(@Param("userId") long userId);
+
     @Select("SELECT project_id FROM biz_project_member WHERE user_id = #{userId} AND role = #{role}")
     List<Long> listProjectIdsByUserIdAndRole(@Param("userId") long userId, @Param("role") String role);
 
