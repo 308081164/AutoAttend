@@ -99,43 +99,23 @@ GitHub Actions 触发
    docker compose -f docker-compose.prod.yml up -d
    ```
 
-4. **可选：配置 GITHUB_TOKEN 与代理以拉取 Commit Diff**  
-   管理后台「查看 Diff」、Webhook 拉取 diff、首页提交列表的「文件/新增/删除」统计均依赖 GitHub API；未配置 token 时易触发**匿名限流**（约 60 次/小时），拉取失败时页面会显示「Diff 暂不可用」占位。按下面步骤配置后可稳定拉取。
+4. **可选：配置 GitHub Token 与代理以拉取 Commit Diff**  
+   管理后台「查看 Diff」、Webhook 拉取 diff、首页提交列表的「文件/新增/删除」统计均依赖 GitHub API；未配置 token 时易触发**匿名限流**（约 60 次/小时），拉取失败时页面会显示「Diff 暂不可用」占位。
 
-   **步骤一：在 GitHub 创建 Personal Access Token（PAT）**
-   - 打开 [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)（或 Fine-grained tokens）。
-   - 点击 **Generate new token**：Note 可填 `AutoAttend-Diff`；Expiration 按需选择。
-   - 权限（Scopes）：勾选 **`repo`**（拉取仓库 commit 与 diff；若仅公开仓可只勾选 `public_repo`）。
-   - 生成后**复制 token**（形如 `ghp_xxxxxxxxxxxx`），只显示一次，请妥善保存。
+   **GitHub Token：仅在管理后台「AI 配置」页填写（不写入服务器或 compose）**  
+   - 为保护 Token 安全、避免泄露，**不在** `docker-compose.prod.yml` 或服务器 `.env` 中配置 `GITHUB_TOKEN`。
+   - 请在 GitHub 创建 [Personal Access Token](https://github.com/settings/tokens)（权限勾选 `repo` 或 `public_repo`），然后在系统**管理后台 → AI 配置**页中填写并保存「GitHub Token」。Token 仅存入数据库，供后端拉取 Diff 与本地 Git 兜底使用。
 
-   **步骤二：在服务器上配置环境变量**
-   - 进入项目目录（与 `docker-compose.prod.yml` 同目录，如 `/mnt/newdisk/app/AutoAttend`）。
-   - 创建或编辑 **`.env`** 文件（该文件已加入 `.gitignore`，不会被 git 提交）：
-     ```bash
-     # 拉取 Diff 用（必填一项）
-     GITHUB_TOKEN=ghp_你复制的Token
-
-     # 大陆服务器无法直连 GitHub 时，填写代理（可选）
-     # GITHUB_API_PROXY=http://127.0.0.1:7890
-     # 或 SOCKS5：GITHUB_API_PROXY=socks5://127.0.0.1:1080
-     ```
-   - 保存后执行重启，使 backend 容器重新读取环境变量：
-     ```bash
-     docker compose -f docker-compose.prod.yml up -d backend
-     ```
-   - 若使用 CI/CD 部署，每次 SSH 执行 `docker compose up -d` 时会在该目录下执行，**会自动读取同目录下的 `.env`**，因此只需在服务器上保留一份 `.env` 即可，无需写入 `~/.bashrc`。
-
-   **步骤三：大陆服务器无法直连 GitHub 时**
-   - 境内服务器通常无法直连 `api.github.com`，需本机或内网有一台可访问外网的 HTTP/SOCKS 代理。
-   - 在 `.env` 中增加一行（按实际代理地址与类型修改）：
+   **大陆服务器无法直连 GitHub 时（可选）**  
+   - 在项目目录的 **`.env`** 中增加（该文件已在 `.gitignore` 中，不会提交）：
      ```bash
      GITHUB_API_PROXY=http://127.0.0.1:7890
+     # 或 SOCKS5：GITHUB_API_PROXY=socks5://127.0.0.1:1080
      ```
-   - 再次执行 `docker compose -f docker-compose.prod.yml up -d backend`。仅拉取 GitHub API 的请求会经该代理发出。
-   - 若无代理，可点击管理后台中的 **「在 GitHub 上查看」** 链接，在浏览器中打开该提交（需本机或浏览器能访问 GitHub）。
+   - 执行 `docker compose -f docker-compose.prod.yml up -d backend` 使代理生效。若无代理，可点击「在 GitHub 上查看」在浏览器中打开该提交。
 
-   **本地 Git 兜底（已默认启用，无需上机配置）**  
-   当 GitHub API 拉取 diff 失败时，系统会自动用本地 `git clone/fetch + git show` 拉取（方式 3）。CI/CD 构建的 backend 镜像已预装 git，`docker-compose.prod.yml` 已默认配置 `GIT_WORKSPACE=/data/git-repos` 并挂载持久化 volume，**部署后即具备此能力，无需在服务器上手动建目录或改配置**。若需改用其他目录，可在 `.env` 中设置 `GIT_WORKSPACE=/你的路径` 并在 compose 中增加对应 volume。
+   **本地 Git 兜底目录**  
+   - 当 GitHub API 拉取 diff 失败时，系统会自动用本地 `git clone/fetch + git show` 拉取。兜底仓库固定使用宿主机目录 `/mnt/newdisk/app/AutoAttend/git-repos` 挂载到容器的 `/data/git-repos`。**CI/CD 每次部署时会自动创建该目录，无需在服务器上手动操作。**
 
 5. **（可选）启用「单次提交 AI 分析」**  
    AI 分析相关表（`aa_ai_analysis_config` 等）会随部署自动创建：**全新 MySQL** 由容器首次启动时执行 `03_schema_ai.sql`；**已有数据目录** 的实例会在后端首次启动时自动执行建表，无需手动跑 SQL。  

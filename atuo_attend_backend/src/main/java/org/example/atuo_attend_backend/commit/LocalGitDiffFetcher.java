@@ -85,7 +85,10 @@ public class LocalGitDiffFetcher {
         Files.createDirectories(dir.getParent());
         String url = buildCloneUrl(repoFullName);
         int code = runProcess(dir.getParent(), cloneTimeoutSeconds, "git", "clone", "--depth", "100", url, dir.getFileName().toString());
-        if (code != 0) return null;
+        if (code != 0) {
+            log.warn("git clone failed for {} (exit code {}), check network/token", repoFullName, code);
+            return null;
+        }
         return dir;
     }
 
@@ -120,7 +123,10 @@ public class LocalGitDiffFetcher {
                 log.warn("git show timed out for {} after {}s", commitSha, showTimeoutSeconds);
                 return null;
             }
-            if (p.exitValue() != 0) return null;
+            if (p.exitValue() != 0) {
+                log.warn("git show failed for {} (exit {}), commit may be outside shallow clone", commitSha, p.exitValue());
+                return null;
+            }
             String out = sb.toString();
             if (total >= MAX_DIFF_BYTES) {
                 out = out.substring(0, Math.min(out.length(), MAX_DIFF_BYTES)) + "\n\n... (diff 已截断，超过 " + (MAX_DIFF_BYTES / 1024) + "KB)";

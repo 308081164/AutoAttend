@@ -78,6 +78,7 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.DEPLOY_PATH || '/mnt/newdisk/app/AutoAttend' }}
+            mkdir -p /mnt/newdisk/app/AutoAttend/git-repos
             export IMAGE_BACKEND=${{ steps.images.outputs.backend }}
             export IMAGE_FRONTEND=${{ steps.images.outputs.frontend }}
             docker compose -f docker-compose.prod.yml pull

@@ -77,7 +77,7 @@ public class CommitService {
 
     /** 当无法从库、GitHub API 或本地 Git 获取 diff 时返回的提示，便于前端展示原因 */
     private static final String DIFF_UNAVAILABLE_PLACEHOLDER =
-        "(Diff 暂不可用：请配置 GITHUB_TOKEN 或配置 git.workspace 启用本地 Git 兜底后重试；并检查网络与 API 限流。详见部署说明。)";
+        "(Diff 暂不可用：请在管理后台「AI 配置」页填写并保存 GitHub Token，或检查网络与 API 限流；本地 Git 兜底已启用时可自动重试。详见部署说明。)";
 
     /** 仅按 commitSha 查一条记录（用于 getDiff 时未传 repo 的兜底），不拉取 diff。 */
     public Optional<CommitRecord> findAnyCommitBySha(String commitSha) {
