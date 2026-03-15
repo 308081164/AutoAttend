@@ -33,7 +33,7 @@
             <span class="project-info-desc">{{ repoInfo.description }}</span>
           </div>
           <div class="project-info-row">
-            <span class="project-info-label">{{ $t('dashboard.developers') }}：</span>
+            <span class="project-info-label">{{ $t('dashboard.projectDevelopers') }}：</span>
             <span class="project-info-developers">{{ developerListText }}</span>
           </div>
           <div v-if="languageList.length" class="project-info-row">
@@ -42,22 +42,24 @@
           </div>
         </template>
       </div>
-      <!-- 未选项目：资源总览三卡片 -->
-      <div v-else class="overview-cards" v-if="statsOverview">
-        <div class="overview-card">
-          <div class="overview-value">{{ statsOverview.repoCount ?? 0 }}</div>
-          <div class="overview-label">{{ $t('dashboard.repoCount') }}</div>
+      <!-- 未选项目：资源总览三卡片或加载占位 -->
+      <template v-else>
+        <div v-if="statsOverview" class="overview-cards">
+          <div class="overview-card">
+            <div class="overview-value">{{ statsOverview.repoCount ?? 0 }}</div>
+            <div class="overview-label">{{ $t('dashboard.repoCount') }}</div>
+          </div>
+          <div class="overview-card">
+            <div class="overview-value">{{ statsOverview.totalCommits ?? 0 }}</div>
+            <div class="overview-label">{{ $t('dashboard.totalCommits') }}</div>
+          </div>
+          <div class="overview-card">
+            <div class="overview-value">{{ statsOverview.authorCount ?? 0 }}</div>
+            <div class="overview-label">{{ $t('dashboard.authorCount') }}</div>
+          </div>
         </div>
-        <div class="overview-card">
-          <div class="overview-value">{{ statsOverview.totalCommits ?? 0 }}</div>
-          <div class="overview-label">{{ $t('dashboard.totalCommits') }}</div>
-        </div>
-        <div class="overview-card">
-          <div class="overview-value">{{ statsOverview.authorCount ?? 0 }}</div>
-          <div class="overview-label">{{ $t('dashboard.authorCount') }}</div>
-        </div>
-      </div>
-      <div v-else-if="!selectedRepo" class="placeholder">{{ $t('collab.loading') }}</div>
+        <div v-else class="placeholder">{{ $t('collab.loading') }}</div>
+      </template>
     </section>
 
     <!-- 图表区（仅提交趋势 + 开发者排名，已移除各仓库提交占比） -->

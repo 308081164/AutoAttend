@@ -34,7 +34,7 @@ export default {
     projectInfoTitle: 'Project Info',
     projectName: 'Project Name',
     about: 'About',
-    developers: 'Developers',
+    projectDevelopers: 'Developers',
     techStack: 'Tech Stack',
     repoCount: 'Repos',
     totalCommits: 'Total Commits',

@@ -34,7 +34,7 @@ export default {
     projectInfoTitle: '项目基本信息',
     projectName: '项目名称',
     about: '简介',
-    developers: '开发者',
+    projectDevelopers: '开发者',
     techStack: '技术栈',
     repoCount: '仓库数',
     totalCommits: '总提交数',
