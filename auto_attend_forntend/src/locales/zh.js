@@ -138,6 +138,22 @@ export default {
     saveFailed: '保存失败',
     loading: '加载配置中...'
   },
+  githubConfig: {
+    title: 'GitHub 集成（拉取 Diff）',
+    desc: '填写 Personal Access Token 后，系统可稳定拉取 commit diff（查看 Diff、提交列表统计等）。与 DeepSeek 一样支持在此处维护与更换。',
+    tokenLabel: 'GitHub Token',
+    tokenPlaceholder: '请填写 ghp_ 开头的 Personal Access Token',
+    tokenPlaceholderKeep: '留空则保持现有 Token 不变',
+    tokenSetHint: '当前已设置（脱敏显示），留空则不修改',
+    tokenHint: 'GitHub → Settings → Developer settings → Personal access tokens，勾选 repo 权限。',
+    proxyLabel: 'API 代理（可选）',
+    proxyPlaceholder: '大陆服务器可填如 http://127.0.0.1:7890',
+    save: '保存',
+    saving: '保存中...',
+    saveSuccess: '保存成功',
+    saveFailed: '保存失败',
+    loading: '加载中...'
+  },
   memberHome: {
     title: '工作台',
     myStats: '我的统计',

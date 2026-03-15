@@ -51,12 +51,18 @@ public class CommitService {
         }
         record.setValidCommit(true);
         record.setValidReason("MVP: always valid");
+        if (diffText != null && !diffText.isBlank()) {
+            int[] stats = parseDiffStats(diffText);
+            record.setFilesChanged(stats[0]);
+            record.setInsertions(stats[1]);
+            record.setDeletions(stats[2]);
+        }
         try {
             commitMapper.insert(record);
         } catch (Exception ignoreDuplicate) {
             // unique(repo_full_name, commit_sha) 可能重复投递 webhook，忽略即可
         }
-        if (diffText != null) {
+        if (diffText != null && !diffText.isBlank()) {
             long size = diffText.getBytes().length;
             try {
                 commitDiffMapper.insert(repoFullName, commitSha, diffText, size);
@@ -97,14 +103,24 @@ public class CommitService {
             diffText = DIFF_UNAVAILABLE_PLACEHOLDER;
         }
         record.setDiffText(diffText);
+        if (!diffText.equals(DIFF_UNAVAILABLE_PLACEHOLDER) && record.getFilesChanged() == 0 && record.getInsertions() == 0 && record.getDeletions() == 0) {
+            int[] stats = parseDiffStats(diffText);
+            commitMapper.updateStats(repoFullName, commitSha, stats[0], stats[1], stats[2]);
+            record.setFilesChanged(stats[0]);
+            record.setInsertions(stats[1]);
+            record.setDeletions(stats[2]);
+        }
         return Optional.of(record);
     }
 
     /**
      * 从 GitHub API 拉取该 commit 的 diff 并写入 aa_commit_diff（单次尝试，用于 webhook 等不阻塞场景）。
+     * 拉取成功后解析 diff 并回写 aa_commit 的 files_changed、insertions、deletions。
      */
     public void fetchAndSaveDiff(String repoFullName, String commitSha) {
-        trySaveFetchedDiff(repoFullName, commitSha);
+        if (trySaveFetchedDiff(repoFullName, commitSha)) {
+            updateCommitStatsFromDiff(repoFullName, commitSha);
+        }
     }
 
     /**
@@ -123,6 +139,7 @@ public class CommitService {
                 }
             }
             if (trySaveFetchedDiff(repoFullName, commitSha)) {
+                updateCommitStatsFromDiff(repoFullName, commitSha);
                 if (i > 0) log.info("Diff fetched on retry {} for {}@{}", i + 1, repoFullName, commitSha);
                 return;
             }
@@ -141,6 +158,33 @@ public class CommitService {
         } catch (Exception ignoreDuplicate) {
             return true; // 已存在视为成功
         }
+    }
+
+    /**
+     * 从 diff 文本解析文件数、新增行数、删除行数（统一 diff 格式）。
+     * 返回 int[3] = { filesChanged, insertions, deletions }。
+     */
+    private static int[] parseDiffStats(String diffText) {
+        int files = 0, add = 0, del = 0;
+        if (diffText == null) return new int[] { 0, 0, 0 };
+        String[] lines = diffText.split("\n");
+        for (String line : lines) {
+            if (line.startsWith("diff --git ")) {
+                files++;
+            } else if (line.startsWith("+") && !line.startsWith("+++")) {
+                add++;
+            } else if (line.startsWith("-") && !line.startsWith("---")) {
+                del++;
+            }
+        }
+        return new int[] { files, add, del };
+    }
+
+    private void updateCommitStatsFromDiff(String repoFullName, String commitSha) {
+        String diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+        if (diffText == null || diffText.isBlank()) return;
+        int[] stats = parseDiffStats(diffText);
+        commitMapper.updateStats(repoFullName, commitSha, stats[0], stats[1], stats[2]);
     }
 
     public List<CommitRecord> listPaged(int page, int pageSize) {

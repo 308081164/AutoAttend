@@ -43,6 +43,39 @@
       </form>
     </div>
     <div v-else class="placeholder">{{ $t('aiConfig.loading') }}</div>
+
+    <div class="config-card github-config-card" v-if="githubConfig !== undefined">
+      <h2 class="config-card-title">{{ $t('githubConfig.title') }}</h2>
+      <p class="config-card-desc">{{ $t('githubConfig.desc') }}</p>
+      <form @submit.prevent="saveGitHubConfig">
+        <div class="form-row">
+          <label class="form-label">{{ $t('githubConfig.tokenLabel') }}</label>
+          <p v-if="githubConfig.githubTokenMasked" class="api-key-set">{{ $t('githubConfig.tokenSetHint') }}（{{ githubConfig.githubTokenMasked }}）</p>
+          <input
+            v-model="githubForm.githubToken"
+            type="password"
+            autocomplete="off"
+            :placeholder="githubConfig.hasGitHubToken ? $t('githubConfig.tokenPlaceholderKeep') : $t('githubConfig.tokenPlaceholder')"
+            class="form-input"
+          >
+          <p class="form-hint">{{ $t('githubConfig.tokenHint') }}</p>
+        </div>
+        <div class="form-row">
+          <label class="form-label">{{ $t('githubConfig.proxyLabel') }}</label>
+          <input
+            v-model="githubForm.githubApiProxy"
+            type="text"
+            autocomplete="off"
+            :placeholder="$t('githubConfig.proxyPlaceholder')"
+            class="form-input"
+          >
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary-button" :disabled="githubSaving">{{ githubSaving ? $t('githubConfig.saving') : $t('githubConfig.save') }}</button>
+          <span v-if="githubSaveMessage" class="save-message" :class="githubSaveSuccess ? 'success' : 'error'">{{ githubSaveMessage }}</span>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -59,11 +92,20 @@ export default {
       },
       saving: false,
       saveMessage: '',
-      saveSuccess: false
+      saveSuccess: false,
+      githubConfig: undefined,
+      githubForm: {
+        githubToken: '',
+        githubApiProxy: ''
+      },
+      githubSaving: false,
+      githubSaveMessage: '',
+      githubSaveSuccess: false
     }
   },
   created () {
     this.loadConfig()
+    this.loadGitHubConfig()
   },
   computed: {
     configLoadedHint () {
@@ -117,6 +159,49 @@ export default {
       } finally {
         this.saving = false
       }
+    },
+    async loadGitHubConfig () {
+      try {
+        const resp = await this.$http.get('/admin/config/github')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.githubConfig = d
+          this.githubForm.githubToken = ''
+          this.githubForm.githubApiProxy = d.githubApiProxy || ''
+        } else {
+          this.githubConfig = {}
+        }
+      } catch (e) {
+        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
+        else this.githubConfig = {}
+      }
+    },
+    async saveGitHubConfig () {
+      this.githubSaving = true
+      this.githubSaveMessage = ''
+      try {
+        const payload = {
+          githubApiProxy: this.githubForm.githubApiProxy || ''
+        }
+        if (this.githubForm.githubToken && !this.githubForm.githubToken.includes('****')) {
+          payload.githubToken = this.githubForm.githubToken
+        }
+        const resp = await this.$http.put('/admin/config/github', payload)
+        if (resp.data && resp.data.code === 0) {
+          this.githubSaveMessage = this.$t('githubConfig.saveSuccess')
+          this.githubSaveSuccess = true
+          this.loadGitHubConfig()
+          this.githubForm.githubToken = ''
+        } else {
+          this.githubSaveMessage = (resp.data && resp.data.message) || this.$t('githubConfig.saveFailed')
+          this.githubSaveSuccess = false
+        }
+      } catch (e) {
+        this.githubSaveMessage = (e.response && e.response.data && e.response.data.message) || this.$t('githubConfig.saveFailed')
+        this.githubSaveSuccess = false
+      } finally {
+        this.githubSaving = false
+      }
     }
   }
 }
@@ -162,6 +247,19 @@ export default {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 24px;
+}
+.github-config-card {
+  margin-top: 24px;
+}
+.config-card-title {
+  font-size: 16px;
+  margin: 0 0 8px;
+  color: #1f2937;
+}
+.config-card-desc {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 20px;
 }
 .form-row {
   margin-bottom: 20px;

@@ -21,6 +21,14 @@ public interface CommitMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(CommitRecord record);
 
+    @Update("""
+            UPDATE aa_commit
+            SET files_changed = #{filesChanged}, insertions = #{insertions}, deletions = #{deletions}
+            WHERE repo_full_name = #{repoFullName} AND commit_sha = #{commitSha}
+            """)
+    int updateStats(@Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha,
+                   @Param("filesChanged") int filesChanged, @Param("insertions") int insertions, @Param("deletions") int deletions);
+
     @Select("""
             SELECT
               repo_full_name AS repoFullName,

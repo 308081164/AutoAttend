@@ -100,13 +100,39 @@ GitHub Actions 触发
    ```
 
 4. **可选：配置 GITHUB_TOKEN 与代理以拉取 Commit Diff**  
-   管理后台「查看 Diff」会从 GitHub API 拉取该 commit 的 diff；未配置 token 时易触发限流或拉取失败，页面会显示占位提示。
+   管理后台「查看 Diff」、Webhook 拉取 diff、首页提交列表的「文件/新增/删除」统计均依赖 GitHub API；未配置 token 时易触发**匿名限流**（约 60 次/小时），拉取失败时页面会显示「Diff 暂不可用」占位。按下面步骤配置后可稳定拉取。
 
-   - **GITHUB_TOKEN**：在服务器上设置后重启 backend，建议写入 `~/.bashrc` 或 env 文件：
+   **步骤一：在 GitHub 创建 Personal Access Token（PAT）**
+   - 打开 [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)（或 Fine-grained tokens）。
+   - 点击 **Generate new token**：Note 可填 `AutoAttend-Diff`；Expiration 按需选择。
+   - 权限（Scopes）：勾选 **`repo`**（拉取仓库 commit 与 diff；若仅公开仓可只勾选 `public_repo`）。
+   - 生成后**复制 token**（形如 `ghp_xxxxxxxxxxxx`），只显示一次，请妥善保存。
+
+   **步骤二：在服务器上配置环境变量**
+   - 进入项目目录（与 `docker-compose.prod.yml` 同目录，如 `/mnt/newdisk/app/AutoAttend`）。
+   - 创建或编辑 **`.env`** 文件（该文件已加入 `.gitignore`，不会被 git 提交）：
      ```bash
-     export GITHUB_TOKEN=ghp_你的PersonalAccessToken
+     # 拉取 Diff 用（必填一项）
+     GITHUB_TOKEN=ghp_你复制的Token
+
+     # 大陆服务器无法直连 GitHub 时，填写代理（可选）
+     # GITHUB_API_PROXY=http://127.0.0.1:7890
+     # 或 SOCKS5：GITHUB_API_PROXY=socks5://127.0.0.1:1080
      ```
-   - **大陆服务器（阿里云等）**：境内服务器通常无法直连 api.github.com。若**没有可访问外网的代理**，后端无法拉取 diff，管理后台「查看 Diff」会显示占位提示；此时可点击 **「在 GitHub 上查看」** 链接，在浏览器中打开该提交（需您本机或浏览器能访问 GitHub，如本机 VPN）。若日后有可用代理，可设置 **GITHUB_API_PROXY**（如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`），仅拉取 diff 的请求会经代理发出，然后重启 backend 即可。
+   - 保存后执行重启，使 backend 容器重新读取环境变量：
+     ```bash
+     docker compose -f docker-compose.prod.yml up -d backend
+     ```
+   - 若使用 CI/CD 部署，每次 SSH 执行 `docker compose up -d` 时会在该目录下执行，**会自动读取同目录下的 `.env`**，因此只需在服务器上保留一份 `.env` 即可，无需写入 `~/.bashrc`。
+
+   **步骤三：大陆服务器无法直连 GitHub 时**
+   - 境内服务器通常无法直连 `api.github.com`，需本机或内网有一台可访问外网的 HTTP/SOCKS 代理。
+   - 在 `.env` 中增加一行（按实际代理地址与类型修改）：
+     ```bash
+     GITHUB_API_PROXY=http://127.0.0.1:7890
+     ```
+   - 再次执行 `docker compose -f docker-compose.prod.yml up -d backend`。仅拉取 GitHub API 的请求会经该代理发出。
+   - 若无代理，可点击管理后台中的 **「在 GitHub 上查看」** 链接，在浏览器中打开该提交（需本机或浏览器能访问 GitHub）。
 
 5. **（可选）启用「单次提交 AI 分析」**  
    AI 分析相关表（`aa_ai_analysis_config` 等）会随部署自动创建：**全新 MySQL** 由容器首次启动时执行 `03_schema_ai.sql`；**已有数据目录** 的实例会在后端首次启动时自动执行建表，无需手动跑 SQL。  

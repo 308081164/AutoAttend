@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.commit;
 
+import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -13,8 +14,8 @@ import org.springframework.web.client.RestTemplate;
 
 /**
  * 从 GitHub API 拉取指定 commit 的 diff 文本，用于入库或按需补全。
- * 配置 GITHUB_TOKEN（可选）可提高限流并支持私有仓库。
- * 大陆服务器若无法直连 api.github.com，可配置 GITHUB_API_PROXY（如 http://127.0.0.1:7890）经代理访问。
+ * Token 优先使用管理后台「AI 配置」页填写的 GitHub Token（库内配置），未配置时回退到环境变量 GITHUB_TOKEN。
+ * 大陆服务器若无法直连 api.github.com，可在配置页填写代理或配置 GITHUB_API_PROXY 环境变量。
  */
 @Component
 public class GithubDiffFetcher {
@@ -24,12 +25,21 @@ public class GithubDiffFetcher {
     private static final int MAX_DIFF_BYTES = 2 * 1024 * 1024; // 2MB 上限，避免超大 diff
 
     private final RestTemplate restTemplate;
-    private final String githubToken;
+    private final SystemConfigService systemConfigService;
+    private final String envGitHubToken;
 
     public GithubDiffFetcher(@Qualifier("githubApiRestTemplate") RestTemplate restTemplate,
-                            @Value("${github.token:}") String githubToken) {
+                            SystemConfigService systemConfigService,
+                            @Value("${github.token:}") String envGitHubToken) {
         this.restTemplate = restTemplate;
-        this.githubToken = (githubToken != null && !githubToken.isBlank()) ? githubToken.trim() : null;
+        this.systemConfigService = systemConfigService;
+        this.envGitHubToken = (envGitHubToken != null && !envGitHubToken.isBlank()) ? envGitHubToken.trim() : null;
+    }
+
+    private String resolveToken() {
+        String fromDb = systemConfigService.getGitHubToken();
+        if (fromDb != null) return fromDb;
+        return envGitHubToken;
     }
 
     /**
@@ -42,8 +52,9 @@ public class GithubDiffFetcher {
         String url = String.format(GITHUB_API, repoFullName, commitSha);
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(java.util.List.of(MediaType.parseMediaType("application/vnd.github.v3.diff")));
-        if (githubToken != null) {
-            headers.setBearerAuth(githubToken);
+        String token = resolveToken();
+        if (token != null) {
+            headers.setBearerAuth(token);
         }
         try {
             HttpEntity<Void> entity = new HttpEntity<>(headers);

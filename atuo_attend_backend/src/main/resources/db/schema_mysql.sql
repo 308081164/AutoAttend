@@ -43,3 +43,10 @@ CREATE TABLE IF NOT EXISTS aa_webhook_delivery (
     UNIQUE KEY uk_delivery (delivery_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 系统配置（如 GitHub Token，由管理后台「AI 配置」页统一填写与维护）
+CREATE TABLE IF NOT EXISTS aa_system_config (
+    config_key VARCHAR(128) NOT NULL PRIMARY KEY,
+    config_value TEXT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置 key-value';
+

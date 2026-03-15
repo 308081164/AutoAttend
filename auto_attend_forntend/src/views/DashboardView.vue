@@ -192,30 +192,9 @@
 </template>
 
 <script>
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-} from 'chart.js'
+import { Chart as ChartJS, registerables } from 'chart.js'
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-)
+ChartJS.register(...registerables)
 
 export default {
   name: 'DashboardView',

@@ -1,0 +1,4 @@
+# 服务器本地配置（含 GITHUB_TOKEN），不要提交
+.env
+.env.local
+.env.*.local

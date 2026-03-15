@@ -28,10 +28,12 @@ public class RestTemplateConfig {
     }
 
     /**
-     * 仅用于拉取 GitHub commit diff。若配置了 GITHUB_API_PROXY（如 http://127.0.0.1:7890），则经代理访问 api.github.com。
+     * 仅用于拉取 GitHub commit diff。代理优先使用环境变量 GITHUB_API_PROXY，为空时使用管理后台配置的 GitHub 代理（需重启生效）。
      */
     @Bean("githubApiRestTemplate")
-    public RestTemplate githubApiRestTemplate(@Value("${github.api.proxy:}") String proxyUrl) {
+    public RestTemplate githubApiRestTemplate(@Value("${github.api.proxy:}") String envProxy,
+                                              SystemConfigService systemConfigService) {
+        String proxyUrl = (envProxy != null && !envProxy.isBlank()) ? envProxy.trim() : systemConfigService.getGitHubApiProxy();
         if (proxyUrl != null && !proxyUrl.isBlank()) {
             try {
                 URI u = URI.create(proxyUrl.trim());

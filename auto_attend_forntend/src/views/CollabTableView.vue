@@ -63,7 +63,7 @@
             <div v-for="col in columns" :key="col.id" class="field-row">
               <span class="field-label">{{ getColumnDisplayName(col) }}</span>
               <div class="field-input-wrap">
-                <textarea v-else-if="isProblemDescColumn(col)" :placeholder="$t('collabTable.fieldPlaceholder')"
+                <textarea v-if="isProblemDescColumn(col)" :placeholder="$t('collabTable.fieldPlaceholder')"
                   :value="drawerEditValues['c' + col.id]"
                   @input="setDrawerField(col.id, $event.target.value)"
                   class="field-input field-textarea"

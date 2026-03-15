@@ -138,6 +138,22 @@ export default {
     saveFailed: 'Save failed',
     loading: 'Loading config...'
   },
+  githubConfig: {
+    title: 'GitHub Integration (Fetch Diff)',
+    desc: 'Set a Personal Access Token so the system can fetch commit diffs (View Diff, commit stats). Maintain and rotate it here like DeepSeek API Key.',
+    tokenLabel: 'GitHub Token',
+    tokenPlaceholder: 'Enter a Personal Access Token (ghp_...)',
+    tokenPlaceholderKeep: 'Leave blank to keep existing token',
+    tokenSetHint: 'Token is set (masked). Leave blank to keep.',
+    tokenHint: 'GitHub → Settings → Developer settings → Personal access tokens, enable repo scope.',
+    proxyLabel: 'API Proxy (optional)',
+    proxyPlaceholder: 'e.g. http://127.0.0.1:7890 for mainland servers',
+    save: 'Save',
+    saving: 'Saving...',
+    saveSuccess: 'Saved',
+    saveFailed: 'Save failed',
+    loading: 'Loading...'
+  },
   memberHome: {
     title: 'Workbench',
     myStats: 'My Stats',
