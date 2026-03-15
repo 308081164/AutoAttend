@@ -7,6 +7,7 @@ import AiConfigView from '../views/AiConfigView.vue'
 import CollabLoginView from '../views/CollabLoginView.vue'
 import CollabProjectListView from '../views/CollabProjectListView.vue'
 import CollabTableView from '../views/CollabTableView.vue'
+import MemberHomeView from '../views/MemberHomeView.vue'
 
 Vue.use(VueRouter)
 
@@ -20,6 +21,11 @@ const routes = [
     path: '/',
     name: 'dashboard',
     component: DashboardView
+  },
+  {
+    path: '/member',
+    name: 'member-home',
+    component: MemberHomeView
   },
   {
     path: '/test',
@@ -54,25 +60,37 @@ const router = new VueRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  const isCollab = to.path.indexOf('/collab') === 0 && to.name !== 'collab-login'
-  const token = isCollab
-    ? window.localStorage.getItem('autoattend_collab_token')
-    : window.localStorage.getItem('autoattend_token')
+  const isCollabPath = to.path.indexOf('/collab') === 0
+  const isMemberHome = to.name === 'member-home'
+  const isCollabLogin = to.name === 'collab-login'
+  const adminToken = window.localStorage.getItem('autoattend_token')
+  const collabToken = window.localStorage.getItem('autoattend_collab_token')
 
-  if (to.name === 'login' && !isCollab) {
-    if (token) next({ name: 'dashboard' })
+  if (to.name === 'login') {
+    if (adminToken) next({ name: 'dashboard' })
+    else if (collabToken) next({ name: 'member-home' })
     else next()
     return
   }
-  if (isCollab) {
-    if (!token && to.name !== 'collab-login') {
+  if (isCollabPath || isMemberHome) {
+    if (!collabToken && !isCollabLogin) {
       next({ name: 'collab-login' })
     } else {
       next()
     }
     return
   }
-  if (to.name !== 'login' && !token) {
+  if (to.name === 'dashboard' || to.path === '/') {
+    if (adminToken) {
+      next()
+      return
+    }
+    if (collabToken && !adminToken) {
+      next({ name: 'member-home' })
+      return
+    }
+  }
+  if (to.name !== 'login' && !adminToken) {
     next({ name: 'login' })
   } else {
     next()

@@ -111,6 +111,18 @@ public interface CommitMapper {
     @Select("SELECT COUNT(1) FROM aa_commit WHERE repo_full_name = #{repoFullName}")
     long countByRepo(@Param("repoFullName") String repoFullName);
 
+    /** 按作者邮箱统计提交数（用于员工工作台「我的统计」） */
+    @Select("SELECT COUNT(1) FROM aa_commit WHERE author_email = #{authorEmail}")
+    long countByAuthorEmail(@Param("authorEmail") String authorEmail);
+
+    /** 按作者邮箱与时间范围统计提交数 */
+    @Select("""
+            SELECT COUNT(1) FROM aa_commit
+            WHERE author_email = #{authorEmail} AND committed_at >= #{since}
+            """)
+    long countByAuthorEmailSince(@Param("authorEmail") String authorEmail,
+                                @Param("since") java.time.OffsetDateTime since);
+
     @Select("SELECT DISTINCT repo_full_name FROM aa_commit ORDER BY repo_full_name")
     List<String> listDistinctRepos();
 

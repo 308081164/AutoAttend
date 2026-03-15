@@ -6,6 +6,8 @@ import org.example.atuo_attend_backend.collab.service.MinioService;
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
 import org.example.atuo_attend_backend.collab.service.CollabRecordService;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -98,7 +100,7 @@ public class CollabAttachmentController {
     }
 
     @GetMapping("/attachments/{id}/download")
-    public ResponseEntity<InputStream> download(@PathVariable long id, HttpServletRequest req) {
+    public ResponseEntity<Resource> download(@PathVariable long id, HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("collabUserId");
         if (userId == null) {
             return ResponseEntity.status(401).build();
@@ -111,19 +113,21 @@ public class CollabAttachmentController {
         }
         try {
             InputStream stream = minioService.download(att.getStorageKey());
-            String filename = att.getFileName();
+            String filename = att.getFileName() != null ? att.getFileName() : "download";
+            Resource resource = new InputStreamResource(stream);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + sanitizeFilename(filename) + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(stream);
+                    .contentLength(att.getFileSize() != null && att.getFileSize() > 0 ? att.getFileSize() : -1)
+                    .body(resource);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }
     }
 
-    /** 预览附件（图片内联展示，带正确 Content-Type） */
+    /** 预览附件（图片内联展示，带正确 Content-Type，以 Resource 返回避免被当作 JSON 序列化导致损坏） */
     @GetMapping("/attachments/{id}/preview")
-    public ResponseEntity<InputStream> preview(@PathVariable long id, HttpServletRequest req) {
+    public ResponseEntity<Resource> preview(@PathVariable long id, HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("collabUserId");
         if (userId == null) {
             return ResponseEntity.status(401).build();
@@ -143,13 +147,20 @@ public class CollabAttachmentController {
             else if (filename.endsWith(".gif")) mediaType = MediaType.IMAGE_GIF;
             else if (filename.endsWith(".webp")) mediaType = MediaType.parseMediaType("image/webp");
             else if (filename.endsWith(".svg")) mediaType = MediaType.parseMediaType("image/svg+xml");
+            Resource resource = new InputStreamResource(stream);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + att.getFileName() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + sanitizeFilename(att.getFileName()) + "\"")
                     .contentType(mediaType)
-                    .body(stream);
+                    .contentLength(att.getFileSize() != null && att.getFileSize() > 0 ? att.getFileSize() : -1)
+                    .body(resource);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    private static String sanitizeFilename(String name) {
+        if (name == null) return "download";
+        return name.replace("\"", "%22").replace("\r", "").replace("\n", "");
     }
 
     @DeleteMapping("/attachments/{id}")

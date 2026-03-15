@@ -11,11 +11,13 @@ export default {
     submit: '登录',
     submitting: '登录中...',
     failed: '登录失败',
-    failedBackend: '登录失败，请检查后端服务是否已启动'
+    failedBackend: '登录失败，请检查后端服务是否已启动',
+    employeeLoginLink: '员工登录'
   },
   collabLogin: {
-    title: '项目协作登录',
+    title: '项目协作 / 员工登录',
     desc: '使用 commit 作者邮箱 + 默认密码 123456 登录（可由管理员重置）',
+    adminHint: '管理员可使用后台同一账号（如 admin）登录，获得全部项目与多维表权限。',
     email: '邮箱',
     password: '密码',
     placeholderEmail: 'author@example.com',
@@ -107,6 +109,16 @@ export default {
     saveSuccess: '保存成功',
     saveFailed: '保存失败',
     loading: '加载配置中...'
+  },
+  memberHome: {
+    title: '工作台',
+    myStats: '我的统计',
+    projectCount: '参与项目数',
+    commitCountTotal: '总提交数',
+    commitCountLast7Days: '近 7 天提交',
+    myProjects: '我的项目',
+    goToProjects: '进入项目协作',
+    backToLogin: '返回登录'
   },
   collab: {
     projectsTitle: '项目协作',

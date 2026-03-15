@@ -602,7 +602,9 @@ export default {
               })
               if (r.ok) {
                 const blob = await r.blob()
-                this.$set(this.attachmentPreviewUrls, a.id, URL.createObjectURL(blob))
+                if (blob.type && blob.type.startsWith('image/')) {
+                  this.$set(this.attachmentPreviewUrls, a.id, URL.createObjectURL(blob))
+                }
               }
             } catch (e) { /* ignore */ }
           }
@@ -635,13 +637,16 @@ export default {
       const token = window.localStorage.getItem('autoattend_collab_token')
       const url = (this.$http.defaults.baseURL || '/api') + '/collab/attachments/' + a.id + '/download'
       fetch(url, { headers: { Authorization: 'Bearer ' + token } })
-        .then(r => r.blob())
+        .then(r => {
+          if (!r.ok) return Promise.reject(new Error(r.statusText))
+          return r.blob()
+        })
         .then(blob => {
           const link = document.createElement('a')
           link.href = URL.createObjectURL(blob)
           link.download = a.fileName || 'download'
           link.click()
-          URL.revokeObjectURL(link.href)
+          setTimeout(() => URL.revokeObjectURL(link.href), 200)
         })
         .catch(() => { /* ignore */ })
     },

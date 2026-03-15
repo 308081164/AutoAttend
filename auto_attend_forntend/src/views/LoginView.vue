@@ -25,6 +25,9 @@
         <button class="primary-button" type="submit" :disabled="loading">
           {{ loading ? $t('login.submitting') : $t('login.submit') }}
         </button>
+        <p class="employee-login-hint">
+          <router-link to="/collab-login">{{ $t('login.employeeLoginLink') }}</router-link>
+        </p>
       </form>
     </div>
   </div>
@@ -50,9 +53,12 @@ export default {
       try {
         const resp = await this.$http.post('/admin/auth/login', this.form)
         if (resp.data && resp.data.code === 0) {
-          const token = resp.data.data.token
-          window.localStorage.setItem('autoattend_token', token)
+          const data = resp.data.data
+          window.localStorage.setItem('autoattend_token', data.token)
           window.localStorage.setItem('autoattend_username', this.form.username)
+          if (data.collabToken) {
+            window.localStorage.setItem('autoattend_collab_token', data.collabToken)
+          }
           this.$router.push({ name: 'dashboard' })
         } else {
           this.error = (resp.data && resp.data.message) || this.$t('login.failed')
@@ -137,6 +143,22 @@ input:focus {
   margin-bottom: 4px;
   font-size: 12px;
   color: #dc2626;
+}
+
+.employee-login-hint {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.employee-login-hint a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.employee-login-hint a:hover {
+  text-decoration: underline;
 }
 </style>
 

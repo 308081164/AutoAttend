@@ -11,11 +11,13 @@ export default {
     submit: 'ログイン',
     submitting: 'ログイン中...',
     failed: 'ログインに失敗しました',
-    failedBackend: 'ログインに失敗しました。バックエンドの起動を確認してください。'
+    failedBackend: 'ログインに失敗しました。バックエンドの起動を確認してください。',
+    employeeLoginLink: '従業員ログイン'
   },
   collabLogin: {
-    title: 'プロジェクト協働ログイン',
+    title: '協働 / 従業員ログイン',
     desc: 'コミット作者のメール + 初期パスワード 123456（管理者がリセット可能）',
+    adminHint: '管理者は同じアカウント（例: admin）でログインすると全プロジェクトにアクセスできます。',
     email: 'メール',
     password: 'パスワード',
     placeholderEmail: 'author@example.com',
@@ -61,6 +63,16 @@ export default {
     retryFetchDiff: 'Diff を再取得',
     copied: 'クリップボードにコピーしました。AI に貼り付けて分析できます。',
     copyFailed: 'コピーに失敗しました。手動で選択してコピーしてください。'
+  },
+  memberHome: {
+    title: 'ワークベンチ',
+    myStats: 'マイ統計',
+    projectCount: '参加プロジェクト数',
+    commitCountTotal: '総コミット数',
+    commitCountLast7Days: '過去7日間',
+    myProjects: 'マイプロジェクト',
+    goToProjects: '協働へ',
+    backToLogin: 'ログインに戻る'
   },
   collab: {
     projectsTitle: 'プロジェクト協働',

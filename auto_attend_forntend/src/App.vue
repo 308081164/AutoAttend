@@ -40,6 +40,7 @@ export default {
     logout () {
       window.localStorage.removeItem('autoattend_token')
       window.localStorage.removeItem('autoattend_username')
+      window.localStorage.removeItem('autoattend_collab_token')
       this.$router.push({ name: 'login' })
     }
   }

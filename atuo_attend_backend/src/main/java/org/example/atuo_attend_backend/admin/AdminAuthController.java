@@ -3,8 +3,8 @@ package org.example.atuo_attend_backend.admin;
 import org.example.atuo_attend_backend.admin.dto.AdminLoginRequest;
 import org.example.atuo_attend_backend.admin.dto.AdminLoginResponse;
 import org.example.atuo_attend_backend.admin.model.AdminUser;
+import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.common.ApiResponse;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.*;
 public class AdminAuthController {
 
     private final AdminAuthService adminAuthService;
+    private final CollabAuthService collabAuthService;
 
-    public AdminAuthController(AdminAuthService adminAuthService) {
+    public AdminAuthController(AdminAuthService adminAuthService, CollabAuthService collabAuthService) {
         this.adminAuthService = adminAuthService;
+        this.collabAuthService = collabAuthService;
     }
 
     @PostMapping("/login")
@@ -26,6 +28,7 @@ public class AdminAuthController {
         AdminLoginResponse resp = new AdminLoginResponse();
         resp.setToken(token);
         resp.setExpiresIn(7200);
+        resp.setCollabToken(collabAuthService.issueCollabTokenForAdmin());
         return ApiResponse.ok(resp);
     }
 

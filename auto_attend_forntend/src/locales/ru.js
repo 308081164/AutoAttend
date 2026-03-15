@@ -11,11 +11,13 @@ export default {
     submit: 'Войти',
     submitting: 'Вход...',
     failed: 'Ошибка входа',
-    failedBackend: 'Ошибка входа. Проверьте, запущен ли сервер.'
+    failedBackend: 'Ошибка входа. Проверьте, запущен ли сервер.',
+    employeeLoginLink: 'Вход для сотрудника'
   },
   collabLogin: {
-    title: 'Вход в совместную работу',
+    title: 'Совместная работа / Вход сотрудника',
     desc: 'Email автора коммита + пароль по умолчанию 123456 (админ может сбросить)',
+    adminHint: 'Админ может войти тем же аккаунтом (напр. admin) для доступа ко всем проектам.',
     email: 'Email',
     password: 'Пароль',
     placeholderEmail: 'author@example.com',
@@ -61,6 +63,16 @@ export default {
     retryFetchDiff: 'Повторить загрузку Diff',
     copied: 'Скопировано в буфер. Вставьте в AI для анализа.',
     copyFailed: 'Ошибка копирования. Скопируйте вручную.'
+  },
+  memberHome: {
+    title: 'Рабочий стол',
+    myStats: 'Моя статистика',
+    projectCount: 'Проекты',
+    commitCountTotal: 'Всего коммитов',
+    commitCountLast7Days: 'За 7 дней',
+    myProjects: 'Мои проекты',
+    goToProjects: 'Перейти к совместной работе',
+    backToLogin: 'Вернуться к входу'
   },
   collab: {
     projectsTitle: 'Совместная работа',

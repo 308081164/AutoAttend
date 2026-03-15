@@ -11,11 +11,13 @@ export default {
     submit: 'Login',
     submitting: 'Logging in...',
     failed: 'Login failed',
-    failedBackend: 'Login failed. Please check if the backend is running.'
+    failedBackend: 'Login failed. Please check if the backend is running.',
+    employeeLoginLink: 'Employee Login'
   },
   collabLogin: {
-    title: 'Collaboration Login',
+    title: 'Collaboration / Employee Login',
     desc: 'Use commit author email + default password 123456 (can be reset by admin)',
+    adminHint: 'Admins can log in with the same backend account (e.g. admin) for full access to all projects and tables.',
     email: 'Email',
     password: 'Password',
     placeholderEmail: 'author@example.com',
@@ -107,6 +109,16 @@ export default {
     saveSuccess: 'Saved',
     saveFailed: 'Save failed',
     loading: 'Loading config...'
+  },
+  memberHome: {
+    title: 'Workbench',
+    myStats: 'My Stats',
+    projectCount: 'Projects',
+    commitCountTotal: 'Total Commits',
+    commitCountLast7Days: 'Last 7 Days',
+    myProjects: 'My Projects',
+    goToProjects: 'Go to Collaboration',
+    backToLogin: 'Back to Login'
   },
   collab: {
     projectsTitle: 'Collaboration',

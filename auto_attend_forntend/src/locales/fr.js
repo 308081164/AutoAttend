@@ -11,11 +11,13 @@ export default {
     submit: 'Connexion',
     submitting: 'Connexion...',
     failed: 'Échec de connexion',
-    failedBackend: 'Échec de connexion. Vérifiez que le serveur est démarré.'
+    failedBackend: 'Échec de connexion. Vérifiez que le serveur est démarré.',
+    employeeLoginLink: 'Connexion employé'
   },
   collabLogin: {
-    title: 'Connexion collaboration',
+    title: 'Collaboration / Connexion employé',
     desc: 'Email auteur du commit + mot de passe par défaut 123456 (réinitialisable par l\'admin)',
+    adminHint: 'Les admins peuvent se connecter avec le même compte (ex. admin) pour accéder à tous les projets.',
     email: 'Email',
     password: 'Mot de passe',
     placeholderEmail: 'author@example.com',
@@ -61,6 +63,16 @@ export default {
     retryFetchDiff: 'Réessayer de récupérer le Diff',
     copied: 'Copié dans le presse-papiers. Collez dans l\'IA pour analyse.',
     copyFailed: 'Échec de la copie. Sélectionnez et copiez manuellement.'
+  },
+  memberHome: {
+    title: 'Tableau de bord',
+    myStats: 'Mes statistiques',
+    projectCount: 'Projets',
+    commitCountTotal: 'Total commits',
+    commitCountLast7Days: '7 derniers jours',
+    myProjects: 'Mes projets',
+    goToProjects: 'Aller à la collaboration',
+    backToLogin: 'Retour à la connexion'
   },
   collab: {
     projectsTitle: 'Collaboration',

@@ -58,7 +58,7 @@ export default {
         if (resp.data && resp.data.code === 0) {
           const token = resp.data.data.token
           window.localStorage.setItem('autoattend_collab_token', token)
-          this.$router.push({ name: 'collab-projects' })
+          this.$router.push({ name: 'member-home' })
         } else {
           this.error = (resp.data && resp.data.message) || this.$t('collabLogin.failed')
         }
