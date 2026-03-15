@@ -31,6 +31,11 @@ export default {
   dashboard: {
     statusOverview: '状态总览',
     overviewTitle: '资源总览',
+    projectInfoTitle: '项目基本信息',
+    projectName: '项目名称',
+    about: '简介',
+    developers: '开发者',
+    techStack: '技术栈',
     repoCount: '仓库数',
     totalCommits: '总提交数',
     authorCount: '开发者数',

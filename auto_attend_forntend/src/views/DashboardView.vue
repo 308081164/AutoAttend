@@ -16,10 +16,34 @@
       </div>
     </section>
 
-    <!-- 资源总览卡片 -->
+    <!-- 顶部：选中项目时展示项目基本信息，否则展示资源总览 -->
     <section class="section overview-section">
-      <h2 class="section-title">{{ $t('dashboard.overviewTitle') }}</h2>
-      <div class="overview-cards" v-if="statsOverview">
+      <h2 class="section-title">{{ selectedRepo ? $t('dashboard.projectInfoTitle') : $t('dashboard.overviewTitle') }}</h2>
+      <!-- 已选项目：项目名称、简介、开发者、技术栈 -->
+      <div v-if="selectedRepo" class="project-info-cards">
+        <div v-if="repoInfoLoading" class="placeholder">{{ $t('collab.loading') }}</div>
+        <template v-else>
+          <div class="project-info-row">
+            <span class="project-info-label">{{ $t('dashboard.projectName') }}：</span>
+            <a v-if="repoInfo.htmlUrl" :href="repoInfo.htmlUrl" target="_blank" rel="noopener noreferrer" class="project-info-name">{{ repoInfo.name || repoInfo.fullName || selectedRepo }}</a>
+            <span v-else class="project-info-name">{{ repoInfo.name || repoInfo.fullName || selectedRepo }}</span>
+          </div>
+          <div v-if="repoInfo.description" class="project-info-row">
+            <span class="project-info-label">{{ $t('dashboard.about') }}：</span>
+            <span class="project-info-desc">{{ repoInfo.description }}</span>
+          </div>
+          <div class="project-info-row">
+            <span class="project-info-label">{{ $t('dashboard.developers') }}：</span>
+            <span class="project-info-developers">{{ developerListText }}</span>
+          </div>
+          <div v-if="languageList.length" class="project-info-row">
+            <span class="project-info-label">{{ $t('dashboard.techStack') }}：</span>
+            <span class="project-info-languages">{{ languageList.join('、') }}</span>
+          </div>
+        </template>
+      </div>
+      <!-- 未选项目：资源总览三卡片 -->
+      <div v-else class="overview-cards" v-if="statsOverview">
         <div class="overview-card">
           <div class="overview-value">{{ statsOverview.repoCount ?? 0 }}</div>
           <div class="overview-label">{{ $t('dashboard.repoCount') }}</div>
@@ -33,12 +57,12 @@
           <div class="overview-label">{{ $t('dashboard.authorCount') }}</div>
         </div>
       </div>
-      <div v-else class="placeholder">{{ $t('collab.loading') }}</div>
+      <div v-else-if="!selectedRepo" class="placeholder">{{ $t('collab.loading') }}</div>
     </section>
 
-    <!-- 图表区 -->
+    <!-- 图表区（仅提交趋势 + 开发者排名，已移除各仓库提交占比） -->
     <div class="charts-row">
-      <section class="section chart-section">
+      <section class="section chart-section chart-section-full">
         <h2 class="section-title">{{ $t('dashboard.commitTrend') }}</h2>
         <div class="chart-wrap">
           <canvas ref="trendChart"></canvas>
@@ -46,12 +70,6 @@
         <div class="chart-legend">
           <button :class="{ active: trendRange === '7d' }" @click="trendRange = '7d'; loadStatsCommitsByDay()">{{ $t('dashboard.commitTrendRange') }}</button>
           <button :class="{ active: trendRange === '30d' }" @click="trendRange = '30d'; loadStatsCommitsByDay()">{{ $t('dashboard.commitTrendRange30') }}</button>
-        </div>
-      </section>
-      <section class="section chart-section">
-        <h2 class="section-title">{{ $t('dashboard.repoDistribution') }}</h2>
-        <div class="chart-wrap chart-wrap-pie">
-          <canvas ref="repoChart"></canvas>
         </div>
       </section>
     </div>
@@ -215,10 +233,11 @@ export default {
       aiAnalysisRunning: false,
       statsOverview: null,
       commitsByDay: [],
-      commitsByRepo: [],
       authorsStats: [],
       trendRange: '7d',
-      chartInstances: { trend: null, repo: null, author: null }
+      chartInstances: { trend: null, author: null },
+      repoInfo: {},
+      repoInfoLoading: false
     }
   },
   watch: {
@@ -226,11 +245,24 @@ export default {
       this.aiAnalysisResult = null
       if (v) this.loadAiAnalysisResult()
     },
+    selectedRepo () {
+      if (this.selectedRepo) this.loadRepoInfo()
+      else this.repoInfo = {}
+    },
     commitsByDay () { this.renderTrendChart() },
-    commitsByRepo () { this.renderRepoChart() },
     authorsStats () { this.renderAuthorChart() }
   },
   computed: {
+    developerListText () {
+      const list = this.authors || []
+      if (!list.length) return '—'
+      return list.map(a => a.authorName || a.authorEmail || '—').join('、')
+    },
+    languageList () {
+      const lang = this.repoInfo.languages
+      if (!lang || typeof lang !== 'object') return []
+      return Object.keys(lang)
+    },
     githubCommitUrl () {
       if (!this.selectedCommit) return ''
       const repo = this.selectedCommit.repoFullName || ''
@@ -254,21 +286,20 @@ export default {
       this.loadCommits()
       this.loadStatsOverview()
       this.loadStatsCommitsByDay()
-      this.loadStatsCommitsByRepo()
       this.loadStatsAuthors()
+      if (this.selectedRepo) this.loadRepoInfo()
     })
   },
   mounted () {
     this.$nextTick(() => {
       setTimeout(() => {
         this.renderTrendChart()
-        this.renderRepoChart()
         this.renderAuthorChart()
       }, 100)
     })
   },
   beforeDestroy () {
-    const chartKeys = ['trend', 'repo', 'author']
+    const chartKeys = ['trend', 'author']
     chartKeys.forEach(k => {
       if (this.chartInstances[k]) {
         this.chartInstances[k].destroy()
@@ -285,6 +316,18 @@ export default {
         if (resp.data && resp.data.code === 0) this.statsOverview = resp.data.data
       } catch (e) { console.error('loadStatsOverview failed', e) }
     },
+    async loadRepoInfo () {
+      if (!this.selectedRepo) return
+      this.repoInfoLoading = true
+      this.repoInfo = {}
+      try {
+        const resp = await this.$http.get('/admin/stats/repo-info', {
+          params: { repoFullName: this.selectedRepo }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) this.repoInfo = resp.data.data
+      } catch (e) { console.error('loadRepoInfo failed', e) }
+      finally { this.repoInfoLoading = false }
+    },
     async loadStatsCommitsByDay () {
       try {
         const resp = await this.$http.get('/admin/stats/commits-by-day', {
@@ -292,12 +335,6 @@ export default {
         })
         if (resp.data && resp.data.code === 0) this.commitsByDay = resp.data.data || []
       } catch (e) { console.error('loadStatsCommitsByDay failed', e) }
-    },
-    async loadStatsCommitsByRepo () {
-      try {
-        const resp = await this.$http.get('/admin/stats/commits-by-repo')
-        if (resp.data && resp.data.code === 0) this.commitsByRepo = resp.data.data || []
-      } catch (e) { console.error('loadStatsCommitsByRepo failed', e) }
     },
     async loadStatsAuthors () {
       try {
@@ -355,31 +392,6 @@ export default {
         })
       })
     },
-    renderRepoChart () {
-      this.$nextTick(() => {
-        const el = this.$refs.repoChart
-        if (!el) return
-        if (this.chartInstances.repo) this.chartInstances.repo.destroy()
-        const data = this.commitsByRepo || []
-        const noDataLabel = '暂无数据'
-        const labels = data.length ? data.map(r => r.repoFullName || '') : [noDataLabel]
-        const counts = data.length ? data.map(r => r.count || 0) : [1]
-        const colors = ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#65a30d', '#be185d']
-        const backgroundColor = data.length ? data.map((_, i) => colors[i % colors.length]) : ['#e5e7eb']
-        this.chartInstances.repo = new ChartJS(el, {
-          type: 'doughnut',
-          data: {
-            labels,
-            datasets: [{ data: counts, backgroundColor }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: { legend: { position: 'right' } }
-          }
-        })
-      })
-    },
     renderAuthorChart () {
       this.$nextTick(() => {
         const el = this.$refs.authorChart
@@ -423,6 +435,8 @@ export default {
       this.loadStatsOverview()
       this.loadStatsCommitsByDay()
       this.loadStatsAuthors()
+      if (this.selectedRepo) this.loadRepoInfo()
+      else this.repoInfo = {}
     },
     async loadDashboard () {
       try {
@@ -672,16 +686,50 @@ export default {
   margin-top: 4px;
 }
 
+.project-info-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.project-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+}
+.project-info-label {
+  flex-shrink: 0;
+  color: #64748b;
+  min-width: 80px;
+}
+.project-info-name {
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+}
+.project-info-name:hover {
+  text-decoration: underline;
+}
+.project-info-desc {
+  color: #475569;
+  line-height: 1.5;
+}
+.project-info-developers,
+.project-info-languages {
+  color: #334155;
+}
+
 .charts-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 20px;
 }
 
+.chart-section-full {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 900px) {
-  .charts-row {
-    grid-template-columns: 1fr;
-  }
   .overview-cards {
     grid-template-columns: 1fr;
   }
@@ -702,6 +750,10 @@ export default {
 
 .chart-wrap-pie {
   height: 240px;
+}
+
+.chart-section-full .chart-wrap {
+  height: 260px;
 }
 
 .chart-wrap-bar {

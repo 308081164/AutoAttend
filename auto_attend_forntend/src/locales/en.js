@@ -31,6 +31,11 @@ export default {
   dashboard: {
     statusOverview: 'Status Overview',
     overviewTitle: 'Overview',
+    projectInfoTitle: 'Project Info',
+    projectName: 'Project Name',
+    about: 'About',
+    developers: 'Developers',
+    techStack: 'Tech Stack',
     repoCount: 'Repos',
     totalCommits: 'Total Commits',
     authorCount: 'Developers',

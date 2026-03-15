@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@MapperScan("org.example.atuo_attend_backend.**.mapper")
+@MapperScan({"org.example.atuo_attend_backend.**.mapper", "org.example.atuo_attend_backend.config"})
 public class AtuoAttendBackendApplication {
 
     public static void main(String[] args) {

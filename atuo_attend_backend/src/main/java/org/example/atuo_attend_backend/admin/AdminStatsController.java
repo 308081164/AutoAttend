@@ -18,9 +18,22 @@ import java.util.stream.Collectors;
 public class AdminStatsController {
 
     private final CommitService commitService;
+    private final GithubRepoInfoFetcher githubRepoInfoFetcher;
 
-    public AdminStatsController(CommitService commitService) {
+    public AdminStatsController(CommitService commitService, GithubRepoInfoFetcher githubRepoInfoFetcher) {
         this.commitService = commitService;
+        this.githubRepoInfoFetcher = githubRepoInfoFetcher;
+    }
+
+    /** 指定仓库的 GitHub 基本信息（名称、描述、技术栈），用于项目选中时顶部展示 */
+    @GetMapping("/repo-info")
+    public ApiResponse<Map<String, Object>> repoInfo(
+            @RequestParam("repoFullName") String repoFullName) {
+        if (repoFullName == null || repoFullName.isBlank()) {
+            return ApiResponse.fail(40000, "repoFullName required");
+        }
+        Map<String, Object> info = githubRepoInfoFetcher.fetchRepoInfo(repoFullName.trim());
+        return ApiResponse.ok(info != null ? info : new HashMap<>());
     }
 
     /** 总览：仓库数、总提交数、开发者数 */
