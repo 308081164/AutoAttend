@@ -24,7 +24,7 @@ public class SystemConfigSchemaBootstrap {
     private static final Logger log = LoggerFactory.getLogger(SystemConfigSchemaBootstrap.class);
     private static final String TABLE_NAME = "aa_system_config";
 
-    @Bean(name = "systemConfigSchemaBootstrap")
+    @Bean(name = "systemConfigTableReady")
     public Object ensureSystemConfigTable(DataSource dataSource) {
         try (Connection conn = dataSource.getConnection()) {
             if (tableExists(conn)) {
