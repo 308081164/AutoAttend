@@ -274,13 +274,6 @@ export default {
       if (!repo || !sha) return ''
       return `https://github.com/${repo}/commit/${sha}`
     },
-    commitAnalysisRoute (item) {
-      if (!item || !item.commitSha) return { path: '/' }
-      return {
-        path: `/commit/${item.commitSha}`,
-        query: item.repoFullName ? { repoFullName: item.repoFullName } : {}
-      }
-    },
     diffHtml () {
       if (!this.diffText) return ''
       return this.diffText.split('\n').map(line => {
@@ -513,6 +506,13 @@ export default {
       if (!q || !q.commitSha || !q.repoFullName || !this.commits.length) return
       const item = this.commits.find(c => c.commitSha === q.commitSha && c.repoFullName === q.repoFullName)
       if (item) this.viewDiff(item)
+    },
+    commitAnalysisRoute (item) {
+      if (!item || !item.commitSha) return { path: '/' }
+      return {
+        path: `/commit/${item.commitSha}`,
+        query: item.repoFullName ? { repoFullName: item.repoFullName } : {}
+      }
     },
     retryFetchDiff () {
       if (this.selectedCommit) this.viewDiff(this.selectedCommit)
