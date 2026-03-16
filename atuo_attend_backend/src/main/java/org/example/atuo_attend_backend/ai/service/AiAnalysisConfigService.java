@@ -101,16 +101,20 @@ public class AiAnalysisConfigService {
                 : (existing != null ? existing.getApiKey() : null);
         boolean en = enabled != null && enabled;
         String m = (model != null && !model.isBlank()) ? model : "qwen-omni";
+        int maxChars = existing != null && existing.getMaxDiffChars() != null ? existing.getMaxDiffChars() : 100000;
+        String pv = existing != null && existing.getPromptVersion() != null && !existing.getPromptVersion().isBlank()
+                ? existing.getPromptVersion()
+                : "v1";
         if (existing != null) {
-            configMapper.update(PROVIDER_QWEN, keyToSave, en, m, existing.getPromptVersion(), existing.getMaxDiffChars());
+            configMapper.update(PROVIDER_QWEN, keyToSave, en, m, pv, maxChars);
         } else {
             AiAnalysisConfig c = new AiAnalysisConfig();
             c.setProvider(PROVIDER_QWEN);
             c.setApiKey(keyToSave);
             c.setEnabled(en);
             c.setModel(m);
-            c.setPromptVersion(null);
-            c.setMaxDiffChars(null);
+            c.setPromptVersion(pv);
+            c.setMaxDiffChars(maxChars);
             configMapper.insert(c);
         }
     }

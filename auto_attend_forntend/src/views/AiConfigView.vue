@@ -75,7 +75,8 @@
           <input v-model="qwenForm.model" type="text" class="form-input" placeholder="qwen-omni">
         </div>
         <div class="form-actions">
-          <button type="submit" class="primary-button" :disabled="saving">{{ saving ? $t('aiConfig.saving') : $t('aiConfig.save') }}</button>
+          <button type="submit" class="primary-button" :disabled="qwenSaving">{{ qwenSaving ? $t('aiConfig.saving') : $t('aiConfig.save') }}</button>
+          <span v-if="qwenSaveMessage" class="save-message" :class="qwenSaveSuccess ? 'success' : 'error'">{{ qwenSaveMessage }}</span>
         </div>
       </form>
     </div>
@@ -197,6 +198,9 @@ export default {
         enabled: false,
         model: 'qwen-omni'
       },
+      qwenSaving: false,
+      qwenSaveMessage: '',
+      qwenSaveSuccess: false,
       githubConfig: undefined,
       githubForm: {
         githubToken: '',
@@ -284,8 +288,8 @@ export default {
       }
     },
     async saveQwenConfig () {
-      this.saving = true
-      this.saveMessage = ''
+      this.qwenSaving = true
+      this.qwenSaveMessage = ''
       try {
         const payload = {
           enabled: this.qwenForm.enabled,
@@ -296,19 +300,19 @@ export default {
         }
         const resp = await this.$http.put('/admin/ai-analysis/qwen-config', payload)
         if (resp.data && resp.data.code === 0) {
-          this.saveMessage = this.$t('aiConfig.saveSuccess')
-          this.saveSuccess = true
+          this.qwenSaveMessage = this.$t('aiConfig.saveSuccess')
+          this.qwenSaveSuccess = true
           this.loadQwenConfig()
           this.qwenForm.apiKey = ''
         } else {
-          this.saveMessage = (resp.data && resp.data.message) || this.$t('aiConfig.saveFailed')
-          this.saveSuccess = false
+          this.qwenSaveMessage = (resp.data && resp.data.message) || this.$t('aiConfig.saveFailed')
+          this.qwenSaveSuccess = false
         }
       } catch (e) {
-        this.saveMessage = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.saveFailed')
-        this.saveSuccess = false
+        this.qwenSaveMessage = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.saveFailed')
+        this.qwenSaveSuccess = false
       } finally {
-        this.saving = false
+        this.qwenSaving = false
       }
     },
     async loadGitHubConfig () {
