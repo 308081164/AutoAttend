@@ -1,6 +1,7 @@
 package org.example.atuo_attend_backend.collab.service;
 
 import io.minio.*;
+import io.minio.http.Method;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
