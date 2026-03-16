@@ -442,7 +442,11 @@ export default {
     clearAiSessionAttachments () {
       this.aiSessionAttachments.forEach(a => {
         if (a.previewUrl) {
-          try { URL.revokeObjectURL(a.previewUrl) } catch (e) {}
+          try {
+            URL.revokeObjectURL(a.previewUrl)
+          } catch (e) {
+            // ignore revoke error
+          }
         }
       })
       this.aiSessionAttachments = []
