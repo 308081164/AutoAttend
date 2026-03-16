@@ -44,6 +44,42 @@
     </div>
     <div v-else class="placeholder">{{ $t('aiConfig.loading') }}</div>
 
+    <div class="config-card qwen-config-card" v-if="qwenConfig">
+      <h2 class="config-card-title">Qwen 多模态（协作 AI 录入）</h2>
+      <p class="config-card-desc">用于「项目协作 → 任务表」的 AI 录入模式，多模态理解文字+附件。</p>
+      <form @submit.prevent="saveQwenConfig">
+        <div class="form-row">
+          <label class="form-label">提供商</label>
+          <span class="form-value">Qwen</span>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Qwen API Key</label>
+          <p v-if="qwenConfig.apiKeyMasked" class="api-key-set">已设置（{{ qwenConfig.apiKeyMasked }}）</p>
+          <input
+            v-model="qwenForm.apiKey"
+            type="password"
+            autocomplete="off"
+            placeholder="不填则保持原值"
+            class="form-input"
+          >
+        </div>
+        <div class="form-row">
+          <label class="form-label">启用千问多模态</label>
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="qwenForm.enabled">
+            <span>用于协作任务表 AI 录入模式</span>
+          </label>
+        </div>
+        <div class="form-row">
+          <label class="form-label">模型</label>
+          <input v-model="qwenForm.model" type="text" class="form-input" placeholder="qwen-omni">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary-button" :disabled="saving">{{ saving ? $t('aiConfig.saving') : $t('aiConfig.save') }}</button>
+        </div>
+      </form>
+    </div>
+
     <div class="config-card token-usage-card">
       <h2 class="config-card-title">{{ $t('aiConfig.tokenUsageTitle') }}</h2>
       <p class="config-card-desc">{{ $t('aiConfig.tokenUsageDesc') }}</p>
@@ -155,6 +191,12 @@ export default {
       saving: false,
       saveMessage: '',
       saveSuccess: false,
+      qwenConfig: null,
+      qwenForm: {
+        apiKey: '',
+        enabled: false,
+        model: 'qwen-omni'
+      },
       githubConfig: undefined,
       githubForm: {
         githubToken: '',
@@ -170,6 +212,7 @@ export default {
   },
   created () {
     this.loadConfig()
+    this.loadQwenConfig()
     this.loadGitHubConfig()
     this.loadUsage()
   },
@@ -198,6 +241,20 @@ export default {
         }
       }
     },
+    async loadQwenConfig () {
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/qwen-config')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const data = resp.data.data
+          this.qwenConfig = data
+          this.qwenForm.enabled = data.enabled === true || data.enabled === 'true' || data.enabled === 1
+          this.qwenForm.model = (data.model && String(data.model).trim()) || 'qwen-omni'
+          this.qwenForm.apiKey = ''
+        }
+      } catch (e) {
+        // 忽略，保留 qwenConfig 为空
+      }
+    },
     async saveConfig () {
       this.saving = true
       this.saveMessage = ''
@@ -215,6 +272,34 @@ export default {
           this.saveSuccess = true
           this.loadConfig()
           this.form.apiKey = ''
+        } else {
+          this.saveMessage = (resp.data && resp.data.message) || this.$t('aiConfig.saveFailed')
+          this.saveSuccess = false
+        }
+      } catch (e) {
+        this.saveMessage = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.saveFailed')
+        this.saveSuccess = false
+      } finally {
+        this.saving = false
+      }
+    },
+    async saveQwenConfig () {
+      this.saving = true
+      this.saveMessage = ''
+      try {
+        const payload = {
+          enabled: this.qwenForm.enabled,
+          model: this.qwenForm.model || 'qwen-omni'
+        }
+        if (this.qwenForm.apiKey && !this.qwenForm.apiKey.includes('****')) {
+          payload.apiKey = this.qwenForm.apiKey
+        }
+        const resp = await this.$http.put('/admin/ai-analysis/qwen-config', payload)
+        if (resp.data && resp.data.code === 0) {
+          this.saveMessage = this.$t('aiConfig.saveSuccess')
+          this.saveSuccess = true
+          this.loadQwenConfig()
+          this.qwenForm.apiKey = ''
         } else {
           this.saveMessage = (resp.data && resp.data.message) || this.$t('aiConfig.saveFailed')
           this.saveSuccess = false

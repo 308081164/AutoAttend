@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 public class AiAnalysisConfigService {
 
     private static final String PROVIDER_DEEPSEEK = "deepseek";
+    private static final String PROVIDER_QWEN = "qwen";
 
     private final AiAnalysisConfigMapper configMapper;
 
@@ -28,6 +29,31 @@ public class AiAnalysisConfigService {
             c.setModel("deepseek-chat");
             c.setPromptVersion("v1");
             c.setMaxDiffChars(100000);
+        }
+        return c;
+    }
+
+    public AiAnalysisConfig getQwenConfig() {
+        AiAnalysisConfig c = configMapper.findByProvider(PROVIDER_QWEN);
+        if (c == null) {
+            c = new AiAnalysisConfig();
+            c.setProvider(PROVIDER_QWEN);
+            c.setApiKey(null);
+            c.setEnabled(false);
+            c.setModel("qwen-omni");
+        }
+        return c;
+    }
+
+    public AiAnalysisConfig getQwenConfigMasked() {
+        AiAnalysisConfig c = getQwenConfig();
+        if (c != null && c.getApiKey() != null && !c.getApiKey().isBlank()) {
+            String k = c.getApiKey();
+            if (k.length() <= 8) {
+                c.setApiKey("****");
+            } else {
+                c.setApiKey(k.substring(0, 4) + "****" + k.substring(k.length() - 4));
+            }
         }
         return c;
     }
@@ -65,6 +91,27 @@ public class AiAnalysisConfigService {
             newConfig.setPromptVersion(pv);
             newConfig.setMaxDiffChars(maxChars);
             configMapper.insert(newConfig);
+        }
+    }
+
+    public void updateQwenConfig(String apiKey, Boolean enabled, String model) {
+        AiAnalysisConfig existing = configMapper.findByProvider(PROVIDER_QWEN);
+        String keyToSave = (apiKey != null && !apiKey.isBlank() && !apiKey.contains("****"))
+                ? apiKey.trim()
+                : (existing != null ? existing.getApiKey() : null);
+        boolean en = enabled != null && enabled;
+        String m = (model != null && !model.isBlank()) ? model : "qwen-omni";
+        if (existing != null) {
+            configMapper.update(PROVIDER_QWEN, keyToSave, en, m, existing.getPromptVersion(), existing.getMaxDiffChars());
+        } else {
+            AiAnalysisConfig c = new AiAnalysisConfig();
+            c.setProvider(PROVIDER_QWEN);
+            c.setApiKey(keyToSave);
+            c.setEnabled(en);
+            c.setModel(m);
+            c.setPromptVersion(null);
+            c.setMaxDiffChars(null);
+            configMapper.insert(c);
         }
     }
 }

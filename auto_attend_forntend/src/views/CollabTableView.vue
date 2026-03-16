@@ -5,7 +5,10 @@
         <router-link to="/collab/projects" class="back-link">{{ $t('collabTable.backToList') }}</router-link>
         <h2 class="table-title">{{ tableName }}</h2>
       </div>
-      <button class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
+      <div class="header-actions">
+        <button class="secondary-button" @click="openAiInput">{{ $t('collabTable.aiInputMode') }}</button>
+        <button class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
+      </div>
     </div>
 
     <div v-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
@@ -250,6 +253,71 @@
         </div>
       </div>
     </div>
+
+    <!-- AI 录入模式弹窗 -->
+    <div v-if="showAiModal" class="drawer-mask" @click="closeAiModal">
+      <div class="drawer ai-modal" @click.stop>
+        <div class="drawer-header">
+          <h3>{{ $t('collabTable.aiInputTitle') }}</h3>
+          <button class="close-btn" @click="closeAiModal">×</button>
+        </div>
+        <div class="drawer-body ai-body">
+          <div class="ai-input-section">
+            <label class="field-label">{{ $t('collabTable.aiInputRawText') }}</label>
+            <textarea
+              v-model="aiInputText"
+              rows="4"
+              class="field-input"
+              :placeholder="$t('collabTable.aiInputPlaceholder')"
+            ></textarea>
+          </div>
+          <div class="ai-attachments-section">
+            <label class="field-label">{{ $t('collabTable.aiInputAttachments') }}</label>
+            <div v-if="aiProjectAttachments.length" class="ai-attachment-list">
+              <label v-for="a in aiProjectAttachments" :key="a.id" class="multi-select-item">
+                <input
+                  type="checkbox"
+                  :value="a.id"
+                  v-model="aiSelectedAttachmentIds"
+                >
+                <span>{{ a.fileName }}</span>
+                <span v-if="a.isImage" class="tag">{{ $t('collabTable.imageTag') }}</span>
+              </label>
+            </div>
+            <div v-else class="text-muted small">{{ $t('collabTable.noAiAttachments') }}</div>
+          </div>
+          <div class="ai-actions">
+            <button class="primary-button" @click="runAiPreview" :disabled="aiLoading">
+              {{ aiLoading ? $t('collabTable.aiGenerating') : $t('collabTable.aiGenerateTasks') }}
+            </button>
+          </div>
+          <div v-if="aiTasks.length" class="ai-result-section">
+            <h4>{{ $t('collabTable.aiTaskDrafts') }}</h4>
+            <div v-for="(t, idx) in aiTasks" :key="idx" class="ai-task-item">
+              <input
+                v-model="t.title"
+                class="field-input"
+                :placeholder="$t('collabTable.aiTaskTitlePlaceholder')"
+              >
+              <textarea
+                v-model="t.description"
+                rows="3"
+                class="field-input"
+                :placeholder="$t('collabTable.aiTaskDescPlaceholder')"
+              ></textarea>
+              <button class="link-button danger" @click="removeAiTask(idx)">
+                {{ $t('collabTable.removeDraft') }}
+              </button>
+            </div>
+            <div class="ai-commit-actions">
+              <button class="primary-button" @click="commitAiTasks" :disabled="aiCommitting || !aiTasks.length">
+                {{ aiCommitting ? $t('collabTable.aiCommitting') : $t('collabTable.aiInsertToTable') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -283,7 +351,14 @@ export default {
       attachmentPreviewUrls: {},
       drawerUploadColId: null,
       recordAttachmentsMap: {},
-      listAttachmentPreviewUrls: {}
+      listAttachmentPreviewUrls: {},
+      showAiModal: false,
+      aiInputText: '',
+      aiTasks: [],
+      aiLoading: false,
+      aiCommitting: false,
+      aiProjectAttachments: [],
+      aiSelectedAttachmentIds: []
     }
   },
   created () {
@@ -296,6 +371,71 @@ export default {
     this.revokeListAttachmentPreviewUrls()
   },
   methods: {
+    openAiInput () {
+      this.showAiModal = true
+      this.aiInputText = ''
+      this.aiTasks = []
+      this.aiSelectedAttachmentIds = []
+      this.loadAiProjectAttachments()
+    },
+    closeAiModal () {
+      this.showAiModal = false
+    },
+    async runAiPreview () {
+      if (!this.aiInputText || !this.aiInputText.trim()) return
+      this.aiLoading = true
+      try {
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/ai-tasks/preview`, {
+          rawText: this.aiInputText,
+          attachmentIds: this.aiSelectedAttachmentIds
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
+          this.aiTasks = resp.data.data.items
+        } else {
+          alert((resp.data && resp.data.message) || this.$t('collabTable.aiPreviewFailed'))
+        }
+      } catch (e) {
+        alert(this.$t('collabTable.aiPreviewFailed'))
+      } finally {
+        this.aiLoading = false
+      }
+    },
+    removeAiTask (idx) {
+      this.aiTasks.splice(idx, 1)
+    },
+    async commitAiTasks () {
+      if (!this.aiTasks.length) return
+      this.aiCommitting = true
+      try {
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/ai-tasks/commit`, {
+          tasks: this.aiTasks
+        })
+        if (resp.data && resp.data.code === 0) {
+          this.showAiModal = false
+          this.aiInputText = ''
+          this.aiTasks = []
+          this.loadRecords()
+        } else {
+          alert((resp.data && resp.data.message) || this.$t('collabTable.aiCommitFailed'))
+        }
+      } catch (e) {
+        alert(this.$t('collabTable.aiCommitFailed'))
+      } finally {
+        this.aiCommitting = false
+      }
+    },
+    async loadAiProjectAttachments () {
+      try {
+        const resp = await this.$http.get(`/collab/projects/${this.projectId}/attachments`)
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
+          this.aiProjectAttachments = resp.data.data.items
+        } else {
+          this.aiProjectAttachments = []
+        }
+      } catch (e) {
+        this.aiProjectAttachments = []
+      }
+    },
     async loadTable () {
       this.tableLoading = true
       try {

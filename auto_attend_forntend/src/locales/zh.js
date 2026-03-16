@@ -240,6 +240,23 @@ export default {
     pleaseSelect: '请选择',
     currentStatus: '当前状态',
     noMembers: '暂无项目成员',
-    uploadImage: '上传图片'
+    uploadImage: '上传图片',
+    aiInputMode: 'AI 录入模式',
+    aiInputTitle: 'AI 录入任务',
+    aiInputRawText: '客户原始描述',
+    aiInputPlaceholder: '粘贴会议纪要、客户聊天记录、需求草稿等，自然语言即可。',
+    aiGenerateTasks: '生成任务草稿',
+    aiGenerating: '生成中…',
+    aiTaskDrafts: 'AI 生成的任务草稿',
+    aiTaskTitlePlaceholder: '任务标题（可修改）',
+    aiTaskDescPlaceholder: '任务详细描述（可修改）',
+    removeDraft: '删除草稿',
+    aiInsertToTable: '插入任务表',
+    aiCommitting: '插入中…',
+    aiPreviewFailed: 'AI 生成任务草稿失败，请稍后重试或联系管理员检查千问配置。',
+    aiCommitFailed: '插入任务表失败，请稍后重试。',
+    aiInputAttachments: '选择要交给 AI 的附件',
+    imageTag: '图片',
+    noAiAttachments: '当前项目暂无可用附件。'
   }
 }

@@ -82,6 +82,22 @@ public class MinioService {
         client.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(storageKey).build());
     }
 
+    /**
+     * 生成对象的预签名访问 URL（短期有效，单位秒）。
+     */
+    public String generatePresignedUrl(String storageKey, int expireSeconds) throws Exception {
+        if (storageKey == null || storageKey.isBlank()) return null;
+        int expiry = Math.max(60, Math.min(expireSeconds, 3600));
+        return client.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                        .bucket(bucket)
+                        .object(storageKey)
+                        .expiry(expiry)
+                        .method(Method.GET)
+                        .build()
+        );
+    }
+
     private String guessContentType(String filename) {
         if (filename == null) return "application/octet-stream";
         String lower = filename.toLowerCase();

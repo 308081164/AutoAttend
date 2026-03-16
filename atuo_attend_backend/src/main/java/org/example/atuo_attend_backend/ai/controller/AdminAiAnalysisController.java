@@ -3,6 +3,7 @@ package org.example.atuo_attend_backend.ai.controller;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisResult;
 import org.example.atuo_attend_backend.ai.dto.AiAnalysisConfigUpdate;
+import org.example.atuo_attend_backend.ai.dto.AiQwenConfigUpdate;
 import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisService;
@@ -74,6 +75,28 @@ public class AdminAiAnalysisController {
             body.getModel(),
             body.getPromptVersion(),
             body.getMaxDiffChars()
+        );
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/qwen-config")
+    public ApiResponse<Map<String, Object>> getQwenConfig() {
+        AiAnalysisConfig c = configService.getQwenConfigMasked();
+        Map<String, Object> data = new HashMap<>();
+        data.put("provider", c.getProvider());
+        data.put("apiKeyMasked", c.getApiKey());
+        data.put("hasApiKey", c.getApiKey() != null && !c.getApiKey().isEmpty());
+        data.put("enabled", Boolean.TRUE.equals(c.getEnabled()));
+        data.put("model", c.getModel() != null ? c.getModel() : "qwen-omni");
+        return ApiResponse.ok(data);
+    }
+
+    @PutMapping("/qwen-config")
+    public ApiResponse<Void> updateQwenConfig(@RequestBody AiQwenConfigUpdate body) {
+        configService.updateQwenConfig(
+                body.getApiKey(),
+                body.getEnabled(),
+                body.getModel()
         );
         return ApiResponse.ok(null);
     }

@@ -4,7 +4,9 @@ import org.example.atuo_attend_backend.admin.dto.*;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectMember;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
+import org.example.atuo_attend_backend.collab.service.CollabSyncService;
 import org.example.atuo_attend_backend.collab.service.MinioService;
+import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -40,10 +42,15 @@ public class AdminTeamController {
 
     private final AdminTeamService teamService;
     private final MinioService minioService;
+    private final CommitService commitService;
+    private final CollabSyncService collabSyncService;
 
-    public AdminTeamController(AdminTeamService teamService, MinioService minioService) {
+    public AdminTeamController(AdminTeamService teamService, MinioService minioService,
+                              CommitService commitService, CollabSyncService collabSyncService) {
         this.teamService = teamService;
         this.minioService = minioService;
+        this.commitService = commitService;
+        this.collabSyncService = collabSyncService;
     }
 
     @GetMapping("/job-titles")
@@ -186,6 +193,32 @@ public class AdminTeamController {
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    /**
+     * 按提交表中的仓库列表补齐协作项目与表格：对每个在 aa_commit 中出现过的 repo_full_name
+     * 调用 ensureProjectAndTable，使未创建过协作项目的仓库也拥有项目+默认任务表。
+     */
+    @PostMapping("/sync-collab-projects")
+    public ApiResponse<Map<String, Object>> syncCollabProjects() {
+        List<String> repos = commitService.listRepos();
+        Set<String> beforeRepoIds = teamService.listAllProjects().stream()
+                .map(BizProject::getRepoId).collect(Collectors.toSet());
+        for (String repoFullName : repos) {
+            if (repoFullName == null || repoFullName.isBlank()) continue;
+            try {
+                collabSyncService.ensureProjectAndTable(repoFullName.trim());
+            } catch (Exception e) {
+                // 单仓失败不中断，继续下一个
+            }
+        }
+        Set<String> afterRepoIds = teamService.listAllProjects().stream()
+                .map(BizProject::getRepoId).collect(Collectors.toSet());
+        afterRepoIds.removeAll(beforeRepoIds);
+        Map<String, Object> data = new HashMap<>();
+        data.put("reposTotal", repos.size());
+        data.put("createdCount", afterRepoIds.size());
+        return ApiResponse.ok(data);
     }
 
     private Map<String, Object> toMemberMap(BizUser u) {

@@ -20,4 +20,14 @@ public interface BizAttachmentMapper {
 
     @Delete("DELETE FROM biz_attachment WHERE id = #{id}")
     int deleteById(@Param("id") long id);
+
+    @Select("""
+            SELECT a.*
+            FROM biz_attachment a
+            JOIN biz_record r ON a.record_id = r.id
+            JOIN biz_project_table t ON r.table_id = t.id
+            WHERE t.project_id = #{projectId}
+            ORDER BY a.id DESC
+            """)
+    List<BizAttachment> listByProjectId(@Param("projectId") long projectId);
 }

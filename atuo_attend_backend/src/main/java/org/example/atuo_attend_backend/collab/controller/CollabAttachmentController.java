@@ -99,6 +99,27 @@ public class CollabAttachmentController {
         }
     }
 
+    @GetMapping("/projects/{projectId}/attachments")
+    public ApiResponse<?> listProjectAttachments(@PathVariable long projectId, HttpServletRequest req) {
+        long userId = requireUserId(req);
+        if (!projectService.canAccessProject(userId, projectId)) {
+            return ApiResponse.error(40300, "无权限访问该项目");
+        }
+        List<BizAttachment> list = attachmentMapper.listByProjectId(projectId);
+        List<Map<String, Object>> items = list.stream().map(a -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", a.getId());
+            m.put("fileName", a.getFileName());
+            m.put("fileSize", a.getFileSize());
+            m.put("createdAt", a.getCreatedAt());
+            m.put("isImage", isImageFileName(a.getFileName()));
+            return m;
+        }).collect(Collectors.toList());
+        Map<String, Object> data = new HashMap<>();
+        data.put("items", items);
+        return ApiResponse.ok(data);
+    }
+
     @GetMapping("/attachments/{id}/download")
     public ResponseEntity<Resource> download(@PathVariable long id, HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("collabUserId");
