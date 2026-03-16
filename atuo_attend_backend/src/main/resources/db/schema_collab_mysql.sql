@@ -123,16 +123,18 @@ CREATE TABLE IF NOT EXISTS biz_record_comment (
     FOREIGN KEY (user_id) REFERENCES biz_user(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 附件（MinIO storage_key）
 CREATE TABLE IF NOT EXISTS biz_attachment (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    record_id BIGINT NOT NULL,
+    project_id BIGINT NOT NULL,
+    record_id BIGINT NULL,
     file_name VARCHAR(255) NOT NULL,
     file_size BIGINT NOT NULL DEFAULT 0,
     storage_key VARCHAR(512) NOT NULL,
     uploaded_by BIGINT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_project (project_id),
     KEY idx_record (record_id),
+    FOREIGN KEY (project_id) REFERENCES biz_project(id) ON DELETE CASCADE,
     FOREIGN KEY (record_id) REFERENCES biz_record(id) ON DELETE CASCADE,
     FOREIGN KEY (uploaded_by) REFERENCES biz_user(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

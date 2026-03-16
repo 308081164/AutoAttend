@@ -83,6 +83,7 @@ public class CollabAttachmentController {
         try {
             String key = minioService.upload(projectId, recordId, file.getOriginalFilename(), file.getInputStream(), file.getSize());
             BizAttachment att = new BizAttachment();
+            att.setProjectId(projectId);
             att.setRecordId(recordId);
             att.setFileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
             att.setFileSize(file.getSize());
@@ -93,6 +94,41 @@ public class CollabAttachmentController {
             data.put("id", att.getId());
             data.put("fileName", att.getFileName());
             data.put("createdAt", att.getCreatedAt());
+            return ApiResponse.ok(data);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, "上传失败: " + e.getMessage());
+        }
+    }
+
+    /** 项目级附件上传（用于 AI 录入等场景，初始不绑定具体记录） */
+    @PostMapping("/projects/{projectId}/attachments")
+    public ApiResponse<?> uploadProjectAttachment(@PathVariable long projectId,
+                                                  @RequestParam("file") MultipartFile file,
+                                                  HttpServletRequest req) {
+        long userId = requireUserId(req);
+        if (!projectService.canAccessProject(userId, projectId)) {
+            return ApiResponse.error(40300, "无权限访问该项目");
+        }
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.error(40000, "请选择文件");
+        }
+        try {
+            // 使用 recordId=0 作为未绑定记录的占位值，后续在创建任务时再更新为真实记录ID
+            String key = minioService.upload(projectId, 0L, file.getOriginalFilename(), file.getInputStream(), file.getSize());
+            BizAttachment att = new BizAttachment();
+            att.setProjectId(projectId);
+            att.setRecordId(0L);
+            att.setFileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
+            att.setFileSize(file.getSize());
+            att.setStorageKey(key);
+            att.setUploadedBy(userId);
+            attachmentMapper.insert(att);
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", att.getId());
+            data.put("fileName", att.getFileName());
+            data.put("fileSize", att.getFileSize());
+            data.put("createdAt", att.getCreatedAt());
+            data.put("isImage", isImageFileName(att.getFileName()));
             return ApiResponse.ok(data);
         } catch (Exception e) {
             return ApiResponse.error(50000, "上传失败: " + e.getMessage());

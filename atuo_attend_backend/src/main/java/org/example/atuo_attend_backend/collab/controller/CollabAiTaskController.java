@@ -124,7 +124,14 @@ public class CollabAiTaskController {
             }
             // 其余字段映射暂留给后续迭代，通过前端表单直接保存到记录再补充
             if (!fields.isEmpty()) {
-                recordService.createRecord(table.getId(), userId, fields);
+                var rec = recordService.createRecord(table.getId(), userId, fields);
+                // 将本条任务草稿关联的附件挂到新记录上
+                if (t.getAttachmentIds() != null) {
+                    for (Long aid : t.getAttachmentIds()) {
+                        if (aid == null) continue;
+                        attachmentMapper.updateRecordId(aid, rec.getId());
+                    }
+                }
                 created++;
             }
         }

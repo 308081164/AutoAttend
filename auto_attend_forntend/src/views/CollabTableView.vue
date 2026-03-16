@@ -273,15 +273,27 @@
           </div>
           <div class="ai-attachments-section">
             <label class="field-label">{{ $t('collabTable.aiInputAttachments') }}</label>
-            <div v-if="aiProjectAttachments.length" class="ai-attachment-list">
-              <label v-for="a in aiProjectAttachments" :key="a.id" class="multi-select-item">
+            <div class="ai-upload-row">
+              <input ref="aiFileInput" type="file" multiple style="display:none" @change="onAiFilesSelected">
+              <button type="button" class="secondary-button small" @click="triggerAiUpload">
+                {{ $t('collabTable.uploadAttachment') }}
+              </button>
+            </div>
+            <div v-if="aiSessionAttachments.length" class="ai-attachment-list">
+              <label v-for="a in aiSessionAttachments" :key="a.id" class="multi-select-item ai-attachment-item">
                 <input
                   type="checkbox"
                   :value="a.id"
                   v-model="aiSelectedAttachmentIds"
                 >
-                <span>{{ a.fileName }}</span>
-                <span v-if="a.isImage" class="tag">{{ $t('collabTable.imageTag') }}</span>
+                <div class="ai-attachment-preview">
+                  <img v-if="a.isImage && a.previewUrl" :src="a.previewUrl" class="ai-thumb-img" alt="">
+                  <span v-else class="ai-file-icon">📎</span>
+                </div>
+                <div class="ai-attachment-meta">
+                  <span class="ai-file-name">{{ a.fileName }}</span>
+                  <span class="ai-file-size">{{ formatSize(a.fileSize) }}</span>
+                </div>
               </label>
             </div>
             <div v-else class="text-muted small">{{ $t('collabTable.noAiAttachments') }}</div>
@@ -357,7 +369,7 @@ export default {
       aiTasks: [],
       aiLoading: false,
       aiCommitting: false,
-      aiProjectAttachments: [],
+      aiSessionAttachments: [],
       aiSelectedAttachmentIds: []
     }
   },
@@ -376,7 +388,7 @@ export default {
       this.aiInputText = ''
       this.aiTasks = []
       this.aiSelectedAttachmentIds = []
-      this.loadAiProjectAttachments()
+      this.clearAiSessionAttachments()
     },
     closeAiModal () {
       this.showAiModal = false
@@ -424,17 +436,45 @@ export default {
         this.aiCommitting = false
       }
     },
-    async loadAiProjectAttachments () {
-      try {
-        const resp = await this.$http.get(`/collab/projects/${this.projectId}/attachments`)
-        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
-          this.aiProjectAttachments = resp.data.data.items
-        } else {
-          this.aiProjectAttachments = []
+    triggerAiUpload () {
+      if (this.$refs.aiFileInput) this.$refs.aiFileInput.click()
+    },
+    clearAiSessionAttachments () {
+      this.aiSessionAttachments.forEach(a => {
+        if (a.previewUrl) {
+          try { URL.revokeObjectURL(a.previewUrl) } catch (e) {}
         }
-      } catch (e) {
-        this.aiProjectAttachments = []
+      })
+      this.aiSessionAttachments = []
+      this.aiSelectedAttachmentIds = []
+    },
+    async onAiFilesSelected (e) {
+      const files = Array.from(e.target.files || [])
+      if (!files.length) return
+      for (const file of files) {
+        const fd = new FormData()
+        fd.append('file', file)
+        try {
+          const resp = await this.$http.post(`/collab/projects/${this.projectId}/attachments`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+          if (resp.data && resp.data.code === 0 && resp.data.data) {
+            const a = resp.data.data
+            const item = {
+              id: a.id,
+              fileName: a.fileName,
+              fileSize: a.fileSize,
+              isImage: a.isImage === true,
+              previewUrl: a.isImage ? URL.createObjectURL(file) : null
+            }
+            this.aiSessionAttachments.push(item)
+          }
+        } catch (err) {
+          // 简单提示即可
+          alert(this.$t('collabTable.aiUploadFailed') || '上传附件失败')
+        }
       }
+      e.target.value = ''
     },
     async loadTable () {
       this.tableLoading = true

@@ -257,6 +257,7 @@ export default {
     aiCommitFailed: '插入任务表失败，请稍后重试。',
     aiInputAttachments: '选择要交给 AI 的附件',
     imageTag: '图片',
-    noAiAttachments: '当前项目暂无可用附件。'
+    noAiAttachments: '当前暂无已选择的附件。',
+    aiUploadFailed: '上传附件失败，请稍后重试。'
   }
 }

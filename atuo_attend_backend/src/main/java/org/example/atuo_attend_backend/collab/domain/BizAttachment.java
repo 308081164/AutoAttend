@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class BizAttachment {
     private Long id;
+    private Long projectId;
     private Long recordId;
     private String fileName;
     private Long fileSize;
@@ -15,6 +16,8 @@ public class BizAttachment {
     public void setId(Long id) { this.id = id; }
     public Long getRecordId() { return recordId; }
     public void setRecordId(Long recordId) { this.recordId = recordId; }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
     public String getFileName() { return fileName; }
     public void setFileName(String fileName) { this.fileName = fileName; }
     public Long getFileSize() { return fileSize; }

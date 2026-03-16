@@ -257,6 +257,7 @@ export default {
      aiCommitFailed: 'Failed to insert tasks. Please try again.',
      aiInputAttachments: 'Select attachments for AI',
      imageTag: 'Image',
-     noAiAttachments: 'No available attachments in this project.'
+     noAiAttachments: 'No attachments selected for this session.',
+     aiUploadFailed: 'Failed to upload attachment. Please try again.'
   }
 }

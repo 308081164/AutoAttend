@@ -14,20 +14,16 @@ public interface BizAttachmentMapper {
     @Select("SELECT * FROM biz_attachment WHERE record_id = #{recordId}")
     List<BizAttachment> listByRecordId(@Param("recordId") long recordId);
 
-    @Insert("INSERT INTO biz_attachment (record_id, file_name, file_size, storage_key, uploaded_by) VALUES (#{recordId}, #{fileName}, #{fileSize}, #{storageKey}, #{uploadedBy})")
+    @Insert("INSERT INTO biz_attachment (project_id, record_id, file_name, file_size, storage_key, uploaded_by) VALUES (#{projectId}, #{recordId}, #{fileName}, #{fileSize}, #{storageKey}, #{uploadedBy})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(BizAttachment attachment);
 
     @Delete("DELETE FROM biz_attachment WHERE id = #{id}")
     int deleteById(@Param("id") long id);
 
-    @Select("""
-            SELECT a.*
-            FROM biz_attachment a
-            JOIN biz_record r ON a.record_id = r.id
-            JOIN biz_project_table t ON r.table_id = t.id
-            WHERE t.project_id = #{projectId}
-            ORDER BY a.id DESC
-            """)
+    @Select("SELECT * FROM biz_attachment WHERE project_id = #{projectId} ORDER BY id DESC")
     List<BizAttachment> listByProjectId(@Param("projectId") long projectId);
+
+    @Update("UPDATE biz_attachment SET record_id = #{recordId} WHERE id = #{id}")
+    int updateRecordId(@Param("id") long id, @Param("recordId") long recordId);
 }
