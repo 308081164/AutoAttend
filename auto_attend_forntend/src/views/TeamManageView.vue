@@ -23,7 +23,7 @@
         <tbody>
           <tr v-for="u in members" :key="u.id">
             <td>
-              <img v-if="u.avatar" :src="u.avatar" class="avatar-img" alt="">
+              <img v-if="u.avatar" :src="avatarDisplayUrl(u.avatar)" class="avatar-img" alt="">
               <span v-else class="avatar-placeholder">{{ (u.remarkName || u.name || u.email || '?').slice(0, 1) }}</span>
             </td>
             <td>{{ u.email }}</td>
@@ -73,7 +73,20 @@
             <option v-for="t in jobTitles" :key="t" :value="t">{{ t }}</option>
           </select>
         </div>
-        <div class="form-row"><label>{{ $t('teamManage.avatar') }}</label><input v-model="editForm.avatar" type="text" placeholder="https://..."></div>
+        <div class="form-row">
+          <label>{{ $t('teamManage.avatar') }}</label>
+          <div class="avatar-edit">
+            <img v-if="editForm.avatar" :src="avatarDisplayUrl(editForm.avatar)" class="avatar-preview" alt="">
+            <span v-else class="avatar-placeholder avatar-preview">{{ (editForm.remarkName || editForm.name || '?').slice(0, 1) }}</span>
+            <div class="avatar-upload-actions">
+              <input ref="avatarFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="avatar-file-input" @change="onAvatarFileChange">
+              <button type="button" class="secondary-button" @click="$refs.avatarFileInput && $refs.avatarFileInput.click()" :disabled="avatarUploading">
+                {{ avatarUploading ? $t('teamManage.uploading') : $t('teamManage.uploadAvatar') }}
+              </button>
+              <button v-if="editForm.avatar" type="button" class="link-button" @click="editForm.avatar = ''">{{ $t('teamManage.clearAvatar') }}</button>
+            </div>
+          </div>
+        </div>
         <div class="form-row"><label>{{ $t('teamManage.role') }}</label>
           <select v-model="editForm.role">
             <option value="member">{{ $t('teamManage.roleMember') }}</option>
@@ -148,7 +161,8 @@ export default {
       passwordForm: { newPassword: '' },
       projectsTarget: null,
       projectSelection: [],
-      projectRoles: {}
+      projectRoles: {},
+      avatarUploading: false
     }
   },
   created () {
@@ -157,6 +171,42 @@ export default {
     this.loadProjects()
   },
   methods: {
+    /** 头像展示 URL：MinIO key（avatars/xxx）走后端代理，否则视为外链 */
+    avatarDisplayUrl (avatar) {
+      if (!avatar || !avatar.trim()) return ''
+      const s = avatar.trim()
+      if (s.startsWith('http://') || s.startsWith('https://')) return s
+      const base = this.$http.defaults.baseURL || '/api'
+      return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
+    },
+    async onAvatarFileChange (e) {
+      const file = e.target && e.target.files && e.target.files[0]
+      if (!file) return
+      const name = (file.name || '').toLowerCase()
+      if (!name.endsWith('.png') && !name.endsWith('.jpg') && !name.endsWith('.jpeg') && !name.endsWith('.gif') && !name.endsWith('.webp')) {
+        alert(this.$t('teamManage.avatarFormatHint'))
+        e.target.value = ''
+        return
+      }
+      this.avatarUploading = true
+      try {
+        const form = new FormData()
+        form.append('file', file)
+        const r = await this.$http.post('/admin/team/avatar-upload', form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (r.data && r.data.code === 0 && r.data.data && r.data.data.key) {
+          this.editForm.avatar = r.data.data.key
+        } else {
+          alert(r.data && r.data.message ? r.data.message : this.$t('teamManage.uploadFailed'))
+        }
+      } catch (err) {
+        alert(err.response && err.response.data && err.response.data.message ? err.response.data.message : this.$t('teamManage.uploadFailed'))
+      } finally {
+        this.avatarUploading = false
+        e.target.value = ''
+      }
+    },
     roleLabel (role) {
       if (!role) return '—'
       const map = { member: this.$t('teamManage.roleMember'), sub_admin: this.$t('teamManage.roleSubAdmin'), super_admin: this.$t('teamManage.roleSuperAdmin') }
@@ -313,6 +363,11 @@ export default {
 .table td { font-size: 14px; }
 .avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
 .avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+.avatar-edit { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.avatar-preview { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.avatar-edit .avatar-placeholder.avatar-preview { width: 48px; height: 48px; font-size: 18px; }
+.avatar-upload-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.avatar-file-input { position: absolute; width: 0; height: 0; opacity: 0; overflow: hidden; }
 .link-button { background: none; border: none; color: #2563eb; cursor: pointer; font-size: 13px; padding: 0 4px; margin-right: 8px; }
 .link-button:hover { text-decoration: underline; }
 .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }

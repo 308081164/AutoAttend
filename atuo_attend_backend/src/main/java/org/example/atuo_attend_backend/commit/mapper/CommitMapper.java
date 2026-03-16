@@ -113,6 +113,26 @@ public interface CommitMapper {
                                        @Param("offset") int offset,
                                        @Param("limit") int limit);
 
+    /** 查询尚未有 diff 的提交（用于定时任务补拉），按提交时间倒序，最多返回 limit 条 */
+    @Select("""
+            SELECT c.repo_full_name AS repoFullName, c.commit_sha AS commitSha
+            FROM aa_commit c
+            LEFT JOIN aa_commit_diff d ON c.repo_full_name = d.repo_full_name AND c.commit_sha = d.commit_sha
+            WHERE d.repo_full_name IS NULL
+            ORDER BY c.committed_at DESC
+            LIMIT #{limit}
+            """)
+    List<CommitId> listCommitsWithoutDiff(@Param("limit") int limit);
+
+    class CommitId {
+        private String repoFullName;
+        private String commitSha;
+        public String getRepoFullName() { return repoFullName; }
+        public void setRepoFullName(String repoFullName) { this.repoFullName = repoFullName; }
+        public String getCommitSha() { return commitSha; }
+        public void setCommitSha(String commitSha) { this.commitSha = commitSha; }
+    }
+
     @Select("SELECT COUNT(1) FROM aa_commit")
     long countAll();
 

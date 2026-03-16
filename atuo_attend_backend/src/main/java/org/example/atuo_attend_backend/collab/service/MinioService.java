@@ -40,6 +40,21 @@ public class MinioService {
         }
     }
 
+    /** 上传头像，key = avatars/uuid.ext，供团队管理等使用 */
+    public String uploadAvatar(String originalFilename, InputStream inputStream, long size) throws Exception {
+        String ext = originalFilename != null && originalFilename.contains(".")
+                ? originalFilename.substring(originalFilename.lastIndexOf('.')).toLowerCase() : "";
+        if (!ext.matches("^\\.(png|jpe?g|gif|webp)$")) ext = ".png";
+        String key = "avatars/" + UUID.randomUUID() + ext;
+        client.putObject(PutObjectArgs.builder()
+                .bucket(bucket)
+                .object(key)
+                .stream(inputStream, size, -1)
+                .contentType(guessContentType(originalFilename))
+                .build());
+        return key;
+    }
+
     /**
      * 上传文件，key = projectId/recordId/uuid_filename
      */

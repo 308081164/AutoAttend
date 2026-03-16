@@ -150,66 +150,71 @@
       </div>
     </section>
 
-    <section v-if="selectedCommit" class="section">
-      <div class="section-header">
-        <h2 class="section-title">
-          {{ $t('dashboard.diffTitle') }}：{{ selectedCommit.repoFullName }} @ {{ shortSha(selectedCommit.commitSha) }}
-        </h2>
-        <div class="diff-actions">
-          <router-link v-if="selectedCommit" :to="commitAnalysisRoute(selectedCommit)" class="link-button">{{ $t('dashboard.commitAnalysisBoard') }}</router-link>
-          <button v-if="diffText" class="link-button" @click="copyDiffForAi">{{ $t('dashboard.copyForAi') }}</button>
-          <button class="link-button" @click="selectedCommit = null">{{ $t('dashboard.collapse') }}</button>
+    <!-- Diff + AI 分析弹窗 -->
+    <div v-if="selectedCommit" class="diff-modal-backdrop" @click="selectedCommit = null">
+      <div class="diff-modal" @click.stop>
+        <div class="diff-modal-header">
+          <h2 class="diff-modal-title">
+            {{ $t('dashboard.diffTitle') }}：{{ selectedCommit.repoFullName }} @ {{ shortSha(selectedCommit.commitSha) }}
+          </h2>
+          <div class="diff-actions">
+            <router-link v-if="selectedCommit" :to="commitAnalysisRoute(selectedCommit)" class="link-button">{{ $t('dashboard.commitAnalysisBoard') }}</router-link>
+            <button v-if="diffText" class="link-button" @click="copyDiffForAi">{{ $t('dashboard.copyForAi') }}</button>
+            <button type="button" class="link-button diff-modal-close" @click="selectedCommit = null" :aria-label="$t('dashboard.collapse')">{{ $t('dashboard.collapse') }}</button>
+          </div>
         </div>
-      </div>
-      <div class="diff-box" v-if="diffLoading">
-        {{ $t('dashboard.loadingDiff') }}
-      </div>
-      <div v-else-if="diffText" class="diff-box-wrapper">
-        <div class="diff-box diff-content" v-html="diffHtml"></div>
-        <div v-if="isDiffPlaceholder(diffText)" class="diff-placeholder-actions">
-          <button type="button" class="primary-button small" :disabled="diffLoading" @click="retryFetchDiff">{{ $t('dashboard.retryFetchDiff') }}</button>
-          <a :href="githubCommitUrl" target="_blank" rel="noopener noreferrer" class="view-on-github-link">{{ $t('dashboard.viewOnGitHub') }}</a>
-        </div>
-      </div>
-      <pre v-else class="diff-box"><code>{{ $t('dashboard.diffNotReady') }}</code></pre>
+        <div class="diff-modal-body">
+          <div class="diff-box" v-if="diffLoading">
+            {{ $t('dashboard.loadingDiff') }}
+          </div>
+          <div v-else-if="diffText" class="diff-box-wrapper">
+            <div class="diff-box diff-content" v-html="diffHtml"></div>
+            <div v-if="isDiffPlaceholder(diffText)" class="diff-placeholder-actions">
+              <button type="button" class="primary-button small" :disabled="diffLoading" @click="retryFetchDiff">{{ $t('dashboard.retryFetchDiff') }}</button>
+              <a :href="githubCommitUrl" target="_blank" rel="noopener noreferrer" class="view-on-github-link">{{ $t('dashboard.viewOnGitHub') }}</a>
+            </div>
+          </div>
+          <pre v-else class="diff-box"><code>{{ $t('dashboard.diffNotReady') }}</code></pre>
 
-      <div class="ai-analysis-section">
-        <h3 class="ai-analysis-title">{{ $t('dashboard.aiAnalysisTitle') }}</h3>
-        <div v-if="aiAnalysisLoading" class="ai-analysis-loading">{{ $t('dashboard.loading') }}...</div>
-        <div v-else-if="aiAnalysisResult" class="ai-analysis-result">
-          <div class="ai-analysis-row">
-            <span class="ai-analysis-label">{{ $t('dashboard.aiWorkSummary') }}</span>
-            <span>{{ aiAnalysisResult.workSummary || '—' }}</span>
+          <div class="ai-analysis-section">
+            <h3 class="ai-analysis-title">{{ $t('dashboard.aiAnalysisTitle') }}</h3>
+            <div v-if="aiAnalysisLoading" class="ai-analysis-loading">{{ $t('dashboard.loading') }}...</div>
+            <div v-else-if="aiAnalysisResult" class="ai-analysis-result">
+              <div class="ai-analysis-row">
+                <span class="ai-analysis-label">{{ $t('dashboard.aiWorkSummary') }}</span>
+                <span>{{ aiAnalysisResult.workSummary || '—' }}</span>
+              </div>
+              <div class="ai-analysis-row">
+                <span class="ai-analysis-label">{{ $t('dashboard.aiWorkType') }}</span>
+                <span>{{ aiAnalysisResult.workType || '—' }}</span>
+              </div>
+              <div class="ai-analysis-row">
+                <span class="ai-analysis-label">{{ $t('dashboard.aiIsEffective') }}</span>
+                <span>{{ aiAnalysisResult.isEffective || '—' }}</span>
+              </div>
+              <div class="ai-analysis-row" v-if="aiAnalysisResult.effectiveReason">
+                <span class="ai-analysis-label">{{ $t('dashboard.aiEffectiveReason') }}</span>
+                <span>{{ aiAnalysisResult.effectiveReason }}</span>
+              </div>
+              <div class="ai-analysis-row">
+                <span class="ai-analysis-label">{{ $t('dashboard.aiQualityLevel') }}</span>
+                <span>{{ aiAnalysisResult.qualityLevel || '—' }}</span>
+              </div>
+              <div class="ai-analysis-row" v-if="aiAnalysisResult.qualityComment">
+                <span class="ai-analysis-label">{{ $t('dashboard.aiQualityComment') }}</span>
+                <span>{{ aiAnalysisResult.qualityComment }}</span>
+              </div>
+            </div>
+            <div v-else class="ai-analysis-actions">
+              <button type="button" class="primary-button small" :disabled="aiAnalysisRunning" @click="runAiAnalysis">
+                {{ aiAnalysisRunning ? $t('dashboard.aiRunning') : $t('dashboard.runAiAnalysis') }}
+              </button>
+              <p class="ai-analysis-hint">{{ $t('dashboard.aiAnalysisHint') }}</p>
+            </div>
           </div>
-          <div class="ai-analysis-row">
-            <span class="ai-analysis-label">{{ $t('dashboard.aiWorkType') }}</span>
-            <span>{{ aiAnalysisResult.workType || '—' }}</span>
-          </div>
-          <div class="ai-analysis-row">
-            <span class="ai-analysis-label">{{ $t('dashboard.aiIsEffective') }}</span>
-            <span>{{ aiAnalysisResult.isEffective || '—' }}</span>
-          </div>
-          <div class="ai-analysis-row" v-if="aiAnalysisResult.effectiveReason">
-            <span class="ai-analysis-label">{{ $t('dashboard.aiEffectiveReason') }}</span>
-            <span>{{ aiAnalysisResult.effectiveReason }}</span>
-          </div>
-          <div class="ai-analysis-row">
-            <span class="ai-analysis-label">{{ $t('dashboard.aiQualityLevel') }}</span>
-            <span>{{ aiAnalysisResult.qualityLevel || '—' }}</span>
-          </div>
-          <div class="ai-analysis-row" v-if="aiAnalysisResult.qualityComment">
-            <span class="ai-analysis-label">{{ $t('dashboard.aiQualityComment') }}</span>
-            <span>{{ aiAnalysisResult.qualityComment }}</span>
-          </div>
-        </div>
-        <div v-else class="ai-analysis-actions">
-          <button type="button" class="primary-button small" :disabled="aiAnalysisRunning" @click="runAiAnalysis">
-            {{ aiAnalysisRunning ? $t('dashboard.aiRunning') : $t('dashboard.runAiAnalysis') }}
-          </button>
-          <p class="ai-analysis-hint">{{ $t('dashboard.aiAnalysisHint') }}</p>
         </div>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 
@@ -247,7 +252,18 @@ export default {
   watch: {
     selectedCommit (v) {
       this.aiAnalysisResult = null
-      if (v) this.loadAiAnalysisResult()
+      if (v) {
+        this.loadAiAnalysisResult()
+        document.body.style.overflow = 'hidden'
+        this._onEscape = (e) => { if (e.key === 'Escape') this.selectedCommit = null }
+        document.addEventListener('keydown', this._onEscape)
+      } else {
+        document.body.style.overflow = ''
+        if (this._onEscape) {
+          document.removeEventListener('keydown', this._onEscape)
+          this._onEscape = null
+        }
+      }
     },
     selectedRepo () {
       if (this.selectedRepo) this.loadRepoInfo()
@@ -303,6 +319,11 @@ export default {
     })
   },
   beforeDestroy () {
+    document.body.style.overflow = ''
+    if (this._onEscape) {
+      document.removeEventListener('keydown', this._onEscape)
+      this._onEscape = null
+    }
     const chartKeys = ['trend', 'author']
     chartKeys.forEach(k => {
       if (this.chartInstances[k]) {
@@ -892,6 +913,62 @@ export default {
 .placeholder {
   font-size: 13px;
   color: #6b7280;
+}
+
+/* Diff + AI 分析弹窗 */
+.diff-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.diff-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 960px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.diff-modal-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+.diff-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+  min-width: 0;
+  padding-right: 12px;
+}
+.diff-modal-close {
+  flex-shrink: 0;
+}
+.diff-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+.diff-modal-body .diff-box-wrapper {
+  margin-top: 8px;
+}
+.diff-modal-body .diff-box {
+  max-height: 50vh;
 }
 
 .diff-box-wrapper {

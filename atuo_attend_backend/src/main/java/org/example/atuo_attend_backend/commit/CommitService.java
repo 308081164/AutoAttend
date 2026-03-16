@@ -214,6 +214,11 @@ public class CommitService {
         return commitMapper.countByRepo(repoFullName);
     }
 
+    /** 返回尚未有 diff 的提交（repoFullName + commitSha），按提交时间倒序，最多 limit 条。用于定时任务补拉。 */
+    public List<CommitMapper.CommitId> listCommitsWithoutDiff(int limit) {
+        return commitMapper.listCommitsWithoutDiff(Math.min(Math.max(limit, 1), 100));
+    }
+
     public List<String> listRepos() {
         return commitMapper.listDistinctRepos();
     }

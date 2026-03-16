@@ -77,32 +77,35 @@ router.beforeEach(async (to, from, next) => {
   const collabToken = window.localStorage.getItem('autoattend_collab_token')
 
   if (to.name === 'login') {
-    if (adminToken) next({ name: 'dashboard' })
-    else if (collabToken) next({ name: 'member-home' })
+    if (adminToken) next({ name: 'dashboard' }).catch(() => {})
+    else if (collabToken) next({ name: 'member-home' }).catch(() => {})
     else next()
     return
   }
   if (isCollabLoginPath) {
-    if (adminToken) next({ name: 'collab-projects' })
+    if (adminToken) next({ name: 'collab-projects' }).catch(() => {})
     else next()
     return
   }
   if (isCollabPath || isMemberHome) {
-    if (adminToken && !collabToken) {
+    // 有管理员 token 时始终拉取并覆盖协作 token，避免使用过期的 collab token 导致 401
+    if (adminToken) {
       try {
         const r = await fetch('/api/admin/auth/collab-token', { headers: { Authorization: 'Bearer ' + adminToken } })
         const data = await r.json()
         if (data.data && data.data.collabToken) {
           window.localStorage.setItem('autoattend_collab_token', data.data.collabToken)
           next()
-        } else next({ name: 'login' })
+        } else {
+          next({ name: 'login' }).catch(() => {})
+        }
       } catch (e) {
-        next({ name: 'login' })
+        next({ name: 'login' }).catch(() => {})
       }
       return
     }
-    if (!collabToken && !adminToken) {
-      next({ name: 'login' })
+    if (!collabToken) {
+      next({ name: 'login' }).catch(() => {})
       return
     }
     next()
@@ -114,12 +117,12 @@ router.beforeEach(async (to, from, next) => {
       return
     }
     if (collabToken && !adminToken) {
-      next({ name: 'member-home' })
+      next({ name: 'member-home' }).catch(() => {})
       return
     }
   }
   if (to.name !== 'login' && !adminToken) {
-    next({ name: 'login' })
+    next({ name: 'login' }).catch(() => {})
   } else {
     next()
   }
