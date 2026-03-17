@@ -46,6 +46,7 @@ public class QwenClient {
         }
         String modelStr = resolveModel(model);
         try {
+            // DashScope HTTP API：messages 必须放在 input 对象中，且多模态 content 为 [{text},{image:url}] 格式
             ObjectNode body = objectMapper.createObjectNode();
             body.put("model", modelStr);
 
@@ -55,32 +56,28 @@ public class QwenClient {
                 msg.put("role", m.getRole());
                 if (m.getImageUrls() != null && !m.getImageUrls().isEmpty()) {
                     ArrayNode contentArr = objectMapper.createArrayNode();
-                    if (m.getContent() != null && !m.getContent().isBlank()) {
-                        ObjectNode textPart = objectMapper.createObjectNode();
-                        textPart.put("type", "text");
-                        textPart.put("text", m.getContent());
-                        contentArr.add(textPart);
-                    }
                     for (String url : m.getImageUrls()) {
                         if (url == null || url.isBlank()) continue;
                         ObjectNode imgPart = objectMapper.createObjectNode();
-                        imgPart.put("type", "image_url");
-                        ObjectNode imgUrl = objectMapper.createObjectNode();
-                        imgUrl.put("url", url);
-                        imgPart.set("image_url", imgUrl);
+                        imgPart.put("image", url);
                         contentArr.add(imgPart);
                     }
+                    ObjectNode textPart = objectMapper.createObjectNode();
+                    textPart.put("text", m.getContent() != null && !m.getContent().isBlank() ? m.getContent() : "");
+                    contentArr.add(textPart);
                     msg.set("content", contentArr);
                 } else {
-                    msg.put("content", m.getContent());
+                    String text = m.getContent();
+                    msg.put("content", text != null ? text : "");
                 }
                 arr.add(msg);
             }
-            body.set("messages", arr);
+            ObjectNode input = body.putObject("input");
+            input.set("messages", arr);
 
             if (responseJson) {
-                ObjectNode fmt = body.putObject("response_format");
-                fmt.put("type", "json_object");
+                ObjectNode params = body.putObject("parameters");
+                params.put("result_format", "message");
             }
 
             HttpHeaders headers = new HttpHeaders();
