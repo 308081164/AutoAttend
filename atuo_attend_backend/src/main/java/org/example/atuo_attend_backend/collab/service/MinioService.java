@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.Base64;
 import java.util.UUID;
 
 @Service
@@ -79,6 +81,33 @@ public class MinioService {
                 .build());
     }
 
+    /** 最大允许转 Base64 的图片大小（字节），避免内存过大；超出则返回 null */
+    private static final int MAX_IMAGE_SIZE_FOR_BASE64 = 10 * 1024 * 1024;
+
+    /**
+     * 将 MinIO 中的图片对象下载并转为 DashScope 支持的 data URL（data:image/xxx;base64,...）。
+     * 仅支持 png/jpeg/gif/webp；非图片或超大小返回 null。
+     */
+    public String getObjectAsImageDataUrl(String storageKey, String filename) {
+        if (storageKey == null || storageKey.isBlank()) return null;
+        String contentType = guessContentType(filename);
+        if (!contentType.startsWith("image/")) return null;
+        try (InputStream in = download(storageKey)) {
+            ByteArrayOutputStream buf = new ByteArrayOutputStream(256 * 1024);
+            byte[] chunk = new byte[8192];
+            int n;
+            while ((n = in.read(chunk)) != -1) {
+                buf.write(chunk, 0, n);
+                if (buf.size() > MAX_IMAGE_SIZE_FOR_BASE64) return null;
+            }
+            String b64 = Base64.getEncoder().encodeToString(buf.toByteArray());
+            return "data:" + contentType + ";base64," + b64;
+        } catch (Exception e) {
+            log.warn("MinIO getObjectAsImageDataUrl failed: {} - {}", storageKey, e.getMessage());
+            return null;
+        }
+    }
+
     public void delete(String storageKey) throws Exception {
         client.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(storageKey).build());
     }
@@ -105,6 +134,7 @@ public class MinioService {
         if (lower.endsWith(".png")) return "image/png";
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
         if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".webp")) return "image/webp";
         if (lower.endsWith(".pdf")) return "application/pdf";
         return "application/octet-stream";
     }

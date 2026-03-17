@@ -81,12 +81,12 @@ public class CollabAiTaskController {
         String systemPrompt = buildSystemPrompt();
         // 文本部分
         String userContent = buildUserContent(rawText, schema, body.getAttachmentIds());
-        // 图片 URL 列表（10 分钟有效）
-        List<String> imageUrls = buildAttachmentUrls(body.getAttachmentIds());
+        // 附件图片：从 MinIO 拉取真实文件并转为 Base64 data URL，通过官方接口传给千问（避免内网预签名 URL 无效）
+        List<String> imageInputs = buildAttachmentImageDataUrls(body.getAttachmentIds());
 
         List<QwenClient.ChatMessage> messages = List.of(
                 new QwenClient.ChatMessage("system", systemPrompt),
-                new QwenClient.ChatMessage("user", userContent, imageUrls)
+                new QwenClient.ChatMessage("user", userContent, imageInputs)
         );
         QwenClient.ChatResult result = qwenClient.chat(qwen.getApiKey(), qwen.getModel(), messages, true);
         if (result == null) {
@@ -195,23 +195,20 @@ public class CollabAiTaskController {
         return sb.toString();
     }
 
-    private List<String> buildAttachmentUrls(List<Long> attachmentIds) {
+    /** 将附件中的图片从 MinIO 下载并转为 Base64 data URL，供千问多模态接口使用（不依赖公网 URL） */
+    private List<String> buildAttachmentImageDataUrls(List<Long> attachmentIds) {
         if (attachmentIds == null || attachmentIds.isEmpty()) return List.of();
-        List<String> urls = new ArrayList<>();
+        List<String> list = new ArrayList<>();
         for (Long id : attachmentIds) {
             if (id == null) continue;
             BizAttachment att = attachmentMapper.findById(id);
             if (att == null || att.getStorageKey() == null || att.getStorageKey().isBlank()) continue;
-            try {
-                String url = minioService.generatePresignedUrl(att.getStorageKey(), 600);
-                if (url != null && !url.isBlank()) {
-                    urls.add(url);
-                }
-            } catch (Exception ignored) {
-                // 单个附件生成失败不影响整体
+            String dataUrl = minioService.getObjectAsImageDataUrl(att.getStorageKey(), att.getFileName());
+            if (dataUrl != null && !dataUrl.isBlank()) {
+                list.add(dataUrl);
             }
         }
-        return urls;
+        return list;
     }
 
     public static class AiTaskPreviewRequest {

@@ -14,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -39,6 +41,37 @@ public class QwenClient {
         return model;
     }
 
+    /** 仅保留 DashScope 可访问的图片 URL（公网 HTTPS），过滤内网/预签名等避免 400 Invalid URL */
+    private static List<String> filterReachableImageUrls(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) return List.of();
+        List<String> out = new ArrayList<>();
+        for (String url : imageUrls) {
+            if (url == null || url.isBlank()) continue;
+            if (isUrlLikelyReachableByDashScope(url)) out.add(url);
+            else log.debug("Skip image URL not reachable by DashScope: {}", url.length() > 80 ? url.substring(0, 80) + "..." : url);
+        }
+        return out;
+    }
+
+    private static boolean isUrlLikelyReachableByDashScope(String url) {
+        if (url == null || url.isBlank()) return false;
+        if (url.startsWith("data:")) return true; // Base64 内联图片，直接传给千问
+        if (!url.startsWith("https://")) return false;
+        try {
+            URI u = URI.create(url);
+            String host = u.getHost();
+            if (host == null) return false;
+            String h = host.toLowerCase();
+            if (h.equals("localhost") || h.equals("127.0.0.1") || h.startsWith("minio") || h.equals("minio")) return false;
+            if (h.startsWith("10.") || h.startsWith("172.16.") || h.startsWith("172.17.") || h.startsWith("172.18.")
+                    || h.startsWith("172.19.") || h.startsWith("172.2") || h.startsWith("172.30.") || h.startsWith("172.31.")
+                    || h.startsWith("192.168.")) return false; // 内网地址 DashScope 无法访问
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public ChatResult chat(String apiKey, String model, List<ChatMessage> messages, boolean responseJson) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("Qwen API key is empty");
@@ -54,10 +87,10 @@ public class QwenClient {
             for (ChatMessage m : messages) {
                 ObjectNode msg = objectMapper.createObjectNode();
                 msg.put("role", m.getRole());
-                if (m.getImageUrls() != null && !m.getImageUrls().isEmpty()) {
+                List<String> reachableUrls = filterReachableImageUrls(m.getImageUrls());
+                if (!reachableUrls.isEmpty()) {
                     ArrayNode contentArr = objectMapper.createArrayNode();
-                    for (String url : m.getImageUrls()) {
-                        if (url == null || url.isBlank()) continue;
+                    for (String url : reachableUrls) {
                         ObjectNode imgPart = objectMapper.createObjectNode();
                         imgPart.put("image", url);
                         contentArr.add(imgPart);
@@ -75,10 +108,9 @@ public class QwenClient {
             ObjectNode input = body.putObject("input");
             input.set("messages", arr);
 
-            if (responseJson) {
-                ObjectNode params = body.putObject("parameters");
-                params.put("result_format", "message");
-            }
+            // 始终使用 message 格式，确保返回 output.choices[0].message.content；避免纯文本时返回结构不同导致内容为空
+            ObjectNode params = body.putObject("parameters");
+            params.put("result_format", "message");
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -110,13 +142,17 @@ public class QwenClient {
                 return ChatResult.error(msg);
             }
             JsonNode choices = output.path("choices");
-            if (choices == null || !choices.isArray() || choices.size() == 0) {
-                log.warn("Qwen response missing choices: {}", bodyStr.length() > 500 ? bodyStr.substring(0, 500) + "..." : bodyStr);
-                return ChatResult.error("通义 API 未返回有效内容");
+            String content = null;
+            if (choices != null && choices.isArray() && choices.size() > 0) {
+                JsonNode msg = choices.get(0).path("message");
+                content = msg.path("content").asText(null);
             }
-            JsonNode msg = choices.get(0).path("message");
-            String content = msg.path("content").asText(null);
             if (content == null || content.isBlank()) {
+                JsonNode textNode = output.path("text");
+                if (!textNode.isMissingNode()) content = textNode.asText(null);
+            }
+            if (content == null || content.isBlank()) {
+                log.warn("Qwen response missing content: {}", bodyStr.length() > 500 ? bodyStr.substring(0, 500) + "..." : bodyStr);
                 return ChatResult.error("通义 API 返回内容为空");
             }
             return new ChatResult(content, modelStr, null);
