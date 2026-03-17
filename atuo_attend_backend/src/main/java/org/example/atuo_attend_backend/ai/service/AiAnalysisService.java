@@ -186,7 +186,7 @@ public class AiAnalysisService {
             r.setRawResponse(rawResponse);
             r.setWorkSummary(getText(root, "work_summary"));
             r.setWorkType(getText(root, "work_type"));
-            r.setMainArea(getText(root, "main_area"));
+            r.setMainArea(truncate(getText(root, "main_area"), 255));
             r.setIsEffective(getText(root, "is_effective"));
             r.setEffectiveReason(getText(root, "effective_reason"));
             r.setInvalidReasonTag(getText(root, "invalid_reason_tag"));
@@ -209,5 +209,12 @@ public class AiAnalysisService {
         if (!node.has(key)) return null;
         JsonNode v = node.get(key);
         return v == null || v.isNull() ? null : v.asText(null);
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s == null) return null;
+        if (maxLen <= 0) return "";
+        if (s.length() <= maxLen) return s;
+        return s.substring(0, maxLen);
     }
 }
