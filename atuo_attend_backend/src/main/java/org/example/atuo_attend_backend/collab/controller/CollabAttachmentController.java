@@ -113,11 +113,11 @@ public class CollabAttachmentController {
             return ApiResponse.error(40000, "请选择文件");
         }
         try {
-            // 使用 recordId=0 作为未绑定记录的占位值，后续在创建任务时再更新为真实记录ID
+            // record_id 置为 null 表示未绑定记录（外键不允许 0，因 biz_record 无 id=0）；创建任务时再 update 为真实记录ID
             String key = minioService.upload(projectId, 0L, file.getOriginalFilename(), file.getInputStream(), file.getSize());
             BizAttachment att = new BizAttachment();
             att.setProjectId(projectId);
-            att.setRecordId(0L);
+            att.setRecordId(null);
             att.setFileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
             att.setFileSize(file.getSize());
             att.setStorageKey(key);

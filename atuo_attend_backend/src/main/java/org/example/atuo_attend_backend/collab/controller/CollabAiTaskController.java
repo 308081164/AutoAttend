@@ -89,7 +89,13 @@ public class CollabAiTaskController {
                 new QwenClient.ChatMessage("user", userContent, imageUrls)
         );
         QwenClient.ChatResult result = qwenClient.chat(qwen.getApiKey(), qwen.getModel(), messages, true);
-        if (result == null || result.getContent() == null || result.getContent().isBlank()) {
+        if (result == null) {
+            return ApiResponse.error(50000, "AI 返回为空或调用失败");
+        }
+        if (result.isError()) {
+            return ApiResponse.error(50000, "AI 调用失败: " + result.getErrorMessage());
+        }
+        if (result.getContent() == null || result.getContent().isBlank()) {
             return ApiResponse.error(50000, "AI 返回为空或调用失败");
         }
         List<AiTaskDraft> drafts;

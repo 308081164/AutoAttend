@@ -40,7 +40,7 @@ public class AiAnalysisConfigService {
             c.setProvider(PROVIDER_QWEN);
             c.setApiKey(null);
             c.setEnabled(false);
-            c.setModel("qwen-omni");
+            c.setModel("qwen-vl-plus");
         }
         return c;
     }
@@ -100,7 +100,7 @@ public class AiAnalysisConfigService {
                 ? apiKey.trim()
                 : (existing != null ? existing.getApiKey() : null);
         boolean en = enabled != null && enabled;
-        String m = (model != null && !model.isBlank()) ? model : "qwen-omni";
+        String m = (model != null && !model.isBlank()) ? model : "qwen-vl-plus";
         int maxChars = existing != null && existing.getMaxDiffChars() != null ? existing.getMaxDiffChars() : 100000;
         String pv = existing != null && existing.getPromptVersion() != null && !existing.getPromptVersion().isBlank()
                 ? existing.getPromptVersion()

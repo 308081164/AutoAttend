@@ -17,25 +17,35 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 
 /**
- * 通义·千问多模态简单客户端。
- * 说明：具体 API 路径和字段以阿里云百炼最新文档为准，如有出入可在此处微调。
+ * 通义·千问多模态客户端。
+ * 使用 DashScope「多模态生成」接口，支持模型：qwen-vl-plus、qwen-vl-max、qwen3-vl-plus 等。
+ * 注意：qwen-omni 仅支持 compatible-mode 接口且需流式，此处默认使用 qwen-vl-plus。
  */
 @Component
 public class QwenClient {
 
     private static final Logger log = LoggerFactory.getLogger(QwenClient.class);
     private static final String BASE_URL = "https://dashscope.aliyuncs.com";
+    /** multimodal-generation 接口支持的默认模型（qwen-omni 仅支持 compatible-mode，此处用 qwen-vl-plus） */
+    private static final String DEFAULT_MODEL = "qwen-vl-plus";
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** 将不在此接口支持的模型名映射为可用模型，避免历史配置 qwen-omni 导致失败 */
+    private static String resolveModel(String model) {
+        if (model == null || model.isBlank()) return DEFAULT_MODEL;
+        if (model.startsWith("qwen-omni") || "qwen-omni".equalsIgnoreCase(model)) return DEFAULT_MODEL;
+        return model;
+    }
+
     public ChatResult chat(String apiKey, String model, List<ChatMessage> messages, boolean responseJson) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("Qwen API key is empty");
-            return null;
+            return ChatResult.error("未配置 API Key");
         }
+        String modelStr = resolveModel(model);
         try {
-            String modelStr = (model != null && !model.isBlank()) ? model : "qwen-omni";
             ObjectNode body = objectMapper.createObjectNode();
             body.put("model", modelStr);
 
@@ -44,7 +54,6 @@ public class QwenClient {
                 ObjectNode msg = objectMapper.createObjectNode();
                 msg.put("role", m.getRole());
                 if (m.getImageUrls() != null && !m.getImageUrls().isEmpty()) {
-                    // 多模态：组合文本 + 图片 URL
                     ArrayNode contentArr = objectMapper.createArrayNode();
                     if (m.getContent() != null && !m.getContent().isBlank()) {
                         ObjectNode textPart = objectMapper.createObjectNode();
@@ -85,20 +94,51 @@ public class QwenClient {
                     entity,
                     String.class
             );
-            if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
-                JsonNode root = objectMapper.readTree(resp.getBody());
-                JsonNode output = root.path("output");
-                JsonNode choices = output.path("choices");
-                if (choices != null && choices.isArray() && choices.size() > 0) {
-                    JsonNode msg = choices.get(0).path("message");
-                    String content = msg.path("content").asText(null);
-                    return new ChatResult(content, modelStr);
-                }
+            String bodyStr = resp.getBody();
+            if (!resp.getStatusCode().is2xxSuccessful()) {
+                String err = parseApiError(bodyStr);
+                log.warn("Qwen API error {}: {}", resp.getStatusCode(), err);
+                return ChatResult.error(err != null ? err : "通义 API 返回 " + resp.getStatusCode());
             }
+            if (bodyStr == null || bodyStr.isBlank()) {
+                log.warn("Qwen API returned empty body");
+                return ChatResult.error("通义 API 返回为空");
+            }
+            JsonNode root = objectMapper.readTree(bodyStr);
+            JsonNode output = root.path("output");
+            if (output.isMissingNode()) {
+                JsonNode errNode = root.path("message");
+                String msg = errNode.isMissingNode() ? "响应中无 output" : errNode.asText("");
+                log.warn("Qwen response missing output: {}", bodyStr.length() > 500 ? bodyStr.substring(0, 500) + "..." : bodyStr);
+                return ChatResult.error(msg);
+            }
+            JsonNode choices = output.path("choices");
+            if (choices == null || !choices.isArray() || choices.size() == 0) {
+                log.warn("Qwen response missing choices: {}", bodyStr.length() > 500 ? bodyStr.substring(0, 500) + "..." : bodyStr);
+                return ChatResult.error("通义 API 未返回有效内容");
+            }
+            JsonNode msg = choices.get(0).path("message");
+            String content = msg.path("content").asText(null);
+            if (content == null || content.isBlank()) {
+                return ChatResult.error("通义 API 返回内容为空");
+            }
+            return new ChatResult(content, modelStr, null);
         } catch (Exception e) {
-            log.warn("Qwen chat failed: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            log.warn("Qwen chat failed: {} - {}", e.getClass().getSimpleName(), e.getMessage(), e);
+            return ChatResult.error(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
         }
-        return null;
+    }
+
+    private String parseApiError(String body) {
+        if (body == null || body.isBlank()) return null;
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode msg = root.path("message");
+            if (!msg.isMissingNode()) return msg.asText(null);
+            JsonNode code = root.path("code");
+            if (!code.isMissingNode()) return "code: " + code.asText();
+        } catch (Exception ignored) { }
+        return body.length() > 200 ? body.substring(0, 200) + "..." : body;
     }
 
     public static class ChatMessage {
@@ -132,10 +172,20 @@ public class QwenClient {
     public static class ChatResult {
         private final String content;
         private final String model;
+        private final String errorMessage;
 
         public ChatResult(String content, String model) {
+            this(content, model, null);
+        }
+
+        public ChatResult(String content, String model, String errorMessage) {
             this.content = content;
             this.model = model;
+            this.errorMessage = errorMessage;
+        }
+
+        public static ChatResult error(String message) {
+            return new ChatResult(null, null, message);
         }
 
         public String getContent() {
@@ -144,6 +194,14 @@ public class QwenClient {
 
         public String getModel() {
             return model;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+
+        public boolean isError() {
+            return errorMessage != null && !errorMessage.isBlank();
         }
     }
 }

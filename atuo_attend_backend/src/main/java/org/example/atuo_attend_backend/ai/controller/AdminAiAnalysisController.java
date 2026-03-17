@@ -87,7 +87,7 @@ public class AdminAiAnalysisController {
         data.put("apiKeyMasked", c.getApiKey());
         data.put("hasApiKey", c.getApiKey() != null && !c.getApiKey().isEmpty());
         data.put("enabled", Boolean.TRUE.equals(c.getEnabled()));
-        data.put("model", c.getModel() != null ? c.getModel() : "qwen-omni");
+        data.put("model", c.getModel() != null ? c.getModel() : "qwen-vl-plus");
         return ApiResponse.ok(data);
     }
 
