@@ -1,6 +1,8 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.QwenClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
@@ -13,6 +15,8 @@ import org.example.atuo_attend_backend.collab.service.CollabTableService;
 import org.example.atuo_attend_backend.collab.service.MinioService;
 import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,6 +29,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/collab")
 public class CollabAiTaskController {
+
+    private static final Logger log = LoggerFactory.getLogger(CollabAiTaskController.class);
 
     private final CollabProjectService projectService;
     private final CollabTableService tableService;
@@ -100,8 +106,9 @@ public class CollabAiTaskController {
         }
         List<AiTaskDraft> drafts;
         try {
-            drafts = objectMapper.readValue(result.getContent(), new TypeReference<List<AiTaskDraft>>() {});
+            drafts = parseAiTaskDraftsFromContent(result.getContent());
         } catch (Exception e) {
+            log.warn("Parse AI task drafts failed: {} - content length={}", e.getMessage(), result.getContent().length());
             return ApiResponse.error(50000, "解析 AI 返回结果失败，请稍后重试");
         }
         Map<String, Object> data = new HashMap<>();
@@ -195,6 +202,38 @@ public class CollabAiTaskController {
         return sb.toString();
     }
 
+    /**
+     * 从通义返回的 content 中解析出任务草稿列表。
+     * 兼容：被 markdown 代码块包裹、对象内 items/tasks 数组、或直接 JSON 数组。
+     */
+    private List<AiTaskDraft> parseAiTaskDraftsFromContent(String content) throws Exception {
+        if (content == null || content.isBlank()) return List.of();
+        String json = content.trim();
+        if (json.startsWith("```")) {
+            int start = json.indexOf("\n");
+            if (start > 0) json = json.substring(start + 1);
+            int end = json.lastIndexOf("```");
+            if (end > 0) json = json.substring(0, end).trim();
+        }
+        int arrStart = json.indexOf('[');
+        int arrEnd = json.lastIndexOf(']');
+        if (arrStart >= 0 && arrEnd > arrStart) {
+            json = json.substring(arrStart, arrEnd + 1);
+        }
+        json = json.replaceAll(",\\s*]", "]");
+        JsonNode root = objectMapper.readTree(json);
+        if (root.isArray()) {
+            return objectMapper.convertValue(root, new TypeReference<List<AiTaskDraft>>() {});
+        }
+        if (root.has("items") && root.get("items").isArray()) {
+            return objectMapper.convertValue(root.get("items"), new TypeReference<List<AiTaskDraft>>() {});
+        }
+        if (root.has("tasks") && root.get("tasks").isArray()) {
+            return objectMapper.convertValue(root.get("tasks"), new TypeReference<List<AiTaskDraft>>() {});
+        }
+        throw new IllegalArgumentException("AI 返回中未找到 JSON 数组（需为 [...] 或 { items/tasks: [...] }）");
+    }
+
     /** 将附件中的图片从 MinIO 下载并转为 Base64 data URL，供千问多模态接口使用（不依赖公网 URL） */
     private List<String> buildAttachmentImageDataUrls(List<Long> attachmentIds) {
         if (attachmentIds == null || attachmentIds.isEmpty()) return List.of();
@@ -247,11 +286,14 @@ public class CollabAiTaskController {
     public static class AiTaskDraft {
         private String title;
         private String description;
+        @JsonAlias("important_level")
         private String importantLevel;
         private String status;
+        @JsonAlias("accept_result")
         private String acceptResult;
         private String module;
         private List<String> owners;
+        @JsonAlias("attachment_ids")
         private List<Long> attachmentIds;
 
         public String getTitle() {
