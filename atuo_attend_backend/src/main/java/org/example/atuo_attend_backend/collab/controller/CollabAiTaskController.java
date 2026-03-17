@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.QwenClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
+import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.collab.domain.BizAttachment;
 import org.example.atuo_attend_backend.collab.domain.BizProjectTable;
@@ -20,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -39,6 +41,7 @@ public class CollabAiTaskController {
     private final AiAnalysisConfigService configService;
     private final BizAttachmentMapper attachmentMapper;
     private final MinioService minioService;
+    private final AiTokenUsageMapper tokenUsageMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CollabAiTaskController(CollabProjectService projectService,
@@ -47,7 +50,8 @@ public class CollabAiTaskController {
                                   QwenClient qwenClient,
                                   AiAnalysisConfigService configService,
                                   BizAttachmentMapper attachmentMapper,
-                                  MinioService minioService) {
+                                  MinioService minioService,
+                                  AiTokenUsageMapper tokenUsageMapper) {
         this.projectService = projectService;
         this.tableService = tableService;
         this.recordService = recordService;
@@ -55,6 +59,7 @@ public class CollabAiTaskController {
         this.configService = configService;
         this.attachmentMapper = attachmentMapper;
         this.minioService = minioService;
+        this.tokenUsageMapper = tokenUsageMapper;
     }
 
     private long requireUserId(HttpServletRequest req) {
@@ -104,6 +109,14 @@ public class CollabAiTaskController {
         if (result.getContent() == null || result.getContent().isBlank()) {
             return ApiResponse.error(50000, "AI 返回为空或调用失败");
         }
+        if (result.getInputTokens() > 0 || result.getOutputTokens() > 0) {
+            try {
+                tokenUsageMapper.insert(LocalDateTime.now(), "qwen", result.getModel(),
+                        result.getInputTokens(), result.getOutputTokens(), result.getTotalTokens(), null, null);
+            } catch (Exception e) {
+                log.warn("Record Qwen token usage failed: {}", e.getMessage());
+            }
+        }
         List<AiTaskDraft> drafts;
         try {
             drafts = parseAiTaskDraftsFromContent(result.getContent());
@@ -129,16 +142,23 @@ public class CollabAiTaskController {
         if (body.getTasks() == null || body.getTasks().isEmpty()) {
             return ApiResponse.error(40000, "没有可插入的任务");
         }
+        Map<String, Object> schema = tableService.getTableWithColumns(projectId);
+        if (schema == null) return ApiResponse.error(40400, "项目未绑定表格");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) schema.get("columns");
+        if (columns == null) columns = List.of();
+        Map<String, Map<String, Object>> columnByName = new HashMap<>();
+        for (Map<String, Object> c : columns) {
+            String name = (String) c.get("name");
+            if (name != null && !name.isBlank()) {
+                columnByName.put(name.trim(), c);
+            }
+        }
         int created = 0;
         for (AiTaskDraft t : body.getTasks()) {
-            Map<String, Object> fields = new HashMap<>();
-            if (t.getDescription() != null && !t.getDescription().isBlank()) {
-                fields.put("c_problem_desc", t.getDescription().trim());
-            }
-            // 其余字段映射暂留给后续迭代，通过前端表单直接保存到记录再补充
+            Map<String, Object> fields = draftToRecordFields(t, columnByName);
             if (!fields.isEmpty()) {
                 var rec = recordService.createRecord(table.getId(), userId, fields);
-                // 将本条任务草稿关联的附件挂到新记录上
                 if (t.getAttachmentIds() != null) {
                     for (Long aid : t.getAttachmentIds()) {
                         if (aid == null) continue;
@@ -232,6 +252,61 @@ public class CollabAiTaskController {
             return objectMapper.convertValue(root.get("tasks"), new TypeReference<List<AiTaskDraft>>() {});
         }
         throw new IllegalArgumentException("AI 返回中未找到 JSON 数组（需为 [...] 或 { items/tasks: [...] }）");
+    }
+
+    /**
+     * 将一条任务草稿按表列名映射为 createRecord 所需的 fields（key 为 c+列id）。
+     * 列名与草稿字段对应：问题描述<-title+description，归属模块<-module，重要程度<-importantLevel，
+     * 当前状态<-status，验收结果<-acceptResult，图像展示<-attachmentIds（JSON 数组）。
+     */
+    private Map<String, Object> draftToRecordFields(AiTaskDraft t, Map<String, Map<String, Object>> columnByName) {
+        Map<String, Object> fields = new HashMap<>();
+        Object col;
+        Object idObj;
+        long colId;
+        String colType;
+
+        col = columnByName.get("问题描述");
+        if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {
+            colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            String desc = (t.getTitle() != null && !t.getTitle().isBlank() ? t.getTitle().trim() + "\n" : "")
+                    + (t.getDescription() != null ? t.getDescription().trim() : "");
+            if (!desc.isBlank()) fields.put("c" + colId, desc);
+        }
+        col = columnByName.get("归属模块");
+        if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {
+            colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            if (t.getModule() != null && !t.getModule().isBlank()) fields.put("c" + colId, t.getModule().trim());
+        }
+        col = columnByName.get("重要程度");
+        if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {
+            colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            if (t.getImportantLevel() != null && !t.getImportantLevel().isBlank()) fields.put("c" + colId, t.getImportantLevel().trim());
+        }
+        col = columnByName.get("当前状态");
+        if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {
+            colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            if (t.getStatus() != null && !t.getStatus().isBlank()) fields.put("c" + colId, t.getStatus().trim());
+        }
+        col = columnByName.get("验收结果");
+        if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {
+            colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            if (t.getAcceptResult() != null && !t.getAcceptResult().isBlank()) fields.put("c" + colId, t.getAcceptResult().trim());
+        }
+        col = columnByName.get("图像展示");
+        if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null && t.getAttachmentIds() != null && !t.getAttachmentIds().isEmpty()) {
+            colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            List<Long> ids = new ArrayList<>();
+            for (Long aid : t.getAttachmentIds()) {
+                if (aid != null) ids.add(aid);
+            }
+            if (!ids.isEmpty()) {
+                try {
+                    fields.put("c" + colId, objectMapper.writeValueAsString(ids));
+                } catch (Exception ignored) { }
+            }
+        }
+        return fields;
     }
 
     /** 将附件中的图片从 MinIO 下载并转为 Base64 data URL，供千问多模态接口使用（不依赖公网 URL） */

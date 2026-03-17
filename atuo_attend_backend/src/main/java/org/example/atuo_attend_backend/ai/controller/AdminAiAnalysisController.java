@@ -40,15 +40,58 @@ public class AdminAiAnalysisController {
 
     @GetMapping("/usage")
     public ApiResponse<Map<String, Object>> getTokenUsage(
-            @RequestParam(value = "days", defaultValue = "30") int days) {
+            @RequestParam(value = "days", defaultValue = "30") int days,
+            @RequestParam(value = "provider", required = false) String provider,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
         days = Math.min(Math.max(days, 1), 365);
         LocalDateTime since = LocalDateTime.now().minusDays(days);
-        List<Map<String, Object>> items = tokenUsageMapper.listSince(since, 500);
-        Map<String, Object> summary = tokenUsageMapper.sumSince(since);
+        Map<String, Object> summary;
+        List<Map<String, Object>> items;
+        boolean usePaging = page != null && pageSize != null && page > 0 && pageSize > 0 && pageSize <= 500;
+        if (usePaging && provider != null && !provider.isBlank()) {
+            String p = provider.trim();
+            summary = tokenUsageMapper.sumSinceByProvider(since, p);
+            long total = tokenUsageMapper.countSinceByProvider(since, p);
+            int offset = (page - 1) * pageSize;
+            items = tokenUsageMapper.listSinceByProviderPaged(since, p, offset, pageSize);
+            Map<String, Object> data = new HashMap<>();
+            if (summary == null) summary = new HashMap<>();
+            data.put("summary", summary);
+            data.put("items", items);
+            data.put("since", since.toString());
+            data.put("total", total);
+            data.put("page", page);
+            data.put("pageSize", pageSize);
+            return ApiResponse.ok(data);
+        }
+        if (provider != null && !provider.isBlank()) {
+            items = tokenUsageMapper.listSinceByProvider(since, provider.trim(), 500);
+            summary = tokenUsageMapper.sumSinceByProvider(since, provider.trim());
+        } else {
+            items = tokenUsageMapper.listSince(since, 500);
+            summary = tokenUsageMapper.sumSince(since);
+        }
         if (summary == null) summary = new HashMap<>();
         Map<String, Object> data = new HashMap<>();
         data.put("summary", summary);
         data.put("items", items);
+        data.put("since", since.toString());
+        return ApiResponse.ok(data);
+    }
+
+    @GetMapping("/usage/daily")
+    public ApiResponse<Map<String, Object>> getTokenUsageDaily(
+            @RequestParam(value = "days", defaultValue = "30") int days,
+            @RequestParam(value = "provider") String provider) {
+        if (provider == null || provider.isBlank()) {
+            return ApiResponse.error(40000, "provider 必填");
+        }
+        days = Math.min(Math.max(days, 1), 365);
+        LocalDateTime since = LocalDateTime.now().minusDays(days);
+        List<Map<String, Object>> daily = tokenUsageMapper.listDailyByProvider(since, provider.trim());
+        Map<String, Object> data = new HashMap<>();
+        data.put("daily", daily != null ? daily : List.of());
         data.put("since", since.toString());
         return ApiResponse.ok(data);
     }

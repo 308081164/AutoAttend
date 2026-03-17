@@ -175,7 +175,13 @@ public class QwenClient {
                 String snippet = bodyStr.length() > 300 ? bodyStr.substring(0, 300) + "..." : bodyStr;
                 return ChatResult.error("通义 API 返回内容为空（响应片段: " + snippet + "）");
             }
-            return new ChatResult(content, modelStr, null);
+            int inputTokens = 0, outputTokens = 0;
+            JsonNode usage = root.path("usage");
+            if (!usage.isMissingNode()) {
+                inputTokens = usage.path("input_tokens").asInt(0);
+                outputTokens = usage.path("output_tokens").asInt(0);
+            }
+            return new ChatResult(content, modelStr, null, inputTokens, outputTokens);
         } catch (Exception e) {
             log.warn("Qwen chat failed: {} - {}", e.getClass().getSimpleName(), e.getMessage(), e);
             return ChatResult.error(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
@@ -226,33 +232,35 @@ public class QwenClient {
         private final String content;
         private final String model;
         private final String errorMessage;
+        private final int inputTokens;
+        private final int outputTokens;
 
         public ChatResult(String content, String model) {
-            this(content, model, null);
+            this(content, model, null, 0, 0);
         }
 
         public ChatResult(String content, String model, String errorMessage) {
+            this(content, model, errorMessage, 0, 0);
+        }
+
+        public ChatResult(String content, String model, String errorMessage, int inputTokens, int outputTokens) {
             this.content = content;
             this.model = model;
             this.errorMessage = errorMessage;
+            this.inputTokens = inputTokens;
+            this.outputTokens = outputTokens;
         }
 
         public static ChatResult error(String message) {
-            return new ChatResult(null, null, message);
+            return new ChatResult(null, null, message, 0, 0);
         }
 
-        public String getContent() {
-            return content;
-        }
-
-        public String getModel() {
-            return model;
-        }
-
-        public String getErrorMessage() {
-            return errorMessage;
-        }
-
+        public String getContent() { return content; }
+        public String getModel() { return model; }
+        public String getErrorMessage() { return errorMessage; }
+        public int getInputTokens() { return inputTokens; }
+        public int getOutputTokens() { return outputTokens; }
+        public int getTotalTokens() { return inputTokens + outputTokens; }
         public boolean isError() {
             return errorMessage != null && !errorMessage.isBlank();
         }

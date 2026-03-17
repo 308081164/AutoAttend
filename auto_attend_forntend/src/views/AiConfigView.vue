@@ -6,6 +6,7 @@
     </div>
     <p class="page-desc">{{ $t('aiConfig.desc') }}</p>
 
+    <div class="config-row">
     <div class="config-card" v-if="config">
       <p v-if="configLoadedHint" class="config-loaded-hint">{{ $t('aiConfig.configLoadedHint') }}</p>
       <form @submit.prevent="saveConfig">
@@ -80,9 +81,11 @@
         </div>
       </form>
     </div>
+    </div>
 
+    <div class="usage-row">
     <div class="config-card token-usage-card">
-      <h2 class="config-card-title">{{ $t('aiConfig.tokenUsageTitle') }}</h2>
+      <h2 class="config-card-title">DeepSeek {{ $t('aiConfig.tokenUsageTitle') }}</h2>
       <p class="config-card-desc">{{ $t('aiConfig.tokenUsageDesc') }}</p>
       <div v-if="usageLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
       <template v-else-if="usage">
@@ -106,41 +109,128 @@
         </div>
         <p class="usage-since">{{ $t('aiConfig.usageSince', { days: usageDays }) }}</p>
         <div class="usage-actions">
-          <select v-model.number="usageDays" @change="loadUsage" class="usage-days-select">
+          <select v-model.number="usageDays" @change="onUsageDaysChange('deepseek')" class="usage-days-select">
             <option :value="7">7 {{ $t('aiConfig.usageDays') }}</option>
             <option :value="30">30 {{ $t('aiConfig.usageDays') }}</option>
             <option :value="90">90 {{ $t('aiConfig.usageDays') }}</option>
           </select>
-          <button type="button" class="link-button" @click="loadUsage">{{ $t('dashboard.refresh') }}</button>
+          <button type="button" class="link-button" @click="refreshUsageDeepseek">{{ $t('dashboard.refresh') }}</button>
         </div>
-        <div v-if="usage.items && usage.items.length" class="usage-table-wrap">
-          <table class="usage-table">
-            <thead>
-              <tr>
-                <th>{{ $t('aiConfig.usageTime') }}</th>
-                <th>Repo</th>
-                <th>Commit</th>
-                <th>Model</th>
-                <th class="num">{{ $t('aiConfig.usageInputTokens') }}</th>
-                <th class="num">{{ $t('aiConfig.usageOutputTokens') }}</th>
-                <th class="num">{{ $t('aiConfig.usageTotalTokens') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, i) in usage.items" :key="i">
-                <td>{{ formatUsageTime(row.usedAt) }}</td>
-                <td class="repo-cell">{{ row.repoFullName || '—' }}</td>
-                <td class="mono">{{ shortSha(row.commitSha) }}</td>
-                <td>{{ row.model || '—' }}</td>
-                <td class="num">{{ formatNum(row.inputTokens) }}</td>
-                <td class="num">{{ formatNum(row.outputTokens) }}</td>
-                <td class="num">{{ formatNum(row.totalTokens) }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="usage-charts">
+          <div class="usage-chart-block">
+            <div class="usage-chart-title">API 请求次数</div>
+            <div class="usage-chart-wrap">
+              <canvas ref="deepseekCallChart"></canvas>
+            </div>
+          </div>
+          <div class="usage-chart-block">
+            <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
+            <div class="usage-chart-wrap">
+              <canvas ref="deepseekTokenChart"></canvas>
+            </div>
+          </div>
         </div>
-        <p v-else class="usage-empty">{{ $t('aiConfig.usageEmpty') }}</p>
+        <div class="usage-detail-actions">
+          <button type="button" class="primary-button primary-button-outline" @click="openUsageDetail('deepseek', usageDays)">查看详情</button>
+        </div>
       </template>
+    </div>
+
+    <div class="config-card token-usage-card qwen-usage-card">
+      <h2 class="config-card-title">千问多模态 {{ $t('aiConfig.tokenUsageTitle') }}</h2>
+      <p class="config-card-desc">协作任务表 AI 录入产生的 Token 消耗。</p>
+      <div v-if="usageQwenLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
+      <template v-else-if="usageQwen">
+        <div class="usage-summary">
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.callCount) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageCallCount') }}</span>
+          </div>
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.inputTokens) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageInputTokens') }}</span>
+          </div>
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.outputTokens) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageOutputTokens') }}</span>
+          </div>
+          <div class="usage-summary-item">
+            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.totalTokens) }}</span>
+            <span class="usage-summary-label">{{ $t('aiConfig.usageTotalTokens') }}</span>
+          </div>
+        </div>
+        <p class="usage-since">{{ $t('aiConfig.usageSince', { days: usageDaysQwen }) }}</p>
+        <div class="usage-actions">
+          <select v-model.number="usageDaysQwen" @change="onUsageDaysChange('qwen')" class="usage-days-select">
+            <option :value="7">7 {{ $t('aiConfig.usageDays') }}</option>
+            <option :value="30">30 {{ $t('aiConfig.usageDays') }}</option>
+            <option :value="90">90 {{ $t('aiConfig.usageDays') }}</option>
+          </select>
+          <button type="button" class="link-button" @click="refreshUsageQwen">{{ $t('dashboard.refresh') }}</button>
+        </div>
+        <div class="usage-charts">
+          <div class="usage-chart-block">
+            <div class="usage-chart-title">API 请求次数</div>
+            <div class="usage-chart-wrap">
+              <canvas ref="qwenCallChart"></canvas>
+            </div>
+          </div>
+          <div class="usage-chart-block">
+            <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
+            <div class="usage-chart-wrap">
+              <canvas ref="qwenTokenChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="usage-detail-actions">
+          <button type="button" class="primary-button primary-button-outline" @click="openUsageDetail('qwen', usageDaysQwen)">查看详情</button>
+        </div>
+      </template>
+    </div>
+    </div>
+
+    <div class="usage-detail-modal" v-if="usageDetailOpen" @click.self="closeUsageDetail">
+      <div class="usage-detail-dialog">
+        <div class="usage-detail-header">
+          <h3>{{ usageDetailTitle }}</h3>
+          <button type="button" class="usage-detail-close" @click="closeUsageDetail" aria-label="关闭">×</button>
+        </div>
+        <div v-if="usageDetailLoading" class="placeholder small">加载中…</div>
+        <template v-else>
+          <div class="usage-table-wrap">
+            <table class="usage-table">
+              <thead>
+                <tr>
+                  <th>{{ $t('aiConfig.usageTime') }}</th>
+                  <th>Repo</th>
+                  <th>Commit</th>
+                  <th>Model</th>
+                  <th class="num">{{ $t('aiConfig.usageInputTokens') }}</th>
+                  <th class="num">{{ $t('aiConfig.usageOutputTokens') }}</th>
+                  <th class="num">{{ $t('aiConfig.usageTotalTokens') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, i) in usageDetailItems" :key="'detail-' + i">
+                  <td>{{ formatUsageTime(row.usedAt) }}</td>
+                  <td class="repo-cell">{{ row.repoFullName || '—' }}</td>
+                  <td class="mono">{{ shortSha(row.commitSha) }}</td>
+                  <td>{{ row.model || '—' }}</td>
+                  <td class="num">{{ formatNum(row.inputTokens) }}</td>
+                  <td class="num">{{ formatNum(row.outputTokens) }}</td>
+                  <td class="num">{{ formatNum(row.totalTokens) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-if="!usageDetailItems.length" class="usage-empty">{{ $t('aiConfig.usageEmpty') }}</p>
+          <div v-else class="usage-pagination">
+            <button type="button" class="link-button" :disabled="usageDetailPage <= 1" @click="goUsageDetailPage(usageDetailPage - 1)">上一页</button>
+            <span class="usage-pagination-info">第 {{ usageDetailPage }} / {{ usageDetailTotalPages }} 页，共 {{ usageDetailTotal }} 条</span>
+            <button type="button" class="link-button" :disabled="usageDetailPage >= usageDetailTotalPages" @click="goUsageDetailPage(usageDetailPage + 1)">下一页</button>
+          </div>
+        </template>
+      </div>
     </div>
 
     <div class="config-card github-config-card" v-if="githubConfig !== undefined">
@@ -179,6 +269,12 @@
 </template>
 
 <script>
+import { Chart as ChartJS, registerables } from 'chart.js'
+
+ChartJS.register(...registerables)
+
+const PAGE_SIZE = 20
+
 export default {
   name: 'AiConfigView',
   data () {
@@ -211,7 +307,21 @@ export default {
       githubSaveSuccess: false,
       usage: null,
       usageLoading: false,
-      usageDays: 30
+      usageDays: 30,
+      usageDaily: [],
+      usageQwen: null,
+      usageQwenLoading: false,
+      usageDaysQwen: 30,
+      usageQwenDaily: [],
+      chartInstances: { deepseekCall: null, deepseekToken: null, qwenCall: null, qwenToken: null },
+      usageDetailOpen: false,
+      usageDetailProvider: null,
+      usageDetailDays: 30,
+      usageDetailPage: 1,
+      usageDetailPageSize: PAGE_SIZE,
+      usageDetailTotal: 0,
+      usageDetailItems: [],
+      usageDetailLoading: false
     }
   },
   created () {
@@ -219,6 +329,22 @@ export default {
     this.loadQwenConfig()
     this.loadGitHubConfig()
     this.loadUsage()
+    this.loadUsageQwen()
+    this.loadUsageDaily()
+    this.loadUsageQwenDaily()
+  },
+  mounted () {
+    this.$nextTick(() => {
+      setTimeout(() => this.renderUsageCharts(), 150)
+    })
+  },
+  beforeDestroy () {
+    ;['deepseekCall', 'deepseekToken', 'qwenCall', 'qwenToken'].forEach(k => {
+      if (this.chartInstances[k]) {
+        this.chartInstances[k].destroy()
+        this.chartInstances[k] = null
+      }
+    })
   },
   computed: {
     configLoadedHint () {
@@ -226,7 +352,19 @@ export default {
       const hasKey = this.config.hasApiKey === true || !!(this.config.apiKeyMasked && String(this.config.apiKeyMasked).trim())
       const isEnabled = this.config.enabled === true || this.config.enabled === 'true' || this.config.enabled === 1
       return hasKey || isEnabled
+    },
+    usageDetailTitle () {
+      const name = this.usageDetailProvider === 'qwen' ? '千问多模态' : 'DeepSeek'
+      return `${name} 用量详情（近 ${this.usageDetailDays || 30} 天）`
+    },
+    usageDetailTotalPages () {
+      if (this.usageDetailTotal <= 0) return 1
+      return Math.ceil(this.usageDetailTotal / this.usageDetailPageSize) || 1
     }
+  },
+  watch: {
+    usageDaily () { this.$nextTick(() => this.renderUsageCharts()) },
+    usageQwenDaily () { this.$nextTick(() => this.renderUsageCharts()) }
   },
   methods: {
     async loadConfig () {
@@ -334,7 +472,7 @@ export default {
     async loadUsage () {
       this.usageLoading = true
       try {
-        const resp = await this.$http.get('/admin/ai-analysis/usage', { params: { days: this.usageDays } })
+        const resp = await this.$http.get('/admin/ai-analysis/usage', { params: { days: this.usageDays, provider: 'deepseek' } })
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.usage = resp.data.data
           if (!this.usage.summary) this.usage.summary = {}
@@ -346,6 +484,159 @@ export default {
       } finally {
         this.usageLoading = false
       }
+    },
+    async loadUsageQwen () {
+      this.usageQwenLoading = true
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/usage', { params: { days: this.usageDaysQwen, provider: 'qwen' } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.usageQwen = resp.data.data
+          if (!this.usageQwen.summary) this.usageQwen.summary = {}
+        } else {
+          this.usageQwen = { summary: {}, items: [] }
+        }
+      } catch (e) {
+        this.usageQwen = { summary: {}, items: [] }
+      } finally {
+        this.usageQwenLoading = false
+      }
+    },
+    async loadUsageDaily () {
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/usage/daily', { params: { days: this.usageDays, provider: 'deepseek' } })
+        if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.daily)) {
+          this.usageDaily = this.fillDailyRange(resp.data.data.daily, this.usageDays)
+        } else {
+          this.usageDaily = this.fillDailyRange([], this.usageDays)
+        }
+      } catch (e) {
+        this.usageDaily = this.fillDailyRange([], this.usageDays)
+      }
+    },
+    async loadUsageQwenDaily () {
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/usage/daily', { params: { days: this.usageDaysQwen, provider: 'qwen' } })
+        if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.daily)) {
+          this.usageQwenDaily = this.fillDailyRange(resp.data.data.daily, this.usageDaysQwen)
+        } else {
+          this.usageQwenDaily = this.fillDailyRange([], this.usageDaysQwen)
+        }
+      } catch (e) {
+        this.usageQwenDaily = this.fillDailyRange([], this.usageDaysQwen)
+      }
+    },
+    fillDailyRange (daily, days) {
+      const map = {}
+      ;(daily || []).forEach(d => {
+        const dateStr = d.date != null ? String(d.date).slice(0, 10) : ''
+        if (dateStr) map[dateStr] = { date: dateStr, callCount: Number(d.callCount) || 0, totalTokens: Number(d.totalTokens) || 0, inputTokens: Number(d.inputTokens) || 0, outputTokens: Number(d.outputTokens) || 0 }
+      })
+      const result = []
+      const end = new Date()
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(end)
+        d.setDate(d.getDate() - i)
+        const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+        result.push(map[dateStr] || { date: dateStr, callCount: 0, totalTokens: 0, inputTokens: 0, outputTokens: 0 })
+      }
+      return result
+    },
+    onUsageDaysChange (provider) {
+      if (provider === 'deepseek') {
+        this.loadUsage()
+        this.loadUsageDaily()
+      } else {
+        this.loadUsageQwen()
+        this.loadUsageQwenDaily()
+      }
+    },
+    refreshUsageDeepseek () {
+      this.loadUsage()
+      this.loadUsageDaily()
+    },
+    refreshUsageQwen () {
+      this.loadUsageQwen()
+      this.loadUsageQwenDaily()
+    },
+    openUsageDetail (provider, days) {
+      this.usageDetailProvider = provider
+      this.usageDetailDays = days
+      this.usageDetailPage = 1
+      this.usageDetailTotal = 0
+      this.usageDetailItems = []
+      this.usageDetailOpen = true
+      this.loadUsageDetailPage()
+    },
+    closeUsageDetail () {
+      this.usageDetailOpen = false
+    },
+    async loadUsageDetailPage () {
+      if (!this.usageDetailProvider) return
+      this.usageDetailLoading = true
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/usage', {
+          params: { days: this.usageDetailDays, provider: this.usageDetailProvider, page: this.usageDetailPage, pageSize: this.usageDetailPageSize }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.usageDetailItems = d.items || []
+          this.usageDetailTotal = Number(d.total) || 0
+        } else {
+          this.usageDetailItems = []
+          this.usageDetailTotal = 0
+        }
+      } catch (e) {
+        this.usageDetailItems = []
+        this.usageDetailTotal = 0
+      } finally {
+        this.usageDetailLoading = false
+      }
+    },
+    goUsageDetailPage (page) {
+      if (page < 1 || page > this.usageDetailTotalPages) return
+      this.usageDetailPage = page
+      this.loadUsageDetailPage()
+    },
+    renderUsageCharts () {
+      this.renderOneUsageChart('deepseek', this.usageDaily, 'deepseekCall', 'deepseekToken')
+      this.renderOneUsageChart('qwen', this.usageQwenDaily, 'qwenCall', 'qwenToken')
+    },
+    renderOneUsageChart (provider, daily, callRef, tokenRef) {
+      this.$nextTick(() => {
+        const days = daily || []
+        const formatLabel = (d) => {
+          const v = d.date
+          if (!v) return ''
+          const s = String(v).slice(0, 10)
+          return s.length >= 10 ? s.slice(5) : s
+        }
+        const labels = days.map(formatLabel)
+        const callData = days.map(d => d.callCount || 0)
+        const tokenData = days.map(d => d.totalTokens || 0)
+        const isQwen = provider === 'qwen'
+        const blue = 'rgba(37, 99, 235, 0.7)'
+        const blueBorder = 'rgb(37, 99, 235)'
+        const teal = 'rgba(20, 184, 166, 0.7)'
+        const tealBorder = 'rgb(20, 184, 166)'
+        const callEl = this.$refs[callRef]
+        const tokenEl = this.$refs[tokenRef]
+        if (callEl) {
+          if (this.chartInstances[callRef]) this.chartInstances[callRef].destroy()
+          this.chartInstances[callRef] = new ChartJS(callEl, {
+            type: 'line',
+            data: { labels, datasets: [{ label: 'API 请求次数', data: callData, borderColor: blueBorder, backgroundColor: blue, fill: true, tension: 0.2 }] },
+            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+          })
+        }
+        if (tokenEl) {
+          if (this.chartInstances[tokenRef]) this.chartInstances[tokenRef].destroy()
+          this.chartInstances[tokenRef] = new ChartJS(tokenEl, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Tokens', data: tokenData, backgroundColor: isQwen ? teal : blue, borderColor: isQwen ? tealBorder : blueBorder, borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+          })
+        }
+      })
     },
     formatNum (v) {
       if (v == null || v === '') return '0'
@@ -398,8 +689,36 @@ export default {
 
 <style scoped>
 .ai-config-page {
-  max-width: 560px;
+  max-width: 1100px;
   margin: 0 auto;
+}
+.config-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+@media (max-width: 768px) {
+  .config-row {
+    grid-template-columns: 1fr;
+  }
+}
+.usage-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+@media (max-width: 768px) {
+  .usage-row {
+    grid-template-columns: 1fr;
+  }
+}
+.token-usage-card {
+  margin-top: 0;
+}
+.qwen-config-card {
+  margin-top: 0;
 }
 .page-header {
   margin-bottom: 8px;
@@ -437,9 +756,6 @@ export default {
   border-radius: 8px;
   padding: 24px;
 }
-.token-usage-card {
-  margin-top: 24px;
-}
 .usage-summary {
   display: flex;
   flex-wrap: wrap;
@@ -476,6 +792,104 @@ export default {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   font-size: 13px;
+}
+.link-button {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+.link-button:hover { text-decoration: underline; }
+.link-button:disabled { color: #9ca3af; cursor: not-allowed; text-decoration: none; }
+.usage-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.usage-chart-block {
+  min-height: 120px;
+}
+.usage-chart-title {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.usage-chart-wrap {
+  height: 120px;
+  position: relative;
+}
+@media (max-width: 500px) {
+  .usage-charts { grid-template-columns: 1fr; }
+}
+.usage-detail-actions {
+  margin-top: 8px;
+}
+.primary-button-outline {
+  background: #fff;
+  color: #2563eb;
+  border: 1px solid #2563eb;
+}
+.primary-button-outline:hover { background: #eff6ff; }
+.usage-detail-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.usage-detail-dialog {
+  background: #fff;
+  border-radius: 8px;
+  max-width: 90vw;
+  width: 800px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+.usage-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.usage-detail-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1f2937;
+}
+.usage-detail-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.usage-detail-close:hover { color: #1f2937; }
+.usage-detail-dialog .usage-table-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px;
+}
+.usage-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+.usage-pagination-info {
+  font-size: 13px;
+  color: #6b7280;
 }
 .usage-table-wrap {
   overflow-x: auto;
