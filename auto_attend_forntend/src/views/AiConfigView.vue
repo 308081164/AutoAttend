@@ -339,7 +339,8 @@ export default {
     })
   },
   beforeDestroy () {
-    ;['deepseekCall', 'deepseekToken', 'qwenCall', 'qwenToken'].forEach(k => {
+    const chartKeys = ['deepseekCall', 'deepseekToken', 'qwenCall', 'qwenToken']
+    chartKeys.forEach(k => {
       if (this.chartInstances[k]) {
         this.chartInstances[k].destroy()
         this.chartInstances[k] = null
