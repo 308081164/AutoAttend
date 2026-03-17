@@ -101,9 +101,9 @@ npm run serve
 
 ## 5. 生产部署
 
-- **推荐**：使用 GitHub Actions 在 push 到 `main`/`master` 时自动构建镜像、推送到 ghcr.io，并 SSH 到服务器执行 `docker compose -f docker-compose.prod.yml pull && up -d`。
+- **推荐**：使用 GitHub Actions 在 push 到 `main`/`master` 时自动构建镜像、推送到 ghcr.io，并 SSH 到服务器执行 `docker compose -f docker-compose.prod.yml pull && up -d`；部署完成后会**自动执行** `atuo_attend_backend/src/main/resources/db/` 下所有 `*migration*.sql` 数据库迁移，无需手动上机跑 SQL。
 - **部署路径**：默认服务器项目目录为 `/mnt/newdisk/app/AutoAttend`（可在仓库 Secrets 中设置 `DEPLOY_PATH` 覆盖）。
-- **详细步骤**：见 [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md)（Secrets 配置、首次克隆、常见问题如 502、磁盘满、/api 502 等）。
+- **详细步骤**：见 [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md)（Secrets 配置、首次克隆、常见问题如 502、磁盘满、/api 502 等）；数据库迁移机制见 [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md)。
 
 部署后：
 
@@ -151,6 +151,7 @@ npm run serve
 |------|------|
 | [docs/MVP接口文档.md](docs/MVP接口文档.md) | 管理员与 Webhook 接口说明 |
 | [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md) | 构建、部署、Secrets、常见问题 |
+| [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md) | Docker 与 CI/CD 下建表脚本 vs 迁移脚本、自动执行迁移、新增迁移规范 |
 | [docs/多维表格协作管理-功能设计文档.md](docs/多维表格协作管理-功能设计文档.md) | 项目协作、多维表、权限、MinIO 等设计（已实现部分） |
 | [docs/协作项目与表格创建逻辑-原因分析.md](docs/协作项目与表格创建逻辑-原因分析.md) | 解释协作项目与任务表如何随仓库自动创建，以及为何可能出现「有提交但无协作表」的情况 |
 | [docs/项目协作-AI录入模式-功能设计.md](docs/项目协作-AI录入模式-功能设计.md) | 项目协作任务表的 AI 录入模式设计（Qwen 多模态 + DeepSeek 结合） |
