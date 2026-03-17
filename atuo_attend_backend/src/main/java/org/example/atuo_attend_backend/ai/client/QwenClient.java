@@ -145,7 +145,26 @@ public class QwenClient {
             String content = null;
             if (choices != null && choices.isArray() && choices.size() > 0) {
                 JsonNode msg = choices.get(0).path("message");
-                content = msg.path("content").asText(null);
+                JsonNode c = msg.path("content");
+                // DashScope message.content 可能是 string / array[{text,image,...}] / object
+                if (c.isTextual()) {
+                    content = c.asText(null);
+                } else if (c.isArray()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (JsonNode part : c) {
+                        JsonNode t = part.path("text");
+                        if (!t.isMissingNode() && t.isTextual() && !t.asText("").isBlank()) {
+                            if (!sb.isEmpty()) sb.append("\n");
+                            sb.append(t.asText());
+                        }
+                    }
+                    content = sb.isEmpty() ? null : sb.toString();
+                } else if (c.isObject()) {
+                    JsonNode t = c.path("text");
+                    if (!t.isMissingNode() && t.isTextual()) content = t.asText(null);
+                } else {
+                    content = c.asText(null);
+                }
             }
             if (content == null || content.isBlank()) {
                 JsonNode textNode = output.path("text");
@@ -153,7 +172,8 @@ public class QwenClient {
             }
             if (content == null || content.isBlank()) {
                 log.warn("Qwen response missing content: {}", bodyStr.length() > 500 ? bodyStr.substring(0, 500) + "..." : bodyStr);
-                return ChatResult.error("通义 API 返回内容为空");
+                String snippet = bodyStr.length() > 300 ? bodyStr.substring(0, 300) + "..." : bodyStr;
+                return ChatResult.error("通义 API 返回内容为空（响应片段: " + snippet + "）");
             }
             return new ChatResult(content, modelStr, null);
         } catch (Exception e) {
