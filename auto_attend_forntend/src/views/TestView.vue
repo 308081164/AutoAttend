@@ -49,6 +49,26 @@
 
     <section class="test-section">
       <div class="test-header">
+        <h2 class="test-title">{{ $t('test.qwenTitle') }}</h2>
+        <button class="primary-button" :disabled="qwenLoading" @click="runQwenTest">
+          {{ qwenLoading ? $t('test.testing') : $t('test.runTest') }}
+        </button>
+      </div>
+      <p class="test-desc">{{ $t('test.qwenDesc') }}</p>
+      <div v-if="qwenResult" class="test-result" :class="qwenResult.available ? 'success' : 'fail'">
+        <div class="result-row">
+          <span class="result-label">{{ $t('test.result') }}：</span>
+          <span>{{ qwenResult.message }}</span>
+        </div>
+        <div v-if="qwenResult.latencyMs" class="result-row">
+          <span class="result-label">{{ $t('test.latency') }}：</span>
+          <span>{{ qwenResult.latencyMs }} ms</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="test-section">
+      <div class="test-header">
         <h2 class="test-title">{{ $t('test.emailTitle') }}</h2>
         <button class="primary-button" :disabled="emailLoading" @click="runEmailTest">
           {{ emailLoading ? $t('test.testing') : $t('test.runTest') }}
@@ -82,6 +102,8 @@ export default {
       diffResult: null,
       aiLoading: false,
       aiResult: null,
+      qwenLoading: false,
+      qwenResult: null,
       emailLoading: false,
       emailResult: null
     }
@@ -125,6 +147,26 @@ export default {
         }
       } finally {
         this.aiLoading = false
+      }
+    },
+    async runQwenTest () {
+      this.qwenResult = null
+      this.qwenLoading = true
+      try {
+        const resp = await this.$http.get('/admin/test/ai-qwen')
+        if (resp.data && resp.data.code === 0) {
+          this.qwenResult = resp.data.data
+        } else {
+          this.qwenResult = { available: false, message: (resp.data && resp.data.message) || '请求失败', latencyMs: 0 }
+        }
+      } catch (e) {
+        this.qwenResult = {
+          available: false,
+          message: (e.response && e.response.data && e.response.data.message) || '网络或后端错误',
+          latencyMs: 0
+        }
+      } finally {
+        this.qwenLoading = false
       }
     },
     async runEmailTest () {

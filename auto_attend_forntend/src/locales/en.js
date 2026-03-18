@@ -206,6 +206,8 @@ export default {
     diffDesc: 'Test whether the server can reach GitHub API to fetch commit diff (same as "View Diff").',
     aiTitle: 'AI Analysis API',
     aiDesc: 'Test if the configured LLM API is reachable (after integration).',
+    qwenTitle: 'Qwen Multimodal AI Analysis API',
+    qwenDesc: 'Test if the configured Qwen multimodal (collaborative AI input) model API is reachable (after integration).',
     emailTitle: 'Email',
     emailDesc: 'Test if email service is available (after integration).',
     result: 'Result',

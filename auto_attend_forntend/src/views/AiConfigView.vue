@@ -6,187 +6,189 @@
     </div>
     <p class="page-desc">{{ $t('aiConfig.desc') }}</p>
 
-    <div class="config-row">
-    <div class="config-card" v-if="config">
-      <p v-if="configLoadedHint" class="config-loaded-hint">{{ $t('aiConfig.configLoadedHint') }}</p>
-      <form @submit.prevent="saveConfig">
-        <div class="form-row">
-          <label class="form-label">{{ $t('aiConfig.provider') }}</label>
-          <span class="form-value">DeepSeek</span>
+    <div class="provider-grid">
+      <div class="provider-panel">
+        <div class="config-card" v-if="config">
+          <p v-if="configLoadedHint" class="config-loaded-hint">{{ $t('aiConfig.configLoadedHint') }}</p>
+          <form @submit.prevent="saveConfig">
+            <div class="form-row">
+              <label class="form-label">{{ $t('aiConfig.provider') }}</label>
+              <span class="form-value">DeepSeek</span>
+            </div>
+            <div class="form-row">
+              <label class="form-label">{{ $t('aiConfig.apiKey') }}</label>
+              <p v-if="config.apiKeyMasked" class="api-key-set">{{ $t('aiConfig.apiKeySetHint') }}（{{ config.apiKeyMasked }}）</p>
+              <input
+                v-model="form.apiKey"
+                type="password"
+                autocomplete="off"
+                :placeholder="config.apiKeyMasked ? $t('aiConfig.apiKeyPlaceholderKeep') : $t('aiConfig.apiKeyPlaceholder')"
+                class="form-input"
+              >
+              <p class="form-hint">{{ $t('aiConfig.apiKeyHint') }}</p>
+            </div>
+            <div class="form-row">
+              <label class="form-label">{{ $t('aiConfig.enabled') }}</label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="form.enabled">
+                <span>{{ $t('aiConfig.enabledLabel') }}</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="form-label">{{ $t('aiConfig.model') }}</label>
+              <input v-model="form.model" type="text" class="form-input" placeholder="deepseek-chat">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary-button" :disabled="saving">{{ saving ? $t('aiConfig.saving') : $t('aiConfig.save') }}</button>
+              <span v-if="saveMessage" class="save-message" :class="saveSuccess ? 'success' : 'error'">{{ saveMessage }}</span>
+            </div>
+          </form>
         </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('aiConfig.apiKey') }}</label>
-          <p v-if="config.apiKeyMasked" class="api-key-set">{{ $t('aiConfig.apiKeySetHint') }}（{{ config.apiKeyMasked }}）</p>
-          <input
-            v-model="form.apiKey"
-            type="password"
-            autocomplete="off"
-            :placeholder="config.apiKeyMasked ? $t('aiConfig.apiKeyPlaceholderKeep') : $t('aiConfig.apiKeyPlaceholder')"
-            class="form-input"
-          >
-          <p class="form-hint">{{ $t('aiConfig.apiKeyHint') }}</p>
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('aiConfig.enabled') }}</label>
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="form.enabled">
-            <span>{{ $t('aiConfig.enabledLabel') }}</span>
-          </label>
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('aiConfig.model') }}</label>
-          <input v-model="form.model" type="text" class="form-input" placeholder="deepseek-chat">
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="primary-button" :disabled="saving">{{ saving ? $t('aiConfig.saving') : $t('aiConfig.save') }}</button>
-          <span v-if="saveMessage" class="save-message" :class="saveSuccess ? 'success' : 'error'">{{ saveMessage }}</span>
-        </div>
-      </form>
-    </div>
-    <div v-else class="placeholder">{{ $t('aiConfig.loading') }}</div>
+        <div v-else class="placeholder">{{ $t('aiConfig.loading') }}</div>
 
-    <div class="config-card qwen-config-card" v-if="qwenConfig">
-      <h2 class="config-card-title">Qwen 多模态（协作 AI 录入）</h2>
-      <p class="config-card-desc">用于「项目协作 → 任务表」的 AI 录入模式，多模态理解文字+附件。</p>
-      <form @submit.prevent="saveQwenConfig">
-        <div class="form-row">
-          <label class="form-label">提供商</label>
-          <span class="form-value">Qwen</span>
+        <div class="config-card token-usage-card">
+          <h2 class="config-card-title">DeepSeek {{ $t('aiConfig.tokenUsageTitle') }}</h2>
+          <p class="config-card-desc">{{ $t('aiConfig.tokenUsageDesc') }}</p>
+          <div v-if="usageLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
+          <template v-else-if="usage">
+            <div class="usage-summary">
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usage.summary.callCount) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageCallCount') }}</span>
+              </div>
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usage.summary.inputTokens) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageInputTokens') }}</span>
+              </div>
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usage.summary.outputTokens) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageOutputTokens') }}</span>
+              </div>
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usage.summary.totalTokens) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageTotalTokens') }}</span>
+              </div>
+            </div>
+            <p class="usage-since">{{ $t('aiConfig.usageSince', { days: usageDays }) }}</p>
+            <div class="usage-actions">
+              <select v-model.number="usageDays" @change="onUsageDaysChange('deepseek')" class="usage-days-select">
+                <option :value="7">7 {{ $t('aiConfig.usageDays') }}</option>
+                <option :value="30">30 {{ $t('aiConfig.usageDays') }}</option>
+                <option :value="90">90 {{ $t('aiConfig.usageDays') }}</option>
+              </select>
+              <button type="button" class="link-button" @click="refreshUsageDeepseek">{{ $t('dashboard.refresh') }}</button>
+            </div>
+            <div class="usage-charts">
+              <div class="usage-chart-block">
+                <div class="usage-chart-title">API 请求次数</div>
+                <div class="usage-chart-wrap">
+                  <canvas ref="deepseekCallChart"></canvas>
+                </div>
+              </div>
+              <div class="usage-chart-block">
+                <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
+                <div class="usage-chart-wrap">
+                  <canvas ref="deepseekTokenChart"></canvas>
+                </div>
+              </div>
+            </div>
+            <div class="usage-detail-actions">
+              <button type="button" class="primary-button primary-button-outline" @click="openUsageDetail('deepseek', usageDays)">查看详情</button>
+            </div>
+          </template>
         </div>
-        <div class="form-row">
-          <label class="form-label">Qwen API Key</label>
-          <p v-if="qwenConfig.apiKeyMasked" class="api-key-set">已设置（{{ qwenConfig.apiKeyMasked }}）</p>
-          <input
-            v-model="qwenForm.apiKey"
-            type="password"
-            autocomplete="off"
-            placeholder="不填则保持原值"
-            class="form-input"
-          >
-        </div>
-        <div class="form-row">
-          <label class="form-label">启用千问多模态</label>
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="qwenForm.enabled">
-            <span>用于协作任务表 AI 录入模式</span>
-          </label>
-        </div>
-        <div class="form-row">
-          <label class="form-label">模型</label>
-          <input v-model="qwenForm.model" type="text" class="form-input" placeholder="qwen-omni">
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="primary-button" :disabled="qwenSaving">{{ qwenSaving ? $t('aiConfig.saving') : $t('aiConfig.save') }}</button>
-          <span v-if="qwenSaveMessage" class="save-message" :class="qwenSaveSuccess ? 'success' : 'error'">{{ qwenSaveMessage }}</span>
-        </div>
-      </form>
-    </div>
-    </div>
+      </div>
 
-    <div class="usage-row">
-    <div class="config-card token-usage-card">
-      <h2 class="config-card-title">DeepSeek {{ $t('aiConfig.tokenUsageTitle') }}</h2>
-      <p class="config-card-desc">{{ $t('aiConfig.tokenUsageDesc') }}</p>
-      <div v-if="usageLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
-      <template v-else-if="usage">
-        <div class="usage-summary">
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usage.summary.callCount) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageCallCount') }}</span>
-          </div>
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usage.summary.inputTokens) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageInputTokens') }}</span>
-          </div>
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usage.summary.outputTokens) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageOutputTokens') }}</span>
-          </div>
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usage.summary.totalTokens) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageTotalTokens') }}</span>
-          </div>
-        </div>
-        <p class="usage-since">{{ $t('aiConfig.usageSince', { days: usageDays }) }}</p>
-        <div class="usage-actions">
-          <select v-model.number="usageDays" @change="onUsageDaysChange('deepseek')" class="usage-days-select">
-            <option :value="7">7 {{ $t('aiConfig.usageDays') }}</option>
-            <option :value="30">30 {{ $t('aiConfig.usageDays') }}</option>
-            <option :value="90">90 {{ $t('aiConfig.usageDays') }}</option>
-          </select>
-          <button type="button" class="link-button" @click="refreshUsageDeepseek">{{ $t('dashboard.refresh') }}</button>
-        </div>
-        <div class="usage-charts">
-          <div class="usage-chart-block">
-            <div class="usage-chart-title">API 请求次数</div>
-            <div class="usage-chart-wrap">
-              <canvas ref="deepseekCallChart"></canvas>
+      <div class="provider-panel">
+        <div class="config-card qwen-config-card" v-if="qwenConfig">
+          <h2 class="config-card-title">Qwen 多模态（协作 AI 录入）</h2>
+          <p class="config-card-desc">用于「项目协作 → 任务表」的 AI 录入模式，多模态理解文字+附件。</p>
+          <form @submit.prevent="saveQwenConfig">
+            <div class="form-row">
+              <label class="form-label">提供商</label>
+              <span class="form-value">Qwen</span>
             </div>
-          </div>
-          <div class="usage-chart-block">
-            <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
-            <div class="usage-chart-wrap">
-              <canvas ref="deepseekTokenChart"></canvas>
+            <div class="form-row">
+              <label class="form-label">Qwen API Key</label>
+              <p v-if="qwenConfig.apiKeyMasked" class="api-key-set">已设置（{{ qwenConfig.apiKeyMasked }}）</p>
+              <input
+                v-model="qwenForm.apiKey"
+                type="password"
+                autocomplete="off"
+                placeholder="不填则保持原值"
+                class="form-input"
+              >
             </div>
-          </div>
+            <div class="form-row">
+              <label class="form-label">启用千问多模态</label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="qwenForm.enabled">
+                <span>用于协作任务表 AI 录入模式</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="form-label">模型</label>
+              <input v-model="qwenForm.model" type="text" class="form-input" placeholder="qwen-omni">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary-button" :disabled="qwenSaving">{{ qwenSaving ? $t('aiConfig.saving') : $t('aiConfig.save') }}</button>
+              <span v-if="qwenSaveMessage" class="save-message" :class="qwenSaveSuccess ? 'success' : 'error'">{{ qwenSaveMessage }}</span>
+            </div>
+          </form>
         </div>
-        <div class="usage-detail-actions">
-          <button type="button" class="primary-button primary-button-outline" @click="openUsageDetail('deepseek', usageDays)">查看详情</button>
-        </div>
-      </template>
-    </div>
 
-    <div class="config-card token-usage-card qwen-usage-card">
-      <h2 class="config-card-title">千问多模态 {{ $t('aiConfig.tokenUsageTitle') }}</h2>
-      <p class="config-card-desc">协作任务表 AI 录入产生的 Token 消耗。</p>
-      <div v-if="usageQwenLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
-      <template v-else-if="usageQwen">
-        <div class="usage-summary">
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.callCount) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageCallCount') }}</span>
-          </div>
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.inputTokens) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageInputTokens') }}</span>
-          </div>
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.outputTokens) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageOutputTokens') }}</span>
-          </div>
-          <div class="usage-summary-item">
-            <span class="usage-summary-value">{{ formatNum(usageQwen.summary.totalTokens) }}</span>
-            <span class="usage-summary-label">{{ $t('aiConfig.usageTotalTokens') }}</span>
-          </div>
-        </div>
-        <p class="usage-since">{{ $t('aiConfig.usageSince', { days: usageDaysQwen }) }}</p>
-        <div class="usage-actions">
-          <select v-model.number="usageDaysQwen" @change="onUsageDaysChange('qwen')" class="usage-days-select">
-            <option :value="7">7 {{ $t('aiConfig.usageDays') }}</option>
-            <option :value="30">30 {{ $t('aiConfig.usageDays') }}</option>
-            <option :value="90">90 {{ $t('aiConfig.usageDays') }}</option>
-          </select>
-          <button type="button" class="link-button" @click="refreshUsageQwen">{{ $t('dashboard.refresh') }}</button>
-        </div>
-        <div class="usage-charts">
-          <div class="usage-chart-block">
-            <div class="usage-chart-title">API 请求次数</div>
-            <div class="usage-chart-wrap">
-              <canvas ref="qwenCallChart"></canvas>
+        <div class="config-card token-usage-card qwen-usage-card">
+          <h2 class="config-card-title">千问多模态 {{ $t('aiConfig.tokenUsageTitle') }}</h2>
+          <p class="config-card-desc">协作任务表 AI 录入产生的 Token 消耗。</p>
+          <div v-if="usageQwenLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
+          <template v-else-if="usageQwen">
+            <div class="usage-summary">
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usageQwen.summary.callCount) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageCallCount') }}</span>
+              </div>
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usageQwen.summary.inputTokens) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageInputTokens') }}</span>
+              </div>
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usageQwen.summary.outputTokens) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageOutputTokens') }}</span>
+              </div>
+              <div class="usage-summary-item">
+                <span class="usage-summary-value">{{ formatNum(usageQwen.summary.totalTokens) }}</span>
+                <span class="usage-summary-label">{{ $t('aiConfig.usageTotalTokens') }}</span>
+              </div>
             </div>
-          </div>
-          <div class="usage-chart-block">
-            <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
-            <div class="usage-chart-wrap">
-              <canvas ref="qwenTokenChart"></canvas>
+            <p class="usage-since">{{ $t('aiConfig.usageSince', { days: usageDaysQwen }) }}</p>
+            <div class="usage-actions">
+              <select v-model.number="usageDaysQwen" @change="onUsageDaysChange('qwen')" class="usage-days-select">
+                <option :value="7">7 {{ $t('aiConfig.usageDays') }}</option>
+                <option :value="30">30 {{ $t('aiConfig.usageDays') }}</option>
+                <option :value="90">90 {{ $t('aiConfig.usageDays') }}</option>
+              </select>
+              <button type="button" class="link-button" @click="refreshUsageQwen">{{ $t('dashboard.refresh') }}</button>
             </div>
-          </div>
+            <div class="usage-charts">
+              <div class="usage-chart-block">
+                <div class="usage-chart-title">API 请求次数</div>
+                <div class="usage-chart-wrap">
+                  <canvas ref="qwenCallChart"></canvas>
+                </div>
+              </div>
+              <div class="usage-chart-block">
+                <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
+                <div class="usage-chart-wrap">
+                  <canvas ref="qwenTokenChart"></canvas>
+                </div>
+              </div>
+            </div>
+            <div class="usage-detail-actions">
+              <button type="button" class="primary-button primary-button-outline" @click="openUsageDetail('qwen', usageDaysQwen)">查看详情</button>
+            </div>
+          </template>
         </div>
-        <div class="usage-detail-actions">
-          <button type="button" class="primary-button primary-button-outline" @click="openUsageDetail('qwen', usageDaysQwen)">查看详情</button>
-        </div>
-      </template>
-    </div>
+      </div>
     </div>
 
     <div class="usage-detail-modal" v-if="usageDetailOpen" @click.self="closeUsageDetail">
@@ -692,6 +694,36 @@ export default {
 .ai-config-page {
   max-width: 1100px;
   margin: 0 auto;
+}
+.provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+@media (max-width: 768px) {
+  .provider-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.provider-panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.provider-panel .config-card {
+  border: none;
+  border-radius: 0;
+  margin-top: 0;
+}
+.provider-panel .placeholder {
+  border: none;
+  margin: 0;
+  padding: 24px;
+}
+.provider-panel .config-loaded-hint {
+  margin: 0 0 16px 0;
 }
 .config-row {
   display: grid;

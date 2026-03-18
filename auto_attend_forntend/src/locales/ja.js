@@ -92,6 +92,8 @@ export default {
     diffDesc: 'サーバーから GitHub API で diff を取得できるか（「Diff を表示」と同じ）。',
     aiTitle: 'AI 分析 API',
     aiDesc: '設定した LLM API に到達できるか（導入後に利用可能）。',
+    qwenTitle: 'Qwen マルチモーダル AI 分析 API',
+    qwenDesc: '設定した Qwen マルチモーダル（協働 AI 入力）モデル API が利用可能か（導入後に利用可能）。',
     emailTitle: 'メール',
     emailDesc: 'メール送信が利用できるか（導入後に利用可能）。',
     result: '結果',

@@ -1,6 +1,7 @@
 package org.example.atuo_attend_backend.admin;
 
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
+import org.example.atuo_attend_backend.ai.client.QwenClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.commit.GithubDiffFetcher;
@@ -25,13 +26,16 @@ public class AdminTestController {
     private final GithubDiffFetcher githubDiffFetcher;
     private final AiAnalysisConfigService aiAnalysisConfigService;
     private final DeepSeekClient deepSeekClient;
+    private final QwenClient qwenClient;
 
     public AdminTestController(GithubDiffFetcher githubDiffFetcher,
                                AiAnalysisConfigService aiAnalysisConfigService,
-                               DeepSeekClient deepSeekClient) {
+                               DeepSeekClient deepSeekClient,
+                               QwenClient qwenClient) {
         this.githubDiffFetcher = githubDiffFetcher;
         this.aiAnalysisConfigService = aiAnalysisConfigService;
         this.deepSeekClient = deepSeekClient;
+        this.qwenClient = qwenClient;
     }
 
     /**
@@ -97,6 +101,48 @@ public class AdminTestController {
         } else {
             data.put("available", false);
             data.put("message", "DeepSeek API 调用失败或返回为空，请检查 API Key 与网络。");
+        }
+        return ApiResponse.ok(data);
+    }
+
+    /**
+     * 千问多模态（协作 AI 录入模式）能力测试：读取当前 Qwen 配置，向 Qwen 发送简单对话，验证 API Key 与网络连通性。
+     */
+    @GetMapping("/ai-qwen")
+    public ApiResponse<Map<String, Object>> testQwenAi() {
+        Map<String, Object> data = new HashMap<>();
+        AiAnalysisConfig config = aiAnalysisConfigService.getQwenConfig();
+
+        if (config.getApiKey() == null || config.getApiKey().isBlank()) {
+            data.put("available", false);
+            data.put("message", "请先在「AI 配置」中填写 Qwen API Key。");
+            data.put("latencyMs", 0);
+            return ApiResponse.ok(data);
+        }
+        if (!Boolean.TRUE.equals(config.getEnabled())) {
+            data.put("available", false);
+            data.put("message", "请先在「AI 配置」中开启千问多模态（协作 AI 录入模式）。");
+            data.put("latencyMs", 0);
+            return ApiResponse.ok(data);
+        }
+
+        long start = System.currentTimeMillis();
+        String model = (config.getModel() != null && !config.getModel().isBlank()) ? config.getModel() : "qwen-vl-plus";
+        List<QwenClient.ChatMessage> messages = Collections.singletonList(
+            new QwenClient.ChatMessage("user", "请只回复一个词：OK")
+        );
+        QwenClient.ChatResult result = qwenClient.chat(config.getApiKey(), model, messages, false);
+        long latencyMs = System.currentTimeMillis() - start;
+        data.put("latencyMs", latencyMs);
+
+        if (result != null && !result.isError() && result.getContent() != null && !result.getContent().isBlank()) {
+            data.put("available", true);
+            data.put("message", "千问多模态 API 连通正常，已收到响应。");
+        } else {
+            String err = result != null ? result.getErrorMessage() : null;
+            data.put("available", false);
+            data.put("message", "千问多模态 API 调用失败或返回为空，请检查 API Key 与网络。"
+                + (err != null && !err.isBlank() ? (" 错误信息：" + err) : ""));
         }
         return ApiResponse.ok(data);
     }

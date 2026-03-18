@@ -206,6 +206,8 @@ export default {
     diffDesc: '测试当前服务器能否通过 GitHub API 拉取 commit diff，与「查看 Diff」使用相同逻辑。',
     aiTitle: 'AI 分析 API',
     aiDesc: '测试配置的大模型 API 是否可达（接入后可用）。',
+    qwenTitle: '千问多模态 AI 分析 API',
+    qwenDesc: '测试配置的千问多模态（协作 AI 录入）大模型 API 是否可达（接入后可用）。',
     emailTitle: '邮件发送',
     emailDesc: '测试邮件服务是否可用（接入后可用）。',
     result: '结果',
