@@ -242,7 +242,8 @@
         <div class="diff-modal-body">
           <p class="ds-detail-meta">{{ dailySummaryDetail.summaryDate }} · {{ dailySummaryDetail.repoFullName }} · {{ dailySummaryDetail.status }}</p>
           <div v-if="dailyDetailLoading" class="placeholder">{{ $t('collab.loading') }}</div>
-          <pre v-else class="daily-summary-body">{{ dailySummaryDetail.content }}</pre>
+          <!-- eslint-disable-next-line vue/no-v-html -- 受信 AI 生成 Markdown，已关闭 HTML 标签解析 -->
+          <div v-else class="daily-summary-body markdown-body" v-html="dailySummaryRenderedHtml"></div>
         </div>
       </div>
     </div>
@@ -316,8 +317,17 @@
 
 <script>
 import { Chart as ChartJS, registerables } from 'chart.js'
+import MarkdownIt from 'markdown-it'
 
 ChartJS.register(...registerables)
+
+/** 每日进展总结：安全渲染（禁止 Markdown 内嵌原始 HTML，减轻 XSS 风险） */
+const dailySummaryMarkdown = new MarkdownIt({
+  html: false,
+  breaks: true,
+  linkify: true,
+  typographer: true
+})
 
 export default {
   name: 'DashboardView',
@@ -413,6 +423,18 @@ export default {
     dailySummaryTotalPages () {
       if (!this.dailySummaryTotal || !this.dailySummaryPageSize) return 1
       return Math.max(1, Math.ceil(this.dailySummaryTotal / this.dailySummaryPageSize))
+    },
+    dailySummaryRenderedHtml () {
+      if (!this.dailySummaryDetail || this.dailyDetailLoading) return ''
+      const raw = this.dailySummaryDetail.content
+      if (raw == null || String(raw).trim() === '') {
+        return '<p class="markdown-empty">—</p>'
+      }
+      try {
+        return dailySummaryMarkdown.render(String(raw))
+      } catch (e) {
+        return '<pre class="markdown-fallback">' + this.escapeHtml(String(raw)) + '</pre>'
+      }
     },
     authorRankRangeText () {
       if (this.authorRankPeriod === 'total') return this.$t('dashboard.authorRankAllTime')
@@ -1438,17 +1460,125 @@ export default {
 
 .daily-summary-body {
   margin: 0;
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: #1f2937;
   max-height: min(72vh, 640px);
   overflow: auto;
-  padding: 12px;
+  padding: 16px 18px;
   background: #fafafa;
   border-radius: 8px;
   border: 1px solid #f3f4f6;
+}
+
+/* Markdown 正文（v-html 子节点需深度选择器） */
+.daily-summary-body.markdown-body >>> .markdown-empty {
+  margin: 0;
+  color: #9ca3af;
+}
+.daily-summary-body.markdown-body >>> .markdown-fallback {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.daily-summary-body.markdown-body >>> h1,
+.daily-summary-body.markdown-body >>> h2,
+.daily-summary-body.markdown-body >>> h3,
+.daily-summary-body.markdown-body >>> h4 {
+  margin: 1.1em 0 0.5em;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.35;
+}
+.daily-summary-body.markdown-body >>> h1:first-child,
+.daily-summary-body.markdown-body >>> h2:first-child,
+.daily-summary-body.markdown-body >>> h3:first-child,
+.daily-summary-body.markdown-body >>> h4:first-child {
+  margin-top: 0;
+}
+.daily-summary-body.markdown-body >>> h1 { font-size: 1.35rem; }
+.daily-summary-body.markdown-body >>> h2 { font-size: 1.2rem; }
+.daily-summary-body.markdown-body >>> h3 { font-size: 1.1rem; }
+.daily-summary-body.markdown-body >>> h4 { font-size: 1rem; }
+.daily-summary-body.markdown-body >>> p {
+  margin: 0.55em 0;
+}
+.daily-summary-body.markdown-body >>> ul,
+.daily-summary-body.markdown-body >>> ol {
+  margin: 0.5em 0;
+  padding-left: 1.35em;
+}
+.daily-summary-body.markdown-body >>> li {
+  margin: 0.25em 0;
+}
+.daily-summary-body.markdown-body >>> li > p {
+  margin: 0.2em 0;
+}
+.daily-summary-body.markdown-body >>> hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 1.25em 0;
+}
+.daily-summary-body.markdown-body >>> blockquote {
+  margin: 0.75em 0;
+  padding: 0.35em 0 0.35em 12px;
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 0 6px 6px 0;
+}
+.daily-summary-body.markdown-body >>> a {
+  color: #2563eb;
+  text-decoration: none;
+}
+.daily-summary-body.markdown-body >>> a:hover {
+  text-decoration: underline;
+}
+.daily-summary-body.markdown-body >>> code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: rgba(15, 23, 42, 0.06);
+  padding: 0.15em 0.45em;
+  border-radius: 4px;
+  color: #b45309;
+}
+.daily-summary-body.markdown-body >>> pre {
+  margin: 0.75em 0;
+  padding: 12px 14px;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.daily-summary-body.markdown-body >>> pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+.daily-summary-body.markdown-body >>> table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+  font-size: 13px;
+}
+.daily-summary-body.markdown-body >>> th,
+.daily-summary-body.markdown-body >>> td {
+  border: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  text-align: left;
+}
+.daily-summary-body.markdown-body >>> th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+.daily-summary-body.markdown-body >>> strong {
+  font-weight: 600;
+  color: #111827;
 }
 
 /* Diff + AI 分析弹窗 */
