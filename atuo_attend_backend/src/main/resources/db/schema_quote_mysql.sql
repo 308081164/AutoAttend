@@ -158,13 +158,6 @@ INSERT INTO biz_quote_price_config (region_label, price_per_day, currency, enabl
 ('二线及其他（参考）', 1200.00, 'CNY', 1)
 ON DUPLICATE KEY UPDATE price_per_day = VALUES(price_per_day);
 
-INSERT INTO biz_quote_preset_item (name, complexity, category, sort_order, enabled) VALUES
-('手机号验证码登录', 'standard', '用户与认证', 10, 1),
-('微信 OAuth / 一键登录', 'medium', '用户与认证', 20, 1),
-('用户注册与个人中心', 'standard', '用户与认证', 30, 1),
-('商品列表与详情（含 SKU）', 'standard', '电商', 40, 1),
-('购物车与下单', 'medium', '电商', 50, 1),
-('订单管理与支付对接', 'complex', '电商', 60, 1),
-('后台权限与角色（RBAC）', 'medium', '管理后台', 70, 1),
-('数据报表与导出', 'standard', '管理后台', 80, 1),
-('第三方接口对接（通用）', 'complex', '集成', 90, 1);
+-- 预设功能点种子数据勿写在此：本文件每次容器启动都会执行，无条件 INSERT 会产生重复行。
+-- 幂等插入见 migrate_manifest 中的 schema_quote_preset_item_dedupe_migration.sql（去重）与
+-- schema_quote_preset_risk_custom_migration.sql（按名称 NOT EXISTS 插入）。

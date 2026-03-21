@@ -64,23 +64,34 @@ export default {
 </script>
 
 <style scoped>
-.quote-list-page { max-width: 900px; margin: 0 auto; padding: 16px; }
+.quote-list-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+  color: #0f172a;
+  background: #f1f5f9;
+  min-height: 100%;
+  box-sizing: border-box;
+}
 .page-head { margin-bottom: 20px; }
-.page-head h1 { margin: 0 0 8px; font-size: 22px; }
-.desc { color: #6b7280; font-size: 14px; margin-bottom: 12px; }
+.page-head h1 { margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #020617; }
+.desc { color: #475569; font-size: 14px; margin-bottom: 12px; line-height: 1.5; font-weight: 500; }
 .head-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
 .primary-button {
-  display: inline-block; padding: 8px 16px; background: #2563eb; color: #fff;
-  border-radius: 6px; text-decoration: none; font-size: 14px;
+  display: inline-block; padding: 8px 16px; background: #1d4ed8; color: #fff;
+  border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 600;
 }
+.primary-button:hover { background: #1e40af; }
 .secondary-button {
-  display: inline-block; padding: 8px 16px; background: #f3f4f6; color: #111;
-  border-radius: 6px; text-decoration: none; font-size: 14px; border: 1px solid #e5e7eb;
+  display: inline-block; padding: 8px 16px; background: #e2e8f0; color: #0f172a;
+  border-radius: 6px; text-decoration: none; font-size: 14px; border: 1px solid #94a3b8; font-weight: 500;
 }
-.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
-.data-table th { background: #f9fafb; }
-.placeholder { padding: 24px; color: #6b7280; }
+.secondary-button:hover { background: #cbd5e1; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; }
+.data-table th, .data-table td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; color: #1e293b; }
+.data-table th { background: #e2e8f0; color: #0f172a; font-weight: 700; }
+.data-table td { background: #fff; }
+.placeholder { padding: 24px; color: #475569; font-weight: 500; }
 .back { margin-top: 24px; font-size: 13px; }
-.back a { color: #2563eb; }
+.back a { color: #1d4ed8; font-weight: 500; }
 </style>
