@@ -83,12 +83,4 @@ jobs:
             export IMAGE_FRONTEND=${{ steps.images.outputs.frontend }}
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
-            # 数据库迁移：对已有库按文件名顺序执行所有 *migration*.sql（新库由 initdb 建表无需迁移，单条报错用 || true 忽略）
-            sleep 5
-            for f in atuo_attend_backend/src/main/resources/db/*migration*.sql; do
-              [ -f "$f" ] || continue
-              echo "Running migration: $f"
-              docker run --rm --network container:autoattend-mysql \
-                -v "$(pwd)/$f:/migrate.sql:ro" \
-                mysql:8.4 sh -c "mysql -h 127.0.0.1 -u autoattend -pautoattend_pwd autoattend < /migrate.sql" || true
-            done
+            # 数据库迁移：由 backend 镜像 entrypoint 在每次启动时按 db/migrate_manifest.txt 自动执行（无需再手工跑 SQL）

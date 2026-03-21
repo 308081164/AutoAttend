@@ -1,0 +1,9 @@
+# 后端容器启动时按顺序执行（相对本目录的文件名）。请保持依赖顺序：增量迁移在后。
+# 以 # 开头或空行忽略。单条失败会记录警告并继续（适用于「列已存在」等幂等场景）。
+schema_quote_mysql.sql
+schema_ai_token_usage.sql
+schema_collab_team_migration.sql
+schema_collab_attachment_project_id_migration.sql
+schema_collab_attachment_record_id_nullable_migration.sql
+schema_system_config_migration.sql
+schema_ai_analysis_result_main_area_migration.sql

@@ -18,6 +18,13 @@ services:
       - ./atuo_attend_backend/src/main/resources/db/schema_mysql.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./atuo_attend_backend/src/main/resources/db/schema_collab_mysql.sql:/docker-entrypoint-initdb.d/02_schema_collab.sql:ro
       - ./atuo_attend_backend/src/main/resources/db/schema_ai_mysql.sql:/docker-entrypoint-initdb.d/03_schema_ai.sql:ro
+      - ./atuo_attend_backend/src/main/resources/db/schema_quote_mysql.sql:/docker-entrypoint-initdb.d/04_schema_quote.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
     command: ["--character-set-server=utf8mb4","--collation-server=utf8mb4_unicode_ci"]
 
   minio:
@@ -39,8 +46,10 @@ services:
       context: ./atuo_attend_backend
     container_name: autoattend-backend
     depends_on:
-      - mysql
-      - minio
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
     environment:
       DB_HOST: mysql
       DB_PORT: 3306

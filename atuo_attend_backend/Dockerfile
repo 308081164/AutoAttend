@@ -10,11 +10,14 @@ RUN mvn -q -B -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
-# 安装 git，用于 Diff 拉取本地兜底（API 失败时 clone/fetch + git show）
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+# git：Diff 本地兜底；default-mysql-client：启动时执行 SQL 迁移
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/src/main/resources/db /app/db
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 ENV DB_HOST=mysql \
     DB_PORT=3306 \
@@ -25,5 +28,5 @@ ENV DB_HOST=mysql \
     ADMIN_PASSWORD=admin123
 
 EXPOSE 8848
-ENTRYPOINT ["java","-jar","/app/app.jar","--server.port=8848"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
