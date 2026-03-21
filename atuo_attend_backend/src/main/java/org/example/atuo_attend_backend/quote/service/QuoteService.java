@@ -408,7 +408,8 @@ public class QuoteService {
 
     private String renderQuoteHtml(QuoteProject p, QuoteResult r) {
         StringBuilder sb = new StringBuilder();
-        sb.append("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>报价单</title>");
+        // OpenHTMLToPDF 按 XML 解析：void 元素须自闭合，否则报 meta 未闭合
+        sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>报价单</title>");
         sb.append("<style>body{font-family:sans-serif;padding:24px;color:#111} h1{font-size:20px} table{border-collapse:collapse;width:100%;margin-top:16px} th,td{border:1px solid #ddd;padding:8px;font-size:13px} th{background:#f3f4f6}</style>");
         sb.append("</head><body>");
         sb.append("<h1>项目报价单</h1>");
@@ -535,7 +536,7 @@ public class QuoteService {
         QuoteContractDraft d = contractDraftMapper.findByResultId(quoteResultId);
         if (d == null) throw new IllegalArgumentException("合同草稿不存在");
         String body = d.getEditedContent() != null ? d.getEditedContent() : d.getAiRawResponse();
-        String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>合同</title></head><body><pre style='white-space:pre-wrap;font-family:sans-serif'>"
+        String html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>合同</title></head><body><pre style='white-space:pre-wrap;font-family:sans-serif'>"
                 + esc(body != null ? body : "") + "</pre></body></html>";
         documentMapper.insert(quoteResultId, "contract", html, 1);
         Map<String, Object> data = new HashMap<>();

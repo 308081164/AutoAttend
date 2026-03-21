@@ -5,6 +5,7 @@ import org.apache.poi.xwpf.usermodel.*;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Entities;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,10 +68,26 @@ public class QuoteDocumentExportService {
         PdfRendererBuilder builder = new PdfRendererBuilder();
         builder.useFastMode();
         registerCjkFonts(builder);
-        builder.withHtmlContent(html, null);
+        // OpenHTMLToPDF 使用 XML 解析器：<meta>、<br> 等须为良构 XHTML
+        builder.withHtmlContent(toWellFormedXhtmlForPdf(html), null);
         builder.toStream(out);
         builder.run();
         return out.toByteArray();
+    }
+
+    /**
+     * 将 HTML 规范为 OpenHTMLToPDF 可解析的 XHTML（自闭合 void 标签等）。
+     */
+    private static String toWellFormedXhtmlForPdf(String html) {
+        if (html == null || html.isBlank()) {
+            return "<!DOCTYPE html><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"UTF-8\"/></head><body></body></html>";
+        }
+        Document doc = Jsoup.parse(html);
+        doc.outputSettings()
+                .syntax(Document.OutputSettings.Syntax.xml)
+                .escapeMode(Entities.EscapeMode.xhtml)
+                .prettyPrint(false);
+        return doc.html();
     }
 
     public byte[] htmlToDocx(String html) throws Exception {
