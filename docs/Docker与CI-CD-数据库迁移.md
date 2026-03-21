@@ -9,16 +9,16 @@
 | 机制 | 作用 | 执行时机 |
 |------|------|----------|
 | **MySQL `docker-entrypoint-initdb.d`** | 新数据卷首次启动时建库表（`schema_mysql` / `collab` / `ai` / `quote`） | **仅第一次**（数据卷为空时） |
-| **后端镜像 `docker-entrypoint.sh`** | 按 `migrate_manifest.txt` 顺序执行增量 SQL（报价表、迁移脚本等） | **每次 `backend` 容器启动**（含 CI 部署 `up -d` 后容器重启） |
-| **清单文件** `db/migrate_manifest.txt` | 声明迁移顺序与文件名 | 随代码维护，打进后端镜像 |
+| **后端镜像 `docker-entrypoint.sh`** | 按 `migrate_manifest.txt` 顺序执行增量 SQL（报价表、迁移脚本等） | **每次 `backend` 容器启动**（含 CI 部署后强制重建 backend） |
+| **清单文件** `db/migrate_manifest.txt` | 声明迁移顺序与文件名 | 随代码维护；**生产/本地 Compose 将宿主 `db/` 挂载到容器 `/app/db`**，与仓库一致，不依赖镜像层是否命中构建缓存 |
 
-推送 `main`/`master` 后，CI 构建新 backend 镜像并 `docker compose up -d`：**新起的 backend 会在启动 Java 前自动跑完清单中的 SQL**，一般**无需再 SSH 手工执行**数据库命令。
+推送 `main`/`master` 后，CI 将 `atuo_attend_backend` 同步到服务器、`pull` 镜像并 `up -d`，再 **强制重建 backend**：**每次部署都会用最新清单执行迁移**，一般**无需再 SSH 手工执行**数据库命令。
 
 ---
 
 ## 2. 后端启动时迁移（推荐主路径）
 
-`atuo_attend_backend/Dockerfile` 将 `src/main/resources/db/` 复制到镜像内 `/app/db/`，入口为 `docker-entrypoint.sh`：
+`atuo_attend_backend/Dockerfile` 将 `src/main/resources/db/` 复制到镜像内 `/app/db/`（本地/生产未挂载时仍可用）；**Compose 下通常挂载宿主 `./atuo_attend_backend/.../db` 覆盖 `/app/db`**，以仓库文件为准。入口为 `docker-entrypoint.sh`：
 
 1. 使用 `mysqladmin ping` 等待 `DB_HOST:DB_PORT` 上的 MySQL 就绪（最长约 3 分钟）。
 2. 读取 `/app/db/migrate_manifest.txt`（忽略 `#` 注释与空行），按行将 `文件名` 解析为 `/app/db/<文件名>` 并执行：  
@@ -48,11 +48,13 @@
 
 - MySQL 挂载 `01`–`04` 建表脚本（含 **quote**），供**全新数据卷**初始化。
 - MySQL 增加 **`healthcheck`**（`mysqladmin ping`），**backend** 使用 `depends_on: mysql: condition: service_healthy`，减少「库未就绪就启动应用」的竞态。
+- **backend** 增加只读挂载：`./atuo_attend_backend/src/main/resources/db` → `/app/db`，与镜像内复制的 `db` 同一路径；**entrypoint 始终执行宿主/仓库中的清单与 SQL**（本地改迁移后重启 backend 即可，生产与 CI 同步代码一致）。
 
 ### 4.2 GitHub Actions（`.github/workflows/deploy.yml`）
 
-- `docker compose pull && up -d` 后，**不再**在 SSH 里循环执行 `*migration*.sql`；迁移统一由 **backend 容器 entrypoint** 完成。
-- 仍会 SCP `atuo_attend_backend` 目录到服务器，以便 **compose 挂载 initdb 脚本**（新卷或重建 MySQL 卷时需要主机上的 SQL 文件）。
+- SCP `atuo_attend_backend` 到服务器后，`docker compose pull && up -d`，再执行 **`docker compose up -d --no-deps --force-recreate backend`**，保证每次部署 backend 都会启动一次并跑迁移。
+- **不再**在 SSH 里单独循环执行 `*migration*.sql`；迁移统一由 **backend 容器 entrypoint** 完成。
+- SCP 目录同时用于：**MySQL initdb 挂载**（新卷）与 **backend `/app/db` 挂载**（增量迁移）。
 
 ---
 
@@ -82,7 +84,7 @@ docker run --rm --network container:autoattend-mysql \
 | 场景 | 操作 |
 |------|------|
 | 新环境首次部署 | `docker compose up`，initdb 执行 `01`–`04`；backend 启动时再跑清单（多为 IF NOT EXISTS，无害） |
-| 已有库升级 | 在 `db/` 新增 SQL + 更新 **`migrate_manifest.txt`**，推送后 CI 部署，**backend 重启即自动迁移** |
+| 已有库升级 | 在 `db/` 新增 SQL + 更新 **`migrate_manifest.txt`**，推送后 CI 部署；**强制重建 backend** + **挂载仓库内 db**，自动执行最新迁移 |
 | 临时跳过迁移 | backend 环境变量 `SKIP_DB_MIGRATE=1` |
 
 按上述方式维护清单并推送后，**无需再手工在服务器执行 SQL**，即可完成数据库迁移。

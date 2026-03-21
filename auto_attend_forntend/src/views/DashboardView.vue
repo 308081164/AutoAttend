@@ -85,6 +85,24 @@
       </section>
     </div>
 
+    <!-- 项目每日进展总结（按仓库） -->
+    <section class="section" v-if="selectedRepo">
+      <div class="section-header">
+        <h2 class="section-title">{{ $t('dashboard.dailySummaryTitle') }}</h2>
+        <button type="button" class="link-button" @click="loadDailySummaries" :disabled="dailySummaryLoading">{{ $t('dashboard.refresh') }}</button>
+      </div>
+      <p class="daily-summary-desc">{{ $t('dashboard.dailySummaryDesc') }}</p>
+      <div v-if="dailySummaryLoading" class="placeholder">{{ $t('collab.loading') }}</div>
+      <ul v-else-if="dailySummaries.length" class="daily-summary-list">
+        <li v-for="s in dailySummaries" :key="s.id" class="daily-summary-item" @click="openDailySummaryDetail(s.id)">
+          <span class="ds-date">{{ s.summaryDate }}</span>
+          <span class="ds-title">{{ s.title || '—' }}</span>
+          <span class="ds-meta">{{ $t('dashboard.dailySummaryCommits', { n: s.commitCount }) }} · {{ s.status }}</span>
+        </li>
+      </ul>
+      <div v-else class="placeholder">{{ $t('dashboard.dailySummaryEmpty') }}</div>
+    </section>
+
     <!-- 最近提交表格（分页） -->
     <section class="section commits-section">
       <div class="section-header">
@@ -172,6 +190,20 @@
     </section>
 
     <!-- Diff + AI 分析弹窗 -->
+    <div v-if="dailySummaryDetail" class="diff-modal-backdrop" @click="dailySummaryDetail = null">
+      <div class="diff-modal daily-summary-modal" @click.stop>
+        <div class="diff-modal-header">
+          <h2 class="diff-modal-title">{{ dailySummaryDetail.title || $t('dashboard.dailySummaryTitle') }}</h2>
+          <button type="button" class="link-button diff-modal-close" @click="dailySummaryDetail = null">×</button>
+        </div>
+        <div class="diff-modal-body">
+          <p class="ds-detail-meta">{{ dailySummaryDetail.summaryDate }} · {{ dailySummaryDetail.repoFullName }} · {{ dailySummaryDetail.status }}</p>
+          <div v-if="dailyDetailLoading" class="placeholder">{{ $t('collab.loading') }}</div>
+          <pre v-else class="daily-summary-body">{{ dailySummaryDetail.content }}</pre>
+        </div>
+      </div>
+    </div>
+
     <div v-if="selectedCommit" class="diff-modal-backdrop" @click="selectedCommit = null">
       <div class="diff-modal" @click.stop>
         <div class="diff-modal-header">
@@ -270,7 +302,11 @@ export default {
       trendRange: '7d',
       chartInstances: { trend: null, author: null },
       repoInfo: {},
-      repoInfoLoading: false
+      repoInfoLoading: false,
+      dailySummaries: [],
+      dailySummaryLoading: false,
+      dailySummaryDetail: null,
+      dailyDetailLoading: false
     }
   },
   watch: {
@@ -338,7 +374,10 @@ export default {
     this.loadStatsCommitsByDay()
     this.loadStatsAuthors()
     this.loadRepos().then(() => {
-      if (this.selectedRepo) this.loadRepoInfo()
+      if (this.selectedRepo) {
+        this.loadRepoInfo()
+        this.loadDailySummaries()
+      }
     }).catch(() => {})
   },
   mounted () {
@@ -487,8 +526,11 @@ export default {
     },
     onRepoChange () {
       this.commitsPage = 1
+      this.dailySummaries = []
+      this.dailySummaryDetail = null
       this.loadDashboard()
       this.loadCommits()
+      this.loadDailySummaries()
       this.loadStatsOverview()
       this.loadStatsCommitsByDay()
       this.loadStatsAuthors()
@@ -558,6 +600,49 @@ export default {
       if (this.commitsPage >= this.commitsTotalPages) return
       this.commitsPage += 1
       this.loadCommits()
+    },
+    async loadDailySummaries () {
+      if (!this.selectedRepo) {
+        this.dailySummaries = []
+        return
+      }
+      this.dailySummaryLoading = true
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/daily-summaries', {
+          params: { repoFullName: this.selectedRepo, page: 1, pageSize: 14 }
+        })
+        const d = resp.data && resp.data.data
+        if (resp.data && resp.data.code === 0 && d && Array.isArray(d.items)) {
+          this.dailySummaries = d.items
+        } else {
+          this.dailySummaries = []
+        }
+      } catch (e) {
+        this.dailySummaries = []
+      } finally {
+        this.dailySummaryLoading = false
+      }
+    },
+    async openDailySummaryDetail (id) {
+      this.dailyDetailLoading = true
+      this.dailySummaryDetail = {
+        id,
+        title: this.$t('collab.loading'),
+        summaryDate: '',
+        repoFullName: this.selectedRepo || '',
+        status: '',
+        content: ''
+      }
+      try {
+        const resp = await this.$http.get('/admin/ai-analysis/daily-summaries/' + id)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.dailySummaryDetail = resp.data.data
+        }
+      } catch (e) {
+        this.dailySummaryDetail = null
+      } finally {
+        this.dailyDetailLoading = false
+      }
     },
     isDiffPlaceholder (text) {
       return text && (text.indexOf('(Diff 暂不可用') !== -1 || text.indexOf('(Diff will be') !== -1)
@@ -1032,6 +1117,80 @@ export default {
 .placeholder {
   font-size: 13px;
   color: #6b7280;
+}
+
+.daily-summary-desc {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 12px;
+}
+
+.daily-summary-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.daily-summary-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.daily-summary-item:hover {
+  background: #f9fafb;
+}
+
+.ds-date {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.ds-title {
+  flex: 1;
+  min-width: 160px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.ds-meta {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.daily-summary-modal.diff-modal {
+  max-width: 920px;
+  width: 100%;
+}
+
+.ds-detail-meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0 0 12px;
+}
+
+.daily-summary-body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1f2937;
+  max-height: min(72vh, 640px);
+  overflow: auto;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
 }
 
 /* Diff + AI 分析弹窗 */

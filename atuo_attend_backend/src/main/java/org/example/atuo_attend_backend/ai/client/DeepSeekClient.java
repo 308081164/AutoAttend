@@ -37,6 +37,14 @@ public class DeepSeekClient {
      * 发送 chat 请求并解析 usage，用于记录 Token 消耗。
      */
     public ChatResult chatWithUsage(String apiKey, String model, List<ChatMessage> messages, boolean requestJson) {
+        return chatWithUsage(apiKey, model, messages, requestJson, null);
+    }
+
+    /**
+     * @param maxCompletionTokens 为 null 时使用 4096；日报等长文可适当增大（如 8192）
+     */
+    public ChatResult chatWithUsage(String apiKey, String model, List<ChatMessage> messages, boolean requestJson,
+                                    Integer maxCompletionTokens) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("DeepSeek API key is empty");
             return null;
@@ -53,7 +61,8 @@ public class DeepSeekClient {
                 msgArray.add(msg);
             }
             body.set("messages", msgArray);
-            body.put("max_tokens", 4096);
+            int maxOut = (maxCompletionTokens != null && maxCompletionTokens > 0) ? Math.min(maxCompletionTokens, 32000) : 4096;
+            body.put("max_tokens", maxOut);
             if (requestJson) {
                 body.putObject("response_format").put("type", "json_object");
             }

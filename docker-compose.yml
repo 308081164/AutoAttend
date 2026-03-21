@@ -50,6 +50,9 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+    # 启动时 entrypoint 使用 /app/db 执行 migrate_manifest.txt；挂载本地目录便于改迁移脚本后重启即生效（与生产 CI 行为一致）
+    volumes:
+      - ./atuo_attend_backend/src/main/resources/db:/app/db:ro
     environment:
       DB_HOST: mysql
       DB_PORT: 3306

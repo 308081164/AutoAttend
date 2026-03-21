@@ -6,6 +6,8 @@ package org.example.atuo_attend_backend.ai.dto;
 public class AiAnalysisConfigUpdate {
     private String apiKey;       // 可选，不传或空则不更新
     private Boolean enabled;
+    /** 是否启用每日项目进展总结（与单次提交分析开关独立） */
+    private Boolean dailySummaryEnabled;
     private String model;
     private String promptVersion;
     private Integer maxDiffChars;
@@ -14,6 +16,8 @@ public class AiAnalysisConfigUpdate {
     public void setApiKey(String apiKey) { this.apiKey = apiKey; }
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+    public Boolean getDailySummaryEnabled() { return dailySummaryEnabled; }
+    public void setDailySummaryEnabled(Boolean dailySummaryEnabled) { this.dailySummaryEnabled = dailySummaryEnabled; }
     public String getModel() { return model; }
     public void setModel(String model) { this.model = model; }
     public String getPromptVersion() { return promptVersion; }

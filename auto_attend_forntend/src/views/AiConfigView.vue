@@ -35,6 +35,20 @@
               </label>
             </div>
             <div class="form-row">
+              <label class="form-label">{{ $t('aiConfig.dailySummaryEnabled') }}</label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="form.dailySummaryEnabled">
+                <span>{{ $t('aiConfig.dailySummaryEnabledLabel') }}</span>
+              </label>
+              <p class="form-hint">{{ $t('aiConfig.dailySummaryHint') }}</p>
+            </div>
+            <div class="form-row daily-run-row">
+              <button type="button" class="link-button" :disabled="dailyRunLoading" @click="runDailySummaryNow">
+                {{ dailyRunLoading ? '…' : $t('aiConfig.runDailySummaryNow') }}
+              </button>
+              <span v-if="dailyRunMessage" class="save-message inline-msg" :class="dailyRunOk ? 'success' : 'error'">{{ dailyRunMessage }}</span>
+            </div>
+            <div class="form-row">
               <label class="form-label">{{ $t('aiConfig.model') }}</label>
               <input v-model="form.model" type="text" class="form-input" placeholder="deepseek-chat">
             </div>
@@ -285,8 +299,12 @@ export default {
       form: {
         apiKey: '',
         enabled: false,
+        dailySummaryEnabled: false,
         model: 'deepseek-chat'
       },
+      dailyRunLoading: false,
+      dailyRunMessage: '',
+      dailyRunOk: false,
       saving: false,
       saveMessage: '',
       saveSuccess: false,
@@ -377,6 +395,7 @@ export default {
           const data = resp.data.data
           this.config = data
           this.form.enabled = data.enabled === true || data.enabled === 'true' || data.enabled === 1
+          this.form.dailySummaryEnabled = data.dailySummaryEnabled === true || data.dailySummaryEnabled === 'true' || data.dailySummaryEnabled === 1
           this.form.model = (data.model && String(data.model).trim()) || 'deepseek-chat'
           this.form.apiKey = ''
         }
@@ -406,6 +425,7 @@ export default {
       try {
         const payload = {
           enabled: this.form.enabled,
+          dailySummaryEnabled: this.form.dailySummaryEnabled,
           model: this.form.model || 'deepseek-chat'
         }
         if (this.form.apiKey && !this.form.apiKey.includes('****')) {
@@ -426,6 +446,27 @@ export default {
         this.saveSuccess = false
       } finally {
         this.saving = false
+      }
+    },
+    async runDailySummaryNow () {
+      this.dailyRunLoading = true
+      this.dailyRunMessage = ''
+      try {
+        const resp = await this.$http.post('/admin/ai-analysis/daily-summary/run')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const n = resp.data.data.reposProcessed != null ? resp.data.data.reposProcessed : 0
+          const d = resp.data.data.summaryDate || ''
+          this.dailyRunOk = true
+          this.dailyRunMessage = this.$t('aiConfig.runDailySummaryOk', { date: d, n })
+        } else {
+          this.dailyRunOk = false
+          this.dailyRunMessage = (resp.data && resp.data.message) || this.$t('aiConfig.runDailySummaryFail')
+        }
+      } catch (e) {
+        this.dailyRunOk = false
+        this.dailyRunMessage = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.runDailySummaryFail')
+      } finally {
+        this.dailyRunLoading = false
       }
     },
     async saveQwenConfig () {
@@ -998,6 +1039,15 @@ export default {
   font-size: 12px;
   color: #9ca3af;
   margin-top: 4px;
+}
+.daily-run-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.daily-run-row .inline-msg {
+  margin: 0;
 }
 .checkbox-label {
   display: inline-flex;

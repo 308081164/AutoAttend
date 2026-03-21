@@ -26,9 +26,13 @@ public class AiAnalysisConfigService {
             c.setProvider(PROVIDER_DEEPSEEK);
             c.setApiKey(null);
             c.setEnabled(false);
+            c.setDailySummaryEnabled(false);
             c.setModel("deepseek-chat");
             c.setPromptVersion("v1");
             c.setMaxDiffChars(100000);
+        }
+        if (c.getDailySummaryEnabled() == null) {
+            c.setDailySummaryEnabled(false);
         }
         return c;
     }
@@ -72,21 +76,25 @@ public class AiAnalysisConfigService {
         return c;
     }
 
-    public void updateConfig(String apiKey, Boolean enabled, String model, String promptVersion, Integer maxDiffChars) {
+    public void updateConfig(String apiKey, Boolean enabled, Boolean dailySummaryEnabled, String model, String promptVersion, Integer maxDiffChars) {
         AiAnalysisConfig existing = configMapper.findByProvider(PROVIDER_DEEPSEEK);
         // 仅当传入新的完整 API Key 时更新（不含 **** 的脱敏值）
         String keyToSave = (apiKey != null && !apiKey.isBlank() && !apiKey.contains("****")) ? apiKey.trim() : (existing != null ? existing.getApiKey() : null);
         boolean en = enabled != null && enabled;
+        boolean ds = dailySummaryEnabled != null
+                ? dailySummaryEnabled
+                : (existing != null && Boolean.TRUE.equals(existing.getDailySummaryEnabled()));
         String m = (model != null && !model.isBlank()) ? model : "deepseek-chat";
         String pv = (promptVersion != null && !promptVersion.isBlank()) ? promptVersion : "v1";
         int maxChars = (maxDiffChars != null && maxDiffChars > 0) ? maxDiffChars : 100000;
         if (existing != null) {
-            configMapper.update(PROVIDER_DEEPSEEK, keyToSave, en, m, pv, maxChars);
+            configMapper.update(PROVIDER_DEEPSEEK, keyToSave, en, ds, m, pv, maxChars);
         } else {
             AiAnalysisConfig newConfig = new AiAnalysisConfig();
             newConfig.setProvider(PROVIDER_DEEPSEEK);
             newConfig.setApiKey(keyToSave);
             newConfig.setEnabled(en);
+            newConfig.setDailySummaryEnabled(ds);
             newConfig.setModel(m);
             newConfig.setPromptVersion(pv);
             newConfig.setMaxDiffChars(maxChars);
@@ -106,12 +114,13 @@ public class AiAnalysisConfigService {
                 ? existing.getPromptVersion()
                 : "v1";
         if (existing != null) {
-            configMapper.update(PROVIDER_QWEN, keyToSave, en, m, pv, maxChars);
+            configMapper.update(PROVIDER_QWEN, keyToSave, en, false, m, pv, maxChars);
         } else {
             AiAnalysisConfig c = new AiAnalysisConfig();
             c.setProvider(PROVIDER_QWEN);
             c.setApiKey(keyToSave);
             c.setEnabled(en);
+            c.setDailySummaryEnabled(false);
             c.setModel(m);
             c.setPromptVersion(pv);
             c.setMaxDiffChars(maxChars);

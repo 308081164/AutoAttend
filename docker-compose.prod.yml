@@ -2,6 +2,10 @@
 # 使用前在服务器上设置环境变量（或由 deploy workflow 自动设置）：
 #   export IMAGE_BACKEND=ghcr.io/你的用户名/autoattend-backend:latest
 #   export IMAGE_FRONTEND=ghcr.io/你的用户名/autoattend-frontend:latest
+#
+# 数据库增量迁移：backend 的 docker-entrypoint.sh 在每次容器启动时读取 /app/db/migrate_manifest.txt
+# 并执行清单中的 SQL。下面将宿主机的 db 目录只读挂载到 /app/db，与 CI 推送到仓库的代码一致，
+# 这样即使某次构建缓存导致镜像内 SQL 未更新，部署后仍会执行最新迁移脚本（无需 SSH 手工跑 SQL）。
 
 services:
   mysql:
@@ -70,6 +74,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: autoattend-attachments
     volumes:
+      # 与仓库同步的迁移清单与 SQL（deploy workflow 会 scp atuo_attend_backend 到本目录）
+      - ./atuo_attend_backend/src/main/resources/db:/app/db:ro
       # 本地 Git 兜底：宿主机目录挂载到容器 /data/git-repos，建议设到新硬盘（如 GIT_REPOS_HOST_PATH=/mnt/newdisk/app/AutoAttend/git-repos）
       - ${GIT_REPOS_HOST_PATH:-./git-repos}:/data/git-repos
     ports:

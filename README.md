@@ -17,7 +17,8 @@
 - **状态看板与统计**：按时间范围与仓库查看提交趋势、各仓库占比、开发者排名；资源总览（仓库数、总提交数、开发者数）。
 - **仓库与提交**：仓库列表、提交列表，单条提交的 **Diff（代码变更）** 查看。
 - **单次提交 AI 分析（DeepSeek）**：在「AI 配置」页配置 DeepSeek API Key 与开关；在看板中针对单条 commit 可「运行 AI 分析」，获得工作内容摘要、有效性、代码质量等结构化结果（详见 [docs/AI分析功能说明与测试指南.md](docs/AI分析功能说明与测试指南.md)）。
-- **AI 配置中心**：统一管理 DeepSeek 文本模型与通义·千问（Qwen）多模态模型的 API Key、启用开关、模型名称，并对 AI 调用 Token 用量进行统计与展示。
+- **项目每日进展总结（DeepSeek）**：按**仓库 + 业务日**汇总「昨日」有提交时的 commit 信息与已有单次提交 AI 分析结果，调用 DeepSeek 生成一篇 Markdown 日报（进展、工作量、成员贡献等）。开关与「立即生成昨日总结」在 **AI 配置** 页的 DeepSeek 区域；**看板**选中仓库后可查看近期总结列表并点开全文。定时任务默认每天 **04:00（Asia/Shanghai）** 处理「昨天」，需在 AI 配置中开启「每日总结」并填写 DeepSeek Key；与「单次提交 AI 分析」开关相互独立。**手动触发**（页面按钮或 `POST /api/admin/ai-analysis/daily-summary/run`）仅需有效 DeepSeek Key，可不开启每日总结开关。数据库迁移：`schema_ai_daily_summary_migration.sql`（生产若走 CI/CD 迁移清单会自动执行）。
+- **AI 配置中心**：统一管理 DeepSeek 文本模型与通义·千问（Qwen）多模态模型的 API Key、启用开关、模型名称，并对 AI 调用 Token 用量进行统计与展示（含每日总结相关消耗）。
 - **需求 → 报价 → 合同（半自动化）**：管理员在「报价与合同」中创建报价项目，按结构化方式录入项目类型/技术栈/功能模块与功能点（复杂度+数量），系统按人天基准库与风险系数计算报价与置信度；可生成报价单 **HTML / PDF / Word(.docx)** 下载；在开启 DeepSeek 的前提下可 AI 生成合同正文、在线编辑并导出 **HTML / PDF / Word**。PDF 中文渲染建议在服务器放置中文字体（见 `atuo_attend_backend/src/main/resources/fonts/README.md` 或配置 `quote.export.cjk-font-path`）（设计见 [docs/需求-报价-合同半自动化产出-功能设计文档.md](docs/需求-报价-合同半自动化产出-功能设计文档.md)）。**数据库**：需在 MySQL 中执行 `atuo_attend_backend/src/main/resources/db/schema_quote_mysql.sql` 建表并写入基准/风险/单价种子数据。
 - **项目协作入口**：从看板页进入「项目协作」，直接访问全部项目与多维表（与员工协作模块共用，权限为 super_admin）。
 
@@ -102,7 +103,7 @@ npm run serve
 
 ## 5. 生产部署
 
-- **推荐**：使用 GitHub Actions 在 push 到 `main`/`master` 时自动构建镜像、推送到 ghcr.io，并 SSH 到服务器执行 `docker compose -f docker-compose.prod.yml pull && up -d`；部署完成后会**自动执行** `atuo_attend_backend/src/main/resources/db/` 下所有 `*migration*.sql` 数据库迁移，无需手动上机跑 SQL。
+- **推荐**：使用 GitHub Actions 在 push 到 `main`/`master` 时自动构建镜像、推送到 ghcr.io，并 SSH 同步 `atuo_attend_backend` 与 `docker-compose.prod.yml` 后执行 `pull`、`up -d` 及 **强制重建 backend**。后端容器启动脚本会按 **`migrate_manifest.txt`** 执行增量 SQL；生产 Compose 将仓库内 **`atuo_attend_backend/src/main/resources/db`** 只读挂载到容器 `/app/db`，与 CI 同步的代码一致，**无需手动上机执行迁移**。详见 [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md)。
 - **部署路径**：默认服务器项目目录为 `/mnt/newdisk/app/AutoAttend`（可在仓库 Secrets 中设置 `DEPLOY_PATH` 覆盖）。
 - **详细步骤**：见 [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md)（Secrets 配置、首次克隆、常见问题如 502、磁盘满、/api 502 等）；数据库迁移机制见 [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md)。
 
@@ -138,7 +139,8 @@ npm run serve
 | GitHub   | `GITHUB_WEBHOOK_SECRET`；`GITHUB_TOKEN`（可选，私有仓拉取 Diff 建议配） |
 | MinIO    | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` |
 | 协作 JWT | `collab.jwt.secret`, `collab.jwt.expireSeconds`（协作登录 token） |
-| AI 分析  | 在「AI 配置」页填写 DeepSeek API Key / Qwen API Key、启用开关、模型（存库），支持文本分析与协作任务表多模态录入 |
+| AI 分析  | 在「AI 配置」页填写 DeepSeek API Key / Qwen API Key、启用开关、模型（存库），支持单次提交分析、**项目每日进展总结**与协作任务表多模态录入 |
+| 每日总结调度 | `app.daily-summary.enabled`（默认 `true`）、`app.daily-summary.cron`（默认 `0 0 4 * * *`）、`app.daily-summary.timezone`（默认 `Asia/Shanghai`）；关闭 JVM 侧定时任务可设 `app.daily-summary.enabled=false`（业务上仍须在 AI 配置中开启「每日总结」且配置 Key，定时才会真正生成） |
 
 生产环境请修改默认管理员密码与协作 JWT Secret。
 
@@ -158,6 +160,7 @@ npm run serve
 | [docs/项目协作-AI录入模式-功能设计.md](docs/项目协作-AI录入模式-功能设计.md) | 项目协作任务表的 AI 录入模式设计（Qwen 多模态 + DeepSeek 结合） |
 | [docs/单次提交AI分析-功能设计文档.md](docs/单次提交AI分析-功能设计文档.md) | 单次提交 AI 分析设计（已实现手动触发 + 配置） |
 | [docs/AI分析功能说明与测试指南.md](docs/AI分析功能说明与测试指南.md) | AI 分析已实现功能说明与测试步骤 |
+| `atuo_attend_backend/src/main/resources/db/schema_ai_daily_summary_migration.sql` | 每日进展总结：`aa_ai_analysis_config.daily_summary_enabled` 与表 `aa_project_daily_summary`；已纳入迁移清单时由部署流程自动执行 |
 
 ### 8.2 功能规划与可行性分析（见 docs）
 

@@ -7,3 +7,4 @@ schema_collab_attachment_project_id_migration.sql
 schema_collab_attachment_record_id_nullable_migration.sql
 schema_system_config_migration.sql
 schema_ai_analysis_result_main_area_migration.sql
+schema_ai_daily_summary_migration.sql

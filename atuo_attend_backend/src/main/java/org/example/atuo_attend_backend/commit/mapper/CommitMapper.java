@@ -154,6 +154,38 @@ public interface CommitMapper {
     @Select("SELECT DISTINCT repo_full_name FROM aa_commit ORDER BY repo_full_name")
     List<String> listDistinctRepos();
 
+    /** 在 [start, end) 时间范围内有提交的仓库列表 */
+    @Select("""
+            SELECT DISTINCT repo_full_name FROM aa_commit
+            WHERE committed_at >= #{start} AND committed_at < #{end}
+            ORDER BY repo_full_name
+            """)
+    List<String> listReposWithCommitsBetween(@Param("start") java.time.OffsetDateTime start,
+                                            @Param("end") java.time.OffsetDateTime end);
+
+    /** 某仓库在 [start, end) 内的提交，按时间正序 */
+    @Select("""
+            SELECT
+              repo_full_name AS repoFullName,
+              commit_sha AS commitSha,
+              parent_sha AS parentSha,
+              author_name AS authorName,
+              author_email AS authorEmail,
+              committed_at AS committedAt,
+              message AS message,
+              files_changed AS filesChanged,
+              insertions AS insertions,
+              deletions AS deletions,
+              valid_commit AS validCommit,
+              valid_reason AS validReason
+            FROM aa_commit
+            WHERE repo_full_name = #{repoFullName} AND committed_at >= #{start} AND committed_at < #{end}
+            ORDER BY committed_at ASC, commit_sha ASC
+            """)
+    List<CommitRecord> listCommitsByRepoBetween(@Param("repoFullName") String repoFullName,
+                                                @Param("start") java.time.OffsetDateTime start,
+                                                @Param("end") java.time.OffsetDateTime end);
+
     /** 按日统计提交数与代码量，since 起至今（含当日） */
     @Select("""
             SELECT DATE(committed_at) AS day, COUNT(*) AS count,

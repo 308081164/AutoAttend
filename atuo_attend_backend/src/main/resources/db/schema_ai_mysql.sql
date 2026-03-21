@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS aa_ai_analysis_config (
     provider VARCHAR(32) NOT NULL DEFAULT 'deepseek' COMMENT 'ai 提供商',
     api_key VARCHAR(512) NULL COMMENT 'API Key，由用户在配置页填写',
     enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否启用单次提交 AI 分析',
+    daily_summary_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否每日定时生成各仓库进展总结',
     model VARCHAR(64) NOT NULL DEFAULT 'deepseek-chat' COMMENT '模型标识',
     prompt_version VARCHAR(32) NOT NULL DEFAULT 'v1' COMMENT '提示词版本',
     max_diff_chars INT NOT NULL DEFAULT 100000 COMMENT '单次 diff 最大字符数，超出截断',
@@ -69,6 +70,24 @@ CREATE TABLE IF NOT EXISTS aa_ai_token_usage (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 调用 Token 消耗记录';
 
 -- 初始化默认配置行（DeepSeek）
-INSERT INTO aa_ai_analysis_config (provider, api_key, enabled, model, prompt_version, max_diff_chars)
-VALUES ('deepseek', NULL, 0, 'deepseek-chat', 'v1', 100000)
+INSERT INTO aa_ai_analysis_config (provider, api_key, enabled, daily_summary_enabled, model, prompt_version, max_diff_chars)
+VALUES ('deepseek', NULL, 0, 0, 'deepseek-chat', 'v1', 100000)
 ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP;
+
+-- 按仓库按日的项目进展总结（新环境随 schema 创建；旧库用 schema_ai_daily_summary_migration.sql）
+CREATE TABLE IF NOT EXISTS aa_project_daily_summary (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    repo_full_name VARCHAR(255) NOT NULL,
+    summary_date DATE NOT NULL,
+    title VARCHAR(512) NULL,
+    content MEDIUMTEXT NOT NULL,
+    commit_count INT NOT NULL DEFAULT 0,
+    model VARCHAR(64) NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'success',
+    error_message TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_repo_summary_date (repo_full_name, summary_date),
+    KEY idx_summary_date (summary_date),
+    KEY idx_repo (repo_full_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='按项目按日的 AI 进展总结';

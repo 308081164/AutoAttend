@@ -7,11 +7,13 @@ import org.example.atuo_attend_backend.ai.dto.AiQwenConfigUpdate;
 import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisService;
+import org.example.atuo_attend_backend.ai.service.ProjectDailySummaryService;
 import org.example.atuo_attend_backend.commit.CommitRecord;
 import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -29,13 +31,16 @@ public class AdminAiAnalysisController {
     private final AiAnalysisService analysisService;
     private final CommitService commitService;
     private final AiTokenUsageMapper tokenUsageMapper;
+    private final ProjectDailySummaryService projectDailySummaryService;
 
     public AdminAiAnalysisController(AiAnalysisConfigService configService, AiAnalysisService analysisService,
-                                     CommitService commitService, AiTokenUsageMapper tokenUsageMapper) {
+                                     CommitService commitService, AiTokenUsageMapper tokenUsageMapper,
+                                     ProjectDailySummaryService projectDailySummaryService) {
         this.configService = configService;
         this.analysisService = analysisService;
         this.commitService = commitService;
         this.tokenUsageMapper = tokenUsageMapper;
+        this.projectDailySummaryService = projectDailySummaryService;
     }
 
     @GetMapping("/usage")
@@ -104,6 +109,7 @@ public class AdminAiAnalysisController {
         data.put("apiKeyMasked", c.getApiKey());
         data.put("hasApiKey", c.getApiKey() != null && !c.getApiKey().isEmpty());
         data.put("enabled", Boolean.TRUE.equals(c.getEnabled()));
+        data.put("dailySummaryEnabled", Boolean.TRUE.equals(c.getDailySummaryEnabled()));
         data.put("model", c.getModel() != null ? c.getModel() : "deepseek-chat");
         data.put("promptVersion", c.getPromptVersion());
         data.put("maxDiffChars", c.getMaxDiffChars());
@@ -115,11 +121,69 @@ public class AdminAiAnalysisController {
         configService.updateConfig(
             body.getApiKey(),
             body.getEnabled(),
+            body.getDailySummaryEnabled(),
             body.getModel(),
             body.getPromptVersion(),
             body.getMaxDiffChars()
         );
         return ApiResponse.ok(null);
+    }
+
+    /** 分页查询某仓库的历史每日总结 */
+    @GetMapping("/daily-summaries")
+    public ApiResponse<Map<String, Object>> listDailySummaries(
+            @RequestParam("repoFullName") String repoFullName,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
+        if (repoFullName == null || repoFullName.isBlank()) {
+            return ApiResponse.error(40000, "repoFullName 必填");
+        }
+        return ApiResponse.ok(projectDailySummaryService.listByRepo(repoFullName.trim(), page, pageSize));
+    }
+
+    @GetMapping("/daily-summaries/{id}")
+    public ApiResponse<Map<String, Object>> getDailySummary(@PathVariable long id) {
+        return projectDailySummaryService.findById(id)
+                .map(s -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", s.getId());
+                    m.put("repoFullName", s.getRepoFullName());
+                    m.put("summaryDate", s.getSummaryDate() != null ? s.getSummaryDate().toString() : null);
+                    m.put("title", s.getTitle());
+                    m.put("content", s.getContent());
+                    m.put("commitCount", s.getCommitCount());
+                    m.put("model", s.getModel());
+                    m.put("status", s.getStatus());
+                    m.put("errorMessage", s.getErrorMessage());
+                    m.put("createdAt", s.getCreatedAt());
+                    m.put("updatedAt", s.getUpdatedAt());
+                    return ApiResponse.ok(m);
+                })
+                .orElseGet(() -> ApiResponse.error(40400, "总结不存在"));
+    }
+
+    /**
+     * 手动触发生成指定业务日的总结（默认昨天）；可限定单个仓库。需已开启 dailySummaryEnabled 且配置 API Key。
+     */
+    @PostMapping("/daily-summary/run")
+    public ApiResponse<Map<String, Object>> runDailySummary(
+            @RequestParam(value = "date", required = false) String date,
+            @RequestParam(value = "repoFullName", required = false) String repoFullName) {
+        try {
+            LocalDate d;
+            if (date != null && !date.isBlank()) {
+                d = LocalDate.parse(date.trim());
+            } else {
+                d = LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).minusDays(1);
+            }
+            int n = projectDailySummaryService.runSummariesForDate(d, repoFullName, false);
+            Map<String, Object> data = new HashMap<>();
+            data.put("summaryDate", d.toString());
+            data.put("reposProcessed", n);
+            return ApiResponse.ok(data);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "执行失败");
+        }
     }
 
     @GetMapping("/qwen-config")

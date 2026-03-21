@@ -253,5 +253,17 @@ public class CommitService {
     public List<CommitMapper.AuthorAggregate> aggregateByAuthorAll() {
         return commitMapper.aggregateByAuthorAll();
     }
+
+    /** 在 [start, end) 内有提交的仓库 */
+    public List<String> listReposWithCommitsBetween(OffsetDateTime start, OffsetDateTime end) {
+        if (start == null || end == null) return List.of();
+        return commitMapper.listReposWithCommitsBetween(start, end);
+    }
+
+    /** 某仓库在 [start, end) 内的提交（不含 diff 拉取，仅 aa_commit 表字段） */
+    public List<CommitRecord> listCommitsByRepoBetween(String repoFullName, OffsetDateTime start, OffsetDateTime end) {
+        if (repoFullName == null || repoFullName.isBlank() || start == null || end == null) return List.of();
+        return commitMapper.listCommitsByRepoBetween(repoFullName.trim(), start, end);
+    }
 }
 

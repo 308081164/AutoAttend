@@ -7,6 +7,8 @@ public class AiAnalysisConfig {
     private String provider;
     private String apiKey;
     private Boolean enabled;
+    /** 是否每日凌晨为各仓库生成「项目进展总结」（DeepSeek） */
+    private Boolean dailySummaryEnabled;
     private String model;
     private String promptVersion;
     private Integer maxDiffChars;
@@ -21,6 +23,8 @@ public class AiAnalysisConfig {
     public void setApiKey(String apiKey) { this.apiKey = apiKey; }
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+    public Boolean getDailySummaryEnabled() { return dailySummaryEnabled; }
+    public void setDailySummaryEnabled(Boolean dailySummaryEnabled) { this.dailySummaryEnabled = dailySummaryEnabled; }
     public String getModel() { return model; }
     public void setModel(String model) { this.model = model; }
     public String getPromptVersion() { return promptVersion; }
