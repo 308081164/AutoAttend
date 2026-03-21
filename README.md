@@ -18,6 +18,7 @@
 - **仓库与提交**：仓库列表、提交列表，单条提交的 **Diff（代码变更）** 查看。
 - **单次提交 AI 分析（DeepSeek）**：在「AI 配置」页配置 DeepSeek API Key 与开关；在看板中针对单条 commit 可「运行 AI 分析」，获得工作内容摘要、有效性、代码质量等结构化结果（详见 [docs/AI分析功能说明与测试指南.md](docs/AI分析功能说明与测试指南.md)）。
 - **AI 配置中心**：统一管理 DeepSeek 文本模型与通义·千问（Qwen）多模态模型的 API Key、启用开关、模型名称，并对 AI 调用 Token 用量进行统计与展示。
+- **需求 → 报价 → 合同（半自动化）**：管理员在「报价与合同」中创建报价项目，按结构化方式录入项目类型/技术栈/功能模块与功能点（复杂度+数量），系统按人天基准库与风险系数计算报价与置信度；可生成报价单 **HTML / PDF / Word(.docx)** 下载；在开启 DeepSeek 的前提下可 AI 生成合同正文、在线编辑并导出 **HTML / PDF / Word**。PDF 中文渲染建议在服务器放置中文字体（见 `atuo_attend_backend/src/main/resources/fonts/README.md` 或配置 `quote.export.cjk-font-path`）（设计见 [docs/需求-报价-合同半自动化产出-功能设计文档.md](docs/需求-报价-合同半自动化产出-功能设计文档.md)）。**数据库**：需在 MySQL 中执行 `atuo_attend_backend/src/main/resources/db/schema_quote_mysql.sql` 建表并写入基准/风险/单价种子数据。
 - **项目协作入口**：从看板页进入「项目协作」，直接访问全部项目与多维表（与员工协作模块共用，权限为 super_admin）。
 
 ### 1.3 员工工作台与项目协作（员工或管理员登录协作后）

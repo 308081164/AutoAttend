@@ -9,6 +9,7 @@
         <span v-if="username" class="app-username">{{ $t('app.adminLabel') }}：{{ username }}</span>
         <router-link v-if="username" to="/team" class="link-button">{{ $t('teamManage.navTitle') }}</router-link>
         <router-link v-if="username" to="/ai-config" class="link-button">{{ $t('aiConfig.navTitle') }}</router-link>
+        <router-link v-if="username" to="/quote" class="link-button">{{ $t('quote.navTitle') }}</router-link>
         <button v-if="username" class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </header>

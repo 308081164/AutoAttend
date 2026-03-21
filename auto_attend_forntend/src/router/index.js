@@ -9,6 +9,8 @@ import CollabTableView from '../views/CollabTableView.vue'
 import MemberHomeView from '../views/MemberHomeView.vue'
 import TeamManageView from '../views/TeamManageView.vue'
 import CommitAnalysisView from '../views/CommitAnalysisView.vue'
+import QuoteListView from '../views/QuoteListView.vue'
+import QuoteProjectView from '../views/QuoteProjectView.vue'
 
 Vue.use(VueRouter)
 
@@ -42,6 +44,16 @@ const routes = [
     path: '/ai-config',
     name: 'ai-config',
     component: AiConfigView
+  },
+  {
+    path: '/quote',
+    name: 'quote-list',
+    component: QuoteListView
+  },
+  {
+    path: '/quote/:id',
+    name: 'quote-project',
+    component: QuoteProjectView
   },
   {
     path: '/commit/:commitSha',
