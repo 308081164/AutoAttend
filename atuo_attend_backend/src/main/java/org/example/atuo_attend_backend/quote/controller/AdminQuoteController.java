@@ -143,14 +143,129 @@ public class AdminQuoteController {
         return ApiResponse.ok(baselineMapper.listAll());
     }
 
+    @PostMapping("/baselines")
+    public ApiResponse<Map<String, Object>> createBaseline(@RequestBody QuoteBaselineSaveDto body) {
+        try {
+            long id = quoteService.createBaseline(body);
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", id);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @PutMapping("/baselines/{id}")
+    public ApiResponse<Void> updateBaseline(@PathVariable long id, @RequestBody QuoteBaselineSaveDto body) {
+        try {
+            quoteService.updateBaseline(id, body);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/baselines/{id}")
+    public ApiResponse<Void> deleteBaseline(@PathVariable long id) {
+        try {
+            quoteService.deleteBaseline(id);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
     @GetMapping("/risk-config")
     public ApiResponse<List<Map<String, Object>>> riskConfig() {
         return ApiResponse.ok(riskConfigMapper.listAll());
     }
 
+    /** 批量更新风险系数（标签、百分比可为负、是否启用）；risk_key 不可改 */
+    @PutMapping("/risk-config")
+    public ApiResponse<Void> updateRiskConfig(@RequestBody QuoteRiskConfigBatchUpdate body) {
+        try {
+            quoteService.updateRiskConfigs(body);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @GetMapping("/preset-items")
+    public ApiResponse<List<Map<String, Object>>> listPresetItems(
+            @RequestParam(value = "all", defaultValue = "false") boolean all) {
+        return ApiResponse.ok(quoteService.listPresetItems(all));
+    }
+
+    @PostMapping("/preset-items")
+    public ApiResponse<Map<String, Object>> createPresetItem(@RequestBody QuotePresetItemSaveDto body) {
+        try {
+            long id = quoteService.createPresetItem(body);
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", id);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @PutMapping("/preset-items/{id}")
+    public ApiResponse<Void> updatePresetItem(@PathVariable long id, @RequestBody QuotePresetItemSaveDto body) {
+        try {
+            quoteService.updatePresetItem(id, body);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/preset-items/{id}")
+    public ApiResponse<Void> deletePresetItem(@PathVariable long id) {
+        try {
+            quoteService.deletePresetItem(id);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    /** 报价页下拉默认仅启用项；管理页传 all=true */
     @GetMapping("/price-config")
-    public ApiResponse<List<Map<String, Object>>> priceConfig() {
-        return ApiResponse.ok(priceConfigMapper.listEnabled());
+    public ApiResponse<List<Map<String, Object>>> priceConfig(
+            @RequestParam(value = "all", defaultValue = "false") boolean all) {
+        return ApiResponse.ok(all ? priceConfigMapper.listAll() : priceConfigMapper.listEnabled());
+    }
+
+    @PostMapping("/price-config")
+    public ApiResponse<Map<String, Object>> createPriceConfig(@RequestBody QuotePriceConfigSaveDto body) {
+        try {
+            long id = quoteService.createPriceConfig(body);
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", id);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @PutMapping("/price-config/{id}")
+    public ApiResponse<Void> updatePriceConfig(@PathVariable long id, @RequestBody QuotePriceConfigSaveDto body) {
+        try {
+            quoteService.updatePriceConfig(id, body);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/price-config/{id}")
+    public ApiResponse<Void> deletePriceConfig(@PathVariable long id) {
+        try {
+            quoteService.deletePriceConfig(id);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
     }
 
     @GetMapping("/projects/{id}/link-table-requirements")

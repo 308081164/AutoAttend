@@ -11,6 +11,7 @@ import TeamManageView from '../views/TeamManageView.vue'
 import CommitAnalysisView from '../views/CommitAnalysisView.vue'
 import QuoteListView from '../views/QuoteListView.vue'
 import QuoteProjectView from '../views/QuoteProjectView.vue'
+import QuoteBaselinePriceView from '../views/QuoteBaselinePriceView.vue'
 
 Vue.use(VueRouter)
 
@@ -49,6 +50,11 @@ const routes = [
     path: '/quote',
     name: 'quote-list',
     component: QuoteListView
+  },
+  {
+    path: '/quote/baseline-price',
+    name: 'quote-baseline-price',
+    component: QuoteBaselinePriceView
   },
   {
     path: '/quote/:id',

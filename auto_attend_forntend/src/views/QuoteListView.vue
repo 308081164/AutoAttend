@@ -3,7 +3,10 @@
     <div class="page-head">
       <h1>{{ $t('quote.listTitle') }}</h1>
       <p class="desc">{{ $t('quote.listDesc') }}</p>
-      <router-link to="/quote/new" class="primary-button">{{ $t('quote.newProject') }}</router-link>
+      <div class="head-actions">
+        <router-link to="/quote/baseline-price" class="secondary-button">{{ $t('quote.baselinePriceNav') }}</router-link>
+        <router-link to="/quote/new" class="primary-button">{{ $t('quote.newProject') }}</router-link>
+      </div>
     </div>
     <div v-if="loading" class="placeholder">{{ $t('quote.loading') }}</div>
     <div v-else-if="!items.length" class="placeholder">{{ $t('quote.emptyList') }}</div>
@@ -65,9 +68,14 @@ export default {
 .page-head { margin-bottom: 20px; }
 .page-head h1 { margin: 0 0 8px; font-size: 22px; }
 .desc { color: #6b7280; font-size: 14px; margin-bottom: 12px; }
+.head-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
 .primary-button {
   display: inline-block; padding: 8px 16px; background: #2563eb; color: #fff;
   border-radius: 6px; text-decoration: none; font-size: 14px;
+}
+.secondary-button {
+  display: inline-block; padding: 8px 16px; background: #f3f4f6; color: #111;
+  border-radius: 6px; text-decoration: none; font-size: 14px; border: 1px solid #e5e7eb;
 }
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }

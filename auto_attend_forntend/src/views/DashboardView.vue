@@ -5,6 +5,7 @@
         <router-link to="/team" class="link-button">{{ $t('teamManage.navTitle') }}</router-link>
         <router-link to="/ai-config" class="link-button">{{ $t('aiConfig.navTitle') }}</router-link>
         <router-link to="/quote" class="link-button">{{ $t('quote.navTitle') }}</router-link>
+        <router-link to="/quote/baseline-price" class="link-button subtle">{{ $t('quote.baselinePriceNav') }}</router-link>
         <router-link to="/test" class="link-button test-entry">{{ $t('test.title') }}</router-link>
         <router-link to="/collab/projects" class="link-button collab-entry">{{ $t('dashboard.collabEntry') }}</router-link>
         <div class="repo-filter">
@@ -1112,6 +1113,11 @@ export default {
 
 .link-button:hover {
   text-decoration: underline;
+}
+
+.link-button.subtle {
+  color: #64748b;
+  font-size: 12px;
 }
 
 .placeholder {

@@ -30,14 +30,19 @@ public class QuoteService {
     private final QuoteResultMapper resultMapper;
     private final QuoteDocumentMapper documentMapper;
     private final QuoteContractDraftMapper contractDraftMapper;
+    private final QuotePresetItemMapper presetItemMapper;
     private final AiAnalysisConfigService aiConfigService;
     private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final BigDecimal RISK_PCT_MIN = new BigDecimal("-50");
+    private static final BigDecimal RISK_PCT_MAX = new BigDecimal("150");
 
     public QuoteService(QuoteProjectMapper projectMapper, QuoteModuleMapper moduleMapper, QuoteItemMapper itemMapper,
                         QuoteBaselineMapper baselineMapper, QuoteRiskConfigMapper riskConfigMapper,
                         QuotePriceConfigMapper priceConfigMapper, QuoteResultMapper resultMapper,
                         QuoteDocumentMapper documentMapper, QuoteContractDraftMapper contractDraftMapper,
+                        QuotePresetItemMapper presetItemMapper,
                         AiAnalysisConfigService aiConfigService, DeepSeekClient deepSeekClient) {
         this.projectMapper = projectMapper;
         this.moduleMapper = moduleMapper;
@@ -48,6 +53,7 @@ public class QuoteService {
         this.resultMapper = resultMapper;
         this.documentMapper = documentMapper;
         this.contractDraftMapper = contractDraftMapper;
+        this.presetItemMapper = presetItemMapper;
         this.aiConfigService = aiConfigService;
         this.deepSeekClient = deepSeekClient;
     }
@@ -222,6 +228,9 @@ public class QuoteService {
         BigDecimal riskAmount = finalAmount.subtract(baseAmount).setScale(2, RoundingMode.HALF_UP);
         int confidence = computeConfidence(p, modules, totalDays);
         List<String> hints = buildRiskHints(confidence, req.getAuditChecklist());
+        if (req.getRiskKeys() != null && req.getRiskKeys().contains("standard_cycle") && req.isUrgencyRush()) {
+            hints.add(0, "已同时勾选「标准交付周期（降价）」与「加急」，逻辑上可能矛盾，请人工复核最终报价。");
+        }
         QuoteResult r = new QuoteResult();
         r.setQuoteProjectId(projectId);
         r.setTotalDays(totalDays);
@@ -468,5 +477,199 @@ public class QuoteService {
         m.put("regionLabelUsed", r.getRegionLabelUsed());
         m.put("createdAt", r.getCreatedAt());
         return m;
+    }
+
+    public List<Map<String, Object>> listPresetItems(boolean includeDisabled) {
+        List<QuotePresetItem> list = includeDisabled ? presetItemMapper.listAll() : presetItemMapper.listEnabled();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (QuotePresetItem it : list) {
+            out.add(presetItemToMap(it));
+        }
+        return out;
+    }
+
+    private Map<String, Object> presetItemToMap(QuotePresetItem it) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", it.getId());
+        m.put("name", it.getName());
+        m.put("complexity", it.getComplexity());
+        m.put("category", it.getCategory());
+        m.put("sortOrder", it.getSortOrder());
+        m.put("enabled", Boolean.TRUE.equals(it.getEnabled()));
+        m.put("createdAt", it.getCreatedAt());
+        m.put("updatedAt", it.getUpdatedAt());
+        return m;
+    }
+
+    @Transactional
+    public long createPresetItem(QuotePresetItemSaveDto dto) {
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            throw new IllegalArgumentException("预设功能点名称不能为空");
+        }
+        QuotePresetItem row = new QuotePresetItem();
+        row.setName(dto.getName().trim());
+        row.setComplexity(nvl(dto.getComplexity(), "standard"));
+        row.setCategory(dto.getCategory() != null && !dto.getCategory().isBlank() ? dto.getCategory().trim() : null);
+        row.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
+        row.setEnabled(dto.getEnabled() == null || dto.getEnabled());
+        presetItemMapper.insert(row);
+        return row.getId();
+    }
+
+    @Transactional
+    public void updatePresetItem(long id, QuotePresetItemSaveDto dto) {
+        QuotePresetItem existing = presetItemMapper.findById(id);
+        if (existing == null) throw new IllegalArgumentException("预设项不存在");
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            throw new IllegalArgumentException("预设功能点名称不能为空");
+        }
+        existing.setName(dto.getName().trim());
+        existing.setComplexity(nvl(dto.getComplexity(), "standard"));
+        existing.setCategory(dto.getCategory() != null && !dto.getCategory().isBlank() ? dto.getCategory().trim() : null);
+        if (dto.getSortOrder() != null) existing.setSortOrder(dto.getSortOrder());
+        if (dto.getEnabled() != null) existing.setEnabled(dto.getEnabled());
+        presetItemMapper.update(existing);
+    }
+
+    @Transactional
+    public void deletePresetItem(long id) {
+        if (presetItemMapper.findById(id) == null) throw new IllegalArgumentException("预设项不存在");
+        presetItemMapper.deleteById(id);
+    }
+
+    @Transactional
+    public void updateRiskConfigs(QuoteRiskConfigBatchUpdate batch) {
+        if (batch.getItems() == null || batch.getItems().isEmpty()) {
+            throw new IllegalArgumentException("请至少提交一条风险配置");
+        }
+        for (QuoteRiskConfigUpdateItem it : batch.getItems()) {
+            if (it.getId() == null) throw new IllegalArgumentException("风险配置 id 不能为空");
+            if (riskConfigMapper.countById(it.getId()) == 0) throw new IllegalArgumentException("无效的风险配置 id: " + it.getId());
+            if (it.getLabel() == null || it.getLabel().isBlank()) throw new IllegalArgumentException("风险项名称不能为空");
+            BigDecimal pct = it.getDefaultPct() != null ? it.getDefaultPct() : BigDecimal.ZERO;
+            if (pct.compareTo(RISK_PCT_MIN) < 0 || pct.compareTo(RISK_PCT_MAX) > 0) {
+                throw new IllegalArgumentException("风险百分比需在 " + RISK_PCT_MIN + "～" + RISK_PCT_MAX + " 之间（可为负表示降价）");
+            }
+            int en = Boolean.TRUE.equals(it.getEnabled()) ? 1 : 0;
+            riskConfigMapper.updateRow(it.getId(), it.getLabel().trim(), pct.setScale(2, RoundingMode.HALF_UP), en);
+        }
+    }
+
+    private static boolean mapRowEnabled(Map<String, Object> m) {
+        if (m == null) return false;
+        Object o = m.get("enabled");
+        return Boolean.TRUE.equals(o) || (o instanceof Number && ((Number) o).intValue() == 1);
+    }
+
+    private void validateBaselineDays(BigDecimal d) {
+        if (d == null) throw new IllegalArgumentException("人天数不能为空");
+        if (d.compareTo(new BigDecimal("0.01")) < 0 || d.compareTo(new BigDecimal("999.99")) > 0) {
+            throw new IllegalArgumentException("人天需在 0.01～999.99 之间");
+        }
+    }
+
+    @Transactional
+    public long createBaseline(QuoteBaselineSaveDto dto) {
+        String ts = dto.getTechStack() != null ? dto.getTechStack().trim() : "";
+        String cx = dto.getComplexity() != null ? dto.getComplexity().trim() : "";
+        if (ts.isEmpty()) throw new IllegalArgumentException("技术栈不能为空");
+        if (cx.isEmpty()) throw new IllegalArgumentException("复杂度不能为空");
+        validateBaselineDays(dto.getDays());
+        if (baselineMapper.countByStackAndComplexity(ts, cx) > 0) {
+            throw new IllegalArgumentException("该技术栈与复杂度组合已存在");
+        }
+        QuoteBaseline row = new QuoteBaseline();
+        row.setTechStack(ts);
+        row.setComplexity(cx);
+        row.setDays(dto.getDays().setScale(2, RoundingMode.HALF_UP));
+        baselineMapper.insert(row);
+        return row.getId();
+    }
+
+    @Transactional
+    public void updateBaseline(long id, QuoteBaselineSaveDto dto) {
+        if (baselineMapper.findById(id) == null) throw new IllegalArgumentException("人天基准不存在");
+        String ts = dto.getTechStack() != null ? dto.getTechStack().trim() : "";
+        String cx = dto.getComplexity() != null ? dto.getComplexity().trim() : "";
+        if (ts.isEmpty()) throw new IllegalArgumentException("技术栈不能为空");
+        if (cx.isEmpty()) throw new IllegalArgumentException("复杂度不能为空");
+        validateBaselineDays(dto.getDays());
+        if (baselineMapper.countByStackAndComplexityExcluding(ts, cx, id) > 0) {
+            throw new IllegalArgumentException("该技术栈与复杂度组合已被其他行占用");
+        }
+        QuoteBaseline row = new QuoteBaseline();
+        row.setId(id);
+        row.setTechStack(ts);
+        row.setComplexity(cx);
+        row.setDays(dto.getDays().setScale(2, RoundingMode.HALF_UP));
+        baselineMapper.update(row);
+    }
+
+    @Transactional
+    public void deleteBaseline(long id) {
+        if (baselineMapper.findById(id) == null) throw new IllegalArgumentException("人天基准不存在");
+        baselineMapper.deleteById(id);
+    }
+
+    private void validatePricePerDay(BigDecimal p) {
+        if (p == null) throw new IllegalArgumentException("单价不能为空");
+        if (p.compareTo(new BigDecimal("1")) < 0 || p.compareTo(new BigDecimal("999999.99")) > 0) {
+            throw new IllegalArgumentException("人天单价需在 1～999999.99 之间");
+        }
+    }
+
+    @Transactional
+    public long createPriceConfig(QuotePriceConfigSaveDto dto) {
+        String rl = dto.getRegionLabel() != null ? dto.getRegionLabel().trim() : "";
+        if (rl.isEmpty()) throw new IllegalArgumentException("地域/档位名称不能为空");
+        validatePricePerDay(dto.getPricePerDay());
+        if (priceConfigMapper.countByRegionLabel(rl) > 0) {
+            throw new IllegalArgumentException("该档位名称已存在");
+        }
+        QuotePriceConfigRow row = new QuotePriceConfigRow();
+        row.setRegionLabel(rl);
+        row.setPricePerDay(dto.getPricePerDay().setScale(2, RoundingMode.HALF_UP));
+        String cur = dto.getCurrency() != null && !dto.getCurrency().isBlank() ? dto.getCurrency().trim().toUpperCase() : "CNY";
+        if (cur.length() > 8) throw new IllegalArgumentException("币种代码过长");
+        row.setCurrency(cur);
+        row.setEnabled(dto.getEnabled() == null || dto.getEnabled());
+        priceConfigMapper.insert(row);
+        return row.getId();
+    }
+
+    @Transactional
+    public void updatePriceConfig(long id, QuotePriceConfigSaveDto dto) {
+        Map<String, Object> cur = priceConfigMapper.findById(id);
+        if (cur == null) throw new IllegalArgumentException("单价配置不存在");
+        String rl = dto.getRegionLabel() != null ? dto.getRegionLabel().trim() : "";
+        if (rl.isEmpty()) throw new IllegalArgumentException("地域/档位名称不能为空");
+        validatePricePerDay(dto.getPricePerDay());
+        if (priceConfigMapper.countByRegionLabelExcluding(rl, id) > 0) {
+            throw new IllegalArgumentException("该档位名称已被其他行占用");
+        }
+        boolean wasEn = mapRowEnabled(cur);
+        boolean newEn = dto.getEnabled() == null || dto.getEnabled();
+        if (wasEn && !newEn && priceConfigMapper.countEnabled() <= 1) {
+            throw new IllegalArgumentException("至少保留一条启用的单价档位");
+        }
+        QuotePriceConfigRow row = new QuotePriceConfigRow();
+        row.setId(id);
+        row.setRegionLabel(rl);
+        row.setPricePerDay(dto.getPricePerDay().setScale(2, RoundingMode.HALF_UP));
+        String curc = dto.getCurrency() != null && !dto.getCurrency().isBlank() ? dto.getCurrency().trim().toUpperCase() : "CNY";
+        if (curc.length() > 8) throw new IllegalArgumentException("币种代码过长");
+        row.setCurrency(curc);
+        row.setEnabled(newEn);
+        priceConfigMapper.update(row);
+    }
+
+    @Transactional
+    public void deletePriceConfig(long id) {
+        Map<String, Object> cur = priceConfigMapper.findById(id);
+        if (cur == null) throw new IllegalArgumentException("单价配置不存在");
+        if (mapRowEnabled(cur) && priceConfigMapper.countEnabled() <= 1) {
+            throw new IllegalArgumentException("至少保留一条启用的单价档位，无法删除");
+        }
+        priceConfigMapper.deleteById(id);
     }
 }

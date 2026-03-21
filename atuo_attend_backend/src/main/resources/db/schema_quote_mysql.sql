@@ -122,6 +122,18 @@ CREATE TABLE IF NOT EXISTS biz_quote_actual (
     CONSTRAINT fk_quote_actual_project FOREIGN KEY (quote_project_id) REFERENCES biz_quote_project (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS biz_quote_preset_item (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(512) NOT NULL,
+    complexity VARCHAR(32) NOT NULL DEFAULT 'standard',
+    category VARCHAR(128) NULL COMMENT '分组/模块建议',
+    sort_order INT NOT NULL DEFAULT 0,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_enabled_sort (enabled, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 人天基准（与设计文档附录一致，可按团队调整）
 INSERT INTO biz_quote_baseline (tech_stack, complexity, days) VALUES
 ('vue_node', 'simple', 0.5), ('vue_node', 'standard', 1.5), ('vue_node', 'medium', 3), ('vue_node', 'complex', 6), ('vue_node', 'extreme', 10),
@@ -136,6 +148,7 @@ INSERT INTO biz_quote_risk_config (risk_key, label, default_pct, enabled) VALUES
 ('tech_risk', '技术风险（新技术/预研）', 12, 1),
 ('communication', '沟通成本（异地/非技术客户）', 8, 1),
 ('maintenance', '维护预留', 12, 1),
+('standard_cycle', '标准交付周期（非加急）', -10, 1),
 ('urgency_rush', '加急', 25, 1)
 ON DUPLICATE KEY UPDATE label = VALUES(label), default_pct = VALUES(default_pct);
 
@@ -143,3 +156,14 @@ INSERT INTO biz_quote_price_config (region_label, price_per_day, currency, enabl
 ('一线/新一线（参考）', 1800.00, 'CNY', 1),
 ('二线及其他（参考）', 1200.00, 'CNY', 1)
 ON DUPLICATE KEY UPDATE price_per_day = VALUES(price_per_day);
+
+INSERT INTO biz_quote_preset_item (name, complexity, category, sort_order, enabled) VALUES
+('手机号验证码登录', 'standard', '用户与认证', 10, 1),
+('微信 OAuth / 一键登录', 'medium', '用户与认证', 20, 1),
+('用户注册与个人中心', 'standard', '用户与认证', 30, 1),
+('商品列表与详情（含 SKU）', 'standard', '电商', 40, 1),
+('购物车与下单', 'medium', '电商', 50, 1),
+('订单管理与支付对接', 'complex', '电商', 60, 1),
+('后台权限与角色（RBAC）', 'medium', '管理后台', 70, 1),
+('数据报表与导出', 'standard', '管理后台', 80, 1),
+('第三方接口对接（通用）', 'complex', '集成', 90, 1);
