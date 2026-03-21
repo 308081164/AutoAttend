@@ -163,7 +163,8 @@ public class AdminAiAnalysisController {
     }
 
     /**
-     * 手动触发生成指定业务日的总结（默认昨天）；可限定单个仓库。需已开启 dailySummaryEnabled 且配置 API Key。
+     * 手动触发生成指定业务日的总结（默认昨天）；可限定单个仓库。
+     * 仅需配置 DeepSeek API Key；不要求开启「每日总结」开关（与定时任务开关独立）。
      */
     @PostMapping("/daily-summary/run")
     public ApiResponse<Map<String, Object>> runDailySummary(

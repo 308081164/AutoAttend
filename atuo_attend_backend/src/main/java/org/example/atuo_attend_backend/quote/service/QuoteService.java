@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.quote.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
@@ -74,6 +76,9 @@ public class QuoteService {
         if (existing == null) throw new IllegalArgumentException("项目不存在");
         QuoteProject p = toProject(dto);
         p.setId(id);
+        if (dto.getQuoteCalcPrefs() == null) {
+            p.setQuoteCalcPrefsJson(existing.getQuoteCalcPrefsJson());
+        }
         projectMapper.update(p);
         moduleMapper.deleteByProjectId(id);
         saveModules(id, dto.getModules());
@@ -92,7 +97,18 @@ public class QuoteService {
         p.setStatus(nvl(dto.getStatus(), "draft"));
         p.setLinkTableId(dto.getLinkTableId());
         p.setPrdSummary(dto.getPrdSummary());
+        if (dto.getQuoteCalcPrefs() != null && !dto.getQuoteCalcPrefs().isEmpty()) {
+            applyQuoteCalcPrefsMapToEntity(p, dto.getQuoteCalcPrefs());
+        }
         return p;
+    }
+
+    private void applyQuoteCalcPrefsMapToEntity(QuoteProject p, Map<String, Object> prefs) {
+        try {
+            p.setQuoteCalcPrefsJson(objectMapper.writeValueAsString(prefs));
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("quoteCalcPrefs 无法序列化");
+        }
     }
 
     private static String nvl(String v, String d) {
@@ -149,8 +165,87 @@ public class QuoteService {
         }
         out.put("modules", moduleList);
         QuoteResult latest = resultMapper.findLatestByProjectId(id);
+        Map<String, Object> calcPrefs = parseQuoteCalcPrefsJson(p.getQuoteCalcPrefsJson());
+        if (calcPrefs == null && latest != null) {
+            calcPrefs = inferQuoteCalcPrefsFromLatestResult(latest);
+        }
+        if (calcPrefs != null) {
+            out.put("quoteCalcPrefs", calcPrefs);
+        }
         if (latest != null) out.put("latestResult", resultToMap(latest));
         return out;
+    }
+
+    private Map<String, Object> parseQuoteCalcPrefsJson(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Map<String, Object> inferQuoteCalcPrefsFromLatestResult(QuoteResult latest) {
+        try {
+            Map<String, Object> m = new LinkedHashMap<>();
+            List<String> applied = objectMapper.readValue(
+                    latest.getSelectedRisksJson() != null ? latest.getSelectedRisksJson() : "[]",
+                    new TypeReference<List<String>>() {});
+            List<String> riskKeys = new ArrayList<>();
+            boolean rush = false;
+            if (applied != null) {
+                for (String k : applied) {
+                    if ("urgency_rush".equals(k)) rush = true;
+                    else riskKeys.add(k);
+                }
+            }
+            m.put("riskKeys", riskKeys);
+            m.put("urgencyRush", rush);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> auditRaw = objectMapper.readValue(
+                    latest.getAuditChecklistJson() != null ? latest.getAuditChecklistJson() : "{}",
+                    new TypeReference<Map<String, Object>>() {});
+            m.put("auditChecklist", auditRaw != null ? auditRaw : Map.of());
+            m.put("priceConfigId", guessPriceConfigId(latest.getPricePerDayUsed(), latest.getRegionLabelUsed()));
+            return m;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Long guessPriceConfigId(BigDecimal pricePerDay, String regionLabel) {
+        if (pricePerDay == null) return null;
+        for (Map<String, Object> row : priceConfigMapper.listAll()) {
+            BigDecimal pd = toBd(row.get("pricePerDay"));
+            String label = Objects.toString(row.get("regionLabel"), "");
+            if (pd.compareTo(pricePerDay) == 0 && (regionLabel == null || regionLabel.equals(label))) {
+                Object oid = row.get("id");
+                if (oid instanceof Number) return ((Number) oid).longValue();
+            }
+        }
+        return null;
+    }
+
+    @Transactional
+    public void saveQuoteCalcPrefs(long projectId, QuoteCalculateRequest req) {
+        if (req == null) req = new QuoteCalculateRequest();
+        QuoteProject existing = projectMapper.findById(projectId);
+        if (existing == null) throw new IllegalArgumentException("项目不存在");
+        try {
+            String json = objectMapper.writeValueAsString(buildQuoteCalcPrefsMap(req));
+            projectMapper.updateQuoteCalcPrefs(projectId, json);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法序列化报价偏好");
+        }
+    }
+
+    private Map<String, Object> buildQuoteCalcPrefsMap(QuoteCalculateRequest req) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("riskKeys", req.getRiskKeys() != null ? new ArrayList<>(req.getRiskKeys()) : new ArrayList<String>());
+        map.put("urgencyRush", req.isUrgencyRush());
+        map.put("priceConfigId", req.getPriceConfigId());
+        map.put("auditChecklist", req.getAuditChecklist() != null ? new LinkedHashMap<>(req.getAuditChecklist()) : Map.of());
+        return map;
     }
 
     public Map<String, Object> listProjects(int page, int pageSize) {
@@ -244,6 +339,11 @@ public class QuoteService {
         r.setPricePerDayUsed(pricePerDay);
         r.setRegionLabelUsed(regionLabel);
         resultMapper.insert(r);
+        try {
+            projectMapper.updateQuoteCalcPrefs(projectId, objectMapper.writeValueAsString(buildQuoteCalcPrefsMap(req)));
+        } catch (Exception ignored) {
+            // 不因偏好落库失败影响报价结果
+        }
         Map<String, Object> data = resultToMap(r);
         data.put("riskHints", hints);
         data.put("confidenceLevel", confidenceLevel(confidence));

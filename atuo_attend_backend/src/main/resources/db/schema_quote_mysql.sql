@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS biz_quote_project (
     status VARCHAR(32) NOT NULL DEFAULT 'draft',
     link_table_id BIGINT NULL COMMENT '可选关联多维表项目',
     prd_summary TEXT NULL COMMENT 'PRD/需求摘要，用于置信度',
+    quote_calc_prefs_json TEXT NULL COMMENT '报价计算与审核清单偏好(JSON)',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_updated (updated_at)

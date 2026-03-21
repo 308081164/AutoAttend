@@ -15,6 +15,8 @@ public class QuoteProject {
     private String status;
     private Long linkTableId;
     private String prdSummary;
+    /** JSON：riskKeys、urgencyRush、priceConfigId、auditChecklist */
+    private String quoteCalcPrefsJson;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -42,6 +44,8 @@ public class QuoteProject {
     public void setLinkTableId(Long linkTableId) { this.linkTableId = linkTableId; }
     public String getPrdSummary() { return prdSummary; }
     public void setPrdSummary(String prdSummary) { this.prdSummary = prdSummary; }
+    public String getQuoteCalcPrefsJson() { return quoteCalcPrefsJson; }
+    public void setQuoteCalcPrefsJson(String quoteCalcPrefsJson) { this.quoteCalcPrefsJson = quoteCalcPrefsJson; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

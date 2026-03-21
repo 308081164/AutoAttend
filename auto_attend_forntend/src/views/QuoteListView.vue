@@ -4,7 +4,7 @@
       <h1>{{ $t('quote.listTitle') }}</h1>
       <p class="desc">{{ $t('quote.listDesc') }}</p>
       <div class="head-actions">
-        <router-link to="/quote/baseline-price" class="secondary-button">{{ $t('quote.baselinePriceNav') }}</router-link>
+        <router-link to="/quote/config" class="secondary-button">{{ $t('quote.quoteConfigNav') }}</router-link>
         <router-link to="/quote/new" class="primary-button">{{ $t('quote.newProject') }}</router-link>
       </div>
     </div>

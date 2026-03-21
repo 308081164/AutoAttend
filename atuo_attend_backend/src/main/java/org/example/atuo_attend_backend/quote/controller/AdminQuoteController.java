@@ -74,6 +74,19 @@ public class AdminQuoteController {
         }
     }
 
+    /** 仅更新报价计算勾选与审核清单（自动保存，避免用户未点「保存项目」时丢失） */
+    @PatchMapping("/projects/{id}/calc-prefs")
+    public ApiResponse<Void> patchQuoteCalcPrefs(@PathVariable long id, @RequestBody(required = false) QuoteCalculateRequest body) {
+        try {
+            quoteService.saveQuoteCalcPrefs(id, body);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
+    }
+
     @PostMapping("/projects/{id}/calculate")
     public ApiResponse<Map<String, Object>> calculate(@PathVariable long id, @RequestBody(required = false) QuoteCalculateRequest req) {
         if (req == null) req = new QuoteCalculateRequest();

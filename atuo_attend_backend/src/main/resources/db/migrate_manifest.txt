@@ -9,3 +9,4 @@ schema_system_config_migration.sql
 schema_ai_analysis_result_main_area_migration.sql
 schema_ai_daily_summary_migration.sql
 schema_quote_preset_risk_custom_migration.sql
+schema_quote_calc_prefs_migration.sql

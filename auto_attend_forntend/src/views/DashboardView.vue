@@ -5,7 +5,7 @@
         <router-link to="/team" class="link-button">{{ $t('teamManage.navTitle') }}</router-link>
         <router-link to="/ai-config" class="link-button">{{ $t('aiConfig.navTitle') }}</router-link>
         <router-link to="/quote" class="link-button">{{ $t('quote.navTitle') }}</router-link>
-        <router-link to="/quote/baseline-price" class="link-button subtle">{{ $t('quote.baselinePriceNav') }}</router-link>
+        <router-link to="/quote/config" class="link-button subtle">{{ $t('quote.quoteConfigNav') }}</router-link>
         <router-link to="/test" class="link-button test-entry">{{ $t('test.title') }}</router-link>
         <router-link to="/collab/projects" class="link-button collab-entry">{{ $t('dashboard.collabEntry') }}</router-link>
         <div class="repo-filter">
@@ -90,9 +90,26 @@
     <section class="section" v-if="selectedRepo">
       <div class="section-header">
         <h2 class="section-title">{{ $t('dashboard.dailySummaryTitle') }}</h2>
-        <button type="button" class="link-button" @click="loadDailySummaries" :disabled="dailySummaryLoading">{{ $t('dashboard.refresh') }}</button>
+        <div class="daily-summary-toolbar">
+          <button type="button" class="link-button primary-action" @click="runDailySummaryForRepo" :disabled="dailySummaryRunLoading || dailySummaryLoading">
+            {{ dailySummaryRunLoading ? '…' : $t('dashboard.dailySummaryGenerateYesterday') }}
+          </button>
+          <button type="button" class="link-button" @click="loadDailySummaries" :disabled="dailySummaryLoading">{{ $t('dashboard.refresh') }}</button>
+        </div>
       </div>
       <p class="daily-summary-desc">{{ $t('dashboard.dailySummaryDesc') }}</p>
+      <p v-if="dailySummaryRunMessage" :class="dailySummaryRunOk ? 'daily-summary-feedback ok' : 'daily-summary-feedback err'">{{ dailySummaryRunMessage }}</p>
+      <div class="daily-summary-history-head">
+        <h3 class="daily-summary-subtitle">{{ $t('dashboard.dailySummaryHistoryTitle') }}</h3>
+        <label class="page-size-label">
+          {{ $t('dashboard.commitsPerPage') }}
+          <select v-model.number="dailySummaryPageSize" class="page-size-select" @change="onDailySummaryPageSizeChange">
+            <option :value="10">10</option>
+            <option :value="20">20</option>
+            <option :value="50">50</option>
+          </select>
+        </label>
+      </div>
       <div v-if="dailySummaryLoading" class="placeholder">{{ $t('collab.loading') }}</div>
       <ul v-else-if="dailySummaries.length" class="daily-summary-list">
         <li v-for="s in dailySummaries" :key="s.id" class="daily-summary-item" @click="openDailySummaryDetail(s.id)">
@@ -102,6 +119,13 @@
         </li>
       </ul>
       <div v-else class="placeholder">{{ $t('dashboard.dailySummaryEmpty') }}</div>
+      <div v-if="dailySummaryTotal > 0" class="commits-pagination daily-summary-pagination">
+        <span class="page-info">{{ $t('dashboard.pageInfo', { total: dailySummaryTotal, page: dailySummaryPage, pages: dailySummaryTotalPages }) }}</span>
+        <div class="page-buttons">
+          <button type="button" class="link-button page-btn" :disabled="dailySummaryLoading || dailySummaryPage <= 1" @click="goDailySummaryPrev">{{ $t('dashboard.pagePrev') }}</button>
+          <button type="button" class="link-button page-btn" :disabled="dailySummaryLoading || dailySummaryPage >= dailySummaryTotalPages" @click="goDailySummaryNext">{{ $t('dashboard.pageNext') }}</button>
+        </div>
+      </div>
     </section>
 
     <!-- 最近提交表格（分页） -->
@@ -306,6 +330,12 @@ export default {
       repoInfoLoading: false,
       dailySummaries: [],
       dailySummaryLoading: false,
+      dailySummaryPage: 1,
+      dailySummaryPageSize: 10,
+      dailySummaryTotal: 0,
+      dailySummaryRunLoading: false,
+      dailySummaryRunMessage: '',
+      dailySummaryRunOk: false,
       dailySummaryDetail: null,
       dailyDetailLoading: false
     }
@@ -357,6 +387,10 @@ export default {
     commitsTotalPages () {
       if (!this.commitsTotal || !this.commitsPageSize) return 1
       return Math.max(1, Math.ceil(this.commitsTotal / this.commitsPageSize))
+    },
+    dailySummaryTotalPages () {
+      if (!this.dailySummaryTotal || !this.dailySummaryPageSize) return 1
+      return Math.max(1, Math.ceil(this.dailySummaryTotal / this.dailySummaryPageSize))
     },
     diffHtml () {
       if (!this.diffText) return ''
@@ -527,7 +561,10 @@ export default {
     },
     onRepoChange () {
       this.commitsPage = 1
+      this.dailySummaryPage = 1
       this.dailySummaries = []
+      this.dailySummaryTotal = 0
+      this.dailySummaryRunMessage = ''
       this.dailySummaryDetail = null
       this.loadDashboard()
       this.loadCommits()
@@ -605,23 +642,78 @@ export default {
     async loadDailySummaries () {
       if (!this.selectedRepo) {
         this.dailySummaries = []
+        this.dailySummaryTotal = 0
         return
       }
       this.dailySummaryLoading = true
       try {
         const resp = await this.$http.get('/admin/ai-analysis/daily-summaries', {
-          params: { repoFullName: this.selectedRepo, page: 1, pageSize: 14 }
+          params: {
+            repoFullName: this.selectedRepo,
+            page: this.dailySummaryPage,
+            pageSize: this.dailySummaryPageSize
+          }
         })
         const d = resp.data && resp.data.data
         if (resp.data && resp.data.code === 0 && d && Array.isArray(d.items)) {
           this.dailySummaries = d.items
+          const t = d.total != null ? Number(d.total) : 0
+          this.dailySummaryTotal = t
+          const tp = Math.max(1, Math.ceil(t / this.dailySummaryPageSize))
+          if (t > 0 && this.dailySummaryPage > tp) {
+            this.dailySummaryPage = tp
+            await this.loadDailySummaries()
+            return
+          }
         } else {
           this.dailySummaries = []
+          this.dailySummaryTotal = 0
         }
       } catch (e) {
         this.dailySummaries = []
+        this.dailySummaryTotal = 0
       } finally {
         this.dailySummaryLoading = false
+      }
+    },
+    onDailySummaryPageSizeChange () {
+      this.dailySummaryPage = 1
+      this.loadDailySummaries()
+    },
+    goDailySummaryPrev () {
+      if (this.dailySummaryPage <= 1) return
+      this.dailySummaryPage -= 1
+      this.loadDailySummaries()
+    },
+    goDailySummaryNext () {
+      if (this.dailySummaryPage >= this.dailySummaryTotalPages) return
+      this.dailySummaryPage += 1
+      this.loadDailySummaries()
+    },
+    async runDailySummaryForRepo () {
+      if (!this.selectedRepo) return
+      this.dailySummaryRunLoading = true
+      this.dailySummaryRunMessage = ''
+      try {
+        const resp = await this.$http.post('/admin/ai-analysis/daily-summary/run', null, {
+          params: { repoFullName: this.selectedRepo }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const n = resp.data.data.reposProcessed != null ? resp.data.data.reposProcessed : 0
+          const d = resp.data.data.summaryDate || ''
+          this.dailySummaryRunOk = true
+          this.dailySummaryRunMessage = this.$t('aiConfig.runDailySummaryOk', { date: d, n })
+          this.dailySummaryPage = 1
+          await this.loadDailySummaries()
+        } else {
+          this.dailySummaryRunOk = false
+          this.dailySummaryRunMessage = (resp.data && resp.data.message) || this.$t('aiConfig.runDailySummaryFail')
+        }
+      } catch (e) {
+        this.dailySummaryRunOk = false
+        this.dailySummaryRunMessage = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.runDailySummaryFail')
+      } finally {
+        this.dailySummaryRunLoading = false
       }
     },
     async openDailySummaryDetail (id) {
@@ -1129,6 +1221,50 @@ export default {
   font-size: 13px;
   color: #6b7280;
   margin: 0 0 12px;
+}
+
+.daily-summary-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+}
+
+.link-button.primary-action {
+  font-weight: 600;
+}
+
+.daily-summary-feedback {
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.daily-summary-feedback.ok {
+  color: #059669;
+}
+
+.daily-summary-feedback.err {
+  color: #dc2626;
+}
+
+.daily-summary-history-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 10px;
+}
+
+.daily-summary-subtitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.daily-summary-pagination {
+  margin-top: 12px;
 }
 
 .daily-summary-list {

@@ -11,7 +11,7 @@ import TeamManageView from '../views/TeamManageView.vue'
 import CommitAnalysisView from '../views/CommitAnalysisView.vue'
 import QuoteListView from '../views/QuoteListView.vue'
 import QuoteProjectView from '../views/QuoteProjectView.vue'
-import QuoteBaselinePriceView from '../views/QuoteBaselinePriceView.vue'
+import QuoteConfigView from '../views/QuoteConfigView.vue'
 
 Vue.use(VueRouter)
 
@@ -52,9 +52,13 @@ const routes = [
     component: QuoteListView
   },
   {
+    path: '/quote/config',
+    name: 'quote-config',
+    component: QuoteConfigView
+  },
+  {
     path: '/quote/baseline-price',
-    name: 'quote-baseline-price',
-    component: QuoteBaselinePriceView
+    redirect: { name: 'quote-config' }
   },
   {
     path: '/quote/:id',
