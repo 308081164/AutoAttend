@@ -85,46 +85,66 @@
       </section>
     </div>
 
-    <!-- 最近提交表格 -->
-    <section class="section">
+    <!-- 最近提交表格（分页） -->
+    <section class="section commits-section">
       <div class="section-header">
         <h2 class="section-title">{{ $t('dashboard.recentCommits') }}</h2>
-        <button class="link-button" @click="loadCommits" :disabled="commitsLoading">{{ $t('dashboard.refresh') }}</button>
+        <div class="commits-toolbar">
+          <label class="page-size-label">
+            {{ $t('dashboard.commitsPerPage') }}
+            <select v-model.number="commitsPageSize" class="page-size-select" @change="onCommitsPageSizeChange">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+            </select>
+          </label>
+          <button type="button" class="link-button" @click="loadCommits" :disabled="commitsLoading">{{ $t('dashboard.refresh') }}</button>
+        </div>
       </div>
-      <div class="table-wrapper" v-if="commits.length">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ $t('dashboard.repo') }}</th>
-              <th>{{ $t('dashboard.commit') }}</th>
-              <th>{{ $t('dashboard.author') }}</th>
-              <th>{{ $t('dashboard.time') }}</th>
-              <th class="num">{{ $t('dashboard.filesChanged') }}</th>
-              <th class="num">{{ $t('dashboard.insertions') }}</th>
-              <th class="num">{{ $t('dashboard.deletions') }}</th>
-              <th>{{ $t('dashboard.message') }}</th>
-              <th>{{ $t('dashboard.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in commits" :key="item.commitSha">
-              <td>{{ item.repoFullName }}</td>
-              <td class="mono">{{ shortSha(item.commitSha) }}</td>
-              <td>{{ item.authorName || '-' }}</td>
-              <td>{{ formatTime(item.committedAt) }}</td>
-              <td class="num">{{ item.filesChanged != null ? item.filesChanged : '-' }}</td>
-              <td class="num add">{{ item.insertions != null ? item.insertions : '-' }}</td>
-              <td class="num del">{{ item.deletions != null ? item.deletions : '-' }}</td>
-              <td>{{ item.message }}</td>
-              <td>
-                <button class="link-button" @click="viewDiff(item)">{{ $t('dashboard.viewDiff') }}</button>
-                <router-link :to="commitAnalysisRoute(item)" class="link-button commit-analysis-link">{{ $t('dashboard.commitAnalysisBoard') }}</router-link>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-else class="placeholder">{{ $t('dashboard.noCommits') }}</div>
+      <div v-if="commitsLoading && !commits.length" class="placeholder">{{ $t('collab.loading') }}</div>
+      <template v-else>
+        <div class="table-wrapper commits-table-scroll" v-if="commits.length">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ $t('dashboard.repo') }}</th>
+                <th>{{ $t('dashboard.commit') }}</th>
+                <th>{{ $t('dashboard.author') }}</th>
+                <th>{{ $t('dashboard.time') }}</th>
+                <th class="num">{{ $t('dashboard.filesChanged') }}</th>
+                <th class="num">{{ $t('dashboard.insertions') }}</th>
+                <th class="num">{{ $t('dashboard.deletions') }}</th>
+                <th>{{ $t('dashboard.message') }}</th>
+                <th>{{ $t('dashboard.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in commits" :key="item.repoFullName + ':' + item.commitSha">
+                <td>{{ item.repoFullName }}</td>
+                <td class="mono">{{ shortSha(item.commitSha) }}</td>
+                <td>{{ item.authorName || '-' }}</td>
+                <td>{{ formatTime(item.committedAt) }}</td>
+                <td class="num">{{ item.filesChanged != null ? item.filesChanged : '-' }}</td>
+                <td class="num add">{{ item.insertions != null ? item.insertions : '-' }}</td>
+                <td class="num del">{{ item.deletions != null ? item.deletions : '-' }}</td>
+                <td>{{ item.message }}</td>
+                <td>
+                  <button class="link-button" @click="viewDiff(item)">{{ $t('dashboard.viewDiff') }}</button>
+                  <router-link :to="commitAnalysisRoute(item)" class="link-button commit-analysis-link">{{ $t('dashboard.commitAnalysisBoard') }}</router-link>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="placeholder">{{ $t('dashboard.noCommits') }}</div>
+        <div v-if="commitsTotal > 0" class="commits-pagination">
+          <span class="page-info">{{ $t('dashboard.pageInfo', { total: commitsTotal, page: commitsPage, pages: commitsTotalPages }) }}</span>
+          <div class="page-buttons">
+            <button type="button" class="link-button page-btn" :disabled="commitsLoading || commitsPage <= 1" @click="goCommitsPrev">{{ $t('dashboard.pagePrev') }}</button>
+            <button type="button" class="link-button page-btn" :disabled="commitsLoading || commitsPage >= commitsTotalPages" @click="goCommitsNext">{{ $t('dashboard.pageNext') }}</button>
+          </div>
+        </div>
+      </template>
     </section>
 
     <section class="section" v-if="authors.length">
@@ -231,6 +251,9 @@ export default {
       dashboard: null,
       commits: [],
       commitsLoading: false,
+      commitsPage: 1,
+      commitsPageSize: 10,
+      commitsTotal: 0,
       selectedCommit: null,
       diffText: '',
       diffMeta: null,
@@ -271,7 +294,10 @@ export default {
       else this.repoInfo = {}
     },
     commitsByDay () { this.renderTrendChart() },
-    authorsStats () { this.renderAuthorChart() }
+    authorsStats () { this.renderAuthorChart() },
+    '$route.query' () {
+      this.$nextTick(() => this.tryOpenCommitFromQuery())
+    }
   },
   computed: {
     developerListText () {
@@ -290,6 +316,10 @@ export default {
       const sha = this.selectedCommit.commitSha || ''
       if (!repo || !sha) return ''
       return `https://github.com/${repo}/commit/${sha}`
+    },
+    commitsTotalPages () {
+      if (!this.commitsTotal || !this.commitsPageSize) return 1
+      return Math.max(1, Math.ceil(this.commitsTotal / this.commitsPageSize))
     },
     diffHtml () {
       if (!this.diffText) return ''
@@ -456,6 +486,7 @@ export default {
       }
     },
     onRepoChange () {
+      this.commitsPage = 1
       this.loadDashboard()
       this.loadCommits()
       this.loadStatsOverview()
@@ -476,10 +507,6 @@ export default {
         if (!ok || !data) return
         this.dashboard = data
         this.authors = data.authors || []
-        // 以 dashboard 的 data.commits 为主数据源，确保表格有数据（/admin/commits 为 data.items，两套接口字段名不同）
-        if (data.commits && Array.isArray(data.commits)) {
-          this.commits = data.commits
-        }
       } catch (e) {
         console.error('loadDashboard failed', e)
       }
@@ -489,8 +516,8 @@ export default {
       try {
         const resp = await this.$http.get('/admin/commits', {
           params: {
-            page: 1,
-            pageSize: 50,
+            page: this.commitsPage,
+            pageSize: this.commitsPageSize,
             repoFullName: this.selectedRepo || undefined
           }
         })
@@ -501,12 +528,36 @@ export default {
         const list = (payload && payload.items) || d.items
         if (ok && Array.isArray(list)) {
           this.commits = list
+          const t = payload && payload.total != null ? payload.total : d.total
+          if (typeof t === 'number') this.commitsTotal = t
+          else if (t != null) this.commitsTotal = Number(t) || 0
+          else this.commitsTotal = 0
+          const tp = Math.max(1, Math.ceil(this.commitsTotal / this.commitsPageSize))
+          if (this.commitsTotal > 0 && this.commitsPage > tp) {
+            this.commitsPage = tp
+            await this.loadCommits()
+            return
+          }
         }
       } catch (e) {
         console.error('loadCommits failed', e)
       } finally {
         this.commitsLoading = false
       }
+    },
+    onCommitsPageSizeChange () {
+      this.commitsPage = 1
+      this.loadCommits()
+    },
+    goCommitsPrev () {
+      if (this.commitsPage <= 1) return
+      this.commitsPage -= 1
+      this.loadCommits()
+    },
+    goCommitsNext () {
+      if (this.commitsPage >= this.commitsTotalPages) return
+      this.commitsPage += 1
+      this.loadCommits()
     },
     isDiffPlaceholder (text) {
       return text && (text.indexOf('(Diff 暂不可用') !== -1 || text.indexOf('(Diff will be') !== -1)
@@ -525,9 +576,24 @@ export default {
     },
     tryOpenCommitFromQuery () {
       const q = this.$route.query
-      if (!q || !q.commitSha || !q.repoFullName || !this.commits.length) return
+      if (!q || !q.commitSha || !q.repoFullName) return
+      if (this.selectedCommit && this.selectedCommit.commitSha === q.commitSha && this.selectedCommit.repoFullName === q.repoFullName) return
       const item = this.commits.find(c => c.commitSha === q.commitSha && c.repoFullName === q.repoFullName)
-      if (item) this.viewDiff(item)
+      if (item) {
+        this.viewDiff(item)
+        return
+      }
+      // 深链进入时该提交可能不在当前页，仍可根据 query 打开 Diff
+      this.viewDiff({
+        commitSha: q.commitSha,
+        repoFullName: q.repoFullName,
+        authorName: '',
+        message: '',
+        committedAt: null,
+        filesChanged: null,
+        insertions: null,
+        deletions: null
+      })
     },
     commitAnalysisRoute (item) {
       if (!item || !item.commitSha) return { path: '/' }
@@ -661,6 +727,58 @@ export default {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.commits-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-size-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.page-size-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  font-size: 13px;
+}
+
+.commits-table-scroll {
+  max-height: min(52vh, 520px);
+  overflow: auto;
+}
+
+.commits-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f3f4f6;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.page-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .section-title {

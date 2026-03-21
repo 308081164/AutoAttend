@@ -1,6 +1,5 @@
 package org.example.atuo_attend_backend.dashboard;
 
-import org.example.atuo_attend_backend.commit.CommitRecord;
 import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.commit.mapper.CommitMapper;
 import org.example.atuo_attend_backend.common.ApiResponse;
@@ -27,22 +26,21 @@ public class DashboardController {
     @GetMapping("/dashboard")
     public ApiResponse<Map<String, Object>> dashboard(@RequestParam(value = "range", required = false) String range,
                                                       @RequestParam(value = "repoFullName", required = false) String repoFullName) {
-        List<CommitRecord> all;
-        if (repoFullName != null && !repoFullName.isBlank()) {
-            all = commitService.listPagedByRepo(repoFullName, 1, 100);
-        } else {
-            all = commitService.listPaged(1, 100);
-        }
         Map<String, Object> data = new HashMap<>();
         Map<String, Integer> summary = new HashMap<>();
-        summary.put("activeCoding", all.size());
+        long totalCommits = (repoFullName != null && !repoFullName.isBlank())
+                ? commitService.countByRepo(repoFullName)
+                : commitService.countAll();
+        int activeCoding = totalCommits > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalCommits;
+        summary.put("activeCoding", activeCoding);
         summary.put("inReview", 0);
         summary.put("reviewingOthers", 0);
         summary.put("ciFixing", 0);
         summary.put("blocked", 0);
         summary.put("idle", 0);
         data.put("summary", summary);
-        data.put("commits", all);
+        // 最近提交列表由 GET /admin/commits 分页拉取，此处不再附带大量 commits，减小响应体积
+        data.put("commits", List.of());
         data.put("repoFullName", repoFullName);
         if (repoFullName != null && !repoFullName.isBlank()) {
             List<CommitMapper.AuthorAggregate> authors = commitService.aggregateByAuthor(repoFullName);
