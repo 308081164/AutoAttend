@@ -392,6 +392,9 @@ export default {
     aiInputAttachments: '选择要交给 AI 的附件',
     imageTag: '图片',
     noAiAttachments: '当前暂无已选择的附件。',
-    aiUploadFailed: '上传附件失败，请稍后重试。'
+    aiUploadFailed: '上传附件失败，请稍后重试。',
+    imagePreviewDownload: '保存到本地',
+    imagePreviewClose: '关闭',
+    imagePreviewComingSoon: '后续版本支持'
   }
 }

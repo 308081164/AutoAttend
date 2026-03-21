@@ -274,6 +274,9 @@ export default {
     aiInputAttachments: 'AI に渡す添付',
     imageTag: '画像',
     noAiAttachments: '選択中の添付はありません。',
-    aiUploadFailed: '添付のアップロードに失敗しました。'
+    aiUploadFailed: '添付のアップロードに失敗しました。',
+    imagePreviewDownload: 'ローカルに保存',
+    imagePreviewClose: '閉じる',
+    imagePreviewComingSoon: '今後のバージョンで対応'
   }
 }

@@ -31,7 +31,13 @@
                 <div class="list-thumbs">
                   <template v-for="aid in getAttachmentIdsFromField(row['c' + col.id])">
                     <div v-if="getListAttachmentById(row.id, aid)" :key="aid" class="list-thumb-wrap">
-                      <img v-if="getListAttachmentById(row.id, aid).isImage && listAttachmentPreviewUrls[aid]" :src="listAttachmentPreviewUrls[aid]" class="list-thumb-img" alt="">
+                      <img
+                        v-if="getListAttachmentById(row.id, aid).isImage && listAttachmentPreviewUrls[aid]"
+                        :src="listAttachmentPreviewUrls[aid]"
+                        class="list-thumb-img list-thumb-img-clickable"
+                        alt=""
+                        @click.stop="openImagePreview(getListAttachmentById(row.id, aid), listAttachmentPreviewUrls[aid])"
+                      >
                       <span v-else class="list-thumb-name">{{ getListAttachmentById(row.id, aid).fileName }}</span>
                     </div>
                   </template>
@@ -118,7 +124,13 @@
                   <div class="attachment-thumb-list">
                     <template v-for="aid in getAttachmentIdsFromField(drawerEditValues['c' + col.id])">
                       <div v-if="getAttachmentById(aid)" :key="aid" class="thumb-wrap">
-                        <img v-if="getAttachmentById(aid).isImage && attachmentPreviewUrls[aid]" :src="attachmentPreviewUrls[aid]" class="thumb-img" alt="">
+                        <img
+                          v-if="getAttachmentById(aid).isImage && attachmentPreviewUrls[aid]"
+                          :src="attachmentPreviewUrls[aid]"
+                          class="thumb-img thumb-img-clickable"
+                          alt=""
+                          @click.stop="openImagePreview(getAttachmentById(aid), attachmentPreviewUrls[aid])"
+                        >
                         <span v-else class="thumb-name">{{ getAttachmentById(aid).fileName }}</span>
                       </div>
                     </template>
@@ -160,9 +172,14 @@
               <li v-for="a in attachments" :key="a.id" class="attachment-item">
                 <template v-if="a.isImage && attachmentPreviewUrls[a.id]">
                   <div class="attachment-preview-wrap">
-                    <img :src="attachmentPreviewUrls[a.id]" class="attachment-preview-img" alt="" @click="downloadAttachment(a)">
+                    <img
+                      :src="attachmentPreviewUrls[a.id]"
+                      class="attachment-preview-img attachment-preview-img-clickable"
+                      alt=""
+                      @click="openImagePreview(a, attachmentPreviewUrls[a.id])"
+                    >
                     <span class="attachment-meta">
-                      <button class="link-button" @click="downloadAttachment(a)">{{ a.fileName }}</button>
+                      <button type="button" class="link-button" @click="openImagePreview(a, attachmentPreviewUrls[a.id])">{{ a.fileName }}</button>
                       <span class="file-size">({{ formatSize(a.fileSize) }})</span>
                     </span>
                   </div>
@@ -333,6 +350,31 @@
         </div>
       </div>
     </div>
+
+    <!-- 图片在线预览（字段 / 附件 / 列表缩略图） -->
+    <div v-if="imagePreviewOpen" class="image-preview-backdrop" @click.self="closeImagePreview">
+      <div class="image-preview-modal" @click.stop>
+        <div class="image-preview-toolbar">
+          <div class="image-preview-toolbar-left">
+            <button type="button" class="image-tool-btn" disabled :title="$t('collabTable.imagePreviewComingSoon')">−</button>
+            <button type="button" class="image-tool-btn" disabled :title="$t('collabTable.imagePreviewComingSoon')">+</button>
+            <button type="button" class="image-tool-btn image-tool-wide" disabled :title="$t('collabTable.imagePreviewComingSoon')">1:1</button>
+            <button type="button" class="image-tool-btn" disabled :title="$t('collabTable.imagePreviewComingSoon')">↻</button>
+            <button type="button" class="image-tool-btn" disabled :title="$t('collabTable.imagePreviewComingSoon')">✎</button>
+          </div>
+          <div class="image-preview-toolbar-right">
+            <button type="button" class="image-tool-btn image-tool-download" :title="$t('collabTable.imagePreviewDownload')" @click="downloadAttachment(imagePreviewAttachment)">
+              ⬇
+            </button>
+            <button type="button" class="image-tool-btn image-tool-close" :title="$t('collabTable.imagePreviewClose')" @click="closeImagePreview">×</button>
+          </div>
+        </div>
+        <div class="image-preview-body">
+          <img v-if="imagePreviewUrl" :src="imagePreviewUrl" class="image-preview-main" :alt="imagePreviewTitle">
+        </div>
+        <div v-if="imagePreviewTitle" class="image-preview-footer">{{ imagePreviewTitle }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -374,7 +416,12 @@ export default {
       aiLoading: false,
       aiCommitting: false,
       aiSessionAttachments: [],
-      aiSelectedAttachmentIds: []
+      aiSelectedAttachmentIds: [],
+      imagePreviewOpen: false,
+      imagePreviewUrl: '',
+      imagePreviewTitle: '',
+      imagePreviewAttachment: null,
+      imagePreviewEscapeHandler: null
     }
   },
   computed: {
@@ -393,6 +440,8 @@ export default {
     this.loadProjectMembers()
   },
   beforeDestroy () {
+    this.detachImagePreviewEscape()
+    this.closeImagePreview()
     this.revokeListAttachmentPreviewUrls()
   },
   methods: {
@@ -665,6 +714,7 @@ export default {
       this.loadProjectMembersForDrawer()
     },
     closeDrawer () {
+      this.closeImagePreview()
       this.revokeAttachmentPreviewUrls()
       this.drawerRecord = null
     },
@@ -961,7 +1011,38 @@ export default {
         e.target.value = ''
       }).catch(() => { /* ignore */ })
     },
+    openImagePreview (att, objectUrl) {
+      if (!att || !objectUrl) return
+      this.imagePreviewAttachment = att
+      this.imagePreviewUrl = objectUrl
+      this.imagePreviewTitle = att.fileName || ''
+      this.imagePreviewOpen = true
+      document.body.style.overflow = 'hidden'
+      this.attachImagePreviewEscape()
+    },
+    closeImagePreview () {
+      this.imagePreviewOpen = false
+      this.imagePreviewAttachment = null
+      this.imagePreviewUrl = ''
+      this.imagePreviewTitle = ''
+      document.body.style.overflow = ''
+      this.detachImagePreviewEscape()
+    },
+    attachImagePreviewEscape () {
+      this.detachImagePreviewEscape()
+      this.imagePreviewEscapeHandler = (e) => {
+        if (e.key === 'Escape') this.closeImagePreview()
+      }
+      document.addEventListener('keydown', this.imagePreviewEscapeHandler)
+    },
+    detachImagePreviewEscape () {
+      if (this.imagePreviewEscapeHandler) {
+        document.removeEventListener('keydown', this.imagePreviewEscapeHandler)
+        this.imagePreviewEscapeHandler = null
+      }
+    },
     downloadAttachment (a) {
+      if (!a || a.id == null) return
       const token = window.localStorage.getItem('autoattend_collab_token')
       const url = (this.$http.defaults.baseURL || '/api') + '/collab/attachments/' + a.id + '/download'
       fetch(url, { headers: { Authorization: 'Bearer ' + token } })
@@ -1601,5 +1682,112 @@ export default {
   color: #2563eb;
   cursor: pointer;
   font-size: 13px;
+}
+
+/* 图片在线预览 */
+.image-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(15, 23, 42, 0.92);
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.image-preview-modal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #0f172a;
+}
+.image-preview-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+.image-preview-toolbar-left,
+.image-preview-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.image-tool-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.image-tool-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.image-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.image-tool-wide {
+  min-width: 44px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.image-tool-download {
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+.image-tool-download:hover:not(:disabled) {
+  background: #eff6ff;
+}
+.image-tool-close {
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 0.9;
+}
+.image-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  -webkit-overflow-scrolling: touch;
+}
+.image-preview-main {
+  max-width: 100%;
+  max-height: min(85vh, 900px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+.image-preview-footer {
+  flex-shrink: 0;
+  padding: 10px 16px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: #cbd5e1;
+  background: #0f172a;
+  border-top: 1px solid #1e293b;
+  word-break: break-all;
+}
+.list-thumb-img-clickable,
+.thumb-img-clickable,
+.attachment-preview-img-clickable {
+  cursor: zoom-in;
 }
 </style>

@@ -272,6 +272,9 @@ export default {
     aiInputAttachments: 'Select attachments for AI',
     imageTag: 'Image',
     noAiAttachments: 'No attachments selected for this session.',
-    aiUploadFailed: 'Failed to upload attachment. Please try again.'
+    aiUploadFailed: 'Failed to upload attachment. Please try again.',
+    imagePreviewDownload: 'Save to device',
+    imagePreviewClose: 'Close',
+    imagePreviewComingSoon: 'Coming in a later version'
   }
 }
