@@ -3,7 +3,6 @@ package org.example.atuo_attend_backend.admin;
 import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.commit.mapper.CommitMapper;
 import org.example.atuo_attend_backend.common.ApiResponse;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -85,21 +84,20 @@ public class AdminStatsController {
         return ApiResponse.ok(data);
     }
 
-    /** 开发者提交排名（全库或按仓库），用于横向柱状图 */
+    /**
+     * 开发者提交排名（全库或按仓库），用于横向柱状图。
+     * {@code period=week|month|year|total}，{@code offset} 为相对当前周/月/年的位移（total 时忽略）。
+     */
     @GetMapping("/authors")
-    public ApiResponse<List<Map<String, Object>>> authors(
-            @RequestParam(value = "repoFullName", required = false) String repoFullName) {
-        List<CommitMapper.AuthorAggregate> list = repoFullName != null && !repoFullName.isBlank()
-                ? commitService.aggregateByAuthor(repoFullName)
-                : commitService.aggregateByAuthorAll();
-        List<Map<String, Object>> data = list.stream().map(a -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("authorName", a.getAuthorName());
-            m.put("authorEmail", a.getAuthorEmail());
-            m.put("commitCount", a.getCommitCount());
-            m.put("lastCommittedAt", a.getLastCommittedAt());
-            return m;
-        }).collect(Collectors.toList());
+    public ApiResponse<Map<String, Object>> authors(
+            @RequestParam(value = "repoFullName", required = false) String repoFullName,
+            @RequestParam(value = "period", required = false, defaultValue = "total") String period,
+            @RequestParam(value = "offset", defaultValue = "0") int offset) {
+        String p = period != null ? period.trim().toLowerCase() : "total";
+        if (!p.equals("week") && !p.equals("month") && !p.equals("year") && !p.equals("total")) {
+            return ApiResponse.error(40000, "period 须为 week、month、year 或 total");
+        }
+        Map<String, Object> data = commitService.aggregateAuthorsByPeriod(repoFullName, p, offset);
         return ApiResponse.ok(data);
     }
 }

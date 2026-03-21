@@ -271,6 +271,33 @@ public interface CommitMapper {
             """)
     List<AuthorAggregate> aggregateByAuthor(@Param("repoFullName") String repoFullName);
 
+    /** 全库作者在 [start, end) 内的提交数排名 */
+    @Select("""
+            SELECT author_name AS authorName, author_email AS authorEmail,
+                   COUNT(*) AS commitCount, MAX(committed_at) AS lastCommittedAt
+            FROM aa_commit
+            WHERE committed_at >= #{start} AND committed_at < #{end}
+            GROUP BY author_name, author_email
+            ORDER BY commitCount DESC
+            LIMIT 50
+            """)
+    List<AuthorAggregate> aggregateByAuthorAllBetween(@Param("start") OffsetDateTime start, @Param("end") OffsetDateTime end);
+
+    /** 单仓库作者在 [start, end) 内的提交数排名 */
+    @Select("""
+            SELECT author_name AS authorName, author_email AS authorEmail,
+                   COUNT(*) AS commitCount, MAX(committed_at) AS lastCommittedAt
+            FROM aa_commit
+            WHERE repo_full_name = #{repoFullName}
+              AND committed_at >= #{start} AND committed_at < #{end}
+            GROUP BY author_name, author_email
+            ORDER BY commitCount DESC
+            LIMIT 50
+            """)
+    List<AuthorAggregate> aggregateByAuthorBetween(@Param("repoFullName") String repoFullName,
+                                                   @Param("start") OffsetDateTime start,
+                                                   @Param("end") OffsetDateTime end);
+
     class AuthorAggregate {
         private String authorName;
         private String authorEmail;

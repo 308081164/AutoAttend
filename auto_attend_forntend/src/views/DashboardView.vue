@@ -79,7 +79,25 @@
     </div>
     <div class="charts-row">
       <section class="section chart-section chart-section-wide">
-        <h2 class="section-title">{{ $t('dashboard.authorRanking') }}</h2>
+        <div class="section-header author-rank-header">
+          <h2 class="section-title">{{ $t('dashboard.authorRanking') }}</h2>
+        </div>
+        <div class="author-rank-toolbar">
+          <div class="chart-legend author-rank-modes">
+            <button type="button" :class="{ active: authorRankPeriod === 'week' }" @click="setAuthorRankPeriod('week')">{{ $t('dashboard.authorRankWeek') }}</button>
+            <button type="button" :class="{ active: authorRankPeriod === 'month' }" @click="setAuthorRankPeriod('month')">{{ $t('dashboard.authorRankMonth') }}</button>
+            <button type="button" :class="{ active: authorRankPeriod === 'year' }" @click="setAuthorRankPeriod('year')">{{ $t('dashboard.authorRankYear') }}</button>
+            <button type="button" :class="{ active: authorRankPeriod === 'total' }" @click="setAuthorRankPeriod('total')">{{ $t('dashboard.authorRankTotal') }}</button>
+          </div>
+          <div class="author-rank-nav" v-if="authorRankPeriod !== 'total'">
+            <button type="button" class="link-button" :disabled="authorRankLoading" @click="authorRankPrev">{{ $t('dashboard.authorRankPrevPeriod') }}</button>
+            <span class="author-rank-range">{{ authorRankRangeText }}</span>
+            <button type="button" class="link-button" :disabled="authorRankLoading || !authorRankMeta.canGoNext" @click="authorRankNext">{{ $t('dashboard.authorRankNextPeriod') }}</button>
+          </div>
+          <div class="author-rank-nav" v-else>
+            <span class="author-rank-range muted">{{ authorRankRangeText }}</span>
+          </div>
+        </div>
         <div class="chart-wrap chart-wrap-bar">
           <canvas ref="authorChart"></canvas>
         </div>
@@ -324,6 +342,10 @@ export default {
       statsOverview: null,
       commitsByDay: [],
       authorsStats: [],
+      authorRankPeriod: 'week',
+      authorRankOffset: 0,
+      authorRankMeta: { canGoNext: false, canGoPrevious: true },
+      authorRankLoading: false,
       trendRange: '7d',
       chartInstances: { trend: null, author: null },
       repoInfo: {},
@@ -391,6 +413,15 @@ export default {
     dailySummaryTotalPages () {
       if (!this.dailySummaryTotal || !this.dailySummaryPageSize) return 1
       return Math.max(1, Math.ceil(this.dailySummaryTotal / this.dailySummaryPageSize))
+    },
+    authorRankRangeText () {
+      if (this.authorRankPeriod === 'total') return this.$t('dashboard.authorRankAllTime')
+      const m = this.authorRankMeta
+      if (!m || !m.periodStart) return '—'
+      return this.$t('dashboard.authorRankRange', {
+        start: m.periodStart,
+        end: m.periodEndInclusive || m.periodStart
+      })
     },
     diffHtml () {
       if (!this.diffText) return ''
@@ -467,12 +498,63 @@ export default {
       } catch (e) { console.error('loadStatsCommitsByDay failed', e) }
     },
     async loadStatsAuthors () {
+      this.authorRankLoading = true
       try {
-        const resp = await this.$http.get('/admin/stats/authors', {
-          params: { repoFullName: this.selectedRepo || undefined }
-        })
-        if (resp.data && resp.data.code === 0) this.authorsStats = (resp.data.data || []).slice(0, 15)
-      } catch (e) { console.error('loadStatsAuthors failed', e) }
+        const params = {
+          repoFullName: this.selectedRepo || undefined,
+          period: this.authorRankPeriod,
+          offset: this.authorRankOffset
+        }
+        if (this.authorRankPeriod === 'total') {
+          params.offset = 0
+        }
+        const resp = await this.$http.get('/admin/stats/authors', { params })
+        const raw = resp.data && resp.data.data
+        if (resp.data && resp.data.code === 0 && raw) {
+          if (Array.isArray(raw.items)) {
+            this.authorsStats = raw.items.slice(0, 15)
+            this.authorRankMeta = {
+              period: raw.period,
+              offset: raw.offset != null ? raw.offset : this.authorRankOffset,
+              periodStart: raw.periodStart,
+              periodEndInclusive: raw.periodEndInclusive,
+              canGoPrevious: raw.canGoPrevious !== false,
+              canGoNext: raw.canGoNext === true
+            }
+            if (raw.offset != null && this.authorRankPeriod !== 'total') {
+              this.authorRankOffset = Number(raw.offset) || 0
+            }
+          } else if (Array.isArray(raw)) {
+            this.authorsStats = raw.slice(0, 15)
+            this.authorRankMeta = { canGoNext: false, canGoPrevious: false }
+          } else {
+            this.authorsStats = []
+            this.authorRankMeta = { canGoNext: false, canGoPrevious: true }
+          }
+        } else {
+          this.authorsStats = []
+        }
+      } catch (e) {
+        console.error('loadStatsAuthors failed', e)
+        this.authorsStats = []
+      } finally {
+        this.authorRankLoading = false
+      }
+    },
+    setAuthorRankPeriod (p) {
+      if (this.authorRankPeriod === p) return
+      this.authorRankPeriod = p
+      this.authorRankOffset = 0
+      this.loadStatsAuthors()
+    },
+    authorRankPrev () {
+      this.authorRankOffset -= 1
+      this.loadStatsAuthors()
+    },
+    authorRankNext () {
+      if (!this.authorRankMeta.canGoNext) return
+      this.authorRankOffset += 1
+      this.loadStatsAuthors()
     },
     renderTrendChart () {
       this.$nextTick(() => {
@@ -528,7 +610,7 @@ export default {
         if (!el) return
         if (this.chartInstances.author) this.chartInstances.author.destroy()
         const data = this.authorsStats || []
-        const noDataLabel = '暂无数据'
+        const noDataLabel = this.$t('dashboard.authorRankNoData')
         const labels = data.length ? data.map(a => a.authorName || a.authorEmail || '') : [noDataLabel]
         const counts = data.length ? data.map(a => a.commitCount || 0) : [0]
         this.chartInstances.author = new ChartJS(el, {
@@ -561,6 +643,7 @@ export default {
     },
     onRepoChange () {
       this.commitsPage = 1
+      this.authorRankOffset = 0
       this.dailySummaryPage = 1
       this.dailySummaries = []
       this.dailySummaryTotal = 0
@@ -1129,6 +1212,39 @@ export default {
   background: #2563eb;
   color: #fff;
   border-color: #2563eb;
+}
+
+.author-rank-header {
+  margin-bottom: 4px;
+}
+
+.author-rank-toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.author-rank-modes {
+  flex-wrap: wrap;
+}
+
+.author-rank-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  font-size: 13px;
+}
+
+.author-rank-range {
+  color: #374151;
+  font-weight: 500;
+}
+
+.author-rank-range.muted {
+  color: #6b7280;
+  font-weight: 400;
 }
 
 .table .num {

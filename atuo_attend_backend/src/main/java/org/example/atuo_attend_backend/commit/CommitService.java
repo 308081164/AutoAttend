@@ -6,16 +6,28 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class CommitService {
 
     private static final Logger log = LoggerFactory.getLogger(CommitService.class);
+    /** 看板开发者排名等统计的日历口径（与每日总结默认时区一致） */
+    private static final ZoneId STATS_ZONE = ZoneId.of("Asia/Shanghai");
     /** 重试次数：首次拉取 + 后续自动重试 */
     private static final int DIFF_FETCH_RETRY_TIMES = 6;
     /** 每次尝试前的等待毫秒数（首次 0，后续逐步延长，温和退避） */
@@ -252,6 +264,93 @@ public class CommitService {
     /** 全库作者提交排名（Top 50） */
     public List<CommitMapper.AuthorAggregate> aggregateByAuthorAll() {
         return commitMapper.aggregateByAuthorAll();
+    }
+
+    /**
+     * 开发者排名：{@code week} / {@code month} / {@code year} 为左闭右开时间区间 [start, end)；{@code total} 为全部时间。
+     *
+     * @param offset 相对「当前」周期的位移：0 表示本周/本月/本年；负数表示更早
+     */
+    public Map<String, Object> aggregateAuthorsByPeriod(String repoFullName, String period, int offset) {
+        String p = period == null || period.isBlank() ? "total" : period.trim().toLowerCase(Locale.ROOT);
+        Map<String, Object> out = new LinkedHashMap<>();
+        if ("total".equals(p)) {
+            List<CommitMapper.AuthorAggregate> list = (repoFullName != null && !repoFullName.isBlank())
+                    ? commitMapper.aggregateByAuthor(repoFullName.trim())
+                    : commitMapper.aggregateByAuthorAll();
+            out.put("period", "total");
+            out.put("offset", 0);
+            out.put("periodStart", null);
+            out.put("periodEndInclusive", null);
+            out.put("canGoPrevious", false);
+            out.put("canGoNext", false);
+            out.put("items", mapAuthorRows(list));
+            return out;
+        }
+        if (!"month".equals(p) && !"year".equals(p)) {
+            p = "week";
+        }
+        ZonedDateTime znow = ZonedDateTime.now(STATS_ZONE);
+        LocalDate today = znow.toLocalDate();
+        offset = clampAuthorRankOffset(offset);
+        LocalDate[] bounds = authorRankPeriodBounds(p, offset, today);
+        LocalDate start = bounds[0];
+        LocalDate endEx = bounds[1];
+        OffsetDateTime oStart = start.atStartOfDay(STATS_ZONE).toOffsetDateTime();
+        OffsetDateTime oEnd = endEx.atStartOfDay(STATS_ZONE).toOffsetDateTime();
+        List<CommitMapper.AuthorAggregate> list = (repoFullName != null && !repoFullName.isBlank())
+                ? commitMapper.aggregateByAuthorBetween(repoFullName.trim(), oStart, oEnd)
+                : commitMapper.aggregateByAuthorAllBetween(oStart, oEnd);
+
+        LocalDate[] nextBounds = authorRankPeriodBounds(p, offset + 1, today);
+        boolean canGoNext = !nextBounds[0].isAfter(today);
+
+        out.put("period", p);
+        out.put("offset", offset);
+        out.put("periodStart", start.toString());
+        out.put("periodEndInclusive", endEx.minusDays(1).toString());
+        out.put("canGoPrevious", true);
+        out.put("canGoNext", canGoNext);
+        out.put("items", mapAuthorRows(list));
+        return out;
+    }
+
+    private static int clampAuthorRankOffset(int offset) {
+        if (offset > 520) return 520;
+        if (offset < -520) return -520;
+        return offset;
+    }
+
+    private static LocalDate[] authorRankPeriodBounds(String p, int offset, LocalDate today) {
+        switch (p) {
+            case "month": {
+                YearMonth ym = YearMonth.from(today).plusMonths(offset);
+                return new LocalDate[]{ym.atDay(1), ym.plusMonths(1).atDay(1)};
+            }
+            case "year": {
+                int y = today.getYear() + offset;
+                return new LocalDate[]{LocalDate.of(y, 1, 1), LocalDate.of(y + 1, 1, 1)};
+            }
+            default: {
+                LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                LocalDate weekStart = monday.plusWeeks(offset);
+                return new LocalDate[]{weekStart, weekStart.plusWeeks(1)};
+            }
+        }
+    }
+
+    private static List<Map<String, Object>> mapAuthorRows(List<CommitMapper.AuthorAggregate> list) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        if (list == null) return rows;
+        for (CommitMapper.AuthorAggregate a : list) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("authorName", a.getAuthorName());
+            m.put("authorEmail", a.getAuthorEmail());
+            m.put("commitCount", a.getCommitCount());
+            m.put("lastCommittedAt", a.getLastCommittedAt());
+            rows.add(m);
+        }
+        return rows;
     }
 
     /** 在 [start, end) 内有提交的仓库 */
