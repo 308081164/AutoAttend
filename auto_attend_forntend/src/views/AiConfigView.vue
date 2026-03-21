@@ -96,13 +96,13 @@
               <div class="usage-chart-block">
                 <div class="usage-chart-title">API 请求次数</div>
                 <div class="usage-chart-wrap">
-                  <canvas ref="deepseekCallChart"></canvas>
+                  <canvas ref="deepseekCall"></canvas>
                 </div>
               </div>
               <div class="usage-chart-block">
                 <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
                 <div class="usage-chart-wrap">
-                  <canvas ref="deepseekTokenChart"></canvas>
+                  <canvas ref="deepseekToken"></canvas>
                 </div>
               </div>
             </div>
@@ -187,13 +187,13 @@
               <div class="usage-chart-block">
                 <div class="usage-chart-title">API 请求次数</div>
                 <div class="usage-chart-wrap">
-                  <canvas ref="qwenCallChart"></canvas>
+                  <canvas ref="qwenCall"></canvas>
                 </div>
               </div>
               <div class="usage-chart-block">
                 <div class="usage-chart-title">{{ $t('aiConfig.usageTotalTokens') }}</div>
                 <div class="usage-chart-wrap">
-                  <canvas ref="qwenTokenChart"></canvas>
+                  <canvas ref="qwenToken"></canvas>
                 </div>
               </div>
             </div>
@@ -384,6 +384,9 @@ export default {
     }
   },
   watch: {
+    /** Canvas 在 v-else-if="usage" 内，须等 summary 加载完成才挂载；仅监听 daily 会先渲染但 refs 为空 */
+    usage () { this.$nextTick(() => this.renderUsageCharts()) },
+    usageQwen () { this.$nextTick(() => this.renderUsageCharts()) },
     usageDaily () { this.$nextTick(() => this.renderUsageCharts()) },
     usageQwenDaily () { this.$nextTick(() => this.renderUsageCharts()) }
   },
@@ -641,6 +644,12 @@ export default {
       this.usageDetailPage = page
       this.loadUsageDetailPage()
     },
+    /** Vue 2 单节点 ref 为元素；极少数情况下为数组 */
+    resolveChartCanvasRef (name) {
+      const r = this.$refs[name]
+      if (!r) return null
+      return r instanceof HTMLCanvasElement ? r : (Array.isArray(r) ? r[0] : r)
+    },
     renderUsageCharts () {
       this.renderOneUsageChart('deepseek', this.usageDaily, 'deepseekCall', 'deepseekToken')
       this.renderOneUsageChart('qwen', this.usageQwenDaily, 'qwenCall', 'qwenToken')
@@ -662,14 +671,19 @@ export default {
         const blueBorder = 'rgb(37, 99, 235)'
         const teal = 'rgba(20, 184, 166, 0.7)'
         const tealBorder = 'rgb(20, 184, 166)'
-        const callEl = this.$refs[callRef]
-        const tokenEl = this.$refs[tokenRef]
+        const callEl = this.resolveChartCanvasRef(callRef)
+        const tokenEl = this.resolveChartCanvasRef(tokenRef)
         if (callEl) {
           if (this.chartInstances[callRef]) this.chartInstances[callRef].destroy()
           this.chartInstances[callRef] = new ChartJS(callEl, {
             type: 'line',
             data: { labels, datasets: [{ label: 'API 请求次数', data: callData, borderColor: blueBorder, backgroundColor: blue, fill: true, tension: 0.2 }] },
-            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true } }
+            }
           })
         }
         if (tokenEl) {
@@ -677,7 +691,12 @@ export default {
           this.chartInstances[tokenRef] = new ChartJS(tokenEl, {
             type: 'bar',
             data: { labels, datasets: [{ label: 'Tokens', data: tokenData, backgroundColor: isQwen ? teal : blue, borderColor: isQwen ? tealBorder : blueBorder, borderWidth: 1 }] },
-            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true } }
+            }
           })
         }
       })
