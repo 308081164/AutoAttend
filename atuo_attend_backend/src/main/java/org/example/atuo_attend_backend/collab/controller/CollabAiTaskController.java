@@ -10,6 +10,8 @@ import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.collab.domain.BizAttachment;
 import org.example.atuo_attend_backend.collab.domain.BizProjectTable;
+import org.example.atuo_attend_backend.collab.domain.BizUser;
+import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
 import org.example.atuo_attend_backend.collab.service.CollabRecordService;
 import org.example.atuo_attend_backend.collab.service.CollabTableService;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -42,7 +46,10 @@ public class CollabAiTaskController {
     private final BizAttachmentMapper attachmentMapper;
     private final MinioService minioService;
     private final AiTokenUsageMapper tokenUsageMapper;
+    private final BizUserMapper userMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final ZoneId COLLAB_STATS_ZONE = ZoneId.of("Asia/Shanghai");
 
     public CollabAiTaskController(CollabProjectService projectService,
                                   CollabTableService tableService,
@@ -51,7 +58,8 @@ public class CollabAiTaskController {
                                   AiAnalysisConfigService configService,
                                   BizAttachmentMapper attachmentMapper,
                                   MinioService minioService,
-                                  AiTokenUsageMapper tokenUsageMapper) {
+                                  AiTokenUsageMapper tokenUsageMapper,
+                                  BizUserMapper userMapper) {
         this.projectService = projectService;
         this.tableService = tableService;
         this.recordService = recordService;
@@ -60,6 +68,7 @@ public class CollabAiTaskController {
         this.attachmentMapper = attachmentMapper;
         this.minioService = minioService;
         this.tokenUsageMapper = tokenUsageMapper;
+        this.userMapper = userMapper;
     }
 
     private long requireUserId(HttpServletRequest req) {
@@ -154,9 +163,13 @@ public class CollabAiTaskController {
                 columnByName.put(name.trim(), c);
             }
         }
+        BizUser actor = userMapper.findById(userId);
+        String creatorLabel = buildCreatorDisplayLabel(actor);
+        String nowIso = LocalDateTime.now(COLLAB_STATS_ZONE).withNano(0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
         int created = 0;
         for (AiTaskDraft t : body.getTasks()) {
-            Map<String, Object> fields = draftToRecordFields(t, columnByName);
+            Map<String, Object> fields = draftToRecordFields(t, columnByName, creatorLabel, nowIso);
             if (!fields.isEmpty()) {
                 var rec = recordService.createRecord(table.getId(), userId, fields);
                 if (t.getAttachmentIds() != null) {
@@ -256,15 +269,18 @@ public class CollabAiTaskController {
 
     /**
      * 将一条任务草稿按表列名映射为 createRecord 所需的 fields（key 为 c+列id）。
-     * 列名与草稿字段对应：问题描述<-title+description，归属模块<-module，重要程度<-importantLevel，
+     * 列名与草稿字段对应：问题描述<-title+description，归属模块/所属模块<-module，重要程度<-importantLevel，
      * 当前状态<-status，验收结果<-acceptResult，图像展示<-attachmentIds（JSON 数组）。
+     * 创建人、创建时间始终使用当前登录用户与服务器时间写入（覆盖 AI 可能返回的空值）。
      */
-    private Map<String, Object> draftToRecordFields(AiTaskDraft t, Map<String, Map<String, Object>> columnByName) {
+    private Map<String, Object> draftToRecordFields(AiTaskDraft t,
+                                                    Map<String, Map<String, Object>> columnByName,
+                                                    String creatorLabel,
+                                                    String createdAtIso) {
         Map<String, Object> fields = new HashMap<>();
         Object col;
         Object idObj;
         long colId;
-        String colType;
 
         col = columnByName.get("问题描述");
         if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {
@@ -273,7 +289,7 @@ public class CollabAiTaskController {
                     + (t.getDescription() != null ? t.getDescription().trim() : "");
             if (!desc.isBlank()) fields.put("c" + colId, desc);
         }
-        col = columnByName.get("归属模块");
+        col = firstColumnByNames(columnByName, List.of("归属模块", "所属模块"));
         if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {
             colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
             if (t.getModule() != null && !t.getModule().isBlank()) fields.put("c" + colId, t.getModule().trim());
@@ -306,7 +322,60 @@ public class CollabAiTaskController {
                 } catch (Exception ignored) { }
             }
         }
+
+        injectCreatorAndCreatedTime(fields, columnByName, creatorLabel, createdAtIso);
         return fields;
+    }
+
+    /** 展示名 + 角色（与协作「创建人」列人工录入习惯一致） */
+    private static String buildCreatorDisplayLabel(BizUser u) {
+        if (u == null) return "";
+        String base = u.getName() != null && !u.getName().isBlank() ? u.getName().trim()
+                : (u.getEmail() != null && !u.getEmail().isBlank() ? u.getEmail().trim() : "");
+        String role = u.getRole() != null && !u.getRole().isBlank() ? u.getRole().trim() : "";
+        if (!base.isEmpty() && !role.isEmpty()) {
+            return base + "（" + role + "）";
+        }
+        if (!base.isEmpty()) return base;
+        if (!role.isEmpty()) return role;
+        return "用户#" + u.getId();
+    }
+
+    private static Map<String, Object> firstColumnByNames(Map<String, Map<String, Object>> columnByName, List<String> names) {
+        for (String n : names) {
+            if (n == null) continue;
+            Map<String, Object> c = columnByName.get(n.trim());
+            if (c != null) return c;
+        }
+        return null;
+    }
+
+    private static void injectCreatorAndCreatedTime(Map<String, Object> fields,
+                                                    Map<String, Map<String, Object>> columnByName,
+                                                    String creatorLabel,
+                                                    String createdAtIso) {
+        Map<String, Object> col = columnByName.get("创建人");
+        if (col != null && creatorLabel != null && !creatorLabel.isBlank()) {
+            putColumnField(fields, col, creatorLabel);
+        }
+        col = columnByName.get("创建时间");
+        if (col != null && createdAtIso != null && !createdAtIso.isBlank()) {
+            String ct = String.valueOf(col.getOrDefault("columnType", "datetime")).toLowerCase(Locale.ROOT);
+            if ("date".equals(ct)) {
+                String datePart = createdAtIso.length() >= 10 ? createdAtIso.substring(0, 10) : createdAtIso;
+                putColumnField(fields, col, datePart);
+            } else {
+                putColumnField(fields, col, createdAtIso);
+            }
+        }
+    }
+
+    private static void putColumnField(Map<String, Object> fields, Map<String, Object> col, Object value) {
+        if (value == null) return;
+        Object idObj = col.get("id");
+        if (idObj == null) return;
+        long colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+        fields.put("c" + colId, value);
     }
 
     /** 将附件中的图片从 MinIO 下载并转为 Base64 data URL，供千问多模态接口使用（不依赖公网 URL） */

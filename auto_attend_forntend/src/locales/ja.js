@@ -229,6 +229,7 @@ export default {
   },
   collabTable: {
     defaultTableName: 'タスク表',
+    pageTitleWithProject: '{project}{table}',
     backToList: '← プロジェクト一覧',
     newRecord: '新規レコード',
     loadingTable: 'テーブル構造を読み込み中...',
@@ -254,6 +255,25 @@ export default {
     pleaseSelect: '選択してください',
     currentStatus: '現在の状態',
     noMembers: 'プロジェクトメンバーがいません',
-    uploadImage: '画像をアップロード'
+    uploadImage: '画像をアップロード',
+    aiInputMode: 'AI スマート入力',
+    aiInputModeHint: 'Qwen で説明と添付からタスク草案を作成し、確定後に表へ挿入（作成者・作成日時は自動入力）',
+    aiInputTitle: 'AI タスク入力',
+    aiInputRawText: '顧客の原文',
+    aiInputPlaceholder: '議事録、チャット、要件メモなどを貼り付けてください。',
+    aiGenerateTasks: 'タスク草案を生成',
+    aiGenerating: '生成中…',
+    aiTaskDrafts: 'AI が生成したタスク草案',
+    aiTaskTitlePlaceholder: 'タイトル（編集可）',
+    aiTaskDescPlaceholder: '詳細（編集可）',
+    removeDraft: '草案を削除',
+    aiInsertToTable: '表に挿入',
+    aiCommitting: '挿入中…',
+    aiPreviewFailed: '草案の生成に失敗しました。設定を確認するか後でもう一度お試しください。',
+    aiCommitFailed: '表への挿入に失敗しました。後でもう一度お試しください。',
+    aiInputAttachments: 'AI に渡す添付',
+    imageTag: '画像',
+    noAiAttachments: '選択中の添付はありません。',
+    aiUploadFailed: '添付のアップロードに失敗しました。'
   }
 }

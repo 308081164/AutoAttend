@@ -3,11 +3,14 @@
     <div class="table-header">
       <div class="header-left">
         <router-link to="/collab/projects" class="back-link">{{ $t('collabTable.backToList') }}</router-link>
-        <h2 class="table-title">{{ tableName }}</h2>
+        <h2 class="table-title">{{ pageTableTitle }}</h2>
       </div>
       <div class="header-actions">
-        <button class="secondary-button" @click="openAiInput">{{ $t('collabTable.aiInputMode') }}</button>
-        <button class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
+        <button type="button" class="ai-magic-button" @click="openAiInput" :title="$t('collabTable.aiInputModeHint')">
+          <span class="ai-magic-icon" aria-hidden="true">✦</span>
+          <span class="ai-magic-label">{{ $t('collabTable.aiInputMode') }}</span>
+        </button>
+        <button type="button" class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
       </div>
     </div>
 
@@ -339,7 +342,8 @@ export default {
   data () {
     return {
       projectId: null,
-      tableName: '',
+      projectName: '',
+      tableBaseName: '',
       columns: [],
       records: [],
       recordsLoading: false,
@@ -373,8 +377,17 @@ export default {
       aiSelectedAttachmentIds: []
     }
   },
+  computed: {
+    pageTableTitle () {
+      const base = (this.tableBaseName || '').trim() || this.$t('collabTable.defaultTableName')
+      const pn = (this.projectName || '').trim()
+      if (!pn) return base
+      return this.$t('collabTable.pageTitleWithProject', { project: pn, table: base })
+    }
+  },
   created () {
     this.projectId = Number(this.$route.params.projectId)
+    this.loadProjectSummary()
     this.loadTable()
     this.loadRecords()
     this.loadProjectMembers()
@@ -426,7 +439,8 @@ export default {
           this.showAiModal = false
           this.aiInputText = ''
           this.aiTasks = []
-          this.loadRecords()
+          await this.loadRecords()
+          this.resyncDrawerAfterRecordsReload()
         } else {
           alert((resp.data && resp.data.message) || this.$t('collabTable.aiCommitFailed'))
         }
@@ -480,13 +494,25 @@ export default {
       }
       e.target.value = ''
     },
+    async loadProjectSummary () {
+      try {
+        const resp = await this.$http.get(`/collab/projects/${this.projectId}`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.projectName = resp.data.data.name != null ? String(resp.data.data.name) : ''
+        }
+      } catch (e) {
+        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
+      }
+    },
     async loadTable () {
       this.tableLoading = true
       try {
         const resp = await this.$http.get(`/collab/projects/${this.projectId}/table`)
         if (resp.data && resp.data.code === 0) {
           const d = resp.data.data
-          this.tableName = d.name || this.$t('collabTable.defaultTableName')
+          this.tableBaseName = d.name != null && String(d.name).trim() !== ''
+            ? String(d.name).trim()
+            : this.$t('collabTable.defaultTableName')
           this.columns = (d.columns || []).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
         }
       } catch (e) {
@@ -499,12 +525,14 @@ export default {
       this.recordsLoading = true
       try {
         const resp = await this.$http.get(`/collab/projects/${this.projectId}/records`, {
-          params: { page: 1, pageSize: 100 }
+          params: { page: 1, pageSize: 100, _t: Date.now() }
         })
         if (resp.data && resp.data.code === 0) {
-          this.records = resp.data.data.items || []
+          const items = resp.data.data.items || []
+          // 新数组引用，确保表格必定随接口数据重绘
+          this.records = Array.isArray(items) ? items.slice() : []
           this.revokeListAttachmentPreviewUrls()
-          this.loadListAttachmentPreviews()
+          await this.loadListAttachmentPreviews()
         }
       } finally {
         this.recordsLoading = false
@@ -598,9 +626,9 @@ export default {
         }
       }).catch(() => {})
     },
-    async openRecord (row) {
-      this.drawerRecord = row
-      this.drawerEditValues = {}
+    /** 将列表行数据同步到抽屉编辑表单（与接口返回字段一致） */
+    syncDrawerEditValuesFromRow (row) {
+      if (!row) return
       this.columns.forEach(col => {
         let v = row['c' + col.id]
         if (v != null && (col.columnType === 'datetime' || col.columnType === 'date')) {
@@ -608,6 +636,27 @@ export default {
         }
         this.$set(this.drawerEditValues, 'c' + col.id, v != null && v !== '' ? v : null)
       })
+    },
+    /**
+     * 列表重新拉取后，抽屉若仍打开则绑定到 records 中的新行引用，避免仍指向旧对象导致列表与详情不一致。
+     */
+    resyncDrawerAfterRecordsReload () {
+      if (!this.drawerRecord) return
+      const recordId = this.drawerRecord.id
+      const fresh = this.records.find(r => r.id === recordId)
+      if (!fresh) {
+        this.revokeAttachmentPreviewUrls()
+        this.drawerRecord = null
+        this.drawerEditValues = {}
+        return
+      }
+      this.drawerRecord = fresh
+      this.syncDrawerEditValuesFromRow(fresh)
+    },
+    async openRecord (row) {
+      this.drawerRecord = row
+      this.drawerEditValues = {}
+      this.syncDrawerEditValuesFromRow(row)
       this.drawerTab = 'fields'
       this.comments = []
       this.attachments = []
@@ -767,6 +816,14 @@ export default {
       this.newRecordImagePreviewUrl = URL.createObjectURL(file)
       e.target.value = ''
     },
+    buildCreatorFieldLabel () {
+      const u = this.currentUser
+      if (!u) return ''
+      const base = String(u.name || u.email || '').trim()
+      const role = String(u.role || '').trim()
+      if (base && role) return base + '（' + role + '）'
+      return base || role || ''
+    },
     getDefaultForSingleSelect (col) {
       const opts = this.getSelectOptions(col)
       if (!opts.length) return null
@@ -820,8 +877,8 @@ export default {
           if (v !== null) fields['c' + col.id] = v
         })
         await this.$http.put(`/collab/records/${this.drawerRecord.id}`, { fields })
-        Object.assign(this.drawerRecord, this.drawerEditValues)
-        this.loadRecords()
+        await this.loadRecords()
+        this.resyncDrawerAfterRecordsReload()
       } catch (e) { /* ignore */ } finally {
         this.drawerSaving = false
       }
@@ -839,8 +896,12 @@ export default {
     async doDeleteRecord (recordId) {
       try {
         await this.$http.delete(`/collab/records/${recordId}`)
-        if (this.drawerRecord && this.drawerRecord.id === recordId) this.drawerRecord = null
-        this.loadRecords()
+        if (this.drawerRecord && this.drawerRecord.id === recordId) {
+          this.revokeAttachmentPreviewUrls()
+          this.drawerRecord = null
+          this.drawerEditValues = {}
+        }
+        await this.loadRecords()
       } catch (e) { /* ignore */ }
     },
     async loadComments () {
@@ -953,8 +1014,7 @@ export default {
       this.$nextTick(() => {
         this.columns.forEach(col => {
           if (this.isCreatorColumn(col)) {
-            const name = this.currentUser ? (this.currentUser.name || this.currentUser.email || '') : ''
-            this.$set(this.newRecordFields, 'c' + col.id, name)
+            this.$set(this.newRecordFields, 'c' + col.id, this.buildCreatorFieldLabel())
           } else if (col.columnType === 'datetime' && (col.name || '').trim() === '创建时间') {
             this.$set(this.newRecordFields, 'c' + col.id, this.getDefaultCreateTime())
           } else if (this.isSingleSelect(col)) {
@@ -997,7 +1057,8 @@ export default {
         this.newRecordImageFile = null
         this.newRecordImageFileName = ''
         this.newRecordAttachmentColId = null
-        this.loadRecords()
+        await this.loadRecords()
+        this.resyncDrawerAfterRecordsReload()
       } catch (e) { /* ignore */ } finally {
         this.createSaving = false
       }
@@ -1036,6 +1097,58 @@ export default {
 .table-title {
   margin: 0;
   font-size: 18px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ai-magic-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4338ca;
+  background: linear-gradient(145deg, #eef2ff 0%, #e0e7ff 55%, #ddd6fe 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(67, 56, 202, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.ai-magic-button:hover {
+  filter: brightness(1.02);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
+  transform: translateY(-1px);
+}
+
+.ai-magic-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(67, 56, 202, 0.12);
+}
+
+.ai-magic-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+  line-height: 1;
+  color: #6366f1;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 6px;
+  border: 1px solid rgba(199, 210, 254, 0.9);
+}
+
+.ai-magic-label {
+  letter-spacing: 0.02em;
 }
 
 .primary-button {

@@ -347,6 +347,7 @@ export default {
   },
   collabTable: {
     defaultTableName: '任务表',
+    pageTitleWithProject: '{project}{table}',
     backToList: '← 项目列表',
     newRecord: '新建记录',
     loadingTable: '加载表结构中...',
@@ -373,7 +374,8 @@ export default {
     currentStatus: '当前状态',
     noMembers: '暂无项目成员',
     uploadImage: '上传图片',
-    aiInputMode: 'AI 录入模式',
+    aiInputMode: 'AI 智能录入',
+    aiInputModeHint: '使用通义千问将描述与附件拆成任务草稿，确认后写入表格（创建人、创建时间将自动填写）',
     aiInputTitle: 'AI 录入任务',
     aiInputRawText: '客户原始描述',
     aiInputPlaceholder: '粘贴会议纪要、客户聊天记录、需求草稿等，自然语言即可。',

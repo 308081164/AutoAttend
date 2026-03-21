@@ -239,7 +239,7 @@ export default {
       /** 仅启用项，供「从预设添加」下拉（在「报价配置」页维护） */
       presetItems: [],
       restoringCalcPrefs: false,
-      _calcPrefsTimer: null
+      calcPrefsDebounceTimer: null
     }
   },
   computed: {
@@ -263,7 +263,7 @@ export default {
     this.init()
   },
   beforeDestroy () {
-    if (this._calcPrefsTimer) clearTimeout(this._calcPrefsTimer)
+    if (this.calcPrefsDebounceTimer) clearTimeout(this.calcPrefsDebounceTimer)
   },
   watch: {
     '$route.params.id' () {
@@ -343,8 +343,8 @@ export default {
       }
     },
     scheduleQuoteCalcPrefsSave () {
-      if (this._calcPrefsTimer) clearTimeout(this._calcPrefsTimer)
-      this._calcPrefsTimer = setTimeout(() => this.flushQuoteCalcPrefs(), 650)
+      if (this.calcPrefsDebounceTimer) clearTimeout(this.calcPrefsDebounceTimer)
+      this.calcPrefsDebounceTimer = setTimeout(() => this.flushQuoteCalcPrefs(), 650)
     },
     async flushQuoteCalcPrefs () {
       if (this.pageLoading || this.restoringCalcPrefs || !this.projectId) return

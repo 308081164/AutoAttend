@@ -227,6 +227,7 @@ export default {
   },
   collabTable: {
     defaultTableName: 'Tableau des tâches',
+    pageTitleWithProject: '{project} — {table}',
     backToList: '← Liste des projets',
     newRecord: 'Nouvelle entrée',
     loadingTable: 'Chargement de la table...',
@@ -252,6 +253,25 @@ export default {
     pleaseSelect: 'Choisir',
     currentStatus: 'État actuel',
     noMembers: 'Aucun membre du projet',
-    uploadImage: 'Téléverser une image'
+    uploadImage: 'Téléverser une image',
+    aiInputMode: 'AI smart entry',
+    aiInputModeHint: 'Qwen turns text and attachments into task drafts; creator and creation time are filled automatically on insert.',
+    aiInputTitle: 'AI Task Input',
+    aiInputRawText: 'Customer raw description',
+    aiInputPlaceholder: 'Paste meeting notes, chat logs, or requirement drafts in natural language.',
+    aiGenerateTasks: 'Generate task drafts',
+    aiGenerating: 'Generating…',
+    aiTaskDrafts: 'AI-generated task drafts',
+    aiTaskTitlePlaceholder: 'Task title (editable)',
+    aiTaskDescPlaceholder: 'Detailed task description (editable)',
+    removeDraft: 'Remove draft',
+    aiInsertToTable: 'Insert into table',
+    aiCommitting: 'Inserting…',
+    aiPreviewFailed: 'Failed to generate task drafts. Please try again or check Qwen configuration.',
+    aiCommitFailed: 'Failed to insert tasks. Please try again.',
+    aiInputAttachments: 'Select attachments for AI',
+    imageTag: 'Image',
+    noAiAttachments: 'No attachments selected for this session.',
+    aiUploadFailed: 'Failed to upload attachment. Please try again.'
   }
 }
