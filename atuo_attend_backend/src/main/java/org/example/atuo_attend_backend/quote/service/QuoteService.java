@@ -2,6 +2,7 @@ package org.example.atuo_attend_backend.quote.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
@@ -1248,6 +1249,189 @@ public class QuoteService {
         }
         sb.append("</tbody></table></body></html>");
         return sb.toString();
+    }
+
+    /**
+     * 自然语言 → DeepSeek JSON → 与前端/保存接口一致的 modules 结构。
+     */
+    public Map<String, Object> parseQuoteModulesWithAi(QuoteAiModulesParseRequest req) {
+        if (req == null || req.getRequirementText() == null || req.getRequirementText().isBlank()) {
+            throw new IllegalArgumentException("需求描述不能为空");
+        }
+        String text = req.getRequirementText().trim();
+        if (text.length() > 20000) {
+            throw new IllegalArgumentException("需求描述过长，请控制在 20000 字以内");
+        }
+
+        AiAnalysisConfig cfg = aiConfigService.getConfig();
+        if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
+        }
+        String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
+
+        StringBuilder ctx = new StringBuilder();
+        ctx.append("【项目上下文】下列为当前报价表单已选维度（辅助拆解模块；客户原文未提及处勿臆造具体业务功能）\n");
+        ctx.append("项目类型：").append(labelProjectType(req.getProjectType()))
+                .append(" (code: ").append(nvl(req.getProjectType(), "")).append(")\n");
+        ctx.append("技术栈：").append(labelTechStack(req.getTechStack()))
+                .append(" (code: ").append(nvl(req.getTechStack(), "")).append(")\n");
+        ctx.append("设计：").append(labelDesign(req.getDesignType()))
+                .append(" (code: ").append(nvl(req.getDesignType(), "")).append(")\n");
+        ctx.append("数据迁移/对接：").append(labelDataMigration(req.getDataMigration()))
+                .append(" (code: ").append(nvl(req.getDataMigration(), "")).append(")\n");
+        ctx.append("并发量级：").append(labelConcurrency(req.getConcurrency()))
+                .append(" (code: ").append(nvl(req.getConcurrency(), "")).append(")\n");
+        ctx.append("安全：").append(labelSecurity(req.getSecurityLevel()))
+                .append(" (code: ").append(nvl(req.getSecurityLevel(), "")).append(")\n");
+        ctx.append("部署：").append(labelDeploy(req.getDeployType()))
+                .append(" (code: ").append(nvl(req.getDeployType(), "")).append(")\n");
+        if (req.getPrdSummary() != null && !req.getPrdSummary().isBlank()) {
+            String prd = req.getPrdSummary().trim();
+            if (prd.length() > 4000) {
+                prd = prd.substring(0, 4000) + "…";
+            }
+            ctx.append("PRD/摘要（节选）：\n").append(prd).append("\n");
+        }
+
+        String system = """
+你是资深软件外包需求分析师。根据用户自然语言需求，拆解为「功能模块 → 功能点」清单，用于人天报价。
+必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
+{"modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}
+规则：
+- modules：按业务域划分（如用户与权限、订单与支付），至少 1 个模块；名称简洁。
+- items：可交付功能粒度，每条一行；大功能可拆成多条。
+- complexity 只能是英文枚举：simple、standard、medium、complex、extreme（对应 简单/标准/中等/复杂/极复杂 的工作量档位）。
+- quantity：正整数，默认 1。
+""";
+
+        String userMsg = ctx + "\n【客户/需求原文】\n" + text;
+
+        List<DeepSeekClient.ChatMessage> messages = List.of(
+                new DeepSeekClient.ChatMessage("system", system),
+                new DeepSeekClient.ChatMessage("user", userMsg)
+        );
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
+        String content = result != null ? result.getContent() : null;
+        if (content == null || content.isBlank()) {
+            throw new IllegalStateException("AI 未返回有效内容，请稍后重试或缩短描述");
+        }
+        String jsonStr = stripMarkdownCodeFence(content);
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(jsonStr);
+        } catch (Exception e) {
+            throw new IllegalStateException("AI 返回格式无法解析为 JSON，请重试");
+        }
+        JsonNode modulesNode = root.get("modules");
+        if (modulesNode == null || !modulesNode.isArray()) {
+            throw new IllegalStateException("AI 返回缺少 modules 数组");
+        }
+
+        List<Map<String, Object>> outModules = new ArrayList<>();
+        int mi = 0;
+        for (JsonNode mod : modulesNode) {
+            String modName = mod.has("name") ? mod.get("name").asText("").trim() : "";
+            if (modName.isEmpty()) {
+                continue;
+            }
+            JsonNode itemsNode = mod.get("items");
+            List<Map<String, Object>> items = new ArrayList<>();
+            if (itemsNode != null && itemsNode.isArray()) {
+                for (JsonNode it : itemsNode) {
+                    String itemName = it.has("name") ? it.get("name").asText("").trim() : "";
+                    if (itemName.isEmpty()) {
+                        continue;
+                    }
+                    String complexity = normalizeComplexityForQuote(it.has("complexity") ? it.get("complexity").asText() : "standard");
+                    int qty = 1;
+                    if (it.has("quantity") && it.get("quantity").isNumber()) {
+                        qty = Math.max(1, it.get("quantity").intValue());
+                    }
+                    Map<String, Object> im = new LinkedHashMap<>();
+                    im.put("name", itemName);
+                    im.put("complexity", complexity);
+                    im.put("quantity", qty);
+                    items.add(im);
+                }
+            }
+            if (items.isEmpty()) {
+                continue;
+            }
+            Map<String, Object> mm = new LinkedHashMap<>();
+            mm.put("name", modName);
+            mm.put("sortOrder", mi++);
+            mm.put("items", items);
+            outModules.add(mm);
+        }
+
+        if (outModules.isEmpty()) {
+            throw new IllegalStateException("未解析出有效功能模块，请补充更具体的需求描述");
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("modules", outModules);
+        if (result != null) {
+            Map<String, Object> usage = new LinkedHashMap<>();
+            usage.put("inputTokens", result.getInputTokens());
+            usage.put("outputTokens", result.getOutputTokens());
+            usage.put("model", result.getModel() != null ? result.getModel() : model);
+            out.put("usage", usage);
+        }
+        return out;
+    }
+
+    private static String stripMarkdownCodeFence(String s) {
+        if (s == null) {
+            return "";
+        }
+        String t = s.trim();
+        if (t.startsWith("```")) {
+            int nl = t.indexOf('\n');
+            if (nl > 0) {
+                t = t.substring(nl + 1);
+            } else {
+                t = t.substring(3);
+            }
+            t = t.trim();
+            if (t.endsWith("```")) {
+                t = t.substring(0, t.length() - 3).trim();
+            }
+        }
+        return t;
+    }
+
+    /** 与前端选项一致：simple / standard / medium / complex / extreme */
+    private static String normalizeComplexityForQuote(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "standard";
+        }
+        String x = raw.trim();
+        String lower = x.toLowerCase();
+        return switch (lower) {
+            case "simple", "s", "简单" -> "simple";
+            case "standard", "norm", "标准" -> "standard";
+            case "medium", "med", "中等", "中" -> "medium";
+            case "complex", "hard", "复杂" -> "complex";
+            case "extreme", "very_complex", "极复杂" -> "extreme";
+            default -> {
+                if (x.contains("极") || x.contains("extreme")) {
+                    yield "extreme";
+                }
+                if (x.contains("复杂") && !x.contains("极")) {
+                    yield "complex";
+                }
+                if (x.contains("中等") || (x.contains("中") && x.length() <= 3)) {
+                    yield "medium";
+                }
+                if (x.contains("简单")) {
+                    yield "simple";
+                }
+                if (x.contains("标准")) {
+                    yield "standard";
+                }
+                yield "standard";
+            }
+        };
     }
 
     private static String labelProjectType(String t) {

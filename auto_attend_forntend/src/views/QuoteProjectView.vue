@@ -106,6 +106,46 @@
 
       <section class="card">
         <h2>{{ $t('quote.modules') }}</h2>
+        <div class="module-entry-mode-row" role="group" :aria-label="$t('quote.moduleEntryModeLabel')">
+          <span class="module-mode-label">{{ $t('quote.moduleEntryModeLabel') }}</span>
+          <label class="mode-opt-inline">
+            <input v-model="moduleEntryMode" type="radio" value="manual" />
+            {{ $t('quote.moduleEntryManual') }}
+          </label>
+          <label class="mode-opt-inline">
+            <input v-model="moduleEntryMode" type="radio" value="ai" />
+            {{ $t('quote.moduleEntryAi') }}
+          </label>
+        </div>
+
+        <div v-show="moduleEntryMode === 'ai'" class="quote-ai-panel">
+          <p class="hint">{{ $t('quote.aiModuleHint') }}</p>
+          <label class="block">{{ $t('quote.aiModuleRequirementLabel') }}</label>
+          <textarea v-model="aiRequirementText" class="textarea" rows="8" :placeholder="$t('quote.aiModulePlaceholder')"></textarea>
+          <div class="ai-file-row">
+            <label class="btn secondary ai-file-btn">
+              {{ $t('quote.aiModuleUploadText') }}
+              <input type="file" class="visually-hidden-file" accept=".txt,.md,.markdown,text/plain" @change="onAiRequirementFile" />
+            </label>
+            <span v-if="aiFileName" class="ai-file-name">{{ aiFileName }}</span>
+          </div>
+          <div class="ai-merge-row">
+            <span class="ai-merge-label">{{ $t('quote.aiModuleMergeLabel') }}</span>
+            <label class="mode-opt-inline">
+              <input v-model="aiMergeMode" type="radio" value="replace" />
+              {{ $t('quote.aiModuleMergeReplace') }}
+            </label>
+            <label class="mode-opt-inline">
+              <input v-model="aiMergeMode" type="radio" value="append" />
+              {{ $t('quote.aiModuleMergeAppend') }}
+            </label>
+          </div>
+          <button type="button" class="btn primary" :disabled="aiModuleParsing" @click="runAiParseModules">
+            {{ aiModuleParsing ? $t('quote.aiModuleParsing') : $t('quote.aiModuleParseBtn') }}
+          </button>
+          <p v-if="aiModuleMsg" :class="aiModuleOk ? 'ok' : 'err'" style="margin-top:10px">{{ aiModuleMsg }}</p>
+        </div>
+
         <div v-for="(mod, mi) in modules" :key="'m-' + mi" class="module-block">
           <div class="mod-head">
             <input v-model="mod.name" class="inp mod-name" placeholder="模块名称" />
@@ -461,6 +501,14 @@ export default {
       /** 功能点表头「?」说明：`field:moduleIndex` 或 null */
       openTableHint: null,
       contractContext: defaultContractContext(),
+      /** 功能模块：manual | ai */
+      moduleEntryMode: 'manual',
+      aiRequirementText: '',
+      aiMergeMode: 'replace',
+      aiModuleParsing: false,
+      aiModuleMsg: '',
+      aiModuleOk: false,
+      aiFileName: '',
       deliverableOptions: [
         { k: 'source_code', l: '源代码' },
         { k: 'deploy_doc', l: '部署文档' },
@@ -857,6 +905,89 @@ export default {
         this.saveMsg = (e.response && e.response.data && e.response.data.message) || '网络错误'
       } finally {
         this.saving = false
+      }
+    },
+    onAiRequirementFile (ev) {
+      const f = ev.target && ev.target.files && ev.target.files[0]
+      if (!f) return
+      this.aiFileName = f.name
+      const reader = new FileReader()
+      reader.onload = () => {
+        const t = typeof reader.result === 'string' ? reader.result : ''
+        if (t) {
+          this.aiRequirementText = (this.aiRequirementText ? this.aiRequirementText + '\n\n' : '') + t
+        }
+      }
+      reader.readAsText(f, 'UTF-8')
+      ev.target.value = ''
+    },
+    normalizeAiModules (list) {
+      const allowed = ['simple', 'standard', 'medium', 'complex', 'extreme']
+      if (!Array.isArray(list)) return []
+      return list.map((m, mi) => {
+        const items = (Array.isArray(m.items) ? m.items : []).map(it => {
+          const cx = (it.complexity && allowed.includes(it.complexity)) ? it.complexity : 'standard'
+          return {
+            name: String(it.name || '').trim(),
+            complexity: cx,
+            quantity: Math.max(1, Number(it.quantity) || 1)
+          }
+        }).filter(it => it.name)
+        return {
+          name: String(m.name || '').trim(),
+          sortOrder: typeof m.sortOrder === 'number' ? m.sortOrder : mi,
+          items: items.length ? items : [{ name: '', complexity: 'standard', quantity: 1 }]
+        }
+      }).filter(m => m.name && m.items.some(it => it.name))
+    },
+    async runAiParseModules () {
+      const text = (this.aiRequirementText || '').trim()
+      if (!text) {
+        this.aiModuleOk = false
+        this.aiModuleMsg = this.$t('quote.aiModuleEmpty')
+        return
+      }
+      this.aiModuleParsing = true
+      this.aiModuleMsg = ''
+      this.aiModuleOk = false
+      try {
+        const body = {
+          requirementText: text,
+          projectType: this.form.projectType,
+          techStack: this.form.techStack,
+          designType: this.form.designType,
+          dataMigration: this.form.dataMigration,
+          concurrency: this.form.concurrency,
+          securityLevel: this.form.securityLevel,
+          deployType: this.form.deployType,
+          prdSummary: this.form.prdSummary || ''
+        }
+        const resp = await this.$http.post('/admin/quote/ai/parse-modules', body)
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.modules) {
+          const normalized = this.normalizeAiModules(resp.data.data.modules)
+          if (!normalized.length) {
+            this.aiModuleOk = false
+            this.aiModuleMsg = this.$t('quote.aiModuleNoResult')
+            return
+          }
+          if (this.aiMergeMode === 'append') {
+            const base = this.modules.filter(m => (m.name && String(m.name).trim()) || (m.items || []).some(it => it.name && String(it.name).trim()))
+            this.modules = base.concat(normalized)
+          } else {
+            this.modules = normalized
+          }
+          this.aiModuleOk = true
+          this.aiModuleMsg = this.$t('quote.aiModuleOk')
+          this.moduleEntryMode = 'manual'
+        } else {
+          this.aiModuleOk = false
+          this.aiModuleMsg = (resp.data && resp.data.message) || this.$t('quote.aiModuleFail')
+        }
+      } catch (e) {
+        this.aiModuleOk = false
+        this.aiModuleMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.aiModuleFail')
+      } finally {
+        this.aiModuleParsing = false
       }
     },
     addModule () {
@@ -1341,4 +1472,46 @@ label.block { display: block; margin-top: 10px; }
 .block-inp { width: 100%; max-width: 720px; box-sizing: border-box; margin-top: 6px; }
 .compact-contract .inp.wide { min-width: 160px; }
 .party-b-hint { margin: -6px 0 12px; font-size: 13px; max-width: 520px; }
+.module-entry-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.module-mode-label { font-weight: 600; color: #0f172a; margin-right: 4px; }
+.mode-opt-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: #334155; cursor: pointer; }
+.quote-ai-panel {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+}
+.quote-ai-panel .hint { margin-top: 0; }
+.ai-file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 10px 0; }
+.ai-file-btn { position: relative; cursor: pointer; display: inline-block; margin-top: 0; }
+.visually-hidden-file {
+  position: absolute;
+  width: 0.01px;
+  height: 0.01px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+.ai-file-name { font-size: 14px; color: #475569; }
+.ai-merge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 12px 0;
+  font-size: 15px;
+  color: #1e293b;
+}
+.ai-merge-label { font-weight: 600; }
 </style>

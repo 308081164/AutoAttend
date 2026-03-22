@@ -51,6 +51,26 @@ public class AdminQuoteController {
         }
     }
 
+    /**
+     * 将自然语言需求交由 DeepSeek 解析为「功能模块 + 功能点（复杂度、数量）」JSON，供前端填入表单。
+     * 使用管理后台「AI 配置」中的 DeepSeek Key；不落库。
+     */
+    @PostMapping("/ai/parse-modules")
+    public ApiResponse<Map<String, Object>> parseModulesWithAi(@RequestBody(required = false) QuoteAiModulesParseRequest body) {
+        if (body == null) {
+            body = new QuoteAiModulesParseRequest();
+        }
+        try {
+            return ApiResponse.ok(quoteService.parseQuoteModulesWithAi(body));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "解析失败");
+        }
+    }
+
     @GetMapping("/projects")
     public ApiResponse<Map<String, Object>> listProjects(
             @RequestParam(value = "page", defaultValue = "1") int page,
