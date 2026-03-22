@@ -1,16 +1,17 @@
 package org.example.atuo_attend_backend.collab.controller;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.QwenClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
+import org.example.atuo_attend_backend.collab.ai.CollabAiTaskResponseParser;
 import org.example.atuo_attend_backend.collab.domain.BizAttachment;
+import org.example.atuo_attend_backend.collab.domain.BizProjectMember;
 import org.example.atuo_attend_backend.collab.domain.BizProjectTable;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
+import org.example.atuo_attend_backend.collab.mapper.BizProjectMemberMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
 import org.example.atuo_attend_backend.collab.service.CollabRecordService;
@@ -47,6 +48,7 @@ public class CollabAiTaskController {
     private final MinioService minioService;
     private final AiTokenUsageMapper tokenUsageMapper;
     private final BizUserMapper userMapper;
+    private final BizProjectMemberMapper projectMemberMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final ZoneId COLLAB_STATS_ZONE = ZoneId.of("Asia/Shanghai");
@@ -59,7 +61,8 @@ public class CollabAiTaskController {
                                   BizAttachmentMapper attachmentMapper,
                                   MinioService minioService,
                                   AiTokenUsageMapper tokenUsageMapper,
-                                  BizUserMapper userMapper) {
+                                  BizUserMapper userMapper,
+                                  BizProjectMemberMapper projectMemberMapper) {
         this.projectService = projectService;
         this.tableService = tableService;
         this.recordService = recordService;
@@ -69,6 +72,7 @@ public class CollabAiTaskController {
         this.minioService = minioService;
         this.tokenUsageMapper = tokenUsageMapper;
         this.userMapper = userMapper;
+        this.projectMemberMapper = projectMemberMapper;
     }
 
     private long requireUserId(HttpServletRequest req) {
@@ -128,7 +132,7 @@ public class CollabAiTaskController {
         }
         List<AiTaskDraft> drafts;
         try {
-            drafts = parseAiTaskDraftsFromContent(result.getContent());
+            drafts = CollabAiTaskResponseParser.parseDrafts(result.getContent());
         } catch (Exception e) {
             log.warn("Parse AI task drafts failed: {} - content length={}", e.getMessage(), result.getContent().length());
             return ApiResponse.error(50000, "解析 AI 返回结果失败，请稍后重试");
@@ -166,10 +170,11 @@ public class CollabAiTaskController {
         BizUser actor = userMapper.findById(userId);
         String creatorLabel = buildCreatorDisplayLabel(actor);
         String nowIso = LocalDateTime.now(COLLAB_STATS_ZONE).withNano(0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        Map<String, Long> emailToUserId = buildProjectMemberEmailMap(projectId);
 
         int created = 0;
         for (AiTaskDraft t : body.getTasks()) {
-            Map<String, Object> fields = draftToRecordFields(t, columnByName, creatorLabel, nowIso);
+            Map<String, Object> fields = draftToRecordFields(t, columnByName, creatorLabel, nowIso, emailToUserId);
             if (!fields.isEmpty()) {
                 var rec = recordService.createRecord(table.getId(), userId, fields);
                 if (t.getAttachmentIds() != null) {
@@ -235,36 +240,17 @@ public class CollabAiTaskController {
         return sb.toString();
     }
 
-    /**
-     * 从通义返回的 content 中解析出任务草稿列表。
-     * 兼容：被 markdown 代码块包裹、对象内 items/tasks 数组、或直接 JSON 数组。
-     */
-    private List<AiTaskDraft> parseAiTaskDraftsFromContent(String content) throws Exception {
-        if (content == null || content.isBlank()) return List.of();
-        String json = content.trim();
-        if (json.startsWith("```")) {
-            int start = json.indexOf("\n");
-            if (start > 0) json = json.substring(start + 1);
-            int end = json.lastIndexOf("```");
-            if (end > 0) json = json.substring(0, end).trim();
+    private Map<String, Long> buildProjectMemberEmailMap(long projectId) {
+        List<BizProjectMember> members = projectMemberMapper.listByProjectId(projectId);
+        Map<String, Long> out = new HashMap<>();
+        for (BizProjectMember m : members) {
+            if (m == null || m.getUserId() == null) continue;
+            BizUser u = userMapper.findById(m.getUserId());
+            if (u != null && u.getEmail() != null && !u.getEmail().isBlank()) {
+                out.put(u.getEmail().trim().toLowerCase(Locale.ROOT), u.getId());
+            }
         }
-        int arrStart = json.indexOf('[');
-        int arrEnd = json.lastIndexOf(']');
-        if (arrStart >= 0 && arrEnd > arrStart) {
-            json = json.substring(arrStart, arrEnd + 1);
-        }
-        json = json.replaceAll(",\\s*]", "]");
-        JsonNode root = objectMapper.readTree(json);
-        if (root.isArray()) {
-            return objectMapper.convertValue(root, new TypeReference<List<AiTaskDraft>>() {});
-        }
-        if (root.has("items") && root.get("items").isArray()) {
-            return objectMapper.convertValue(root.get("items"), new TypeReference<List<AiTaskDraft>>() {});
-        }
-        if (root.has("tasks") && root.get("tasks").isArray()) {
-            return objectMapper.convertValue(root.get("tasks"), new TypeReference<List<AiTaskDraft>>() {});
-        }
-        throw new IllegalArgumentException("AI 返回中未找到 JSON 数组（需为 [...] 或 { items/tasks: [...] }）");
+        return out;
     }
 
     /**
@@ -276,11 +262,34 @@ public class CollabAiTaskController {
     private Map<String, Object> draftToRecordFields(AiTaskDraft t,
                                                     Map<String, Map<String, Object>> columnByName,
                                                     String creatorLabel,
-                                                    String createdAtIso) {
+                                                    String createdAtIso,
+                                                    Map<String, Long> emailToUserId) {
         Map<String, Object> fields = new HashMap<>();
         Object col;
         Object idObj;
         long colId;
+
+        col = columnByName.get("负责人");
+        if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null
+                && t.getOwners() != null && !t.getOwners().isEmpty()
+                && emailToUserId != null && !emailToUserId.isEmpty()) {
+            colId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            List<Long> ownerIds = new ArrayList<>();
+            for (String o : t.getOwners()) {
+                if (o == null || o.isBlank()) continue;
+                String key = o.trim().toLowerCase(Locale.ROOT);
+                Long uid = emailToUserId.get(key);
+                if (uid != null) {
+                    ownerIds.add(uid);
+                }
+            }
+            if (!ownerIds.isEmpty()) {
+                try {
+                    fields.put("c" + colId, objectMapper.writeValueAsString(ownerIds));
+                } catch (Exception ignored) {
+                }
+            }
+        }
 
         col = columnByName.get("问题描述");
         if (col != null && (idObj = ((Map<?, ?>) col).get("id")) != null) {

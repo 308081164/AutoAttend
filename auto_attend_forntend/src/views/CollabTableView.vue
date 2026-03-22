@@ -6,9 +6,13 @@
         <h2 class="table-title">{{ pageTableTitle }}</h2>
       </div>
       <div class="header-actions">
-        <button type="button" class="ai-magic-button" @click="openAiInput" :title="$t('collabTable.aiInputModeHint')">
+        <button type="button" class="ai-magic-button" @click="openAiInput('text')" :title="$t('collabTable.aiInputModeHint')">
           <span class="ai-magic-icon" aria-hidden="true">✦</span>
           <span class="ai-magic-label">{{ $t('collabTable.aiInputMode') }}</span>
+        </button>
+        <button type="button" class="ai-csv-button" @click="openAiInput('csv')" :title="$t('collabTable.csvAiHint')">
+          <span class="ai-magic-icon" aria-hidden="true">📄</span>
+          <span class="ai-magic-label">{{ $t('collabTable.csvAiMode') }}</span>
         </button>
         <button type="button" class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
       </div>
@@ -278,11 +282,35 @@
     <div v-if="showAiModal" class="drawer-mask" @click="closeAiModal">
       <div class="drawer ai-modal" @click.stop>
         <div class="drawer-header">
-          <h3>{{ $t('collabTable.aiInputTitle') }}</h3>
+          <h3>{{ aiModalMode === 'csv' ? $t('collabTable.csvAiTitle') : $t('collabTable.aiInputTitle') }}</h3>
           <button class="close-btn" @click="closeAiModal">×</button>
         </div>
         <div class="drawer-body ai-body">
-          <div class="ai-input-section">
+          <div class="ai-mode-tabs" role="tablist">
+            <button type="button" role="tab" :aria-selected="aiModalMode === 'text'" :class="{ active: aiModalMode === 'text' }" @click="aiModalMode = 'text'">
+              {{ $t('collabTable.aiTabText') }}
+            </button>
+            <button type="button" role="tab" :aria-selected="aiModalMode === 'csv'" :class="{ active: aiModalMode === 'csv' }" @click="aiModalMode = 'csv'">
+              {{ $t('collabTable.aiTabCsv') }}
+            </button>
+          </div>
+          <div v-show="aiModalMode === 'csv'" class="ai-csv-section">
+            <p class="hint-text">{{ $t('collabTable.csvAiHint') }}</p>
+            <div class="ai-upload-row">
+              <input ref="csvAiFileInput" type="file" accept=".csv,text/csv" style="display:none" @change="onCsvAiFileSelected">
+              <button type="button" class="secondary-button small" @click="$refs.csvAiFileInput && $refs.csvAiFileInput.click()">
+                {{ $t('collabTable.csvAiPickFile') }}
+              </button>
+              <span v-if="csvAiFileName" class="csv-file-name">{{ csvAiFileName }}</span>
+            </div>
+            <button type="button" class="primary-button" @click="runCsvAiPreview" :disabled="csvAiLoading || !csvAiFile">
+              {{ csvAiLoading ? $t('collabTable.csvAiParsing') : $t('collabTable.csvAiParseBtn') }}
+            </button>
+            <ul v-if="csvAiWarnings.length" class="csv-warn-list">
+              <li v-for="(w, wi) in csvAiWarnings" :key="'cw-' + wi">{{ w }}</li>
+            </ul>
+          </div>
+          <div v-show="aiModalMode === 'text'" class="ai-input-section">
             <label class="field-label">{{ $t('collabTable.aiInputRawText') }}</label>
             <textarea
               v-model="aiInputText"
@@ -291,7 +319,7 @@
               :placeholder="$t('collabTable.aiInputPlaceholder')"
             ></textarea>
           </div>
-          <div class="ai-attachments-section">
+          <div v-show="aiModalMode === 'text'" class="ai-attachments-section">
             <label class="field-label">{{ $t('collabTable.aiInputAttachments') }}</label>
             <div class="ai-upload-row">
               <input ref="aiFileInput" type="file" multiple style="display:none" @change="onAiFilesSelected">
@@ -318,7 +346,7 @@
             </div>
             <div v-else class="text-muted small">{{ $t('collabTable.noAiAttachments') }}</div>
           </div>
-          <div class="ai-actions">
+          <div v-show="aiModalMode === 'text'" class="ai-actions">
             <button class="primary-button" @click="runAiPreview" :disabled="aiLoading">
               {{ aiLoading ? $t('collabTable.aiGenerating') : $t('collabTable.aiGenerateTasks') }}
             </button>
@@ -411,9 +439,14 @@ export default {
       recordAttachmentsMap: {},
       listAttachmentPreviewUrls: {},
       showAiModal: false,
+      aiModalMode: 'text',
       aiInputText: '',
       aiTasks: [],
       aiLoading: false,
+      csvAiFile: null,
+      csvAiFileName: '',
+      csvAiLoading: false,
+      csvAiWarnings: [],
       aiCommitting: false,
       aiSessionAttachments: [],
       aiSelectedAttachmentIds: [],
@@ -445,15 +478,47 @@ export default {
     this.revokeListAttachmentPreviewUrls()
   },
   methods: {
-    openAiInput () {
+    openAiInput (mode) {
+      this.aiModalMode = mode === 'csv' ? 'csv' : 'text'
       this.showAiModal = true
       this.aiInputText = ''
       this.aiTasks = []
       this.aiSelectedAttachmentIds = []
       this.clearAiSessionAttachments()
+      this.csvAiFile = null
+      this.csvAiFileName = ''
+      this.csvAiWarnings = []
+      if (this.$refs.csvAiFileInput) this.$refs.csvAiFileInput.value = ''
     },
     closeAiModal () {
       this.showAiModal = false
+    },
+    onCsvAiFileSelected (e) {
+      const f = e.target && e.target.files && e.target.files[0]
+      this.csvAiFile = f || null
+      this.csvAiFileName = f ? f.name : ''
+    },
+    async runCsvAiPreview () {
+      if (!this.csvAiFile) return
+      this.csvAiLoading = true
+      this.csvAiWarnings = []
+      try {
+        const fd = new FormData()
+        fd.append('file', this.csvAiFile)
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/csv-ai-import/preview`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
+          this.aiTasks = resp.data.data.items
+          this.csvAiWarnings = Array.isArray(resp.data.data.warnings) ? resp.data.data.warnings : []
+        } else {
+          alert((resp.data && resp.data.message) || this.$t('collabTable.csvAiPreviewFailed'))
+        }
+      } catch (err) {
+        alert((err.response && err.response.data && err.response.data.message) || this.$t('collabTable.csvAiPreviewFailed'))
+      } finally {
+        this.csvAiLoading = false
+      }
     },
     async runAiPreview () {
       if (!this.aiInputText || !this.aiInputText.trim()) return
@@ -1230,6 +1295,75 @@ export default {
 
 .ai-magic-label {
   letter-spacing: 0.02em;
+}
+
+.ai-csv-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f766e;
+  background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #5eead4;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.ai-csv-button:hover {
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.15);
+  transform: translateY(-1px);
+}
+
+.ai-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.ai-mode-tabs button {
+  padding: 8px 14px;
+  border: none;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ai-mode-tabs button.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.ai-csv-section {
+  margin-bottom: 16px;
+}
+
+.ai-csv-section .hint-text {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.csv-file-name {
+  font-size: 13px;
+  color: #334155;
+  margin-left: 8px;
+}
+
+.csv-warn-list {
+  margin: 10px 0 0;
+  padding-left: 1.2rem;
+  font-size: 13px;
+  color: #b45309;
 }
 
 .primary-button {

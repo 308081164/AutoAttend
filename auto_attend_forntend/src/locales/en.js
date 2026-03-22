@@ -490,6 +490,15 @@ export default {
     aiUploadFailed: 'Failed to upload attachment. Please try again.',
     imagePreviewDownload: 'Save to device',
     imagePreviewClose: 'Close',
-    imagePreviewComingSoon: 'Coming in a later version'
+    imagePreviewComingSoon: 'Coming in a later version',
+    aiTabText: 'Text + Qwen',
+    aiTabCsv: 'CSV + DeepSeek',
+    csvAiMode: 'CSV smart import',
+    csvAiTitle: 'CSV smart import',
+    csvAiHint: 'CSV is not imported directly. Each batch (max 30 data rows) is sent to DeepSeek to align with your table columns/options. Review drafts before insert. Requires DeepSeek API key in admin AI settings. Max ~3000 data rows per file.',
+    csvAiPickFile: 'Choose CSV',
+    csvAiParseBtn: 'Parse to drafts',
+    csvAiParsing: 'Parsing (chunked)…',
+    csvAiPreviewFailed: 'CSV parse failed. Check UTF-8, columns, or DeepSeek config.'
   }
 }

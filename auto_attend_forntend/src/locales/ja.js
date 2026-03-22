@@ -296,6 +296,15 @@ export default {
     aiUploadFailed: '添付のアップロードに失敗しました。',
     imagePreviewDownload: 'ローカルに保存',
     imagePreviewClose: '閉じる',
-    imagePreviewComingSoon: '今後のバージョンで対応'
+    imagePreviewComingSoon: '今後のバージョンで対応',
+    aiTabText: 'テキスト＋通義',
+    aiTabCsv: 'CSV＋DeepSeek',
+    csvAiMode: 'CSV 取込',
+    csvAiTitle: 'CSV スマート取込',
+    csvAiHint: 'CSV は直接書き込みません。最大30行ずつ DeepSeek で現在の表に合わせて整形します。挿入前に確認してください。管理画面の DeepSeek API Key が必要です。',
+    csvAiPickFile: 'CSV を選択',
+    csvAiParseBtn: '下書きに解析',
+    csvAiParsing: '解析中（分割）…',
+    csvAiPreviewFailed: '解析に失敗しました。UTF-8 や DeepSeek 設定を確認してください。'
   }
 }

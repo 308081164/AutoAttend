@@ -294,6 +294,15 @@ export default {
     aiUploadFailed: 'Failed to upload attachment. Please try again.',
     imagePreviewDownload: 'Save to device',
     imagePreviewClose: 'Close',
-    imagePreviewComingSoon: 'Coming in a later version'
+    imagePreviewComingSoon: 'Coming in a later version',
+    aiTabText: 'Texte + Qwen',
+    aiTabCsv: 'CSV + DeepSeek',
+    csvAiMode: 'Import CSV',
+    csvAiTitle: 'CSV + DeepSeek',
+    csvAiHint: 'Le CSV est nettoyé par lots (30 lignes). Vérifiez avant insertion.',
+    csvAiPickFile: 'Fichier CSV',
+    csvAiParseBtn: 'Analyser',
+    csvAiParsing: 'Analyse…',
+    csvAiPreviewFailed: 'Échec.'
   }
 }

@@ -90,6 +90,11 @@
         <!-- POI 5.2.x 需要较新 commons-compress；MinIO 等可能带入旧版导致 ZipArchiveOutputStream NoSuchMethodError -->
         <dependency>
             <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
             <version>1.26.2</version>
         </dependency>

@@ -490,6 +490,15 @@ export default {
     aiUploadFailed: '上传附件失败，请稍后重试。',
     imagePreviewDownload: '保存到本地',
     imagePreviewClose: '关闭',
-    imagePreviewComingSoon: '后续版本支持'
+    imagePreviewComingSoon: '后续版本支持',
+    aiTabText: '描述 + 千问',
+    aiTabCsv: 'CSV + DeepSeek',
+    csvAiMode: 'CSV 智能导入',
+    csvAiTitle: 'CSV 智能导入',
+    csvAiHint: '上传 CSV 后不会直接写入表格。系统按每批最多 30 行数据调用 DeepSeek，结合当前表的列与选项清洗为任务草稿；请核对后再插入。需管理后台配置 DeepSeek API Key。单文件建议不超过约 3000 行数据。',
+    csvAiPickFile: '选择 CSV 文件',
+    csvAiParseBtn: '解析为任务草稿',
+    csvAiParsing: '解析中（多分片）…',
+    csvAiPreviewFailed: 'CSV 解析失败，请检查文件编码(UTF-8)、列内容或 DeepSeek 配置。'
   }
 }
