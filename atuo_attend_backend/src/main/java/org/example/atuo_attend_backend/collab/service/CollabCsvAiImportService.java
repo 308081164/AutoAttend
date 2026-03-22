@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * CSV 分片（每片 ≤30 行数据）→ DeepSeek 清洗为与「AI 录入」一致的任务草稿 JSON，供前端预览后调用 /ai-tasks/commit 落库。
+ * CSV 在<strong>本服务器</strong>解析并分片；每片单独 HTTP 请求调用一次 DeepSeek，避免 Nginx 504。
  */
 @Service
 public class CollabCsvAiImportService {
@@ -35,7 +35,7 @@ public class CollabCsvAiImportService {
     public static final int MAX_ROWS_PER_CHUNK = 30;
     /** 单文件最大字节 */
     public static final int MAX_FILE_BYTES = 6 * 1024 * 1024;
-    /** 最多处理的数据行，防止超大表拖垮服务 */
+    /** 最多处理的数据行 */
     public static final int MAX_TOTAL_DATA_ROWS = 3000;
 
     private final CollabTableService tableService;
@@ -44,42 +44,36 @@ public class CollabCsvAiImportService {
     private final AiAnalysisConfigService aiConfigService;
     private final DeepSeekClient deepSeekClient;
     private final AiTokenUsageMapper tokenUsageMapper;
+    private final CollabCsvAiImportSessionStore sessionStore;
 
     public CollabCsvAiImportService(CollabTableService tableService,
                                     BizProjectMemberMapper projectMemberMapper,
                                     BizUserMapper userMapper,
                                     AiAnalysisConfigService aiConfigService,
                                     DeepSeekClient deepSeekClient,
-                                    AiTokenUsageMapper tokenUsageMapper) {
+                                    AiTokenUsageMapper tokenUsageMapper,
+                                    CollabCsvAiImportSessionStore sessionStore) {
         this.tableService = tableService;
         this.projectMemberMapper = projectMemberMapper;
         this.userMapper = userMapper;
         this.aiConfigService = aiConfigService;
         this.deepSeekClient = deepSeekClient;
         this.tokenUsageMapper = tokenUsageMapper;
+        this.sessionStore = sessionStore;
     }
 
-    public Map<String, Object> previewFromCsv(long projectId, MultipartFile file) throws Exception {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("请上传 CSV 文件");
-        }
-        if (file.getSize() > MAX_FILE_BYTES) {
-            throw new IllegalArgumentException("文件过大，请控制在 " + (MAX_FILE_BYTES / 1024 / 1024) + "MB 以内");
-        }
-        String original = file.getOriginalFilename() != null ? file.getOriginalFilename() : "";
-        if (!original.toLowerCase(Locale.ROOT).endsWith(".csv")) {
-            throw new IllegalArgumentException("仅支持 .csv 文件");
-        }
-
-        AiAnalysisConfig cfg = aiConfigService.getConfig();
-        if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
-            throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
-        }
-        String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
-
+    /**
+     * 上传 CSV，仅在服务端解析并缓存，不调用 AI。返回 sessionId 与总批次数。
+     */
+    public Map<String, Object> createImportSession(long userId, long projectId, MultipartFile file) throws Exception {
+        validateFileBasics(file);
         Map<String, Object> schema = tableService.getTableWithColumns(projectId);
         if (schema == null) {
             throw new IllegalStateException("项目未绑定表格");
+        }
+        AiAnalysisConfig cfg = aiConfigService.getConfig();
+        if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
         }
 
         CsvParseResult parsed = parseCsv(file);
@@ -93,78 +87,129 @@ public class CollabCsvAiImportService {
             throw new IllegalArgumentException("数据行过多（上限 " + MAX_TOTAL_DATA_ROWS + "），请拆分文件");
         }
 
-        String schemaText = buildSchemaDescription(schema);
-        String memberText = buildMemberLines(projectId);
-        String system = buildSystemPrompt();
+        CollabCsvAiImportSessionStore.Session session = new CollabCsvAiImportSessionStore.Session();
+        session.setUserId(userId);
+        session.setProjectId(projectId);
+        session.setHeader(parsed.header());
+        session.setDataRows(parsed.dataRows());
+        session.setSchemaText(buildSchemaDescription(schema));
+        session.setMemberText(buildMemberLines(projectId));
+        session.setSystemPrompt(buildSystemPrompt());
 
-        List<CollabAiTaskController.AiTaskDraft> merged = new ArrayList<>();
-        List<String> chunkErrors = new ArrayList<>();
-        int totalChunks = (int) Math.ceil((double) parsed.dataRows().size() / MAX_ROWS_PER_CHUNK);
-        int inTok = 0;
-        int outTok = 0;
+        String sessionId = sessionStore.create(session);
+        int chunksTotal = session.getTotalChunks();
 
-        for (int c = 0; c < totalChunks; c++) {
-            int from = c * MAX_ROWS_PER_CHUNK;
-            int to = Math.min(from + MAX_ROWS_PER_CHUNK, parsed.dataRows().size());
-            List<String[]> chunk = parsed.dataRows().subList(from, to);
-            String userMsg = buildChunkUserMessage(c + 1, totalChunks, parsed.header(), chunk);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("sessionId", sessionId);
+        data.put("csvRowCount", parsed.dataRows().size());
+        data.put("chunksTotal", chunksTotal);
+        data.put("chunkSize", MAX_ROWS_PER_CHUNK);
+        return data;
+    }
 
-            List<DeepSeekClient.ChatMessage> messages = List.of(
-                    new DeepSeekClient.ChatMessage("system", system),
-                    new DeepSeekClient.ChatMessage("user", schemaText + "\n\n" + memberText + "\n\n" + userMsg)
-            );
-            DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
-            if (result == null || result.getContent() == null || result.getContent().isBlank()) {
-                chunkErrors.add("第 " + (c + 1) + "/" + totalChunks + " 批：AI 无返回");
-                continue;
+    /**
+     * 处理第 chunkIndex 批（0 起），单次 DeepSeek 调用。
+     */
+    public Map<String, Object> processChunk(long userId, long projectId, String sessionId, int chunkIndex) throws Exception {
+        CollabCsvAiImportSessionStore.Session session = sessionStore.get(sessionId);
+        if (session == null) {
+            throw new IllegalStateException("会话已过期或无效，请重新上传 CSV");
+        }
+        if (session.getUserId() != userId || session.getProjectId() != projectId) {
+            throw new IllegalStateException("无权访问该导入会话");
+        }
+
+        AiAnalysisConfig cfg = aiConfigService.getConfig();
+        if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
+        }
+        String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
+
+        List<String[]> allRows = session.getDataRows();
+        int totalChunks = session.getTotalChunks();
+        if (chunkIndex < 0 || chunkIndex >= totalChunks) {
+            throw new IllegalArgumentException("chunkIndex 超出范围（0～" + (totalChunks - 1) + "）");
+        }
+
+        int from = chunkIndex * MAX_ROWS_PER_CHUNK;
+        int to = Math.min(from + MAX_ROWS_PER_CHUNK, allRows.size());
+        List<String[]> chunk = allRows.subList(from, to);
+        String userMsg = buildChunkUserMessage(chunkIndex + 1, totalChunks, session.getHeader(), chunk);
+
+        List<DeepSeekClient.ChatMessage> messages = List.of(
+                new DeepSeekClient.ChatMessage("system", session.getSystemPrompt()),
+                new DeepSeekClient.ChatMessage("user", session.getSchemaText() + "\n\n" + session.getMemberText() + "\n\n" + userMsg)
+        );
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
+
+        List<String> warnings = new ArrayList<>();
+        List<CollabAiTaskController.AiTaskDraft> items = new ArrayList<>();
+
+        if (result == null || result.getContent() == null || result.getContent().isBlank()) {
+            warnings.add("第 " + (chunkIndex + 1) + "/" + totalChunks + " 批：AI 无返回");
+        } else {
+            if (result.getInputTokens() > 0 || result.getOutputTokens() > 0) {
+                try {
+                    tokenUsageMapper.insert(LocalDateTime.now(), "deepseek", model,
+                            result.getInputTokens(), result.getOutputTokens(), result.getTotalTokens(),
+                            null, "collab_csv_chunk:" + chunkIndex);
+                } catch (Exception e) {
+                    log.warn("Record DeepSeek token usage failed: {}", e.getMessage());
+                }
             }
-            inTok += result.getInputTokens();
-            outTok += result.getOutputTokens();
             try {
-                List<CollabAiTaskController.AiTaskDraft> part = CollabAiTaskResponseParser.parseDrafts(result.getContent());
-                if (part.isEmpty()) {
-                    chunkErrors.add("第 " + (c + 1) + "/" + totalChunks + " 批：未解析出任务");
-                } else {
-                    merged.addAll(part);
+                items = CollabAiTaskResponseParser.parseDrafts(result.getContent());
+                if (items.isEmpty()) {
+                    warnings.add("第 " + (chunkIndex + 1) + "/" + totalChunks + " 批：未解析出任务");
                 }
             } catch (Exception e) {
                 log.warn("CSV AI chunk parse failed: {}", e.getMessage());
-                chunkErrors.add("第 " + (c + 1) + "/" + totalChunks + " 批：解析失败");
+                warnings.add("第 " + (chunkIndex + 1) + "/" + totalChunks + " 批：解析失败");
             }
         }
 
-        if (inTok > 0 || outTok > 0) {
-            try {
-                tokenUsageMapper.insert(LocalDateTime.now(), "deepseek", model, inTok, outTok, inTok + outTok, null, "collab_csv_import");
-            } catch (Exception e) {
-                log.warn("Record DeepSeek token usage failed: {}", e.getMessage());
-            }
-        }
-
-        if (merged.isEmpty()) {
-            String hint = chunkErrors.isEmpty() ? "" : String.join("；", chunkErrors);
-            throw new IllegalStateException("未能生成任何任务草稿" + (hint.isEmpty() ? "" : "：" + hint));
-        }
-
+        boolean finished = (chunkIndex >= totalChunks - 1);
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("items", merged);
-        data.put("csvRowCount", parsed.dataRows().size());
-        data.put("chunkCount", totalChunks);
-        data.put("draftCount", merged.size());
-        if (!chunkErrors.isEmpty()) {
-            data.put("warnings", chunkErrors);
+        data.put("chunkIndex", chunkIndex);
+        data.put("chunksTotal", totalChunks);
+        data.put("items", items);
+        data.put("finished", finished);
+        if (!warnings.isEmpty()) {
+            data.put("warnings", warnings);
         }
         Map<String, Object> usage = new LinkedHashMap<>();
-        usage.put("inputTokens", inTok);
-        usage.put("outputTokens", outTok);
-        usage.put("model", model);
+        if (result != null) {
+            usage.put("inputTokens", result.getInputTokens());
+            usage.put("outputTokens", result.getOutputTokens());
+            usage.put("model", model);
+        }
         data.put("usage", usage);
         return data;
     }
 
+    /** 导入完成或放弃时释放内存（也可依赖会话 TTL 自动清理） */
+    public void discardSession(long userId, long projectId, String sessionId) {
+        CollabCsvAiImportSessionStore.Session session = sessionStore.get(sessionId);
+        if (session != null && session.getUserId() == userId && session.getProjectId() == projectId) {
+            sessionStore.remove(sessionId);
+        }
+    }
+
+    private void validateFileBasics(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("请上传 CSV 文件");
+        }
+        if (file.getSize() > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("文件过大，请控制在 " + (MAX_FILE_BYTES / 1024 / 1024) + "MB 以内");
+        }
+        String original = file.getOriginalFilename() != null ? file.getOriginalFilename() : "";
+        if (!original.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            throw new IllegalArgumentException("仅支持 .csv 文件");
+        }
+    }
+
     private CsvParseResult parseCsv(MultipartFile file) throws Exception {
         byte[] bytes = file.getBytes();
-        // UTF-8 BOM
         int start = 0;
         if (bytes.length >= 3 && (bytes[0] & 0xFF) == 0xEF && (bytes[1] & 0xFF) == 0xBB && (bytes[2] & 0xFF) == 0xBF) {
             start = 3;

@@ -499,6 +499,8 @@ export default {
     csvAiPickFile: '选择 CSV 文件',
     csvAiParseBtn: '解析为任务草稿',
     csvAiParsing: '解析中（多分片）…',
+    csvAiProgress: '正在处理第 {current}/{total} 批…',
+    csvAiNoDrafts: '未解析出任何任务草稿，请检查 CSV 列或表结构。',
     csvAiPreviewFailed: 'CSV 解析失败，请检查文件编码(UTF-8)、列内容或 DeepSeek 配置。'
   }
 }

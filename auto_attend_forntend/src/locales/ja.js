@@ -305,6 +305,8 @@ export default {
     csvAiPickFile: 'CSV を選択',
     csvAiParseBtn: '下書きに解析',
     csvAiParsing: '解析中（分割）…',
+    csvAiProgress: '{current}/{total} バッチ処理中…',
+    csvAiNoDrafts: '下書きが得られませんでした。CSV 列や表構造を確認してください。',
     csvAiPreviewFailed: '解析に失敗しました。UTF-8 や DeepSeek 設定を確認してください。'
   }
 }

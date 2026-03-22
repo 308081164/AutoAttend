@@ -306,6 +306,7 @@
             <button type="button" class="primary-button" @click="runCsvAiPreview" :disabled="csvAiLoading || !csvAiFile">
               {{ csvAiLoading ? $t('collabTable.csvAiParsing') : $t('collabTable.csvAiParseBtn') }}
             </button>
+            <p v-if="csvAiProgress" class="csv-progress-text">{{ csvAiProgress }}</p>
             <ul v-if="csvAiWarnings.length" class="csv-warn-list">
               <li v-for="(w, wi) in csvAiWarnings" :key="'cw-' + wi">{{ w }}</li>
             </ul>
@@ -446,6 +447,7 @@ export default {
       csvAiFile: null,
       csvAiFileName: '',
       csvAiLoading: false,
+      csvAiProgress: '',
       csvAiWarnings: [],
       aiCommitting: false,
       aiSessionAttachments: [],
@@ -488,6 +490,7 @@ export default {
       this.csvAiFile = null
       this.csvAiFileName = ''
       this.csvAiWarnings = []
+      this.csvAiProgress = ''
       if (this.$refs.csvAiFileInput) this.$refs.csvAiFileInput.value = ''
     },
     closeAiModal () {
@@ -502,20 +505,70 @@ export default {
       if (!this.csvAiFile) return
       this.csvAiLoading = true
       this.csvAiWarnings = []
+      this.csvAiProgress = ''
+      const chunkTimeout = 180000
+      const sessionTimeout = 120000
+      let sessionId = null
       try {
         const fd = new FormData()
         fd.append('file', this.csvAiFile)
-        const resp = await this.$http.post(`/collab/projects/${this.projectId}/csv-ai-import/preview`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        const initResp = await this.$http.post(`/collab/projects/${this.projectId}/csv-ai-import/session`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: sessionTimeout
         })
-        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
-          this.aiTasks = resp.data.data.items
-          this.csvAiWarnings = Array.isArray(resp.data.data.warnings) ? resp.data.data.warnings : []
-        } else {
-          alert((resp.data && resp.data.message) || this.$t('collabTable.csvAiPreviewFailed'))
+        if (!initResp.data || initResp.data.code !== 0 || !initResp.data.data) {
+          alert((initResp.data && initResp.data.message) || this.$t('collabTable.csvAiPreviewFailed'))
+          return
+        }
+        const { sessionId: sid, chunksTotal } = initResp.data.data
+        sessionId = sid
+        const total = Number(chunksTotal) || 0
+        if (!sid || total < 1) {
+          alert(this.$t('collabTable.csvAiPreviewFailed'))
+          return
+        }
+        const merged = []
+        const allWarnings = []
+        for (let i = 0; i < total; i++) {
+          this.csvAiProgress = this.$t('collabTable.csvAiProgress', { current: i + 1, total })
+          const chunkResp = await this.$http.post(
+            `/collab/projects/${this.projectId}/csv-ai-import/session/${sid}/chunk`,
+            { chunkIndex: i },
+            { timeout: chunkTimeout, headers: { 'Content-Type': 'application/json' } }
+          )
+          if (!chunkResp.data || chunkResp.data.code !== 0 || !chunkResp.data.data) {
+            throw new Error((chunkResp.data && chunkResp.data.message) || 'chunk failed')
+          }
+          const d = chunkResp.data.data
+          if (Array.isArray(d.items) && d.items.length) {
+            merged.push(...d.items)
+          }
+          if (Array.isArray(d.warnings)) {
+            allWarnings.push(...d.warnings)
+          }
+        }
+        this.csvAiProgress = ''
+        if (!merged.length) {
+          alert(this.$t('collabTable.csvAiNoDrafts'))
+          this.csvAiWarnings = allWarnings
+          return
+        }
+        this.aiTasks = merged
+        this.csvAiWarnings = allWarnings
+        try {
+          await this.$http.delete(`/collab/projects/${this.projectId}/csv-ai-import/session/${sid}`, { timeout: 15000 })
+        } catch (e) {
+          // 忽略清理失败，会话会 TTL 过期
         }
       } catch (err) {
-        alert((err.response && err.response.data && err.response.data.message) || this.$t('collabTable.csvAiPreviewFailed'))
+        this.csvAiProgress = ''
+        const msg = (err.response && err.response.data && err.response.data.message) || err.message || ''
+        if (sessionId) {
+          try {
+            await this.$http.delete(`/collab/projects/${this.projectId}/csv-ai-import/session/${sessionId}`, { timeout: 15000 })
+          } catch (e) { /* ignore */ }
+        }
+        alert(msg || this.$t('collabTable.csvAiPreviewFailed'))
       } finally {
         this.csvAiLoading = false
       }
@@ -1357,6 +1410,12 @@ export default {
   font-size: 13px;
   color: #334155;
   margin-left: 8px;
+}
+
+.csv-progress-text {
+  font-size: 13px;
+  color: #475569;
+  margin: 8px 0 0;
 }
 
 .csv-warn-list {

@@ -303,6 +303,8 @@ export default {
     csvAiPickFile: 'Fichier CSV',
     csvAiParseBtn: 'Analyser',
     csvAiParsing: 'Analyse…',
+    csvAiProgress: 'Lot {current}/{total}…',
+    csvAiNoDrafts: 'Aucun brouillon. Vérifiez les colonnes CSV ou le schéma.',
     csvAiPreviewFailed: 'Échec.'
   }
 }

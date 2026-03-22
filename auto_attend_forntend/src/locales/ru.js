@@ -303,6 +303,8 @@ export default {
     csvAiPickFile: 'CSV file',
     csvAiParseBtn: 'Parse',
     csvAiParsing: 'Parsing…',
+    csvAiProgress: 'Пакет {current}/{total}…',
+    csvAiNoDrafts: 'Черновиков нет. Проверьте столбцы CSV или схему.',
     csvAiPreviewFailed: 'Parse failed.'
   }
 }

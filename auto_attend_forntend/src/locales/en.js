@@ -499,6 +499,8 @@ export default {
     csvAiPickFile: 'Choose CSV',
     csvAiParseBtn: 'Parse to drafts',
     csvAiParsing: 'Parsing (chunked)…',
+    csvAiProgress: 'Processing batch {current}/{total}…',
+    csvAiNoDrafts: 'No task drafts were parsed. Check CSV columns or table schema.',
     csvAiPreviewFailed: 'CSV parse failed. Check UTF-8, columns, or DeepSeek config.'
   }
 }
