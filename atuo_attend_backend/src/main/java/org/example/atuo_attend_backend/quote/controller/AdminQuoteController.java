@@ -288,7 +288,7 @@ public class AdminQuoteController {
         return ApiResponse.ok(List.of());
     }
 
-    /** 乙方（受托方）主体与收款信息模板，全系统共用，供合同 AI 与商务引用 */
+    /** 乙方（受托方）主体与收款信息模板（含法人/组织字段与嵌套 naturalPerson），全系统共用，供合同 AI 与商务引用 */
     @GetMapping("/party-b-profile")
     public ApiResponse<Map<String, Object>> getPartyBProfile() {
         return ApiResponse.ok(quoteService.getPartyBProfile());

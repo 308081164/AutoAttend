@@ -916,7 +916,7 @@ public class QuoteService {
         sb.append(formatAuditChecklistForPrompt(r));
         sb.append("\n### 合同补充（付款/质保/验收/交付物/里程碑/争议）\n");
         sb.append(formatContractContextForPrompt(parseContractContextMap(p.getQuoteContractContextJson())));
-        sb.append("\n### 乙方（受托方）工商与收款信息（系统模板，若与抬头乙方名称不一致以本段为准）\n");
+        sb.append("\n### 乙方（受托方）主体与收款信息（系统模板：含法人/组织与自然人两套，按实际签约主体选用对应小节；若与抬头乙方名称不一致以本段为准）\n");
         sb.append(formatPartyBProfileForPrompt(systemConfigService.getQuotePartyBProfile()));
         return sb.toString();
     }
@@ -1036,9 +1036,11 @@ public class QuoteService {
         return sb.toString();
     }
 
+    @SuppressWarnings("unchecked")
     private String formatPartyBProfileForPrompt(Map<String, Object> m) {
         if (m == null || m.isEmpty()) return "（未配置乙方主体模板，请在管理端「报价配置」中填写）\n";
         StringBuilder sb = new StringBuilder();
+        sb.append("#### 乙方为法人或其他组织时\n");
         putLine(sb, "法定名称", m.get("legalName"));
         putLine(sb, "统一社会信用代码", m.get("creditCode"));
         putLine(sb, "住所", m.get("address"));
@@ -1046,6 +1048,20 @@ public class QuoteService {
         putLine(sb, "联系电话", m.get("contactPhone"));
         putLine(sb, "开户行", m.get("bankName"));
         putLine(sb, "银行账号", m.get("bankAccount"));
+        sb.append("\n#### 乙方为自然人时\n");
+        Object np = m.get("naturalPerson");
+        if (np instanceof Map) {
+            Map<String, Object> n = (Map<String, Object>) np;
+            putLine(sb, "姓名", n.get("fullName"));
+            putLine(sb, "身份证件号码", n.get("idNumber"));
+            putLine(sb, "住所（经常居住地）", n.get("address"));
+            putLine(sb, "联系电话", n.get("contactPhone"));
+            putLine(sb, "电子邮箱", n.get("email"));
+            putLine(sb, "开户行", n.get("bankName"));
+            putLine(sb, "银行账号", n.get("bankAccount"));
+        } else {
+            sb.append("（未填写自然人主体模板）\n");
+        }
         return sb.toString();
     }
 

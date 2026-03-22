@@ -36,21 +36,41 @@
         <span v-if="riskSaveMsg" :class="riskSaveOk ? 'ok' : 'err'">{{ riskSaveMsg }}</span>
       </section>
 
-      <!-- 合同乙方（我方）主体模板 -->
+      <!-- 合同乙方（我方）主体模板：法人/组织 + 自然人 -->
       <section class="card">
         <h2>{{ $t('quote.partyBSectionTitle') }}</h2>
         <p class="hint">{{ $t('quote.partyBSectionHint') }}</p>
-        <div class="party-b-grid">
-          <label>{{ $t('quote.partyBLegalName') }} <input v-model="partyB.legalName" class="inp wide" /></label>
-          <label>{{ $t('quote.partyBCreditCode') }} <input v-model="partyB.creditCode" class="inp wide" /></label>
-          <label class="full">{{ $t('quote.partyBAddress') }} <input v-model="partyB.address" class="inp wide" /></label>
-          <label>{{ $t('quote.partyBContactName') }} <input v-model="partyB.contactName" class="inp" /></label>
-          <label>{{ $t('quote.partyBContactPhone') }} <input v-model="partyB.contactPhone" class="inp" /></label>
-          <label>{{ $t('quote.partyBBankName') }} <input v-model="partyB.bankName" class="inp wide" /></label>
-          <label>{{ $t('quote.partyBBankAccount') }} <input v-model="partyB.bankAccount" class="inp wide" /></label>
+
+        <div class="party-b-subsection">
+          <h3 class="party-b-subtitle">{{ $t('quote.partyBLegalSubtitle') }}</h3>
+          <div class="party-b-grid">
+            <label>{{ $t('quote.partyBLegalName') }} <input v-model="partyB.legalName" class="inp wide" /></label>
+            <label>{{ $t('quote.partyBCreditCode') }} <input v-model="partyB.creditCode" class="inp wide" /></label>
+            <label class="full">{{ $t('quote.partyBAddress') }} <input v-model="partyB.address" class="inp wide" /></label>
+            <label>{{ $t('quote.partyBContactName') }} <input v-model="partyB.contactName" class="inp" /></label>
+            <label>{{ $t('quote.partyBContactPhone') }} <input v-model="partyB.contactPhone" class="inp" /></label>
+            <label>{{ $t('quote.partyBBankName') }} <input v-model="partyB.bankName" class="inp wide" /></label>
+            <label>{{ $t('quote.partyBBankAccount') }} <input v-model="partyB.bankAccount" class="inp wide" /></label>
+          </div>
+          <button type="button" class="btn secondary" :disabled="partyBSaving" @click="savePartyB">{{ partyBSaving ? '…' : $t('quote.partyBSave') }}</button>
+          <span v-if="partyBMsg" :class="partyBOk ? 'ok' : 'err'">{{ partyBMsg }}</span>
         </div>
-        <button type="button" class="btn secondary" :disabled="partyBSaving" @click="savePartyB">{{ partyBSaving ? '…' : $t('quote.partyBSave') }}</button>
-        <span v-if="partyBMsg" :class="partyBOk ? 'ok' : 'err'">{{ partyBMsg }}</span>
+
+        <div class="party-b-subsection party-b-subsection--natural">
+          <h3 class="party-b-subtitle">{{ $t('quote.partyBNaturalSectionTitle') }}</h3>
+          <p class="hint">{{ $t('quote.partyBNaturalSectionHint') }}</p>
+          <div class="party-b-grid">
+            <label>{{ $t('quote.partyBNaturalFullName') }} <input v-model="partyBNatural.fullName" class="inp wide" /></label>
+            <label>{{ $t('quote.partyBNaturalIdNumber') }} <input v-model="partyBNatural.idNumber" class="inp wide" /></label>
+            <label class="full">{{ $t('quote.partyBNaturalAddress') }} <input v-model="partyBNatural.address" class="inp wide" /></label>
+            <label>{{ $t('quote.partyBNaturalContactPhone') }} <input v-model="partyBNatural.contactPhone" class="inp" /></label>
+            <label>{{ $t('quote.partyBNaturalEmail') }} <input v-model="partyBNatural.email" class="inp wide" type="email" autocomplete="off" /></label>
+            <label>{{ $t('quote.partyBBankName') }} <input v-model="partyBNatural.bankName" class="inp wide" /></label>
+            <label>{{ $t('quote.partyBBankAccount') }} <input v-model="partyBNatural.bankAccount" class="inp wide" /></label>
+          </div>
+          <button type="button" class="btn secondary" :disabled="partyBNaturalSaving" @click="savePartyBNatural">{{ partyBNaturalSaving ? '…' : $t('quote.partyBNaturalSave') }}</button>
+          <span v-if="partyBNaturalMsg" :class="partyBNaturalOk ? 'ok' : 'err'">{{ partyBNaturalMsg }}</span>
+        </div>
       </section>
 
       <!-- 预设功能点 -->
@@ -238,9 +258,21 @@ export default {
         bankName: '',
         bankAccount: ''
       },
+      partyBNatural: {
+        fullName: '',
+        idNumber: '',
+        address: '',
+        contactPhone: '',
+        email: '',
+        bankName: '',
+        bankAccount: ''
+      },
       partyBSaving: false,
       partyBMsg: '',
       partyBOk: false,
+      partyBNaturalSaving: false,
+      partyBNaturalMsg: '',
+      partyBNaturalOk: false,
       newBaseline: { techStack: 'vue_node', complexity: 'standard', days: 1.5 },
       newPrice: { regionLabel: '', pricePerDay: 1500, durationCoefficient: 1.2, currency: 'CNY', enabled: true },
       techOptions: [
@@ -315,11 +347,22 @@ export default {
         enabled: row.enabled === true || row.enabled === 1
       }
     },
+    partyBLegalPayload () {
+      return {
+        legalName: this.partyB.legalName,
+        creditCode: this.partyB.creditCode,
+        address: this.partyB.address,
+        contactName: this.partyB.contactName,
+        contactPhone: this.partyB.contactPhone,
+        bankName: this.partyB.bankName,
+        bankAccount: this.partyB.bankAccount
+      }
+    },
     async savePartyB () {
       this.partyBSaving = true
       this.partyBMsg = ''
       try {
-        const resp = await this.$http.put('/admin/quote/party-b-profile', { ...this.partyB })
+        const resp = await this.$http.put('/admin/quote/party-b-profile', this.partyBLegalPayload())
         if (resp.data && resp.data.code === 0) {
           this.partyBOk = true
           this.partyBMsg = this.$t('quote.partyBSaveOk')
@@ -332,6 +375,27 @@ export default {
         this.partyBMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.partyBSaveFail')
       } finally {
         this.partyBSaving = false
+      }
+    },
+    async savePartyBNatural () {
+      this.partyBNaturalSaving = true
+      this.partyBNaturalMsg = ''
+      try {
+        const resp = await this.$http.put('/admin/quote/party-b-profile', {
+          naturalPerson: { ...this.partyBNatural }
+        })
+        if (resp.data && resp.data.code === 0) {
+          this.partyBNaturalOk = true
+          this.partyBNaturalMsg = this.$t('quote.partyBSaveOk')
+        } else {
+          this.partyBNaturalOk = false
+          this.partyBNaturalMsg = (resp.data && resp.data.message) || this.$t('quote.partyBSaveFail')
+        }
+      } catch (e) {
+        this.partyBNaturalOk = false
+        this.partyBNaturalMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.partyBSaveFail')
+      } finally {
+        this.partyBNaturalSaving = false
       }
     },
     async load () {
@@ -364,6 +428,16 @@ export default {
             contactPhone: d.contactPhone || '',
             bankName: d.bankName || '',
             bankAccount: d.bankAccount || ''
+          }
+          const np = d.naturalPerson && typeof d.naturalPerson === 'object' ? d.naturalPerson : {}
+          this.partyBNatural = {
+            fullName: np.fullName || '',
+            idNumber: np.idNumber || '',
+            address: np.address || '',
+            contactPhone: np.contactPhone || '',
+            email: np.email || '',
+            bankName: np.bankName || '',
+            bankAccount: np.bankAccount || ''
           }
         }
       } catch (e) {
@@ -683,6 +757,18 @@ code.rk { font-size: 13px; background: #e2e8f0; color: #0f172a; padding: 3px 8px
 .party-b-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: #334155; }
 .party-b-grid label.full { grid-column: 1 / -1; }
 .party-b-grid .inp.wide { max-width: none; }
+.party-b-subsection { margin-top: 4px; }
+.party-b-subsection--natural {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e2e8f0;
+}
+.party-b-subtitle {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
 .inp.cur { width: 72px; text-transform: uppercase; }
 .cen { text-align: center; }
 .actions { white-space: nowrap; }

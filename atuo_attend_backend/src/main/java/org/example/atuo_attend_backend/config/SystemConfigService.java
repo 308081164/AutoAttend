@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 系统配置（如 GitHub Token），供管理后台填写、GithubDiffFetcher 等使用。
@@ -56,7 +57,11 @@ public class SystemConfigService {
         mapper.upsert(KEY_GITHUB_API_PROXY, value != null ? value : "");
     }
 
-    /** 乙方（开发方）主体模板：legalName、creditCode、address、contactName、contactPhone、bankName、bankAccount 等 */
+    /**
+     * 乙方（开发方）主体模板 JSON：
+     * 法人/组织：legalName、creditCode、address、contactName、contactPhone、bankName、bankAccount；
+     * 自然人：嵌套对象 naturalPerson（fullName、idNumber、address、contactPhone、bankName、bankAccount、email 等）。
+     */
     public Map<String, Object> getQuotePartyBProfile() {
         String raw = mapper.findByKey(KEY_QUOTE_PARTY_B_PROFILE);
         if (raw == null || raw.isBlank()) return new LinkedHashMap<>();
@@ -67,8 +72,39 @@ public class SystemConfigService {
         }
     }
 
-    public void saveQuotePartyBProfile(Map<String, Object> profile) throws JsonProcessingException {
-        String json = (profile == null || profile.isEmpty()) ? "{}" : objectMapper.writeValueAsString(profile);
+    /**
+     * 与已有 JSON 合并写入：仅更新请求体中出现的顶层字段；{@code naturalPerson} 为 Map 时与库内同名对象做浅合并，
+     * 避免「只保存法人模板」时清空自然人模板（及反向）。
+     */
+    @SuppressWarnings("unchecked")
+    public void saveQuotePartyBProfile(Map<String, Object> incoming) throws JsonProcessingException {
+        if (incoming == null) {
+            return;
+        }
+        Map<String, Object> merged = new LinkedHashMap<>(getQuotePartyBProfile());
+        for (Map.Entry<String, Object> e : incoming.entrySet()) {
+            String k = e.getKey();
+            if (Objects.equals("naturalPerson", k) && e.getValue() instanceof Map<?, ?> rawNp) {
+                Map<String, Object> npBase = new LinkedHashMap<>();
+                Object oldNp = merged.get("naturalPerson");
+                if (oldNp instanceof Map<?, ?> om) {
+                    for (Map.Entry<?, ?> ie : om.entrySet()) {
+                        if (ie.getKey() != null) {
+                            npBase.put(ie.getKey().toString(), ie.getValue());
+                        }
+                    }
+                }
+                for (Map.Entry<?, ?> ie : rawNp.entrySet()) {
+                    if (ie.getKey() != null) {
+                        npBase.put(ie.getKey().toString(), ie.getValue());
+                    }
+                }
+                merged.put("naturalPerson", npBase);
+            } else if (!Objects.equals("naturalPerson", k)) {
+                merged.put(k, e.getValue());
+            }
+        }
+        String json = merged.isEmpty() ? "{}" : objectMapper.writeValueAsString(merged);
         mapper.upsert(KEY_QUOTE_PARTY_B_PROFILE, json);
     }
 }
