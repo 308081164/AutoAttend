@@ -87,14 +87,56 @@
             <button type="button" class="btn-sm danger" @click="removeModule(mi)">删模块</button>
           </div>
           <div class="item-table-head" role="row">
-            <div class="item-col item-col-name th">{{ $t('quote.itemName') }}</div>
-            <div class="item-col item-col-complexity th">
-              {{ $t('quote.complexity') }}
-              <span class="th-sub">{{ $t('quote.complexityHint') }}</span>
+            <div class="item-col item-col-name th th-with-hint">
+              <span class="th-label-text">{{ $t('quote.itemName') }}</span>
+              <button
+                type="button"
+                class="th-hint-icon"
+                :aria-expanded="isTableHintOpen(mi, 'itemName') ? 'true' : 'false'"
+                :aria-controls="'quote-th-hint-itemName-' + mi"
+                :aria-label="$t('quote.tableHeaderHintAria')"
+                @click.stop="toggleTableHint(mi, 'itemName')"
+              >?</button>
+              <div
+                v-show="isTableHintOpen(mi, 'itemName')"
+                :id="'quote-th-hint-itemName-' + mi"
+                class="th-hint-popover"
+                role="tooltip"
+              >{{ $t('quote.itemNameHint') }}</div>
             </div>
-            <div class="item-col item-col-qty th">
-              {{ $t('quote.quantity') }}
-              <span class="th-sub">{{ $t('quote.quantityHint') }}</span>
+            <div class="item-col item-col-complexity th th-with-hint">
+              <span class="th-label-text">{{ $t('quote.complexity') }}</span>
+              <button
+                type="button"
+                class="th-hint-icon"
+                :aria-expanded="isTableHintOpen(mi, 'complexity') ? 'true' : 'false'"
+                :aria-controls="'quote-th-hint-complexity-' + mi"
+                :aria-label="$t('quote.tableHeaderHintAria')"
+                @click.stop="toggleTableHint(mi, 'complexity')"
+              >?</button>
+              <div
+                v-show="isTableHintOpen(mi, 'complexity')"
+                :id="'quote-th-hint-complexity-' + mi"
+                class="th-hint-popover"
+                role="tooltip"
+              >{{ $t('quote.complexityHint') }}</div>
+            </div>
+            <div class="item-col item-col-qty th th-with-hint">
+              <span class="th-label-text">{{ $t('quote.quantity') }}</span>
+              <button
+                type="button"
+                class="th-hint-icon"
+                :aria-expanded="isTableHintOpen(mi, 'quantity') ? 'true' : 'false'"
+                :aria-controls="'quote-th-hint-quantity-' + mi"
+                :aria-label="$t('quote.tableHeaderHintAria')"
+                @click.stop="toggleTableHint(mi, 'quantity')"
+              >?</button>
+              <div
+                v-show="isTableHintOpen(mi, 'quantity')"
+                :id="'quote-th-hint-quantity-' + mi"
+                class="th-hint-popover"
+                role="tooltip"
+              >{{ $t('quote.quantityHint') }}</div>
             </div>
             <div class="item-col item-col-actions th" aria-hidden="true"></div>
           </div>
@@ -377,6 +419,8 @@ export default {
       presetItems: [],
       restoringCalcPrefs: false,
       calcPrefsDebounceTimer: null,
+      /** 功能点表头「?」说明：`field:moduleIndex` 或 null */
+      openTableHint: null,
       contractContext: defaultContractContext(),
       deliverableOptions: [
         { k: 'source_code', l: '源代码' },
@@ -409,7 +453,11 @@ export default {
   created () {
     this.init()
   },
+  mounted () {
+    document.addEventListener('click', this.closeTableHintOnOutside)
+  },
   beforeDestroy () {
+    document.removeEventListener('click', this.closeTableHintOnOutside)
     if (this.calcPrefsDebounceTimer) clearTimeout(this.calcPrefsDebounceTimer)
   },
   watch: {
@@ -422,6 +470,19 @@ export default {
     }
   },
   methods: {
+    tableHintKey (moduleIndex, field) {
+      return String(field) + ':' + String(moduleIndex)
+    },
+    isTableHintOpen (moduleIndex, field) {
+      return this.openTableHint === this.tableHintKey(moduleIndex, field)
+    },
+    toggleTableHint (moduleIndex, field) {
+      const k = this.tableHintKey(moduleIndex, field)
+      this.openTableHint = this.openTableHint === k ? null : k
+    },
+    closeTableHintOnOutside () {
+      this.openTableHint = null
+    },
     applyRiskConfigPayload (arr) {
       this.riskConfigs = (arr || []).map(r => ({
         id: r.id,
@@ -1006,18 +1067,70 @@ label.block { display: block; margin-top: 10px; }
   display: grid;
   grid-template-columns: minmax(140px, 1fr) minmax(160px, 200px) 88px 44px;
   gap: 10px;
-  align-items: start;
+  align-items: center;
   margin-bottom: 8px;
 }
 .item-table-head {
   margin-top: 6px;
-  padding: 8px 4px 10px;
+  padding: 10px 4px 12px;
   border-bottom: 2px solid #64748b;
   background: linear-gradient(to bottom, #f1f5f9, #fff);
   border-radius: 6px 6px 0 0;
 }
-.th { font-size: 13px; font-weight: 700; color: #020617; line-height: 1.25; }
-.th-sub { display: block; font-size: 11px; font-weight: 500; color: #475569; margin-top: 4px; line-height: 1.35; }
+.th { font-size: 15px; font-weight: 700; color: #020617; line-height: 1.2; }
+.th-label-text { flex: 0 1 auto; }
+.th-with-hint {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.th-hint-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #64748b;
+  border-radius: 50%;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.th-hint-icon:hover,
+.th-hint-icon:focus {
+  outline: none;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+.th-hint-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  margin-top: 6px;
+  max-width: min(288px, calc(100vw - 48px));
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  line-height: 1.45;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.item-col-qty .th-hint-popover {
+  left: auto;
+  right: 0;
+}
 .item-row { padding: 2px 0; }
 .item-col-actions { display: flex; align-items: flex-start; justify-content: center; padding-top: 2px; }
 .item-row .inp.narrow { max-width: none; width: 100%; }
