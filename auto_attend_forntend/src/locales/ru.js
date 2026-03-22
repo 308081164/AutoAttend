@@ -102,6 +102,7 @@ export default {
     dailySummaryEnabled: 'Ежедневный отчёт',
     dailySummaryEnabledLabel: 'Включить ежедневный отчёт по проекту (ночью за предыдущий день по каждому репозиторию)',
     dailySummaryHint: 'Нужен DeepSeek API Key. По умолчанию 04:00 Asia/Shanghai. Независимо от анализа одного коммита.',
+    toggleAutoSaveHint: 'Переключатели «анализ коммита» и «ежедневная сводка» сохраняются автоматически после изменения.',
     runDailySummaryNow: 'Сгенерировать отчёты за вчера сейчас (все репозитории с коммитами)',
     runDailySummaryOk: 'Обработано репозиториев: {n}, дата {date} (0 без ключа или без коммитов)',
     runDailySummaryFail: 'Ошибка запуска',

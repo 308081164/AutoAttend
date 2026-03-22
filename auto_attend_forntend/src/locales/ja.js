@@ -102,6 +102,7 @@ export default {
     dailySummaryEnabled: '日次サマリー',
     dailySummaryEnabledLabel: '「プロジェクト日次進捗サマリー」を有効にする（深夜に前日・各リポジトリをまとめる）',
     dailySummaryHint: 'DeepSeek API Key が必要です。既定は 04:00（Asia/Shanghai）。単一コミット分析とは独立です。',
+    toggleAutoSaveHint: '「単一コミット分析」と「日次サマリー」のスイッチは変更後に自動保存されます（保存ボタン不要）。',
     runDailySummaryNow: '昨日分のサマリーを今すぐ生成（昨日コミットのあった全リポジトリ）',
     runDailySummaryOk: '{n} 件のリポジトリを処理しました。業務日 {date}（Key 未設定・当日コミットなしは 0）',
     runDailySummaryFail: '実行に失敗しました',

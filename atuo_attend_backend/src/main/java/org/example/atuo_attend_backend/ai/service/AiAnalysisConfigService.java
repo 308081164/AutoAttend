@@ -80,16 +80,19 @@ public class AiAnalysisConfigService {
         AiAnalysisConfig existing = configMapper.findByProvider(PROVIDER_DEEPSEEK);
         // 仅当传入新的完整 API Key 时更新（不含 **** 的脱敏值）
         String keyToSave = (apiKey != null && !apiKey.isBlank() && !apiKey.contains("****")) ? apiKey.trim() : (existing != null ? existing.getApiKey() : null);
-        boolean en = enabled != null && enabled;
-        boolean ds = dailySummaryEnabled != null
-                ? dailySummaryEnabled
-                : (existing != null && Boolean.TRUE.equals(existing.getDailySummaryEnabled()));
-        String m = (model != null && !model.isBlank()) ? model : "deepseek-chat";
-        String pv = (promptVersion != null && !promptVersion.isBlank()) ? promptVersion : "v1";
-        int maxChars = (maxDiffChars != null && maxDiffChars > 0) ? maxDiffChars : 100000;
+        String m = (model != null && !model.isBlank()) ? model : (existing != null && existing.getModel() != null && !existing.getModel().isBlank() ? existing.getModel() : "deepseek-chat");
+        String pv = (promptVersion != null && !promptVersion.isBlank()) ? promptVersion : (existing != null && existing.getPromptVersion() != null && !existing.getPromptVersion().isBlank() ? existing.getPromptVersion() : "v1");
+        int maxChars = (maxDiffChars != null && maxDiffChars > 0)
+                ? maxDiffChars
+                : (existing != null && existing.getMaxDiffChars() != null && existing.getMaxDiffChars() > 0 ? existing.getMaxDiffChars() : 100000);
         if (existing != null) {
+            // 部分更新：字段为 null 时保留库中原值，避免客户端漏传导致误关「单次分析」或「每日总结」
+            boolean en = enabled != null ? enabled : Boolean.TRUE.equals(existing.getEnabled());
+            boolean ds = dailySummaryEnabled != null ? dailySummaryEnabled : Boolean.TRUE.equals(existing.getDailySummaryEnabled());
             configMapper.update(PROVIDER_DEEPSEEK, keyToSave, en, ds, m, pv, maxChars);
         } else {
+            boolean en = Boolean.TRUE.equals(enabled);
+            boolean ds = Boolean.TRUE.equals(dailySummaryEnabled);
             AiAnalysisConfig newConfig = new AiAnalysisConfig();
             newConfig.setProvider(PROVIDER_DEEPSEEK);
             newConfig.setApiKey(keyToSave);

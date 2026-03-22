@@ -168,6 +168,7 @@ export default {
     dailySummaryEnabled: 'Daily summary',
     dailySummaryEnabledLabel: 'Enable per-repo daily progress summary (runs at night for previous calendar day, Asia/Shanghai by default)',
     dailySummaryHint: 'Requires DeepSeek API Key. Cron default 04:00. Independent from single-commit analysis.',
+    toggleAutoSaveHint: 'Single-commit analysis and daily summary toggles auto-save after you change them (no need to click Save).',
     runDailySummaryNow: 'Generate yesterday\'s summaries now (all repos with commits)',
     runDailySummaryOk: 'Processed {n} repo(s), business date {date}',
     runDailySummaryFail: 'Run failed',

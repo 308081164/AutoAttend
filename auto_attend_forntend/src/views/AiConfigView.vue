@@ -41,6 +41,7 @@
                 <span>{{ $t('aiConfig.dailySummaryEnabledLabel') }}</span>
               </label>
               <p class="form-hint">{{ $t('aiConfig.dailySummaryHint') }}</p>
+              <p class="form-hint subtle">{{ $t('aiConfig.toggleAutoSaveHint') }}</p>
             </div>
             <div class="form-row daily-run-row">
               <button type="button" class="link-button" :disabled="dailyRunLoading" @click="runDailySummaryNow">
@@ -341,7 +342,10 @@ export default {
       usageDetailPageSize: PAGE_SIZE,
       usageDetailTotal: 0,
       usageDetailItems: [],
-      usageDetailLoading: false
+      usageDetailLoading: false,
+      /** 从服务端回填表单时跳过「开关自动保存」 */
+      aiConfigHydrating: false,
+      aiConfigAutoSaveTimer: null
     }
   },
   created () {
@@ -359,6 +363,10 @@ export default {
     })
   },
   beforeDestroy () {
+    if (this.aiConfigAutoSaveTimer) {
+      clearTimeout(this.aiConfigAutoSaveTimer)
+      this.aiConfigAutoSaveTimer = null
+    }
     const chartKeys = ['deepseekCall', 'deepseekToken', 'qwenCall', 'qwenToken']
     chartKeys.forEach(k => {
       if (this.chartInstances[k]) {
@@ -388,17 +396,56 @@ export default {
     usage () { this.$nextTick(() => this.renderUsageCharts()) },
     usageQwen () { this.$nextTick(() => this.renderUsageCharts()) },
     usageDaily () { this.$nextTick(() => this.renderUsageCharts()) },
-    usageQwenDaily () { this.$nextTick(() => this.renderUsageCharts()) }
+    usageQwenDaily () { this.$nextTick(() => this.renderUsageCharts()) },
+    'form.enabled' () { this.scheduleDeepSeekToggleAutoSave() },
+    'form.dailySummaryEnabled' () { this.scheduleDeepSeekToggleAutoSave() }
   },
   methods: {
+    coerceBool (v) {
+      if (v === true || v === 1) return true
+      if (v === false || v === 0) return false
+      if (typeof v === 'string') {
+        const s = v.trim().toLowerCase()
+        if (s === 'true' || s === '1') return true
+        if (s === 'false' || s === '0') return false
+      }
+      return false
+    },
+    buildDeepSeekSavePayload () {
+      const payload = {
+        enabled: !!this.form.enabled,
+        dailySummaryEnabled: !!this.form.dailySummaryEnabled,
+        model: (this.form.model && String(this.form.model).trim()) || 'deepseek-chat'
+      }
+      if (this.form.apiKey && !this.form.apiKey.includes('****')) {
+        payload.apiKey = this.form.apiKey
+      }
+      return payload
+    },
+    scheduleDeepSeekToggleAutoSave () {
+      if (this.aiConfigHydrating || !this.config) return
+      if (this.aiConfigAutoSaveTimer) clearTimeout(this.aiConfigAutoSaveTimer)
+      this.aiConfigAutoSaveTimer = setTimeout(() => this.persistDeepSeekTogglesSilent(), 450)
+    },
+    async persistDeepSeekTogglesSilent () {
+      this.aiConfigAutoSaveTimer = null
+      if (this.aiConfigHydrating || !this.config) return
+      try {
+        const resp = await this.$http.put('/admin/ai-analysis/config', this.buildDeepSeekSavePayload())
+        if (resp.data && resp.data.code === 0) {
+          await this.loadConfig()
+        }
+      } catch (e) { /* 静默：可稍后手动点保存 */ }
+    },
     async loadConfig () {
+      this.aiConfigHydrating = true
       try {
         const resp = await this.$http.get('/admin/ai-analysis/config')
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const data = resp.data.data
           this.config = data
-          this.form.enabled = data.enabled === true || data.enabled === 'true' || data.enabled === 1
-          this.form.dailySummaryEnabled = data.dailySummaryEnabled === true || data.dailySummaryEnabled === 'true' || data.dailySummaryEnabled === 1
+          this.form.enabled = this.coerceBool(data.enabled)
+          this.form.dailySummaryEnabled = this.coerceBool(data.dailySummaryEnabled)
           this.form.model = (data.model && String(data.model).trim()) || 'deepseek-chat'
           this.form.apiKey = ''
         }
@@ -406,6 +453,8 @@ export default {
         if (e.response && e.response.status === 401) {
           this.$router.push({ name: 'login' })
         }
+      } finally {
+        this.$nextTick(() => { this.aiConfigHydrating = false })
       }
     },
     async loadQwenConfig () {
@@ -426,15 +475,11 @@ export default {
       this.saving = true
       this.saveMessage = ''
       try {
-        const payload = {
-          enabled: this.form.enabled,
-          dailySummaryEnabled: this.form.dailySummaryEnabled,
-          model: this.form.model || 'deepseek-chat'
+        if (this.aiConfigAutoSaveTimer) {
+          clearTimeout(this.aiConfigAutoSaveTimer)
+          this.aiConfigAutoSaveTimer = null
         }
-        if (this.form.apiKey && !this.form.apiKey.includes('****')) {
-          payload.apiKey = this.form.apiKey
-        }
-        const resp = await this.$http.put('/admin/ai-analysis/config', payload)
+        const resp = await this.$http.put('/admin/ai-analysis/config', this.buildDeepSeekSavePayload())
         if (resp.data && resp.data.code === 0) {
           this.saveMessage = this.$t('aiConfig.saveSuccess')
           this.saveSuccess = true
@@ -1058,6 +1103,10 @@ export default {
   font-size: 12px;
   color: #9ca3af;
   margin-top: 4px;
+}
+.form-hint.subtle {
+  color: #b4bcc8;
+  font-style: italic;
 }
 .daily-run-row {
   display: flex;

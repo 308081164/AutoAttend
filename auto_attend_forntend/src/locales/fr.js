@@ -102,6 +102,7 @@ export default {
     dailySummaryEnabled: 'Résumé quotidien',
     dailySummaryEnabledLabel: 'Activer le résumé quotidien par dépôt (la nuit, jour civil précédent)',
     dailySummaryHint: 'Nécessite la clé DeepSeek. Planification par défaut 04:00 Asia/Shanghai. Indépendant de l\'analyse par commit.',
+    toggleAutoSaveHint: 'Les interrupteurs « analyse par commit » et « résumé quotidien » s\'enregistrent automatiquement après modification.',
     runDailySummaryNow: 'Générer maintenant les résumés d\'hier (tous les dépôts avec commits)',
     runDailySummaryOk: '{n} dépôt(s) traité(s), date {date} (0 sans clé ou sans commits)',
     runDailySummaryFail: 'Échec du lancement',

@@ -168,6 +168,7 @@ export default {
     dailySummaryEnabled: '每日总结',
     dailySummaryEnabledLabel: '启用「项目每日进展总结」（每天凌晨按所选时区总结昨日各仓库）',
     dailySummaryHint: '需填写 DeepSeek API Key。定时任务默认 04:00（Asia/Shanghai）执行；与「单次提交分析」开关相互独立。',
+    toggleAutoSaveHint: '「单次提交分析」与「每日总结」开关会在更改后自动保存（无需再点保存）。',
     runDailySummaryNow: '立即生成昨日总结（所有昨日有提交的仓库）',
     runDailySummaryOk: '已处理 {n} 个仓库，业务日 {date}（未填 Key 或当日无提交则为 0）',
     runDailySummaryFail: '触发失败',
