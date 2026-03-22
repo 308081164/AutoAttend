@@ -1,6 +1,8 @@
 # AutoAttend
 
-基于 GitHub Webhook 的开发状态追踪与项目协作平台：**管理员**可查看提交与 Diff、看板统计、单次提交 AI 分析；**员工**可登录后查看工作台、参与项目与多维表格协作（任务/需求管理、讨论、附件预览与下载）。
+基于 GitHub Webhook 的开发状态追踪与项目协作平台：**管理员**可查看提交与 Diff、看板统计、单次提交 AI 分析、**需求→报价→合同半自动化**（结构化/AI 辅助录入、人天报价、合同 AI 与多格式导出）；**员工**可登录后查看工作台、参与项目与多维表格协作（任务/需求管理、讨论、附件预览与下载）。
+
+**近期已落地能力摘要**：报价 **功能模块 AI 智能录入**（自然语言 / 文本文件 → DeepSeek → 结构化清单）；**报价单抬头**与全系统 **乙方主体模板**（法人或自然人）；**合同补充信息**（付款/质保/交付物/里程碑等）及 **附件一/三 HTML**；生产 **push 到 main/master 自动构建部署**（可选 ghcr 私有镜像登录）。详见 §1.2、§5 与 [docs/Docker推送后自动部署说明.md](docs/Docker推送后自动部署说明.md)。
 
 ---
 
@@ -19,7 +21,7 @@
 - **单次提交 AI 分析（DeepSeek）**：在「AI 配置」页配置 DeepSeek API Key 与开关；在看板中针对单条 commit 可「运行 AI 分析」，获得工作内容摘要、有效性、代码质量等结构化结果（详见 [docs/AI分析功能说明与测试指南.md](docs/AI分析功能说明与测试指南.md)）。
 - **项目每日进展总结（DeepSeek）**：按**仓库 + 业务日**汇总「昨日」有提交时的 commit 信息与已有单次提交 AI 分析结果，调用 DeepSeek 生成一篇 Markdown 日报（进展、工作量、成员贡献等）。「立即生成昨日总结」在 **AI 配置**（全部昨日有提交的仓库）与 **看板**（当前选中仓库）均可触发；**看板**还提供历史总结分页与点开全文。定时任务默认每天 **04:00（Asia/Shanghai）** 处理「昨天」，需在 AI 配置中开启「每日总结」并填写 DeepSeek Key；与「单次提交 AI 分析」开关相互独立。**手动触发**（页面按钮或 `POST /api/admin/ai-analysis/daily-summary/run`）仅需有效 DeepSeek Key，可不开启每日总结开关。数据库迁移：`schema_ai_daily_summary_migration.sql`（生产若走 CI/CD 迁移清单会自动执行）。
 - **AI 配置中心**：统一管理 DeepSeek 文本模型与通义·千问（Qwen）多模态模型的 API Key、启用开关、模型名称，并对 AI 调用 Token 用量进行统计与展示（含每日总结相关消耗）。
-- **需求 → 报价 → 合同（半自动化）**：管理员在「报价与合同」中创建报价项目，按结构化方式录入项目类型/技术栈/功能模块与功能点（复杂度+数量）；支持 **预设功能点库**（可维护、按模块「从预设添加」）、**风险系数自定义**、**人天基准与人天单价**在线维护（**报价配置**页 `/quote/config`，报价列表与项目页可进入）；系统按人天基准库与风险系数计算报价与置信度；可生成报价单 **HTML / PDF / Word(.docx)** 下载；在开启 DeepSeek 的前提下可 AI 生成合同正文、在线编辑并导出 **HTML / PDF / Word**。PDF 中文渲染建议在服务器放置中文字体（见 `atuo_attend_backend/src/main/resources/fonts/README.md` 或配置 `quote.export.cjk-font-path`）（设计见 [docs/需求-报价-合同半自动化产出-功能设计文档.md](docs/需求-报价-合同半自动化产出-功能设计文档.md)）。**数据库**：新环境执行 `schema_quote_mysql.sql`；增量见 `migrate_manifest.txt`（含 `schema_quote_preset_risk_custom_migration.sql`）。
+- **需求 → 报价 → 合同（半自动化，已实现）**：管理员在「报价与合同」中创建报价项目，录入项目类型/技术栈/非功能维度与 **功能模块 + 功能点**（每条含复杂度、数量）。录入方式包括：**手工维护**、按模块 **从预设功能点库添加**（在 **报价配置** `/quote/config` 维护库、风险系数、人天基准、人天单价），以及 **AI 智能录入**：粘贴或上传 `.txt`/`.md` 自然语言需求，由 **DeepSeek** 解析为结构化模块清单（可 **替换全部** 或 **追加** 到现有模块），填入后须人工核对再保存。系统按人天基准与勾选的风险系数计算报价、置信度与审核清单；报价单可导出 **HTML / PDF / Word(.docx)**。**报价单抬头**：支持按系统 **乙方主体模板**（法人/组织或自然人）自动带出出具方名称与联系方式，或本项目 **自定义抬头**；可在报价页编辑 **乙方主体模板**（与配置页同源）。**合同**：可维护 **合同补充信息**（付款计划、含税/发票说明、质保月数、交付物勾选、验收与异议期、里程碑、争议解决方式等），并生成 **附件一（功能清单）**、**附件三（里程碑）** HTML；在配置 DeepSeek 的前提下 **AI 生成合同正文**，在线编辑后导出 **HTML / PDF / Word**。PDF 中文建议在服务器放置中文字体（见 `atuo_attend_backend/src/main/resources/fonts/README.md` 或 `quote.export.cjk-font-path`）。**接口示例**：`POST /api/admin/quote/ai/parse-modules`（AI 解析模块，不落库）。完整设计与合同要素对照见 [docs/需求-报价-合同半自动化产出-功能设计文档.md](docs/需求-报价-合同半自动化产出-功能设计文档.md)。**数据库**：新环境 `schema_quote_mysql.sql`；增量见 `migrate_manifest.txt`（含报价抬头、乙方模板、合同上下文等迁移）。
 - **项目协作入口**：从看板页进入「项目协作」，直接访问全部项目与多维表（与员工协作模块共用，权限为 super_admin）。
 
 ### 1.3 员工工作台与项目协作（员工或管理员登录协作后）
@@ -140,7 +142,7 @@ npm run serve
 | GitHub   | `GITHUB_WEBHOOK_SECRET`；`GITHUB_TOKEN`（可选，私有仓拉取 Diff 建议配） |
 | MinIO    | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` |
 | 协作 JWT | `collab.jwt.secret`, `collab.jwt.expireSeconds`（协作登录 token） |
-| AI 分析  | 在「AI 配置」页填写 DeepSeek API Key / Qwen API Key、启用开关、模型（存库），支持单次提交分析、**项目每日进展总结**与协作任务表多模态录入 |
+| AI 分析  | 在「AI 配置」页填写 DeepSeek API Key / Qwen API Key、启用开关、模型（存库），支持单次提交分析、**项目每日进展总结**、协作任务表多模态录入，以及 **报价功能模块 AI 智能录入**（与合同生成共用 DeepSeek Key） |
 | 每日总结调度 | `app.daily-summary.enabled`（默认 `true`）、`app.daily-summary.cron`（默认 `0 0 4 * * *`）、`app.daily-summary.timezone`（默认 `Asia/Shanghai`）；关闭 JVM 侧定时任务可设 `app.daily-summary.enabled=false`（业务上仍须在 AI 配置中开启「每日总结」且配置 Key，定时才会真正生成） |
 
 生产环境请修改默认管理员密码与协作 JWT Secret。
@@ -162,16 +164,16 @@ npm run serve
 | [docs/项目协作-AI录入模式-功能设计.md](docs/项目协作-AI录入模式-功能设计.md) | 项目协作任务表的 AI 录入模式设计（Qwen 多模态 + DeepSeek 结合） |
 | [docs/单次提交AI分析-功能设计文档.md](docs/单次提交AI分析-功能设计文档.md) | 单次提交 AI 分析设计（已实现手动触发 + 配置） |
 | [docs/AI分析功能说明与测试指南.md](docs/AI分析功能说明与测试指南.md) | AI 分析已实现功能说明与测试步骤 |
+| [docs/需求-报价-合同半自动化产出-功能设计文档.md](docs/需求-报价-合同半自动化产出-功能设计文档.md) | **已实现**：报价项目、预设库、AI 解析功能模块、计算与报价单导出、乙方/抬头、合同补充字段、合同 AI 与附件 HTML；文档中含标准合同要素对照与后续迭代项（如需求变更单、附件打包等） |
 | `atuo_attend_backend/src/main/resources/db/schema_ai_daily_summary_migration.sql` | 每日进展总结：`aa_ai_analysis_config.daily_summary_enabled` 与表 `aa_project_daily_summary`；已纳入迁移清单时由部署流程自动执行 |
 
 ### 8.2 功能规划与可行性分析（见 docs）
 
-以下为 **尚未实现** 的功能规划或可行性分析，具体范围与实现顺序以各文档为准。
+以下为 **尚未实现** 或 **部分规划** 的文档，具体范围与实现顺序以各文档为准。
 
 | 文档 | 说明 |
 |------|------|
 | [docs/工作日报邮件自动推送-功能设计文档.md](docs/工作日报邮件自动推送-功能设计文档.md) | **规划**：基于 commit 数据向员工自动发送工作日报邮件；管理员配置开关、周期、退订与黑名单。 |
-| [docs/需求-报价-合同半自动化产出-功能设计文档.md](docs/需求-报价-合同半自动化产出-功能设计文档.md) | **规划**：需求结构化录入 → 人天/风险计算报价 → AI 生成合同；面向外包工作室的报价与合同工具。 |
 | [docs/员工端资源与项目版本管理-功能设计文档.md](docs/员工端资源与项目版本管理-功能设计文档.md) | **规划**：员工端 OSS 资源区浏览/下载、类 Git 项目版本推送、推送记录与活动统计。 |
 | [docs/码云-Gitee-自建Git-集成可行性分析.md](docs/码云-Gitee-自建Git-集成可行性分析.md) | **可行性分析**：Gitee/自建 Git（如 Gitea）与 AutoAttend 集成；前端创建仓库并自动关联项目与多维表。 |
 | [docs/Code-Server在线开发环境集成-可行性分析报告.md](docs/Code-Server在线开发环境集成-可行性分析报告.md) | **可行性分析**：集成 code-server 在线 IDE；统一开发环境、Cline/DeepSeek 配置与用量管控。 |
