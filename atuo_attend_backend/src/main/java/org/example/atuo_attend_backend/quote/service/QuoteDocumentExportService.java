@@ -25,7 +25,8 @@ import java.util.List;
 
 /**
  * 将报价单/合同 HTML 转为 PDF（OpenHTMLToPDF）与 Word（POI + Jsoup 结构化转换）。
- * 中文 PDF 需可读的 TTF/OTF：classpath:/fonts/、配置项 quote.export.cjk-font-path，或 Windows 下 simhei.ttf。
+ * 中文 PDF 需嵌入支持 CJK 的 TTF/OTF：默认使用 classpath:/fonts/NotoSansCJKsc-Regular.otf（随包分发）；
+ * 亦可配置 quote.export.cjk-font-path，或回退到系统字体（微软雅黑、黑体等）。
  */
 @Service
 public class QuoteDocumentExportService {
@@ -67,7 +68,12 @@ public class QuoteDocumentExportService {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PdfRendererBuilder builder = new PdfRendererBuilder();
         builder.useFastMode();
-        registerCjkFonts(builder);
+        if (!registerCjkFonts(builder)) {
+            throw new IllegalStateException(
+                    "未加载任何中文字体，PDF 将无法正确显示中文（会变为 # 等占位符）。"
+                            + " 请将 NotoSansCJKsc-Regular.otf 置于 classpath:fonts/，或配置 quote.export.cjk-font-path 指向 .ttf/.otf，"
+                            + " 或在服务器安装中文字体。详见 resources/fonts/README.md。");
+        }
         // OpenHTMLToPDF 使用 XML 解析器：<meta>、<br> 等须为良构 XHTML
         builder.withHtmlContent(toWellFormedXhtmlForPdf(html), null);
         builder.toStream(out);
@@ -234,20 +240,32 @@ public class QuoteDocumentExportService {
         run.setFontFamily("微软雅黑");
     }
 
-    private void registerCjkFonts(PdfRendererBuilder builder) {
+    /**
+     * @return 是否至少注册了一款字体
+     */
+    private boolean registerCjkFonts(PdfRendererBuilder builder) {
         List<File> fontFiles = resolveCjkFontFiles();
         if (fontFiles.isEmpty()) {
-            log.warn("未找到中文字体文件，PDF 中文可能显示为方框。请将 NotoSansSC-Regular.otf 放到 classpath:/fonts/ 或配置 quote.export.cjk-font-path（.ttf/.otf）。");
-            return;
+            log.error("未找到中文字体文件，PDF 中文将显示为 # 或方框。请配置字体，见 resources/fonts/README.md。");
+            return false;
         }
         File primary = fontFiles.get(0);
-        String[] families = {"sans-serif", "Microsoft YaHei", "Noto Sans SC", "SimHei", "SimSun", "serif"};
+        String[] families = {
+                "sans-serif",
+                "Microsoft YaHei",
+                "Noto Sans SC",
+                "Noto Sans CJK SC",
+                "SimHei",
+                "SimSun",
+                "serif"
+        };
         for (String family : families) {
             builder.useFont(primary, family);
         }
         for (int i = 1; i < fontFiles.size(); i++) {
             builder.useFont(fontFiles.get(i), "sans-serif");
         }
+        return true;
     }
 
     private List<File> resolveCjkFontFiles() {
@@ -264,46 +282,56 @@ public class QuoteDocumentExportService {
             log.debug("配置字体路径无效: {}", configuredCjkFontPath, e);
         }
 
-        try {
-            Resource res = resourceLoader.getResource("classpath:fonts/NotoSansSC-Regular.otf");
-            if (res.exists()) {
-                File f = res.getFile();
-                if (f.isFile()) {
-                    out.add(f);
-                    return out;
-                }
+        // 优先随包字体：noto-cjk 现用名 NotoSansCJKsc-Regular.otf；旧文档中的 NotoSansSC-Regular.otf 仍尝试兼容
+        String[] classpathFontNames = {
+                "fonts/NotoSansCJKsc-Regular.otf",
+                "fonts/NotoSansSC-Regular.otf"
+        };
+        for (String name : classpathFontNames) {
+            File fromCp = tryLoadClasspathFontFile("classpath:" + name, name);
+            if (fromCp != null) {
+                out.add(fromCp);
+                return out;
             }
-        } catch (Exception ignored) {
-            // jar 内资源 getFile 可能失败，见下复制到临时文件
-        }
-
-        // classpath 在 jar 内：用 InputStream 复制到临时文件（OpenHTMLToPDF 需要 File）
-        try {
-            Resource res = resourceLoader.getResource("classpath:fonts/NotoSansSC-Regular.otf");
-            if (res.exists()) {
-                File tmp = copyClasspathFontToTemp(res.getInputStream(), "NotoSansSC-Regular.otf");
-                if (tmp != null) {
-                    out.add(tmp);
-                    return out;
-                }
-            }
-        } catch (Exception e) {
-            log.trace("classpath fonts/NotoSansSC-Regular.otf 不可用", e);
         }
 
         String windir = System.getenv("WINDIR");
         if (StringUtils.hasText(windir)) {
-            Path simhei = Path.of(windir, "Fonts", "simhei.ttf");
-            if (Files.isRegularFile(simhei)) {
-                out.add(simhei.toFile());
-                return out;
-            }
-            Path simsun = Path.of(windir, "Fonts", "simsun.ttc");
-            if (Files.isRegularFile(simsun)) {
-                try {
-                    out.add(simsun.toFile());
+            Path fontsDir = Path.of(windir, "Fonts");
+            // 中文版 Windows 常见：微软雅黑；部分环境无 simhei.ttf
+            String[] winRel = {
+                    "msyh.ttc",
+                    "msyh.ttf",
+                    "msyhbd.ttc",
+                    "msyhl.ttc",
+                    "simhei.ttf",
+                    "simsun.ttc",
+                    "simsunb.ttf",
+                    "mingliub.ttc"
+            };
+            for (String rel : winRel) {
+                Path p = fontsDir.resolve(rel);
+                if (Files.isRegularFile(p)) {
+                    out.add(p.toFile());
                     return out;
-                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        if (StringUtils.hasText(System.getenv("HOME"))) {
+            String[] macFonts = {
+                    System.getenv("HOME") + "/Library/Fonts/NotoSansCJKsc-Regular.otf",
+                    "/Library/Fonts/Microsoft/msyh.ttc",
+                    "/System/Library/Fonts/PingFang.ttc",
+                    "/System/Library/Fonts/STHeiti Light.ttc",
+                    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
+            };
+            for (String path : macFonts) {
+                if (!StringUtils.hasText(path)) continue;
+                Path p = Path.of(path);
+                if (Files.isRegularFile(p)) {
+                    out.add(p.toFile());
+                    return out;
                 }
             }
         }
@@ -311,6 +339,7 @@ public class QuoteDocumentExportService {
         String[] linuxFonts = {
                 "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf",
                 "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
                 "/usr/share/fonts/truetype/arphic/uming.ttc"
         };
@@ -323,6 +352,32 @@ public class QuoteDocumentExportService {
         }
 
         return out;
+    }
+
+    /**
+     * 从 classpath 加载字体：开发态可用 getFile；jar 内复制到临时文件。
+     */
+    private File tryLoadClasspathFontFile(String classpathLocation, String debugName) {
+        try {
+            Resource res = resourceLoader.getResource(classpathLocation);
+            if (!res.exists()) {
+                return null;
+            }
+            try {
+                File f = res.getFile();
+                if (f.isFile()) {
+                    return f;
+                }
+            } catch (Exception ignored) {
+                // jar 内无实体文件
+            }
+            try (InputStream in = res.getInputStream()) {
+                return copyClasspathFontToTemp(in, debugName.replace('/', '_'));
+            }
+        } catch (Exception e) {
+            log.trace("classpath 字体不可用: {}", debugName, e);
+            return null;
+        }
     }
 
     private static File copyClasspathFontToTemp(InputStream in, String name) {

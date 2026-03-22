@@ -12,7 +12,9 @@
 | **后端镜像 `docker-entrypoint.sh`** | 按 `migrate_manifest.txt` 顺序执行增量 SQL（报价表、迁移脚本等） | **每次 `backend` 容器启动**（含 CI 部署后强制重建 backend） |
 | **清单文件** `db/migrate_manifest.txt` | 声明迁移顺序与文件名 | 随代码维护；**生产/本地 Compose 将宿主 `db/` 挂载到容器 `/app/db`**，与仓库一致，不依赖镜像层是否命中构建缓存 |
 
-推送 `main`/`master` 后，CI 将 `atuo_attend_backend` 同步到服务器、`pull` 镜像并 `up -d`，再 **强制重建 backend**：**每次部署都会用最新清单执行迁移**，一般**无需再 SSH 手工执行**数据库命令。
+推送 `main`/`master` 后，CI 将 `atuo_attend_backend` **SCP** 到服务器、`docker compose pull` 并 `up -d`，再 **强制重建 backend**：**每次部署都会用最新清单执行迁移**，一般**无需再 SSH 手工执行**数据库命令。
+
+**推送后是否自动变为线上最新版本？** 在配置好 GitHub Actions Secrets 且服务器可拉取 ghcr 镜像的前提下，**是**。详见 [Docker推送后自动部署说明.md](./Docker推送后自动部署说明.md)。
 
 ---
 

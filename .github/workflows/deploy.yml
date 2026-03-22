@@ -67,20 +67,32 @@ jobs:
             atuo_attend_backend \
             "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
 
+      # 可选：若 ghcr.io 镜像为私有，请在仓库 Secrets 中配置 GHCR_USERNAME + GHCR_READ_TOKEN（PAT 勾选 read:packages），
+      # 否则服务器上 docker compose pull 可能报 unauthorized。
       - name: Start containers on server
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
+          IMAGE_FRONTEND: ${{ steps.images.outputs.frontend }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GHCR_USER: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           command_timeout: 3h
+          envs: IMAGE_BACKEND,IMAGE_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN
           script: |
             set -e
-            cd ${{ secrets.DEPLOY_PATH || '/mnt/newdisk/app/AutoAttend' }}
-            mkdir -p /mnt/newdisk/app/AutoAttend/git-repos
-            export IMAGE_BACKEND=${{ steps.images.outputs.backend }}
-            export IMAGE_FRONTEND=${{ steps.images.outputs.frontend }}
+            DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
+            cd "$DPATH"
+            mkdir -p "$DPATH/git-repos"
+            if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            fi
+            export IMAGE_BACKEND IMAGE_FRONTEND
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
             # 数据库迁移：backend entrypoint 在启动时按挂载的 ./atuo_attend_backend/.../db/migrate_manifest.txt 执行 SQL。

@@ -75,6 +75,36 @@
       </section>
 
       <section class="card">
+        <h2>{{ $t('quote.quoteDocMetaTitle') }}</h2>
+        <p class="hint quote-doc-meta-hint">{{ $t('quote.quoteDocMetaHint') }}</p>
+        <div class="quote-subject-mode">
+          <span class="mode-label">{{ $t('quote.quoteSubjectModeLabel') }}</span>
+          <label class="mode-opt"><input v-model="form.quoteSubjectMode" type="radio" value="legal_entity" /> {{ $t('quote.quoteSubjectLegal') }}</label>
+          <label class="mode-opt"><input v-model="form.quoteSubjectMode" type="radio" value="natural_person" /> {{ $t('quote.quoteSubjectNatural') }}</label>
+          <label class="mode-opt"><input v-model="form.quoteSubjectMode" type="radio" value="manual" /> {{ $t('quote.quoteSubjectManual') }}</label>
+        </div>
+        <p v-if="quoteSubjectIncomplete" class="warn-banner">{{ $t('quote.quoteSubjectIncomplete') }}</p>
+        <div v-if="form.quoteSubjectMode !== 'manual'" class="quote-header-preview">
+          <div class="preview-title">{{ $t('quote.quoteHeaderPreview') }}</div>
+          <p v-if="resolvedQuotePreview.vendorName"><strong>{{ $t('quote.quoteVendorName') }}：</strong>{{ resolvedQuotePreview.vendorName }}</p>
+          <p v-if="resolvedQuotePreview.contactInfo"><strong>{{ $t('quote.quoteContactInfo') }}：</strong>{{ resolvedQuotePreview.contactInfo }}</p>
+          <p v-if="!resolvedQuotePreview.vendorName && !resolvedQuotePreview.contactInfo" class="preview-empty">{{ $t('quote.quoteHeaderPreviewEmpty') }}</p>
+        </div>
+        <div v-else class="grid">
+          <label class="full">{{ $t('quote.quoteVendorName') }} <input v-model="form.quoteVendorName" class="inp wide" :placeholder="$t('quote.quoteVendorNamePh')" /></label>
+          <label class="full">{{ $t('quote.quoteContactInfo') }} <input v-model="form.quoteContactInfo" class="inp wide" :placeholder="$t('quote.quoteContactInfoPh')" /></label>
+        </div>
+        <div class="quote-doc-actions">
+          <button type="button" class="btn secondary btn-sm-pad" @click="showPartyBModal = true">{{ $t('quote.editPartyBTemplate') }}</button>
+          <router-link to="/quote/config" class="link-config">{{ $t('quote.openQuoteConfig') }}</router-link>
+        </div>
+        <label class="full block-label">{{ $t('quote.quoteValidityNote') }}</label>
+        <input v-model="form.quoteValidityNote" class="inp wide block-inp" :placeholder="$t('quote.quoteValidityNotePh')" />
+      </section>
+
+      <party-b-profile-edit-modal :visible="showPartyBModal" @close="showPartyBModal = false" @saved="onPartyBProfileSaved" />
+
+      <section class="card">
         <h2>{{ $t('quote.modules') }}</h2>
         <div v-for="(mod, mi) in modules" :key="'m-' + mi" class="module-block">
           <div class="mod-head">
@@ -316,6 +346,8 @@
 </template>
 
 <script>
+import PartyBProfileEditModal from '../components/PartyBProfileEditModal.vue'
+
 function emptyModule () {
   return { name: '', sortOrder: 0, items: [{ name: '', complexity: 'standard', quantity: 1 }] }
 }
@@ -375,6 +407,7 @@ function normalizeContractContext (raw) {
 
 export default {
   name: 'QuoteProjectView',
+  components: { PartyBProfileEditModal },
   data () {
     return {
       pageLoading: true,
@@ -391,8 +424,14 @@ export default {
         deployType: 'cloud',
         status: 'draft',
         linkTableId: null,
-        prdSummary: ''
+        prdSummary: '',
+        quoteSubjectMode: 'legal_entity',
+        quoteVendorName: '',
+        quoteContactInfo: '',
+        quoteValidityNote: ''
       },
+      partyBProfile: {},
+      showPartyBModal: false,
       modules: [emptyModule()],
       riskConfigs: [],
       priceConfigs: [],
@@ -448,6 +487,41 @@ export default {
     },
     urgencyRiskMeta () {
       return (this.riskConfigs || []).find(r => r.riskKey === 'urgency_rush')
+    },
+    resolvedQuotePreview () {
+      const mode = this.form.quoteSubjectMode || 'legal_entity'
+      const prof = this.partyBProfile || {}
+      if (mode === 'manual') {
+        return {
+          vendorName: (this.form.quoteVendorName || '').trim(),
+          contactInfo: (this.form.quoteContactInfo || '').trim()
+        }
+      }
+      if (mode === 'natural_person') {
+        const np = prof.naturalPerson && typeof prof.naturalPerson === 'object' ? prof.naturalPerson : {}
+        const parts = []
+        if (np.contactPhone) parts.push('电话：' + String(np.contactPhone).trim())
+        if (np.email) parts.push('邮箱：' + String(np.email).trim())
+        if (np.address) parts.push('地址：' + String(np.address).trim())
+        return {
+          vendorName: (np.fullName || '').trim(),
+          contactInfo: parts.join('；')
+        }
+      }
+      const parts = []
+      if (prof.contactName) parts.push('联系人：' + String(prof.contactName).trim())
+      if (prof.contactPhone) parts.push('电话：' + String(prof.contactPhone).trim())
+      if (prof.address) parts.push('地址：' + String(prof.address).trim())
+      return {
+        vendorName: (prof.legalName || '').trim(),
+        contactInfo: parts.join('；')
+      }
+    },
+    quoteSubjectIncomplete () {
+      const mode = this.form.quoteSubjectMode || 'legal_entity'
+      if (mode === 'manual') return false
+      const r = this.resolvedQuotePreview
+      return !r.vendorName && !r.contactInfo
     }
   },
   created () {
@@ -482,6 +556,21 @@ export default {
     },
     closeTableHintOnOutside () {
       this.openTableHint = null
+    },
+    async loadPartyBProfile () {
+      try {
+        const resp = await this.$http.get('/admin/quote/party-b-profile')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.partyBProfile = { ...resp.data.data }
+        } else {
+          this.partyBProfile = {}
+        }
+      } catch (e) {
+        this.partyBProfile = {}
+      }
+    },
+    onPartyBProfileSaved () {
+      this.loadPartyBProfile()
     },
     applyRiskConfigPayload (arr) {
       this.riskConfigs = (arr || []).map(r => ({
@@ -602,9 +691,18 @@ export default {
         }
         if (r3.data && r3.data.code === 0) this.applyPresetPickerPayload(r3.data.data)
         else this.presetItems = []
+        await this.loadPartyBProfile()
         if (this.isNew) {
           this.projectId = null
-          this.form = { ...this.form, name: '', prdSummary: '' }
+          this.form = {
+            ...this.form,
+            name: '',
+            prdSummary: '',
+            quoteSubjectMode: 'legal_entity',
+            quoteVendorName: '',
+            quoteContactInfo: '',
+            quoteValidityNote: ''
+          }
           this.modules = [emptyModule()]
           this.contractContext = normalizeContractContext(null)
           this.resetCalcPrefsUi()
@@ -635,6 +733,10 @@ export default {
           this.form.status = d.status || 'draft'
           this.form.linkTableId = d.linkTableId
           this.form.prdSummary = d.prdSummary || ''
+          this.form.quoteSubjectMode = d.quoteSubjectMode || 'legal_entity'
+          this.form.quoteVendorName = d.quoteVendorName || ''
+          this.form.quoteContactInfo = d.quoteContactInfo || ''
+          this.form.quoteValidityNote = d.quoteValidityNote || ''
           this.contractContext = normalizeContractContext(d.quoteContractContext)
           const mods = d.modules || []
           if (!mods.length) this.modules = [emptyModule()]
@@ -687,6 +789,10 @@ export default {
         status: this.form.status,
         linkTableId: this.form.linkTableId,
         prdSummary: this.form.prdSummary,
+        quoteSubjectMode: this.form.quoteSubjectMode || 'legal_entity',
+        quoteVendorName: this.form.quoteVendorName || '',
+        quoteContactInfo: this.form.quoteContactInfo || '',
+        quoteValidityNote: this.form.quoteValidityNote || '',
         modules: this.modules.map((m, mi) => ({
           name: m.name,
           sortOrder: m.sortOrder != null ? m.sortOrder : mi,
@@ -1020,6 +1126,54 @@ export default {
 .card h3 { margin: 18px 0 10px; font-size: 1rem; font-weight: 600; color: #0f172a; }
 /* 宽屏下多列铺开，提高横向利用率 */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px 18px; margin-bottom: 14px; }
+.grid label.full { grid-column: 1 / -1; }
+.quote-doc-meta-hint { margin-top: -4px; }
+.quote-subject-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-bottom: 14px;
+  font-size: 15px;
+  color: #1e293b;
+}
+.quote-subject-mode .mode-label { font-weight: 700; width: 100%; }
+.quote-subject-mode .mode-opt { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
+.warn-banner {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
+.quote-header-preview {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #334155;
+}
+.quote-header-preview .preview-title { font-weight: 700; color: #0f172a; margin-bottom: 8px; font-size: 13px; }
+.quote-header-preview p { margin: 4px 0; }
+.preview-empty { color: #64748b; font-style: italic; margin: 0 !important; }
+.quote-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.btn-sm-pad { padding: 8px 14px; font-size: 14px; margin-top: 0; }
+.link-config { font-size: 14px; color: #1d4ed8; font-weight: 600; text-decoration: none; }
+.link-config:hover { text-decoration: underline; }
+.block-label { display: block; margin-top: 4px; margin-bottom: 6px; font-weight: 600; }
+.block-inp { width: 100%; max-width: 720px; box-sizing: border-box; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 15px; color: #1e293b; font-weight: 500; }
 label.block { display: block; margin-top: 10px; }
 .inp {

@@ -19,6 +19,12 @@ public class QuoteProject {
     private String quoteCalcPrefsJson;
     /** JSON：paymentPlan、质保、验收、交付物、里程碑、争议解决等，供合同 AI 与附件 */
     private String quoteContractContextJson;
+    /** 报价单抬头：出具方、联系方式、有效期说明（写入报价 HTML/PDF） */
+    private String quoteVendorName;
+    private String quoteContactInfo;
+    private String quoteValidityNote;
+    /** 报价单出具方来源：legal_entity=配置法人模板，natural_person=配置自然人模板，manual=本项目手写 */
+    private String quoteSubjectMode;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -50,6 +56,14 @@ public class QuoteProject {
     public void setQuoteCalcPrefsJson(String quoteCalcPrefsJson) { this.quoteCalcPrefsJson = quoteCalcPrefsJson; }
     public String getQuoteContractContextJson() { return quoteContractContextJson; }
     public void setQuoteContractContextJson(String quoteContractContextJson) { this.quoteContractContextJson = quoteContractContextJson; }
+    public String getQuoteVendorName() { return quoteVendorName; }
+    public void setQuoteVendorName(String quoteVendorName) { this.quoteVendorName = quoteVendorName; }
+    public String getQuoteContactInfo() { return quoteContactInfo; }
+    public void setQuoteContactInfo(String quoteContactInfo) { this.quoteContactInfo = quoteContactInfo; }
+    public String getQuoteValidityNote() { return quoteValidityNote; }
+    public void setQuoteValidityNote(String quoteValidityNote) { this.quoteValidityNote = quoteValidityNote; }
+    public String getQuoteSubjectMode() { return quoteSubjectMode; }
+    public void setQuoteSubjectMode(String quoteSubjectMode) { this.quoteSubjectMode = quoteSubjectMode; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

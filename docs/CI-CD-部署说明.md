@@ -9,15 +9,18 @@ GitHub Actions 触发
     ↓
 ① 在 GitHub 云端构建 backend / frontend Docker 镜像（不占用你服务器）
     ↓
-② 将镜像推送到 GitHub Container Registry (ghcr.io)
+② 将镜像推送到 GitHub Container Registry (ghcr.io)，标签 latest
     ↓
-③ 通过 SSH 登录你的服务器，执行：
-      git pull  →  docker compose -f docker-compose.prod.yml pull  →  up -d
+③ 通过 SSH：SCP 同步 docker-compose.prod.yml 与 atuo_attend_backend/（含 db 迁移与清单）
     ↓
-服务器上只做「拉取已构建好的镜像 + 重启容器」，几十秒内完成更新
+④ 在服务器执行：docker compose pull → up -d → 强制重建 backend（跑迁移 + 启 Spring Boot）
+    ↓
+服务器上不做 git pull；镜像来自 ghcr，SQL/清单来自 SCP 的仓库目录
 ```
 
 这样**构建在 GitHub 上完成**，**服务器不再执行 `compose build`**，部署会快很多。
+
+**是否等于「推送即最新版」？** 是：只要 Actions 成功且服务器 Docker 能拉取镜像。更细的清单与故障排查见 **[Docker推送后自动部署说明.md](./Docker推送后自动部署说明.md)**。
 
 ---
 
@@ -28,17 +31,13 @@ GitHub Actions 触发
 - 部署分支建议为 `main` 或 `master`（可在 workflow 里改）。
 
 ### 2. 服务器端
-- 已安装 **Docker**、**Docker Compose**。
-- 服务器上有一份项目目录（用于 `docker-compose.prod.yml` 和 MySQL 建表脚本），例如：
-  ```bash
-  # 在服务器上执行一次
-  git clone https://github.com/你的用户名/AutoAttend.git /mnt/newdisk/app/AutoAttend
-  ```
-  （若使用其他目录，需在仓库 Secrets 中设置 `DEPLOY_PATH` 与之一致。）
+- 已安装 **Docker**、**Docker Compose v2**；部署用户可执行 `docker`。
+- 服务器上需存在 **`DEPLOY_PATH`** 目录（默认 `/mnt/newdisk/app/AutoAttend`）。**可不依赖 git clone**：首次部署时 CI 会将 `docker-compose.prod.yml` 与 **`atuo_attend_backend`** 整目录 **SCP** 到该路径；若你习惯本地维护一份克隆，也可 `git clone` 后仍把 `DEPLOY_PATH` 指到该目录（注意与 CI 覆盖文件一致即可）。
 - 为 GitHub Actions 准备一个 **SSH 登录方式**（见下文「配置 Secrets」）。
 
 ### 3. GitHub 仓库配置
 - 在仓库 **Settings → Secrets and variables → Actions** 中配置以下 Secrets（见下一节）。
+- 若 **ghcr.io 上的镜像包为私有**，还需配置 **`GHCR_USERNAME`** 与 **`GHCR_READ_TOKEN`**（PAT 含 `read:packages`），否则服务器上 `docker compose pull` 可能失败。公开包一般可不配。
 
 ---
 
@@ -51,6 +50,8 @@ GitHub Actions 触发
 | `SSH_USER`        | SSH 登录用户名，例如 `root`。 |
 | `SSH_PORT`        | （可选）SSH 端口，默认 22。 |
 | `DEPLOY_PATH`     | （可选）服务器上项目目录，默认 `/mnt/newdisk/app/AutoAttend`。 |
+| `GHCR_USERNAME`   | （可选）拉取**私有**镜像时：GitHub 用户名，用于 `docker login ghcr.io`。 |
+| `GHCR_READ_TOKEN` | （可选）与上配合：Classic PAT 勾选 **read:packages**，或 Fine-grained 对包只读。 |
 
 ### 如何生成并配置 SSH 公钥/私钥
 
@@ -77,11 +78,18 @@ GitHub Actions 触发
 
 ## 四、服务器上首次部署（仅一次）
 
-1. **克隆仓库**（若未克隆）：
-   ```bash
-   git clone https://github.com/你的用户名/AutoAttend.git /mnt/newdisk/app/AutoAttend
-   cd /mnt/newdisk/app/AutoAttend
-   ```
+1. **准备目录**（任选其一）：
+   - **推荐**：仅创建空目录并设好权限，首次成功的 CI 会通过 **SCP** 写入 `docker-compose.prod.yml` 与 `atuo_attend_backend/`：
+     ```bash
+     sudo mkdir -p /mnt/newdisk/app/AutoAttend/git-repos
+     sudo chown -R "$USER:$USER" /mnt/newdisk/app/AutoAttend
+     cd /mnt/newdisk/app/AutoAttend
+     ```
+   - 或 **git clone** 后再由后续 CI 覆盖同步同名文件：
+     ```bash
+     git clone https://github.com/你的用户名/AutoAttend.git /mnt/newdisk/app/AutoAttend
+     cd /mnt/newdisk/app/AutoAttend
+     ```
 
 2. **首次启动 MySQL 并建表**（只需一次）：
    ```bash
@@ -140,6 +148,7 @@ GitHub Actions 触发
 - **团队管理：已有库升级**  
   若在**本次更新前**已部署过 AutoAttend，MySQL 中的 `biz_user` 表可能缺少「头像、备注名、职务」列。**无需在服务器上手动执行**：下次通过 CI/CD 部署（push 到 main 后）会自动执行 `schema_collab_team_migration.sql`（在 `up -d` 之后由 workflow 挂载并运行）；若列已存在会报错，workflow 已忽略该错误，不影响部署。全新 MySQL 的建表脚本已包含这些列，同样无需额外操作。
 
+- **`docker compose pull` 报 unauthorized / denied**：多为 **ghcr 包设为私有** 且服务器未登录。在仓库 Secrets 中配置 **`GHCR_USERNAME`** 与 **`GHCR_READ_TOKEN`**（PAT 勾选 **read:packages**），workflow 会在 `pull` 前自动 `docker login ghcr.io`。详见 [Docker推送后自动部署说明.md](./Docker推送后自动部署说明.md)。
 - **镜像拉取慢**：服务器若在国内，ghcr.io 可能较慢，可考虑将镜像同步到阿里云 ACR 或在 workflow 中推送到阿里云，再在 `docker-compose.prod.yml` 中改用 ACR 地址。
 - **SSH 连接失败**：检查 `SSH_HOST`、`SSH_USER`、`SSH_PRIVATE_KEY` 是否正确；服务器 `sshd` 是否允许密钥登录；防火墙是否放行 `SSH_PORT`。
 - **权限错误**：若使用私有仓库，需在 workflow 中为 `GITHUB_TOKEN` 配置 `packages: write`（当前 workflow 已包含）。

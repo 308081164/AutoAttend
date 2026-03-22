@@ -103,9 +103,10 @@ npm run serve
 
 ## 5. 生产部署
 
-- **推荐**：使用 GitHub Actions 在 push 到 `main`/`master` 时自动构建镜像、推送到 ghcr.io，并 SSH 同步 `atuo_attend_backend` 与 `docker-compose.prod.yml` 后执行 `pull`、`up -d` 及 **强制重建 backend**。后端容器启动脚本会按 **`migrate_manifest.txt`** 执行增量 SQL；生产 Compose 将仓库内 **`atuo_attend_backend/src/main/resources/db`** 只读挂载到容器 `/app/db`，与 CI 同步的代码一致，**无需手动上机执行迁移**。详见 [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md)。
-- **部署路径**：默认服务器项目目录为 `/mnt/newdisk/app/AutoAttend`（可在仓库 Secrets 中设置 `DEPLOY_PATH` 覆盖）。
-- **详细步骤**：见 [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md)（Secrets 配置、首次克隆、常见问题如 502、磁盘满、/api 502 等）；数据库迁移机制见 [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md)。
+- **推送即自动部署（推荐）**：向 **`main`/`master` push** 后，GitHub Actions 会构建 backend/frontend 镜像并推送到 **ghcr.io**，再通过 SSH **同步** `docker-compose.prod.yml` 与 **`atuo_attend_backend`**（含 `db` 与 **`migrate_manifest.txt`**），最后在服务器 **`docker compose pull` → `up -d` → 强制重建 backend**。因此**无需在服务器上 `git pull`**；线上版本 = 本次流水线构建的镜像 + SCP 过去的迁移脚本。前提：在仓库 **Actions Secrets** 中配置 `SSH_*`（及可选 `DEPLOY_PATH`、私有镜像时的 **`GHCR_USERNAME` + `GHCR_READ_TOKEN`**）。**一键对照清单与常见问题**见 [**docs/Docker推送后自动部署说明.md**](docs/Docker推送后自动部署说明.md)。
+- **数据库迁移**：后端容器 entrypoint 按挂载的 **`migrate_manifest.txt`** 执行 SQL；详见 [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md)。
+- **部署路径**：默认 `/mnt/newdisk/app/AutoAttend`（Secret `DEPLOY_PATH` 可覆盖）。
+- **更多**：Secrets 细节、首次起 MySQL、502/反代排查见 [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md)。
 
 部署后：
 
@@ -153,6 +154,7 @@ npm run serve
 | 文档 | 说明 |
 |------|------|
 | [docs/MVP接口文档.md](docs/MVP接口文档.md) | 管理员与 Webhook 接口说明 |
+| [docs/Docker推送后自动部署说明.md](docs/Docker推送后自动部署说明.md) | **推送 main 是否自动上线**、Secrets 清单、ghcr 私有镜像、首次服务器准备、验证方式 |
 | [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md) | 构建、部署、Secrets、常见问题 |
 | [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md) | Docker 与 CI/CD 下建表脚本 vs 迁移脚本、自动执行迁移、新增迁移规范 |
 | [docs/多维表格协作管理-功能设计文档.md](docs/多维表格协作管理-功能设计文档.md) | 项目协作、多维表、权限、MinIO 等设计（已实现部分） |

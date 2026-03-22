@@ -69,6 +69,9 @@ public class QuoteService {
         QuoteProject p = toProject(dto);
         if (p.getName() == null || p.getName().isBlank()) throw new IllegalArgumentException("项目名称不能为空");
         if (p.getStatus() == null) p.setStatus("draft");
+        if (p.getQuoteSubjectMode() == null) {
+            p.setQuoteSubjectMode("legal_entity");
+        }
         projectMapper.insert(p);
         saveModules(p.getId(), dto.getModules());
         return p.getId();
@@ -85,6 +88,18 @@ public class QuoteService {
         }
         if (dto.getQuoteContractContext() == null) {
             p.setQuoteContractContextJson(existing.getQuoteContractContextJson());
+        }
+        if (dto.getQuoteVendorName() == null) {
+            p.setQuoteVendorName(existing.getQuoteVendorName());
+        }
+        if (dto.getQuoteContactInfo() == null) {
+            p.setQuoteContactInfo(existing.getQuoteContactInfo());
+        }
+        if (dto.getQuoteValidityNote() == null) {
+            p.setQuoteValidityNote(existing.getQuoteValidityNote());
+        }
+        if (dto.getQuoteSubjectMode() == null) {
+            p.setQuoteSubjectMode(existing.getQuoteSubjectMode() != null ? existing.getQuoteSubjectMode() : "legal_entity");
         }
         projectMapper.update(p);
         moduleMapper.deleteByProjectId(id);
@@ -104,6 +119,12 @@ public class QuoteService {
         p.setStatus(nvl(dto.getStatus(), "draft"));
         p.setLinkTableId(dto.getLinkTableId());
         p.setPrdSummary(dto.getPrdSummary());
+        p.setQuoteVendorName(trimToNull(dto.getQuoteVendorName()));
+        p.setQuoteContactInfo(trimToNull(dto.getQuoteContactInfo()));
+        p.setQuoteValidityNote(trimToNull(dto.getQuoteValidityNote()));
+        if (dto.getQuoteSubjectMode() != null) {
+            p.setQuoteSubjectMode(normalizeQuoteSubjectMode(dto.getQuoteSubjectMode()));
+        }
         if (dto.getQuoteCalcPrefs() != null && !dto.getQuoteCalcPrefs().isEmpty()) {
             applyQuoteCalcPrefsMapToEntity(p, dto.getQuoteCalcPrefs());
         }
@@ -127,6 +148,18 @@ public class QuoteService {
 
     private static String nvl(String v, String d) {
         return v == null || v.isBlank() ? d : v;
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String normalizeQuoteSubjectMode(String m) {
+        if (m == null || m.isBlank()) return "legal_entity";
+        if ("natural_person".equals(m) || "manual".equals(m)) return m;
+        return "legal_entity";
     }
 
     private void saveModules(long projectId, List<QuoteModuleSaveDto> modules) {
@@ -428,9 +461,27 @@ public class QuoteService {
         StringBuilder sb = new StringBuilder();
         // OpenHTMLToPDF 按 XML 解析：void 元素须自闭合，否则报 meta 未闭合
         sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>报价单</title>");
-        sb.append("<style>body{font-family:sans-serif;padding:24px;color:#111} h1{font-size:20px} table{border-collapse:collapse;width:100%;margin-top:16px} th,td{border:1px solid #ddd;padding:8px;font-size:13px} th{background:#f3f4f6}</style>");
+        sb.append("<style>body{font-family:sans-serif;padding:24px;color:#111} h1{font-size:20px} .quote-doc-meta{border:1px solid #e5e7eb;background:#f9fafb;padding:12px 14px;border-radius:8px;margin:12px 0 16px;line-height:1.55} .quote-doc-meta p{margin:4px 0;font-size:13px} table{border-collapse:collapse;width:100%;margin-top:16px} th,td{border:1px solid #ddd;padding:8px;font-size:13px} th{background:#f3f4f6}</style>");
         sb.append("</head><body>");
         sb.append("<h1>项目报价单</h1>");
+        Map<String, String> header = resolveQuoteDocHeader(p);
+        String vendor = header.getOrDefault("vendorName", "");
+        String contact = header.getOrDefault("contactInfo", "");
+        boolean hasMeta = !vendor.isBlank() || !contact.isBlank()
+                || (p.getQuoteValidityNote() != null && !p.getQuoteValidityNote().isBlank());
+        if (hasMeta) {
+            sb.append("<div class=\"quote-doc-meta\">");
+            if (!vendor.isBlank()) {
+                sb.append("<p><strong>报价单位：</strong>").append(esc(vendor)).append("</p>");
+            }
+            if (!contact.isBlank()) {
+                sb.append("<p><strong>联系方式：</strong>").append(esc(contact)).append("</p>");
+            }
+            if (p.getQuoteValidityNote() != null && !p.getQuoteValidityNote().isBlank()) {
+                sb.append("<p><strong>报价有效期：</strong>").append(esc(p.getQuoteValidityNote())).append("</p>");
+            }
+            sb.append("</div>");
+        }
         sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
         sb.append("<p><strong>生成时间：</strong>").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))).append("</p>");
         sb.append("<p><strong>技术栈：</strong>").append(esc(p.getTechStack())).append(" &nbsp; <strong>项目类型：</strong>").append(esc(p.getProjectType())).append("</p>");
@@ -459,6 +510,82 @@ public class QuoteService {
     private static String esc(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    /**
+     * 报价单抬头：报价单位、联系方式。manual 用项目字段；否则从系统乙方主体模板（报价配置）解析。
+     */
+    private Map<String, String> resolveQuoteDocHeader(QuoteProject p) {
+        Map<String, String> out = new LinkedHashMap<>();
+        String mode = p.getQuoteSubjectMode();
+        if (mode == null || mode.isBlank()) {
+            mode = "legal_entity";
+        }
+        if ("manual".equals(mode)) {
+            out.put("vendorName", nz(p.getQuoteVendorName()));
+            out.put("contactInfo", nz(p.getQuoteContactInfo()));
+            return out;
+        }
+        Map<String, Object> profile = systemConfigService.getQuotePartyBProfile();
+        if ("natural_person".equals(mode)) {
+            Object npObj = profile.get("naturalPerson");
+            if (npObj instanceof Map<?, ?>) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> n = (Map<String, Object>) npObj;
+                out.put("vendorName", nz(strVal(n.get("fullName"))));
+                out.put("contactInfo", formatNaturalPersonContactLine(n));
+            } else {
+                out.put("vendorName", "");
+                out.put("contactInfo", "");
+            }
+            return out;
+        }
+        out.put("vendorName", nz(strVal(profile.get("legalName"))));
+        out.put("contactInfo", formatLegalEntityContactLine(profile));
+        return out;
+    }
+
+    private static String strVal(Object o) {
+        if (o == null) return "";
+        return o.toString().trim();
+    }
+
+    private static String nz(String s) {
+        return s == null ? "" : s.trim();
+    }
+
+    private static String formatLegalEntityContactLine(Map<String, Object> profile) {
+        List<String> parts = new ArrayList<>();
+        String cn = strVal(profile.get("contactName"));
+        if (!cn.isEmpty()) {
+            parts.add("联系人：" + cn);
+        }
+        String ph = strVal(profile.get("contactPhone"));
+        if (!ph.isEmpty()) {
+            parts.add("电话：" + ph);
+        }
+        String addr = strVal(profile.get("address"));
+        if (!addr.isEmpty()) {
+            parts.add("地址：" + addr);
+        }
+        return String.join("；", parts);
+    }
+
+    private static String formatNaturalPersonContactLine(Map<String, Object> n) {
+        List<String> parts = new ArrayList<>();
+        String ph = strVal(n.get("contactPhone"));
+        if (!ph.isEmpty()) {
+            parts.add("电话：" + ph);
+        }
+        String em = strVal(n.get("email"));
+        if (!em.isEmpty()) {
+            parts.add("邮箱：" + em);
+        }
+        String addr = strVal(n.get("address"));
+        if (!addr.isEmpty()) {
+            parts.add("地址：" + addr);
+        }
+        return String.join("；", parts);
     }
 
     @Transactional
@@ -558,6 +685,10 @@ public class QuoteService {
         m.put("status", p.getStatus());
         m.put("linkTableId", p.getLinkTableId());
         m.put("prdSummary", p.getPrdSummary());
+        m.put("quoteVendorName", p.getQuoteVendorName());
+        m.put("quoteContactInfo", p.getQuoteContactInfo());
+        m.put("quoteValidityNote", p.getQuoteValidityNote());
+        m.put("quoteSubjectMode", p.getQuoteSubjectMode() != null ? p.getQuoteSubjectMode() : "legal_entity");
         m.put("createdAt", p.getCreatedAt());
         m.put("updatedAt", p.getUpdatedAt());
         return m;
