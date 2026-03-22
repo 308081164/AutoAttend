@@ -6,6 +6,7 @@ public class QuotePriceConfigRow {
     private Long id;
     private String regionLabel;
     private BigDecimal pricePerDay;
+    private BigDecimal durationCoefficient;
     private String currency;
     private Boolean enabled;
 
@@ -15,6 +16,8 @@ public class QuotePriceConfigRow {
     public void setRegionLabel(String regionLabel) { this.regionLabel = regionLabel; }
     public BigDecimal getPricePerDay() { return pricePerDay; }
     public void setPricePerDay(BigDecimal pricePerDay) { this.pricePerDay = pricePerDay; }
+    public BigDecimal getDurationCoefficient() { return durationCoefficient; }
+    public void setDurationCoefficient(BigDecimal durationCoefficient) { this.durationCoefficient = durationCoefficient; }
     public String getCurrency() { return currency; }
     public void setCurrency(String currency) { this.currency = currency; }
     public Boolean getEnabled() { return enabled; }

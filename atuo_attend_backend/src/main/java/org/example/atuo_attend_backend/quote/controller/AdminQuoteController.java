@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.quote.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.quote.dto.*;
 import org.example.atuo_attend_backend.quote.mapper.QuoteBaselineMapper;
@@ -285,6 +286,42 @@ public class AdminQuoteController {
     public ApiResponse<List<Map<String, Object>>> linkTableRequirements(@PathVariable long id) {
         // 可选：后续与多维表需求记录对接
         return ApiResponse.ok(List.of());
+    }
+
+    /** 乙方（受托方）主体与收款信息模板，全系统共用，供合同 AI 与商务引用 */
+    @GetMapping("/party-b-profile")
+    public ApiResponse<Map<String, Object>> getPartyBProfile() {
+        return ApiResponse.ok(quoteService.getPartyBProfile());
+    }
+
+    @PutMapping("/party-b-profile")
+    public ApiResponse<Void> savePartyBProfile(@RequestBody(required = false) Map<String, Object> body) {
+        try {
+            quoteService.savePartyBProfile(body != null ? body : Map.of());
+            return ApiResponse.ok(null);
+        } catch (JsonProcessingException e) {
+            return ApiResponse.error(50000, "保存失败");
+        }
+    }
+
+    /** 附件一：功能清单 HTML（与主合同引用） */
+    @PostMapping("/projects/{id}/contract-attachments/function-list")
+    public ApiResponse<Map<String, Object>> contractAttachmentFunctionList(@PathVariable long id) {
+        try {
+            return ApiResponse.ok(quoteService.buildContractAttachmentFunctionList(id));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    /** 附件三：里程碑计划 HTML */
+    @PostMapping("/projects/{id}/contract-attachments/milestones")
+    public ApiResponse<Map<String, Object>> contractAttachmentMilestones(@PathVariable long id) {
+        try {
+            return ApiResponse.ok(quoteService.buildContractAttachmentMilestoneSchedule(id));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
     }
 
     @PostMapping("/results/{resultId}/contract/generate")

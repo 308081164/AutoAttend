@@ -18,6 +18,8 @@ public class QuoteProjectSaveDto {
     private String prdSummary;
     /** 可选：报价计算偏好，与 PATCH calc-prefs 结构一致 */
     private Map<String, Object> quoteCalcPrefs;
+    /** 可选：合同补充（付款计划、质保、验收、交付物、里程碑等），见设计文档 §11.5 */
+    private Map<String, Object> quoteContractContext;
     private List<QuoteModuleSaveDto> modules = new ArrayList<>();
 
     public String getName() { return name; }
@@ -44,6 +46,8 @@ public class QuoteProjectSaveDto {
     public void setPrdSummary(String prdSummary) { this.prdSummary = prdSummary; }
     public Map<String, Object> getQuoteCalcPrefs() { return quoteCalcPrefs; }
     public void setQuoteCalcPrefs(Map<String, Object> quoteCalcPrefs) { this.quoteCalcPrefs = quoteCalcPrefs; }
+    public Map<String, Object> getQuoteContractContext() { return quoteContractContext; }
+    public void setQuoteContractContext(Map<String, Object> quoteContractContext) { this.quoteContractContext = quoteContractContext; }
     public List<QuoteModuleSaveDto> getModules() { return modules; }
     public void setModules(List<QuoteModuleSaveDto> modules) { this.modules = modules != null ? modules : new ArrayList<>(); }
 }

@@ -1,6 +1,12 @@
 package org.example.atuo_attend_backend.config;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * 系统配置（如 GitHub Token），供管理后台填写、GithubDiffFetcher 等使用。
@@ -10,8 +16,11 @@ public class SystemConfigService {
 
     private static final String KEY_GITHUB_TOKEN = "github.token";
     private static final String KEY_GITHUB_API_PROXY = "github.api.proxy";
+    /** 报价/合同：乙方（受托方）工商与收款信息 JSON，管理后台维护 */
+    public static final String KEY_QUOTE_PARTY_B_PROFILE = "quote.party_b_profile_json";
 
     private final SystemConfigMapper mapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SystemConfigService(SystemConfigMapper mapper) {
         this.mapper = mapper;
@@ -45,5 +54,21 @@ public class SystemConfigService {
     public void setGitHubApiProxy(String proxy) {
         String value = (proxy != null && !proxy.isBlank()) ? proxy.trim() : null;
         mapper.upsert(KEY_GITHUB_API_PROXY, value != null ? value : "");
+    }
+
+    /** 乙方（开发方）主体模板：legalName、creditCode、address、contactName、contactPhone、bankName、bankAccount 等 */
+    public Map<String, Object> getQuotePartyBProfile() {
+        String raw = mapper.findByKey(KEY_QUOTE_PARTY_B_PROFILE);
+        if (raw == null || raw.isBlank()) return new LinkedHashMap<>();
+        try {
+            return objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return new LinkedHashMap<>();
+        }
+    }
+
+    public void saveQuotePartyBProfile(Map<String, Object> profile) throws JsonProcessingException {
+        String json = (profile == null || profile.isEmpty()) ? "{}" : objectMapper.writeValueAsString(profile);
+        mapper.upsert(KEY_QUOTE_PARTY_B_PROFILE, json);
     }
 }

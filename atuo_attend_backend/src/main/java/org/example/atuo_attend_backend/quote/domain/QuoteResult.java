@@ -7,6 +7,7 @@ public class QuoteResult {
     private Long id;
     private Long quoteProjectId;
     private BigDecimal totalDays;
+    private BigDecimal estimatedDurationDays;
     private BigDecimal baseAmount;
     private BigDecimal riskPctTotal;
     private BigDecimal riskAmount;
@@ -15,6 +16,7 @@ public class QuoteResult {
     private String auditChecklistJson;
     private String selectedRisksJson;
     private BigDecimal pricePerDayUsed;
+    private BigDecimal durationCoefficientUsed;
     private String regionLabelUsed;
     private LocalDateTime createdAt;
 
@@ -24,6 +26,8 @@ public class QuoteResult {
     public void setQuoteProjectId(Long quoteProjectId) { this.quoteProjectId = quoteProjectId; }
     public BigDecimal getTotalDays() { return totalDays; }
     public void setTotalDays(BigDecimal totalDays) { this.totalDays = totalDays; }
+    public BigDecimal getEstimatedDurationDays() { return estimatedDurationDays; }
+    public void setEstimatedDurationDays(BigDecimal estimatedDurationDays) { this.estimatedDurationDays = estimatedDurationDays; }
     public BigDecimal getBaseAmount() { return baseAmount; }
     public void setBaseAmount(BigDecimal baseAmount) { this.baseAmount = baseAmount; }
     public BigDecimal getRiskPctTotal() { return riskPctTotal; }
@@ -40,6 +44,8 @@ public class QuoteResult {
     public void setSelectedRisksJson(String selectedRisksJson) { this.selectedRisksJson = selectedRisksJson; }
     public BigDecimal getPricePerDayUsed() { return pricePerDayUsed; }
     public void setPricePerDayUsed(BigDecimal pricePerDayUsed) { this.pricePerDayUsed = pricePerDayUsed; }
+    public BigDecimal getDurationCoefficientUsed() { return durationCoefficientUsed; }
+    public void setDurationCoefficientUsed(BigDecimal durationCoefficientUsed) { this.durationCoefficientUsed = durationCoefficientUsed; }
     public String getRegionLabelUsed() { return regionLabelUsed; }
     public void setRegionLabelUsed(String regionLabelUsed) { this.regionLabelUsed = regionLabelUsed; }
     public LocalDateTime getCreatedAt() { return createdAt; }

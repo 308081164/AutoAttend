@@ -135,7 +135,7 @@
         </div>
         <label>{{ $t('quote.priceTier') }}
           <select v-model.number="priceConfigId" class="inp">
-            <option v-for="p in priceConfigs" :key="p.id" :value="p.id">{{ p.regionLabel }} — ¥{{ p.pricePerDay }}/天</option>
+            <option v-for="p in priceConfigs" :key="p.id" :value="p.id">{{ formatPriceTierOption(p) }}</option>
           </select>
         </label>
         <h3>{{ $t('quote.auditTitle') }}</h3>
@@ -150,7 +150,7 @@
 
         <div v-if="calcResult" class="result-box">
           <h3>{{ $t('quote.resultTitle') }}</h3>
-          <p>{{ $t('quote.totalDays') }}：{{ calcResult.totalDays }} &nbsp; {{ $t('quote.baseAmount') }}：¥{{ calcResult.baseAmount }}</p>
+          <p>{{ $t('quote.totalDays') }}：{{ calcResult.totalDays }} &nbsp; {{ $t('quote.durationCoefficientUsed') }}：{{ formatCoeff(calcResult.durationCoefficientUsed) }} &nbsp; {{ $t('quote.estimatedDuration') }}：{{ calcResult.estimatedDurationDays != null ? calcResult.estimatedDurationDays : '—' }} {{ $t('quote.durationUnitDays') }} &nbsp; {{ $t('quote.baseAmount') }}：¥{{ calcResult.baseAmount }}</p>
           <p>{{ $t('quote.riskPct') }}：{{ calcResult.riskPctTotal }} &nbsp; 风险金额：¥{{ calcResult.riskAmount }} &nbsp; {{ $t('quote.finalAmount') }}：<strong>¥{{ calcResult.finalAmount }}</strong></p>
           <p>{{ $t('quote.confidence') }}：{{ calcResult.confidenceScore }}（{{ calcResult.confidenceLevel }}）</p>
           <ul v-if="calcResult.riskHints && calcResult.riskHints.length"><li v-for="(h, i) in calcResult.riskHints" :key="i">{{ h }}</li></ul>
@@ -162,11 +162,95 @@
         </div>
       </section>
 
+      <section v-if="projectId" class="card contract-supplement-card">
+        <h2>{{ $t('quote.contractSupplementTitle') }}</h2>
+        <p class="hint">{{ $t('quote.contractSupplementHint') }}</p>
+
+        <h3 class="subh">{{ $t('quote.paymentPlanTitle') }}</h3>
+        <div class="table-wrap">
+          <table class="data-table compact-contract">
+            <thead>
+              <tr>
+                <th>{{ $t('quote.paymentPhaseName') }}</th>
+                <th>{{ $t('quote.paymentPercent') }}</th>
+                <th>{{ $t('quote.paymentTrigger') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, pi) in contractContext.paymentPlan" :key="'pp-' + pi">
+                <td><input v-model="row.phaseName" class="inp" /></td>
+                <td><input v-model.number="row.percent" type="number" min="0" max="100" step="1" class="inp num narrow" /></td>
+                <td><input v-model="row.triggerNote" class="inp wide" /></td>
+                <td><button type="button" class="btn-sm danger" @click="removePaymentPhase(pi)">×</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="btn secondary btn-sm" @click="addPaymentPhase">{{ $t('quote.addPaymentPhase') }}</button>
+
+        <div class="grid contract-grid-2">
+          <label>{{ $t('quote.taxInvoiceNote') }} <input v-model="contractContext.taxInvoiceNote" class="inp" :placeholder="$t('quote.taxInvoicePlaceholder')" /></label>
+          <label>{{ $t('quote.warrantyMonths') }} <input v-model.number="contractContext.warrantyMonths" type="number" min="0" max="120" class="inp num" /></label>
+          <label class="block-full">{{ $t('quote.maintenanceSlaNote') }} <input v-model="contractContext.maintenanceSlaNote" class="inp" /></label>
+        </div>
+
+        <h3 class="subh">{{ $t('quote.deliverablesTitle') }}</h3>
+        <div class="risk-grid">
+          <label v-for="opt in deliverableOptions" :key="opt.k" class="chk">
+            <input type="checkbox" :checked="contractContext.deliverables.includes(opt.k)" @change="toggleDeliverable(opt.k, $event)" />
+            {{ opt.l }}
+          </label>
+        </div>
+
+        <h3 class="subh">{{ $t('quote.acceptanceTitle') }}</h3>
+        <div class="grid contract-grid-2">
+          <label>{{ $t('quote.acceptanceObjectionDays') }} <input v-model.number="contractContext.acceptanceObjectionDays" type="number" min="0" max="60" class="inp num" /></label>
+        </div>
+        <label class="block">{{ $t('quote.acceptanceCriteriaNote') }}</label>
+        <textarea v-model="contractContext.acceptanceCriteriaNote" class="textarea" rows="3" :placeholder="$t('quote.acceptanceCriteriaPlaceholder')"></textarea>
+
+        <h3 class="subh">{{ $t('quote.milestonesTitle') }}</h3>
+        <div class="table-wrap">
+          <table class="data-table compact-contract">
+            <thead>
+              <tr>
+                <th>{{ $t('quote.milestoneName') }}</th>
+                <th>{{ $t('quote.milestoneOffsetDays') }}</th>
+                <th>{{ $t('quote.milestoneNote') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, mi) in contractContext.milestones" :key="'ms-' + mi">
+                <td><input v-model="row.name" class="inp" /></td>
+                <td><input v-model.number="row.offsetDays" type="number" min="0" class="inp num narrow" /></td>
+                <td><input v-model="row.note" class="inp wide" /></td>
+                <td><button type="button" class="btn-sm danger" @click="removeMilestone(mi)">×</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="btn secondary btn-sm" @click="addMilestone">{{ $t('quote.addMilestone') }}</button>
+
+        <label class="block">{{ $t('quote.disputeResolutionNote') }}</label>
+        <input v-model="contractContext.disputeResolutionNote" class="inp block-inp" :placeholder="$t('quote.disputePlaceholder')" />
+
+        <h3 class="subh">{{ $t('quote.contractAttachmentsTitle') }}</h3>
+        <p class="hint">{{ $t('quote.contractAttachmentsHint') }}</p>
+        <div class="btn-row export-row">
+          <button type="button" class="btn secondary" @click="downloadAttachmentFunctionList">{{ $t('quote.attachmentFunctionList') }}</button>
+          <button type="button" class="btn secondary" @click="downloadAttachmentMilestones">{{ $t('quote.attachmentMilestones') }}</button>
+        </div>
+        <p class="hint">{{ $t('quote.contractSupplementSaveHint') }}</p>
+      </section>
+
       <section v-if="calcResult && calcResult.id" class="card">
         <h2>{{ $t('quote.contractTitle') }}</h2>
         <div class="grid">
           <label>{{ $t('quote.clientName') }} <input v-model="contract.clientName" class="inp" /></label>
           <label>{{ $t('quote.companyName') }} <input v-model="contract.companyName" class="inp" /></label>
+          <p class="hint party-b-hint">{{ $t('quote.companyNamePartyBHint') }}</p>
           <label>{{ $t('quote.templateType') }}
             <select v-model="contract.templateType" class="inp">
               <option value="software_dev">软件开发合同</option>
@@ -192,6 +276,59 @@
 <script>
 function emptyModule () {
   return { name: '', sortOrder: 0, items: [{ name: '', complexity: 'standard', quantity: 1 }] }
+}
+
+function defaultContractContext () {
+  return {
+    paymentPlan: [
+      { phaseName: '签约', percent: 30, triggerNote: '合同签订后5个工作日内' },
+      { phaseName: '阶段验收', percent: 40, triggerNote: '里程碑达成并通过阶段验收后' },
+      { phaseName: '终验', percent: 30, triggerNote: '项目终验通过后7日内' }
+    ],
+    taxInvoiceNote: '',
+    warrantyMonths: 3,
+    maintenanceSlaNote: '',
+    deliverables: ['source_code', 'deploy_doc', 'api_doc'],
+    acceptanceObjectionDays: 5,
+    acceptanceCriteriaNote: '',
+    milestones: [
+      { name: '需求/范围确认', offsetDays: 7, note: '' },
+      { name: '开发与联调', offsetDays: 30, note: '' },
+      { name: 'UAT 与终验', offsetDays: 45, note: '' }
+    ],
+    disputeResolutionNote: ''
+  }
+}
+
+function normalizeContractContext (raw) {
+  const base = defaultContractContext()
+  if (!raw || typeof raw !== 'object') return JSON.parse(JSON.stringify(base))
+  const pay = Array.isArray(raw.paymentPlan) && raw.paymentPlan.length
+    ? raw.paymentPlan.map(p => ({
+      phaseName: p.phaseName != null ? String(p.phaseName) : '',
+      percent: p.percent != null ? Number(p.percent) : 0,
+      triggerNote: p.triggerNote != null ? String(p.triggerNote) : ''
+    }))
+    : base.paymentPlan
+  const del = Array.isArray(raw.deliverables) ? raw.deliverables.filter(Boolean) : base.deliverables
+  const ms = Array.isArray(raw.milestones) && raw.milestones.length
+    ? raw.milestones.map(m => ({
+      name: m.name != null ? String(m.name) : '',
+      offsetDays: m.offsetDays != null ? Number(m.offsetDays) : 0,
+      note: m.note != null ? String(m.note) : ''
+    }))
+    : base.milestones
+  return {
+    paymentPlan: pay,
+    taxInvoiceNote: raw.taxInvoiceNote != null ? String(raw.taxInvoiceNote) : '',
+    warrantyMonths: raw.warrantyMonths != null ? Math.max(0, Number(raw.warrantyMonths) || 0) : base.warrantyMonths,
+    maintenanceSlaNote: raw.maintenanceSlaNote != null ? String(raw.maintenanceSlaNote) : '',
+    deliverables: del.length ? del : [...base.deliverables],
+    acceptanceObjectionDays: raw.acceptanceObjectionDays != null ? Math.max(0, Number(raw.acceptanceObjectionDays) || 0) : base.acceptanceObjectionDays,
+    acceptanceCriteriaNote: raw.acceptanceCriteriaNote != null ? String(raw.acceptanceCriteriaNote) : '',
+    milestones: ms,
+    disputeResolutionNote: raw.disputeResolutionNote != null ? String(raw.disputeResolutionNote) : ''
+  }
 }
 
 export default {
@@ -239,7 +376,17 @@ export default {
       /** 仅启用项，供「从预设添加」下拉（在「报价配置」页维护） */
       presetItems: [],
       restoringCalcPrefs: false,
-      calcPrefsDebounceTimer: null
+      calcPrefsDebounceTimer: null,
+      contractContext: defaultContractContext(),
+      deliverableOptions: [
+        { k: 'source_code', l: '源代码' },
+        { k: 'deploy_doc', l: '部署文档' },
+        { k: 'api_doc', l: 'API 文档' },
+        { k: 'db_script', l: '数据库脚本' },
+        { k: 'test_report', l: '测试报告' },
+        { k: 'user_manual', l: '操作说明' },
+        { k: 'training', l: '远程培训/讲解' }
+      ]
     }
   },
   computed: {
@@ -298,6 +445,16 @@ export default {
       if (Number.isNaN(x)) return '0%'
       if (x >= 0) return '+' + x + '%'
       return x + '%'
+    },
+    formatCoeff (c) {
+      if (c == null || c === '') return '1.2'
+      const x = Number(c)
+      return Number.isFinite(x) ? String(x) : '1.2'
+    },
+    formatPriceTierOption (p) {
+      const coeff = p.durationCoefficient != null ? Number(p.durationCoefficient) : 1.2
+      const c = Number.isFinite(coeff) && coeff > 0 ? coeff : 1.2
+      return `${p.regionLabel} — ¥${p.pricePerDay}/天 ×${c}`
     },
     formatPresetOption (p) {
       const c = p.category ? p.category + ' · ' : ''
@@ -388,6 +545,7 @@ export default {
           this.projectId = null
           this.form = { ...this.form, name: '', prdSummary: '' }
           this.modules = [emptyModule()]
+          this.contractContext = normalizeContractContext(null)
           this.resetCalcPrefsUi()
         } else {
           this.projectId = Number(raw)
@@ -416,6 +574,7 @@ export default {
           this.form.status = d.status || 'draft'
           this.form.linkTableId = d.linkTableId
           this.form.prdSummary = d.prdSummary || ''
+          this.contractContext = normalizeContractContext(d.quoteContractContext)
           const mods = d.modules || []
           if (!mods.length) this.modules = [emptyModule()]
           else {
@@ -476,7 +635,26 @@ export default {
             quantity: Math.max(1, Number(it.quantity) || 1)
           }))
         })).filter(m => m.name && String(m.name).trim() && m.items.length),
-        quoteCalcPrefs: this.buildQuoteCalcPrefsPayload()
+        quoteCalcPrefs: this.buildQuoteCalcPrefsPayload(),
+        quoteContractContext: {
+          paymentPlan: (this.contractContext.paymentPlan || []).map(p => ({
+            phaseName: p.phaseName,
+            percent: Math.max(0, Math.min(100, Number(p.percent) || 0)),
+            triggerNote: p.triggerNote || ''
+          })),
+          taxInvoiceNote: this.contractContext.taxInvoiceNote || '',
+          warrantyMonths: Math.max(0, Number(this.contractContext.warrantyMonths) || 0),
+          maintenanceSlaNote: this.contractContext.maintenanceSlaNote || '',
+          deliverables: [...(this.contractContext.deliverables || [])],
+          acceptanceObjectionDays: Math.max(0, Number(this.contractContext.acceptanceObjectionDays) || 0),
+          acceptanceCriteriaNote: this.contractContext.acceptanceCriteriaNote || '',
+          milestones: (this.contractContext.milestones || []).map(m => ({
+            name: m.name || '',
+            offsetDays: Math.max(0, Number(m.offsetDays) || 0),
+            note: m.note || ''
+          })),
+          disputeResolutionNote: this.contractContext.disputeResolutionNote || ''
+        }
       }
     },
     async saveProject () {
@@ -607,6 +785,53 @@ export default {
         '/admin/quote/projects/' + this.projectId + '/quote-doc.docx',
         'quote-' + this.projectId + '.docx'
       )
+    },
+    addPaymentPhase () {
+      this.contractContext.paymentPlan.push({ phaseName: '', percent: 0, triggerNote: '' })
+    },
+    removePaymentPhase (pi) {
+      if (this.contractContext.paymentPlan.length <= 1) return
+      this.contractContext.paymentPlan.splice(pi, 1)
+    },
+    toggleDeliverable (key, ev) {
+      const arr = this.contractContext.deliverables
+      if (ev.target.checked) {
+        if (!arr.includes(key)) arr.push(key)
+      } else {
+        const i = arr.indexOf(key)
+        if (i >= 0) arr.splice(i, 1)
+      }
+    },
+    addMilestone () {
+      this.contractContext.milestones.push({ name: '', offsetDays: 0, note: '' })
+    },
+    removeMilestone (mi) {
+      if (this.contractContext.milestones.length <= 1) return
+      this.contractContext.milestones.splice(mi, 1)
+    },
+    async downloadAttachmentHtml (url, fallbackName) {
+      if (!this.projectId) return
+      try {
+        const resp = await this.$http.post(url)
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.html) {
+          const blob = new Blob([resp.data.data.html], { type: 'text/html;charset=utf-8' })
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(blob)
+          a.download = resp.data.data.filename || fallbackName
+          a.click()
+          URL.revokeObjectURL(a.href)
+        } else {
+          alert(this.$t('quote.attachmentFail'))
+        }
+      } catch (e) {
+        alert(this.$t('quote.attachmentFail'))
+      }
+    },
+    downloadAttachmentFunctionList () {
+      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list', 'attachment-1.html')
+    },
+    downloadAttachmentMilestones () {
+      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones', 'attachment-3.html')
     },
     async runGenContract () {
       if (!this.calcResult || !this.calcResult.id) return
@@ -842,4 +1067,11 @@ label.block { display: block; margin-top: 10px; }
 .err { color: #b91c1c; font-size: 15px; font-weight: 600; }
 .placeholder { padding: 28px; color: #475569; font-size: 16px; font-weight: 500; }
 .preset-select { min-width: 200px; max-width: min(100%, 400px); flex: 1; font-size: 15px; }
+.contract-supplement-card .subh { margin: 18px 0 10px; font-size: 1rem; color: #0f172a; }
+.contract-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; align-items: end; }
+@media (max-width: 720px) { .contract-grid-2 { grid-template-columns: 1fr; } }
+.block-full { grid-column: 1 / -1; }
+.block-inp { width: 100%; max-width: 720px; box-sizing: border-box; margin-top: 6px; }
+.compact-contract .inp.wide { min-width: 160px; }
+.party-b-hint { margin: -6px 0 12px; font-size: 13px; max-width: 520px; }
 </style>

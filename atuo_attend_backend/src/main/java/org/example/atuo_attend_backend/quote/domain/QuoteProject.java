@@ -17,6 +17,8 @@ public class QuoteProject {
     private String prdSummary;
     /** JSON：riskKeys、urgencyRush、priceConfigId、auditChecklist */
     private String quoteCalcPrefsJson;
+    /** JSON：paymentPlan、质保、验收、交付物、里程碑、争议解决等，供合同 AI 与附件 */
+    private String quoteContractContextJson;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -46,6 +48,8 @@ public class QuoteProject {
     public void setPrdSummary(String prdSummary) { this.prdSummary = prdSummary; }
     public String getQuoteCalcPrefsJson() { return quoteCalcPrefsJson; }
     public void setQuoteCalcPrefsJson(String quoteCalcPrefsJson) { this.quoteCalcPrefsJson = quoteCalcPrefsJson; }
+    public String getQuoteContractContextJson() { return quoteContractContextJson; }
+    public void setQuoteContractContextJson(String quoteContractContextJson) { this.quoteContractContextJson = quoteContractContextJson; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

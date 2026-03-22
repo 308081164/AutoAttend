@@ -10,9 +10,9 @@ public interface QuoteProjectMapper {
 
     @Insert("""
             INSERT INTO biz_quote_project (name, project_type, tech_stack, design_type, data_migration,
-                concurrency, security_level, deploy_type, status, link_table_id, prd_summary, quote_calc_prefs_json)
+                concurrency, security_level, deploy_type, status, link_table_id, prd_summary, quote_calc_prefs_json, quote_contract_context_json)
             VALUES (#{name}, #{projectType}, #{techStack}, #{designType}, #{dataMigration},
-                #{concurrency}, #{securityLevel}, #{deployType}, #{status}, #{linkTableId}, #{prdSummary}, #{quoteCalcPrefsJson})
+                #{concurrency}, #{securityLevel}, #{deployType}, #{status}, #{linkTableId}, #{prdSummary}, #{quoteCalcPrefsJson}, #{quoteContractContextJson})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(QuoteProject p);
@@ -22,6 +22,7 @@ public interface QuoteProjectMapper {
                 design_type=#{designType}, data_migration=#{dataMigration}, concurrency=#{concurrency},
                 security_level=#{securityLevel}, deploy_type=#{deployType}, status=#{status},
                 link_table_id=#{linkTableId}, prd_summary=#{prdSummary}, quote_calc_prefs_json=#{quoteCalcPrefsJson},
+                quote_contract_context_json=#{quoteContractContextJson},
                 updated_at=CURRENT_TIMESTAMP
             WHERE id=#{id}
             """)
@@ -30,6 +31,7 @@ public interface QuoteProjectMapper {
     @Select("SELECT id, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
             "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
             "status, link_table_id AS linkTableId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
+            "quote_contract_context_json AS quoteContractContextJson, " +
             "created_at AS createdAt, updated_at AS updatedAt " +
             "FROM biz_quote_project WHERE id = #{id}")
     QuoteProject findById(@Param("id") long id);
@@ -37,6 +39,7 @@ public interface QuoteProjectMapper {
     @Select("SELECT id, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
             "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
             "status, link_table_id AS linkTableId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
+            "quote_contract_context_json AS quoteContractContextJson, " +
             "created_at AS createdAt, updated_at AS updatedAt " +
             "FROM biz_quote_project ORDER BY updated_at DESC LIMIT #{limit} OFFSET #{offset}")
     List<QuoteProject> listPaged(@Param("offset") int offset, @Param("limit") int limit);

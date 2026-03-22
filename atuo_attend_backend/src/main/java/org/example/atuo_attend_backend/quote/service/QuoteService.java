@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
+import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.example.atuo_attend_backend.quote.domain.*;
 import org.example.atuo_attend_backend.quote.dto.*;
 import org.example.atuo_attend_backend.quote.mapper.*;
@@ -35,6 +36,7 @@ public class QuoteService {
     private final QuotePresetItemMapper presetItemMapper;
     private final AiAnalysisConfigService aiConfigService;
     private final DeepSeekClient deepSeekClient;
+    private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final BigDecimal RISK_PCT_MIN = new BigDecimal("-50");
@@ -45,7 +47,8 @@ public class QuoteService {
                         QuotePriceConfigMapper priceConfigMapper, QuoteResultMapper resultMapper,
                         QuoteDocumentMapper documentMapper, QuoteContractDraftMapper contractDraftMapper,
                         QuotePresetItemMapper presetItemMapper,
-                        AiAnalysisConfigService aiConfigService, DeepSeekClient deepSeekClient) {
+                        AiAnalysisConfigService aiConfigService, DeepSeekClient deepSeekClient,
+                        SystemConfigService systemConfigService) {
         this.projectMapper = projectMapper;
         this.moduleMapper = moduleMapper;
         this.itemMapper = itemMapper;
@@ -58,6 +61,7 @@ public class QuoteService {
         this.presetItemMapper = presetItemMapper;
         this.aiConfigService = aiConfigService;
         this.deepSeekClient = deepSeekClient;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional
@@ -79,6 +83,9 @@ public class QuoteService {
         if (dto.getQuoteCalcPrefs() == null) {
             p.setQuoteCalcPrefsJson(existing.getQuoteCalcPrefsJson());
         }
+        if (dto.getQuoteContractContext() == null) {
+            p.setQuoteContractContextJson(existing.getQuoteContractContextJson());
+        }
         projectMapper.update(p);
         moduleMapper.deleteByProjectId(id);
         saveModules(id, dto.getModules());
@@ -99,6 +106,13 @@ public class QuoteService {
         p.setPrdSummary(dto.getPrdSummary());
         if (dto.getQuoteCalcPrefs() != null && !dto.getQuoteCalcPrefs().isEmpty()) {
             applyQuoteCalcPrefsMapToEntity(p, dto.getQuoteCalcPrefs());
+        }
+        if (dto.getQuoteContractContext() != null) {
+            try {
+                p.setQuoteContractContextJson(objectMapper.writeValueAsString(dto.getQuoteContractContext()));
+            } catch (JsonProcessingException e) {
+                throw new IllegalArgumentException("quoteContractContext 无法序列化");
+            }
         }
         return p;
     }
@@ -255,7 +269,7 @@ public class QuoteService {
         long total = projectMapper.countAll();
         List<Map<String, Object>> rows = new ArrayList<>();
         for (QuoteProject p : projectMapper.listPaged(offset, pageSize)) {
-            rows.add(projectToMap(p));
+            rows.add(projectToListItemMap(p));
         }
         Map<String, Object> data = new HashMap<>();
         data.put("items", rows);
@@ -317,6 +331,8 @@ public class QuoteService {
         if (priceRow == null) throw new IllegalStateException("未配置人天单价，请先执行 schema_quote_mysql.sql 或新增单价配置");
         BigDecimal pricePerDay = toBd(priceRow.get("pricePerDay"));
         String regionLabel = Objects.toString(priceRow.get("regionLabel"), "");
+        BigDecimal durationCoeff = normalizeDurationCoefficientForCalc(priceRow.get("durationCoefficient"));
+        BigDecimal estimatedDuration = totalDays.multiply(durationCoeff).setScale(2, RoundingMode.HALF_UP);
         BigDecimal baseAmount = totalDays.multiply(pricePerDay).setScale(2, RoundingMode.HALF_UP);
         BigDecimal mult = BigDecimal.ONE.add(riskPct.divide(HUNDRED, 6, RoundingMode.HALF_UP));
         BigDecimal finalAmount = baseAmount.multiply(mult).setScale(2, RoundingMode.HALF_UP);
@@ -337,6 +353,8 @@ public class QuoteService {
         r.setAuditChecklistJson(objectMapper.writeValueAsString(req.getAuditChecklist() != null ? req.getAuditChecklist() : Map.of()));
         r.setSelectedRisksJson(objectMapper.writeValueAsString(applied));
         r.setPricePerDayUsed(pricePerDay);
+        r.setDurationCoefficientUsed(durationCoeff);
+        r.setEstimatedDurationDays(estimatedDuration);
         r.setRegionLabelUsed(regionLabel);
         resultMapper.insert(r);
         try {
@@ -427,6 +445,8 @@ public class QuoteService {
         }
         sb.append("</tbody></table>");
         sb.append("<p style='margin-top:20px'><strong>总人天：</strong>").append(r.getTotalDays().toPlainString());
+        sb.append(" &nbsp; <strong>工期系数：</strong>").append(r.getDurationCoefficientUsed() != null ? r.getDurationCoefficientUsed().toPlainString() : "1.2");
+        sb.append(" &nbsp; <strong>预计工期（天）：</strong>").append(r.getEstimatedDurationDays() != null ? r.getEstimatedDurationDays().toPlainString() : "0");
         sb.append(" &nbsp; <strong>人天单价：</strong>").append(r.getPricePerDayUsed().toPlainString()).append("（").append(esc(r.getRegionLabelUsed())).append("）</p>");
         sb.append("<p><strong>基础金额：</strong>").append(r.getBaseAmount().toPlainString());
         sb.append(" &nbsp; <strong>风险合计：</strong>+").append(r.getRiskPctTotal().toPlainString()).append("%，风险金额：").append(r.getRiskAmount().toPlainString());
@@ -446,6 +466,7 @@ public class QuoteService {
         QuoteResult r = resultMapper.findById(quoteResultId);
         if (r == null) throw new IllegalArgumentException("报价结果不存在");
         QuoteProject p = projectMapper.findById(r.getQuoteProjectId());
+        if (p == null) throw new IllegalArgumentException("报价关联项目不存在");
         AiAnalysisConfig cfg = aiConfigService.getConfig();
         if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
             throw new IllegalStateException("请先在 AI 配置中填写 DeepSeek API Key");
@@ -455,33 +476,11 @@ public class QuoteService {
         }
         String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
         String templateHint = "software_dev".equals(req.getTemplateType())
-                ? "中国大陆软件开发外包合同，需包含：标的与交付范围、交付与验收、价款与支付、知识产权、保密、违约责任、争议解决等条款。"
-                : "软件维护服务合同，明确维护范围、响应时间、费用与期限。";
-        String cn = req.getClientName() != null ? req.getClientName() : "甲方";
-        String yn = req.getCompanyName() != null ? req.getCompanyName() : "乙方";
-        String userPrompt = """
-                请根据以下结构化信息起草一份合同正文（使用中文），条理清晰，用 Markdown 标题分级，不要编造双方具体地址除非必要可用占位。
-                甲方（委托方/客户）：%s
-                乙方（受托方/开发方）：%s
-                项目：%s
-                最终报价金额（人民币）：%s 元
-                总人天：%s
-                合同类型要求：%s
-                
-                报价摘要：基础金额 %s 元，风险调整后 %s 元，人天单价 %s。
-                """.formatted(
-                cn,
-                yn,
-                p.getName() != null ? p.getName() : "",
-                r.getFinalAmount().toPlainString(),
-                r.getTotalDays().toPlainString(),
-                templateHint,
-                r.getBaseAmount().toPlainString(),
-                r.getFinalAmount().toPlainString(),
-                r.getPricePerDayUsed().toPlainString()
-        );
+                ? "中国大陆软件开发外包合同，需包含：标的与交付范围、交付与验收、价款与支付、知识产权、保密、违约责任、争议解决等条款；须引用下文「结构化事实」中的付款、交付物、验收、质保、里程碑等，与事实矛盾处以事实为准。"
+                : "软件维护服务合同，明确维护范围、响应时间、费用与期限；须结合下文结构化事实。";
+        String userPrompt = buildContractUserPrompt(p, r, req, templateHint);
         List<DeepSeekClient.ChatMessage> messages = List.of(
-                new DeepSeekClient.ChatMessage("system", "你是资深法务助理，擅长 IT 外包合同起草。输出可直接给商务使用的合同正文。"),
+                new DeepSeekClient.ChatMessage("system", "你是资深法务助理，擅长 IT 外包合同起草。必须基于用户提供的结构化事实撰写正文：付款阶段、交付物清单、验收与异议期、免费质保、里程碑、争议解决方式等须与事实一致；事实未提供处用「待双方确认」占位，勿编造与上文金额、人天、风险合计相矛盾的条款。输出可直接给商务使用的合同正文（Markdown）。"),
                 new DeepSeekClient.ChatMessage("user", userPrompt)
         );
         String content = deepSeekClient.chat(cfg.getApiKey(), model, messages, false);
@@ -545,7 +544,7 @@ public class QuoteService {
         return data;
     }
 
-    private Map<String, Object> projectToMap(QuoteProject p) {
+    private Map<String, Object> projectToListItemMap(QuoteProject p) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", p.getId());
         m.put("name", p.getName());
@@ -564,11 +563,28 @@ public class QuoteService {
         return m;
     }
 
+    private Map<String, Object> projectToMap(QuoteProject p) {
+        Map<String, Object> m = projectToListItemMap(p);
+        m.put("quoteContractContext", parseContractContextMap(p.getQuoteContractContextJson()));
+        return m;
+    }
+
+    private Map<String, Object> parseContractContextMap(String json) {
+        if (json == null || json.isBlank()) return new LinkedHashMap<>();
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return new LinkedHashMap<>();
+        }
+    }
+
     private Map<String, Object> resultToMap(QuoteResult r) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", r.getId());
         m.put("quoteProjectId", r.getQuoteProjectId());
         m.put("totalDays", r.getTotalDays());
+        m.put("estimatedDurationDays", r.getEstimatedDurationDays());
+        m.put("durationCoefficientUsed", r.getDurationCoefficientUsed());
         m.put("baseAmount", r.getBaseAmount());
         m.put("riskPctTotal", r.getRiskPctTotal());
         m.put("riskAmount", r.getRiskAmount());
@@ -719,6 +735,26 @@ public class QuoteService {
         }
     }
 
+    private static final BigDecimal DEFAULT_DURATION_COEFFICIENT = new BigDecimal("1.2000");
+
+    /** 计算报价时：空或非法则回退默认 1.2 */
+    private BigDecimal normalizeDurationCoefficientForCalc(Object raw) {
+        if (raw == null) return DEFAULT_DURATION_COEFFICIENT;
+        BigDecimal c = toBd(raw);
+        if (c.compareTo(new BigDecimal("0.01")) < 0 || c.compareTo(new BigDecimal("100")) > 0) {
+            return DEFAULT_DURATION_COEFFICIENT;
+        }
+        return c.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveDurationCoefficientForSave(BigDecimal fromDto) {
+        BigDecimal c = fromDto != null ? fromDto : DEFAULT_DURATION_COEFFICIENT;
+        if (c.compareTo(new BigDecimal("0.01")) < 0 || c.compareTo(new BigDecimal("100")) > 0) {
+            throw new IllegalArgumentException("工期系数需在 0.01～100 之间");
+        }
+        return c.setScale(4, RoundingMode.HALF_UP);
+    }
+
     @Transactional
     public long createPriceConfig(QuotePriceConfigSaveDto dto) {
         String rl = dto.getRegionLabel() != null ? dto.getRegionLabel().trim() : "";
@@ -733,6 +769,7 @@ public class QuoteService {
         String cur = dto.getCurrency() != null && !dto.getCurrency().isBlank() ? dto.getCurrency().trim().toUpperCase() : "CNY";
         if (cur.length() > 8) throw new IllegalArgumentException("币种代码过长");
         row.setCurrency(cur);
+        row.setDurationCoefficient(resolveDurationCoefficientForSave(dto.getDurationCoefficient()));
         row.setEnabled(dto.getEnabled() == null || dto.getEnabled());
         priceConfigMapper.insert(row);
         return row.getId();
@@ -760,6 +797,7 @@ public class QuoteService {
         String curc = dto.getCurrency() != null && !dto.getCurrency().isBlank() ? dto.getCurrency().trim().toUpperCase() : "CNY";
         if (curc.length() > 8) throw new IllegalArgumentException("币种代码过长");
         row.setCurrency(curc);
+        row.setDurationCoefficient(resolveDurationCoefficientForSave(dto.getDurationCoefficient()));
         row.setEnabled(newEn);
         priceConfigMapper.update(row);
     }
@@ -772,5 +810,369 @@ public class QuoteService {
             throw new IllegalArgumentException("至少保留一条启用的单价档位，无法删除");
         }
         priceConfigMapper.deleteById(id);
+    }
+
+    // --- 合同：乙方主体模板（系统级）与附件 HTML ---
+
+    public Map<String, Object> getPartyBProfile() {
+        return new LinkedHashMap<>(systemConfigService.getQuotePartyBProfile());
+    }
+
+    public void savePartyBProfile(Map<String, Object> profile) throws JsonProcessingException {
+        systemConfigService.saveQuotePartyBProfile(profile);
+    }
+
+    public Map<String, Object> buildContractAttachmentFunctionList(long projectId) {
+        QuoteProject p = projectMapper.findById(projectId);
+        if (p == null) throw new IllegalArgumentException("项目不存在");
+        Map<String, Object> data = new HashMap<>();
+        data.put("html", renderAttachmentFunctionListHtml(p));
+        data.put("filename", "attachment-1-function-list-" + projectId + ".html");
+        return data;
+    }
+
+    public Map<String, Object> buildContractAttachmentMilestoneSchedule(long projectId) {
+        QuoteProject p = projectMapper.findById(projectId);
+        if (p == null) throw new IllegalArgumentException("项目不存在");
+        Map<String, Object> ctx = parseContractContextMap(p.getQuoteContractContextJson());
+        Map<String, Object> data = new HashMap<>();
+        data.put("html", renderAttachmentMilestoneHtml(p, ctx));
+        data.put("filename", "attachment-3-milestones-" + projectId + ".html");
+        return data;
+    }
+
+    private static final Map<String, String> DELIVERABLE_LABELS = new LinkedHashMap<>();
+
+    static {
+        DELIVERABLE_LABELS.put("source_code", "源代码（约定交付形式，如 Git 仓库只读权限或压缩包）");
+        DELIVERABLE_LABELS.put("deploy_doc", "部署说明与环境配置文档");
+        DELIVERABLE_LABELS.put("api_doc", "接口/API 文档");
+        DELIVERABLE_LABELS.put("db_script", "数据库脚本与迁移说明");
+        DELIVERABLE_LABELS.put("test_report", "测试报告或测试要点说明");
+        DELIVERABLE_LABELS.put("user_manual", "用户/管理员操作说明（简版）");
+        DELIVERABLE_LABELS.put("training", "远程培训或交付讲解（场次待确认）");
+    }
+
+    private static final int CONTRACT_FACTS_MAX_CHARS = 12000;
+
+    private String buildContractUserPrompt(QuoteProject p, QuoteResult r, ContractGenerateRequest req, String templateHint) {
+        String cn = req.getClientName() != null && !req.getClientName().isBlank() ? req.getClientName().trim() : "甲方";
+        String yn = req.getCompanyName() != null && !req.getCompanyName().isBlank() ? req.getCompanyName().trim() : "乙方";
+        String facts = buildContractStructuredFactsBlock(p, r);
+        if (facts.length() > CONTRACT_FACTS_MAX_CHARS) {
+            facts = facts.substring(0, CONTRACT_FACTS_MAX_CHARS) + "\n\n…（结构化事实过长已截断，完整以系统项目与附件为准）";
+        }
+        return """
+                请根据以下信息起草合同正文（中文，Markdown 标题分级）。可在首部增加「附件清单」，其中附件一《功能清单》、附件三《里程碑计划》可由双方另行确认签章。
+                
+                【合同类型要求】
+                %s
+                
+                【甲乙方称呼（正文抬头可用）】
+                甲方（委托方/客户）：%s
+                乙方（受托方/开发方）：%s
+                
+                【项目与经济核心数据】
+                项目名称：%s
+                最终报价金额（人民币）：%s 元
+                总人天：%s
+                预计工期（天，总人天×工期系数）：%s
+                基础金额：%s 元；风险调整后含税前报价逻辑对应金额：%s 元；人天单价（本次计价采用）：%s 元/人天；风险合计百分比（本次已勾选）：%s%%
+                
+                【以下为结构化事实，请写入对应条款，勿与数字矛盾】
+                %s
+                """.formatted(
+                templateHint,
+                cn,
+                yn,
+                p.getName() != null ? p.getName() : "",
+                r.getFinalAmount().toPlainString(),
+                r.getTotalDays().toPlainString(),
+                r.getEstimatedDurationDays() != null ? r.getEstimatedDurationDays().toPlainString() : "0",
+                r.getBaseAmount().toPlainString(),
+                r.getFinalAmount().toPlainString(),
+                r.getPricePerDayUsed().toPlainString(),
+                r.getRiskPctTotal() != null ? r.getRiskPctTotal().toPlainString() : "0",
+                facts
+        );
+    }
+
+    private String buildContractStructuredFactsBlock(QuoteProject p, QuoteResult r) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("### 项目属性\n");
+        sb.append("- 项目类型：").append(labelProjectType(p.getProjectType())).append("\n");
+        sb.append("- 技术栈：").append(labelTechStack(p.getTechStack())).append("\n");
+        sb.append("- 设计：").append(labelDesign(p.getDesignType())).append("；数据/对接：").append(labelDataMigration(p.getDataMigration())).append("\n");
+        sb.append("- 并发量级：").append(labelConcurrency(p.getConcurrency())).append("；安全：").append(labelSecurity(p.getSecurityLevel())).append("；部署：").append(labelDeploy(p.getDeployType())).append("\n");
+        String prd = p.getPrdSummary();
+        if (prd != null && !prd.isBlank()) {
+            sb.append("\n### PRD/需求摘要\n").append(prd.trim()).append("\n");
+        }
+        sb.append("\n### 功能清单（模块-功能点-复杂度-数量-估算人天）\n");
+        sb.append(buildFunctionListMarkdownForPrompt(p));
+        sb.append("\n### 本次报价勾选的风险项（已计入风险合计）\n");
+        sb.append(formatSelectedRisksForPrompt(r));
+        sb.append("\n### 报价时审核清单勾选结果\n");
+        sb.append(formatAuditChecklistForPrompt(r));
+        sb.append("\n### 合同补充（付款/质保/验收/交付物/里程碑/争议）\n");
+        sb.append(formatContractContextForPrompt(parseContractContextMap(p.getQuoteContractContextJson())));
+        sb.append("\n### 乙方（受托方）工商与收款信息（系统模板，若与抬头乙方名称不一致以本段为准）\n");
+        sb.append(formatPartyBProfileForPrompt(systemConfigService.getQuotePartyBProfile()));
+        return sb.toString();
+    }
+
+    private String buildFunctionListMarkdownForPrompt(QuoteProject p) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("| 模块 | 功能点 | 复杂度 | 数量 | 估算人天 |\n| --- | --- | --- | --- | --- |\n");
+        for (QuoteModule m : moduleMapper.listByProjectId(p.getId())) {
+            for (QuoteItem it : itemMapper.listByModuleId(m.getId())) {
+                sb.append("| ").append(escMdCell(m.getName())).append(" | ").append(escMdCell(it.getName())).append(" | ")
+                        .append(escMdCell(it.getComplexity())).append(" | ").append(it.getQuantity()).append(" | ")
+                        .append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0").append(" |\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String escMdCell(String s) {
+        if (s == null) return "";
+        return s.replace("|", "\\|").replace("\n", " ");
+    }
+
+    private String formatSelectedRisksForPrompt(QuoteResult r) {
+        Map<String, String> keyToLabel = new LinkedHashMap<>();
+        for (Map<String, Object> row : riskConfigMapper.listAll()) {
+            Object k = row.get("riskKey");
+            if (k != null) keyToLabel.put(k.toString(), Objects.toString(row.get("label"), k.toString()));
+        }
+        List<String> keys;
+        try {
+            keys = objectMapper.readValue(
+                    r.getSelectedRisksJson() != null ? r.getSelectedRisksJson() : "[]",
+                    new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            keys = List.of();
+        }
+        if (keys == null || keys.isEmpty()) return "（本次未勾选额外风险项，或仅使用加急等内置逻辑）\n";
+        StringBuilder sb = new StringBuilder();
+        for (String k : keys) {
+            sb.append("- ").append(keyToLabel.getOrDefault(k, k)).append("（risk_key=").append(k).append("）\n");
+        }
+        sb.append("- 风险合计百分比（本次计算结果）：").append(r.getRiskPctTotal() != null ? r.getRiskPctTotal().toPlainString() : "0").append("%\n");
+        return sb.toString();
+    }
+
+    private String formatAuditChecklistForPrompt(QuoteResult r) {
+        Map<String, Object> ac;
+        try {
+            ac = objectMapper.readValue(
+                    r.getAuditChecklistJson() != null ? r.getAuditChecklistJson() : "{}",
+                    new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            ac = Map.of();
+        }
+        if (ac.isEmpty()) return "（无勾选记录）\n";
+        StringBuilder sb = new StringBuilder();
+        sb.append("- 限制需求变更次数：").append(boolCn(ac.get("changeLimit"))).append("\n");
+        sb.append("- 验收标准明确：").append(boolCn(ac.get("acceptanceClear"))).append("\n");
+        sb.append("- 付款节点约定：").append(boolCn(ac.get("paymentNodes"))).append("\n");
+        sb.append("- 含部署上线费用：").append(boolCn(ac.get("deployFee"))).append("\n");
+        sb.append("- 维护期及范围明确：").append(boolCn(ac.get("maintenanceScope"))).append("\n");
+        return sb.toString();
+    }
+
+    private static String boolCn(Object o) {
+        return Boolean.TRUE.equals(o) || (o instanceof Number && ((Number) o).intValue() == 1) ? "是" : "否";
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatContractContextForPrompt(Map<String, Object> ctx) {
+        if (ctx == null || ctx.isEmpty()) return "（未填写合同补充信息，相关条款请用「待双方确认」）\n";
+        StringBuilder sb = new StringBuilder();
+        Object plan = ctx.get("paymentPlan");
+        if (plan instanceof List<?> list && !list.isEmpty()) {
+            sb.append("付款计划（阶段、比例%、触发条件）：\n");
+            for (Object o : list) {
+                if (o instanceof Map) {
+                    Map<String, Object> m = (Map<String, Object>) o;
+                    sb.append("- ").append(Objects.toString(m.get("phaseName"), "阶段")).append("：")
+                            .append(m.get("percent") != null ? m.get("percent") + "%" : "?%").append("，")
+                            .append(Objects.toString(m.get("triggerNote"), "")).append("\n");
+                }
+            }
+        }
+        Object w = ctx.get("warrantyMonths");
+        if (w != null) sb.append("免费质保月数：").append(w).append("\n");
+        Object tax = ctx.get("taxInvoiceNote");
+        if (tax != null && !tax.toString().isBlank()) sb.append("含税/发票说明：").append(tax).append("\n");
+        Object sla = ctx.get("maintenanceSlaNote");
+        if (sla != null && !sla.toString().isBlank()) sb.append("维护响应/SLA 说明：").append(sla).append("\n");
+        Object days = ctx.get("acceptanceObjectionDays");
+        if (days != null) sb.append("验收异议期（工作日）：").append(days).append("\n");
+        Object acn = ctx.get("acceptanceCriteriaNote");
+        if (acn != null && !acn.toString().isBlank()) sb.append("验收标准补充说明：").append(acn).append("\n");
+        Object del = ctx.get("deliverables");
+        if (del instanceof List<?> dlist && !dlist.isEmpty()) {
+            sb.append("约定交付物：\n");
+            for (Object k : dlist) {
+                String key = k != null ? k.toString() : "";
+                sb.append("- ").append(DELIVERABLE_LABELS.getOrDefault(key, key)).append("\n");
+            }
+        }
+        Object ms = ctx.get("milestones");
+        if (ms instanceof List<?> mlist && !mlist.isEmpty()) {
+            sb.append("里程碑（阶段名、相对天数、备注）：\n");
+            for (Object o : mlist) {
+                if (o instanceof Map) {
+                    Map<String, Object> m = (Map<String, Object>) o;
+                    sb.append("- ").append(Objects.toString(m.get("name"), ""))
+                            .append("：合同生效后约 ").append(Objects.toString(m.get("offsetDays"), "?")).append(" 日；")
+                            .append(Objects.toString(m.get("note"), "")).append("\n");
+                }
+            }
+        }
+        Object dr = ctx.get("disputeResolutionNote");
+        if (dr != null && !dr.toString().isBlank()) sb.append("争议解决（双方意向）：").append(dr).append("\n");
+        return sb.toString();
+    }
+
+    private String formatPartyBProfileForPrompt(Map<String, Object> m) {
+        if (m == null || m.isEmpty()) return "（未配置乙方主体模板，请在管理端「报价配置」中填写）\n";
+        StringBuilder sb = new StringBuilder();
+        putLine(sb, "法定名称", m.get("legalName"));
+        putLine(sb, "统一社会信用代码", m.get("creditCode"));
+        putLine(sb, "住所", m.get("address"));
+        putLine(sb, "联系人", m.get("contactName"));
+        putLine(sb, "联系电话", m.get("contactPhone"));
+        putLine(sb, "开户行", m.get("bankName"));
+        putLine(sb, "银行账号", m.get("bankAccount"));
+        return sb.toString();
+    }
+
+    private static void putLine(StringBuilder sb, String label, Object v) {
+        if (v == null || v.toString().isBlank()) return;
+        sb.append("- ").append(label).append("：").append(v.toString().trim()).append("\n");
+    }
+
+    private String renderAttachmentFunctionListHtml(QuoteProject p) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>附件一 功能清单</title>");
+        sb.append("<style>body{font-family:sans-serif;padding:24px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;font-size:13px}</style></head><body>");
+        sb.append("<h1>附件一：功能清单（报价项目）</h1>");
+        sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
+        sb.append("<p>说明：本附件与主合同「开发范围」或「验收依据」挂钩，以双方确认版本为准。</p>");
+        sb.append("<table><thead><tr><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>估算人天</th></tr></thead><tbody>");
+        for (QuoteModule m : moduleMapper.listByProjectId(p.getId())) {
+            for (QuoteItem it : itemMapper.listByModuleId(m.getId())) {
+                sb.append("<tr><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
+                        .append("</td><td>").append(esc(it.getComplexity())).append("</td><td>").append(it.getQuantity())
+                        .append("</td><td>").append(it.getEstimatedDays() != null ? esc(it.getEstimatedDays().toPlainString()) : "0")
+                        .append("</td></tr>");
+            }
+        }
+        sb.append("</tbody></table></body></html>");
+        return sb.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private String renderAttachmentMilestoneHtml(QuoteProject p, Map<String, Object> ctx) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>附件三 里程碑计划</title>");
+        sb.append("<style>body{font-family:sans-serif;padding:24px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;font-size:13px}</style></head><body>");
+        sb.append("<h1>附件三：项目实施计划 / 里程碑（草案）</h1>");
+        sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
+        sb.append("<p>说明：日期为相对「合同生效日」的参考天数，正式计划以双方签章为准。</p>");
+        sb.append("<table><thead><tr><th>序号</th><th>阶段名称</th><th>参考时间（生效后约 X 日）</th><th>备注</th></tr></thead><tbody>");
+        Object ms = ctx != null ? ctx.get("milestones") : null;
+        int i = 1;
+        if (ms instanceof List<?> mlist) {
+            for (Object o : mlist) {
+                if (o instanceof Map) {
+                    Map<String, Object> m = (Map<String, Object>) o;
+                    sb.append("<tr><td>").append(i++).append("</td><td>").append(esc(Objects.toString(m.get("name"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("offsetDays"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("note"), "")))
+                            .append("</td></tr>");
+                }
+            }
+        }
+        if (i == 1) {
+            sb.append("<tr><td colspan=\"4\">（未在项目「合同补充信息」中填写里程碑，请补充后重新导出）</td></tr>");
+        }
+        sb.append("</tbody></table></body></html>");
+        return sb.toString();
+    }
+
+    private static String labelProjectType(String t) {
+        if (t == null) return "";
+        return switch (t) {
+            case "website" -> "企业官网";
+            case "ecommerce_miniprogram" -> "电商小程序";
+            case "admin" -> "管理后台";
+            case "app" -> "APP";
+            default -> t;
+        };
+    }
+
+    private static String labelTechStack(String t) {
+        if (t == null) return "";
+        return switch (t) {
+            case "vue_node" -> "Vue+Node";
+            case "react_java" -> "React+Java";
+            case "miniprogram" -> "小程序原生";
+            case "flutter" -> "Flutter";
+            default -> t;
+        };
+    }
+
+    private static String labelDesign(String t) {
+        if (t == null) return "";
+        return switch (t) {
+            case "has_design" -> "已有设计稿";
+            case "need_design" -> "需 UI 设计";
+            case "template" -> "套用模板";
+            default -> t;
+        };
+    }
+
+    private static String labelDataMigration(String t) {
+        if (t == null) return "";
+        return switch (t) {
+            case "none" -> "无";
+            case "migrate" -> "需从旧系统迁移";
+            case "third_party" -> "需第三方接口对接";
+            default -> t;
+        };
+    }
+
+    private static String labelConcurrency(String t) {
+        if (t == null) return "";
+        return switch (t) {
+            case "lt100" -> "<100";
+            case "r100_1000" -> "100–1000";
+            case "r1000_10000" -> "1000–10000";
+            case "gt10000" -> "10000+";
+            default -> t;
+        };
+    }
+
+    private static String labelSecurity(String t) {
+        if (t == null) return "";
+        return switch (t) {
+            case "normal" -> "普通";
+            case "financial" -> "金融级";
+            case "government" -> "政府级";
+            default -> t;
+        };
+    }
+
+    private static String labelDeploy(String t) {
+        if (t == null) return "";
+        return switch (t) {
+            case "single" -> "单机";
+            case "cloud" -> "云服务器";
+            case "k8s" -> "容器化/K8s";
+            default -> t;
+        };
     }
 }

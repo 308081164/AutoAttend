@@ -36,6 +36,23 @@
         <span v-if="riskSaveMsg" :class="riskSaveOk ? 'ok' : 'err'">{{ riskSaveMsg }}</span>
       </section>
 
+      <!-- 合同乙方（我方）主体模板 -->
+      <section class="card">
+        <h2>{{ $t('quote.partyBSectionTitle') }}</h2>
+        <p class="hint">{{ $t('quote.partyBSectionHint') }}</p>
+        <div class="party-b-grid">
+          <label>{{ $t('quote.partyBLegalName') }} <input v-model="partyB.legalName" class="inp wide" /></label>
+          <label>{{ $t('quote.partyBCreditCode') }} <input v-model="partyB.creditCode" class="inp wide" /></label>
+          <label class="full">{{ $t('quote.partyBAddress') }} <input v-model="partyB.address" class="inp wide" /></label>
+          <label>{{ $t('quote.partyBContactName') }} <input v-model="partyB.contactName" class="inp" /></label>
+          <label>{{ $t('quote.partyBContactPhone') }} <input v-model="partyB.contactPhone" class="inp" /></label>
+          <label>{{ $t('quote.partyBBankName') }} <input v-model="partyB.bankName" class="inp wide" /></label>
+          <label>{{ $t('quote.partyBBankAccount') }} <input v-model="partyB.bankAccount" class="inp wide" /></label>
+        </div>
+        <button type="button" class="btn secondary" :disabled="partyBSaving" @click="savePartyB">{{ partyBSaving ? '…' : $t('quote.partyBSave') }}</button>
+        <span v-if="partyBMsg" :class="partyBOk ? 'ok' : 'err'">{{ partyBMsg }}</span>
+      </section>
+
       <!-- 预设功能点 -->
       <section class="card">
         <h2>{{ $t('quote.presetLibTitle') }}</h2>
@@ -153,6 +170,7 @@
                 <th>ID</th>
                 <th>{{ $t('quote.regionLabelCol') }}</th>
                 <th>{{ $t('quote.pricePerDayCol') }}</th>
+                <th>{{ $t('quote.durationCoefficientCol') }}</th>
                 <th>{{ $t('quote.currencyCol') }}</th>
                 <th>{{ $t('quote.enabledCol') }}</th>
                 <th></th>
@@ -163,6 +181,7 @@
                 <td>{{ p.id }}</td>
                 <td><input v-model="p.regionLabel" class="inp wide" /></td>
                 <td><input v-model.number="p.pricePerDay" type="number" step="0.01" min="1" class="inp num" /></td>
+                <td><input v-model.number="p.durationCoefficient" type="number" step="0.0001" min="0.01" max="100" class="inp num narrow" :title="$t('quote.durationCoefficientHint')" /></td>
                 <td><input v-model="p.currency" class="inp cur" maxlength="8" /></td>
                 <td class="cen"><input type="checkbox" v-model="p.enabled" /></td>
                 <td class="actions">
@@ -176,6 +195,7 @@
         <div class="add-row">
           <input v-model="newPrice.regionLabel" class="inp wide" :placeholder="$t('quote.regionLabelCol')" />
           <input v-model.number="newPrice.pricePerDay" type="number" step="0.01" min="1" class="inp num" :placeholder="$t('quote.pricePerDayCol')" />
+          <input v-model.number="newPrice.durationCoefficient" type="number" step="0.0001" min="0.01" max="100" class="inp num narrow" :placeholder="$t('quote.durationCoefficientCol')" :title="$t('quote.durationCoefficientHint')" />
           <input v-model="newPrice.currency" class="inp cur" maxlength="8" placeholder="CNY" />
           <label class="chk"><input type="checkbox" v-model="newPrice.enabled" /> {{ $t('quote.enabledCol') }}</label>
           <button type="button" class="primary-button" :disabled="priceAdding" @click="addPrice">{{ priceAdding ? '…' : $t('quote.addPriceBtn') }}</button>
@@ -209,8 +229,20 @@ export default {
       priceOk: false,
       baselineAdding: false,
       priceAdding: false,
+      partyB: {
+        legalName: '',
+        creditCode: '',
+        address: '',
+        contactName: '',
+        contactPhone: '',
+        bankName: '',
+        bankAccount: ''
+      },
+      partyBSaving: false,
+      partyBMsg: '',
+      partyBOk: false,
       newBaseline: { techStack: 'vue_node', complexity: 'standard', days: 1.5 },
-      newPrice: { regionLabel: '', pricePerDay: 1500, currency: 'CNY', enabled: true },
+      newPrice: { regionLabel: '', pricePerDay: 1500, durationCoefficient: 1.2, currency: 'CNY', enabled: true },
       techOptions: [
         { v: 'vue_node', l: 'Vue+Node' },
         { v: 'react_java', l: 'React+Java' },
@@ -273,22 +305,44 @@ export default {
       }
     },
     normPrice (row) {
+      const dc = row.durationCoefficient != null ? Number(row.durationCoefficient) : 1.2
       return {
         id: row.id,
         regionLabel: row.regionLabel || '',
         pricePerDay: row.pricePerDay != null ? Number(row.pricePerDay) : 0,
+        durationCoefficient: Number.isFinite(dc) && dc > 0 ? dc : 1.2,
         currency: (row.currency || 'CNY').toUpperCase(),
         enabled: row.enabled === true || row.enabled === 1
+      }
+    },
+    async savePartyB () {
+      this.partyBSaving = true
+      this.partyBMsg = ''
+      try {
+        const resp = await this.$http.put('/admin/quote/party-b-profile', { ...this.partyB })
+        if (resp.data && resp.data.code === 0) {
+          this.partyBOk = true
+          this.partyBMsg = this.$t('quote.partyBSaveOk')
+        } else {
+          this.partyBOk = false
+          this.partyBMsg = (resp.data && resp.data.message) || this.$t('quote.partyBSaveFail')
+        }
+      } catch (e) {
+        this.partyBOk = false
+        this.partyBMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.partyBSaveFail')
+      } finally {
+        this.partyBSaving = false
       }
     },
     async load () {
       this.loading = true
       try {
-        const [r1, r2, rb, rp] = await Promise.all([
+        const [r1, r2, rb, rp, rpb] = await Promise.all([
           this.$http.get('/admin/quote/risk-config'),
           this.$http.get('/admin/quote/preset-items', { params: { all: true } }),
           this.$http.get('/admin/quote/baselines'),
-          this.$http.get('/admin/quote/price-config', { params: { all: true } })
+          this.$http.get('/admin/quote/price-config', { params: { all: true } }),
+          this.$http.get('/admin/quote/party-b-profile')
         ])
         if (r1.data && r1.data.code === 0) this.applyRiskConfigPayload(r1.data.data)
         else this.riskConfigs = []
@@ -300,6 +354,18 @@ export default {
         if (rp.data && rp.data.code === 0) {
           this.prices = (rp.data.data || []).map(x => this.normPrice(x))
         } else this.prices = []
+        if (rpb.data && rpb.data.code === 0 && rpb.data.data) {
+          const d = rpb.data.data
+          this.partyB = {
+            legalName: d.legalName || '',
+            creditCode: d.creditCode || '',
+            address: d.address || '',
+            contactName: d.contactName || '',
+            contactPhone: d.contactPhone || '',
+            bankName: d.bankName || '',
+            bankAccount: d.bankAccount || ''
+          }
+        }
       } catch (e) {
         if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
         this.riskConfigs = []
@@ -485,6 +551,7 @@ export default {
         const resp = await this.$http.put('/admin/quote/price-config/' + p.id, {
           regionLabel: p.regionLabel,
           pricePerDay: p.pricePerDay,
+          durationCoefficient: p.durationCoefficient != null ? p.durationCoefficient : 1.2,
           currency: p.currency || 'CNY',
           enabled: p.enabled
         })
@@ -531,13 +598,14 @@ export default {
         const resp = await this.$http.post('/admin/quote/price-config', {
           regionLabel: String(this.newPrice.regionLabel).trim(),
           pricePerDay: this.newPrice.pricePerDay,
+          durationCoefficient: this.newPrice.durationCoefficient != null ? this.newPrice.durationCoefficient : 1.2,
           currency: this.newPrice.currency || 'CNY',
           enabled: this.newPrice.enabled !== false
         })
         if (resp.data && resp.data.code === 0) {
           this.priceOk = true
           this.priceMsg = this.$t('quote.addPriceOk')
-          this.newPrice = { regionLabel: '', pricePerDay: 1500, currency: 'CNY', enabled: true }
+          this.newPrice = { regionLabel: '', pricePerDay: 1500, durationCoefficient: 1.2, currency: 'CNY', enabled: true }
           await this.load()
         } else {
           this.priceOk = false
@@ -606,6 +674,15 @@ code.rk { font-size: 13px; background: #e2e8f0; color: #0f172a; padding: 3px 8px
 .inp:focus { outline: 2px solid #3b82f6; outline-offset: 1px; border-color: #2563eb; }
 .inp.num { width: 96px; }
 .inp.wide { min-width: 160px; width: 100%; max-width: 300px; }
+.party-b-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px 16px;
+  margin-bottom: 14px;
+}
+.party-b-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: #334155; }
+.party-b-grid label.full { grid-column: 1 / -1; }
+.party-b-grid .inp.wide { max-width: none; }
 .inp.cur { width: 72px; text-transform: uppercase; }
 .cen { text-align: center; }
 .actions { white-space: nowrap; }
