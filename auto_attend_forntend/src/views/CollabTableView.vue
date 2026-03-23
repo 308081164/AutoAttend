@@ -24,12 +24,14 @@
       <table class="data-table">
         <thead>
           <tr>
+            <th class="col-serial">{{ $t('collabTable.serialNo') }}</th>
             <th v-for="col in columns" :key="col.id" class="col-header" :class="getColumnHeaderClass(col)">{{ getColumnDisplayName(col) }}</th>
             <th class="col-ops">{{ $t('collabTable.operations') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in records" :key="row.id" @click="openRecord(row)">
+          <tr v-for="(row, idx) in records" :key="row.id" @click="openRecord(row)">
+            <td class="cell col-serial">{{ idx + 1 }}</td>
             <td v-for="col in columns" :key="col.id" class="cell" :class="getCellClass(col)">
               <template v-if="isAttachmentColumn(col)">
                 <div class="list-thumbs">
@@ -1471,6 +1473,8 @@ export default {
 .data-table td.cell-problem { min-width: 200px; max-width: 380px; }
 .data-table th.col-attachment,
 .data-table td.cell-attachment { width: 120px; }
+.data-table th.col-serial,
+.data-table td.col-serial { width: 60px; text-align: center; font-variant-numeric: tabular-nums; }
 .data-table th.col-ops { width: 100px; }
 
 .data-table tbody tr {

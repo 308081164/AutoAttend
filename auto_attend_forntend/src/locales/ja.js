@@ -253,6 +253,7 @@ export default {
     newRecord: '新規レコード',
     loadingTable: 'テーブル構造を読み込み中...',
     noColumns: '列定義がありません',
+    serialNo: '番号',
     operations: '操作',
     detail: '詳細',
     noRecords: 'レコードがありません。「新規レコード」をクリックして追加。',

@@ -447,6 +447,7 @@ export default {
     newRecord: '新建记录',
     loadingTable: '加载表结构中...',
     noColumns: '暂无列定义',
+    serialNo: '序号',
     operations: '操作',
     detail: '详情',
     noRecords: '暂无记录，点击「新建记录」添加',

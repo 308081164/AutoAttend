@@ -447,6 +447,7 @@ export default {
     newRecord: 'New Record',
     loadingTable: 'Loading table...',
     noColumns: 'No columns defined',
+    serialNo: 'No.',
     operations: 'Actions',
     detail: 'Detail',
     noRecords: 'No records. Click "New Record" to add.',

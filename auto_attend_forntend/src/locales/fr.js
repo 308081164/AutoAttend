@@ -251,6 +251,7 @@ export default {
     newRecord: 'Nouvelle entrée',
     loadingTable: 'Chargement de la table...',
     noColumns: 'Aucune colonne définie',
+    serialNo: 'N°',
     operations: 'Actions',
     detail: 'Détail',
     noRecords: 'Aucune entrée. Cliquez sur « Nouvelle entrée ».',

@@ -251,6 +251,7 @@ export default {
     newRecord: 'Новая запись',
     loadingTable: 'Загрузка таблицы...',
     noColumns: 'Нет колонок',
+    serialNo: '№',
     operations: 'Действия',
     detail: 'Подробнее',
     noRecords: 'Нет записей. Нажмите «Новая запись».',
