@@ -7,12 +7,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
-import java.time.Duration;
 import java.util.List;
 
 /**
@@ -29,15 +28,14 @@ public class DeepSeekClient {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DeepSeekClient(
-            RestTemplateBuilder restTemplateBuilder,
             @Value("${app.deepseek.http.connect-timeout-seconds:30}") int connectTimeoutSeconds,
             @Value("${app.deepseek.http.read-timeout-seconds:600}") int readTimeoutSeconds) {
         int connect = Math.max(5, connectTimeoutSeconds);
         int read = Math.max(60, readTimeoutSeconds);
-        this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofSeconds(connect))
-                .setReadTimeout(Duration.ofSeconds(read))
-                .build();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(connect * 1000);
+        factory.setReadTimeout(read * 1000);
+        this.restTemplate = new RestTemplate(factory);
     }
 
     /**
