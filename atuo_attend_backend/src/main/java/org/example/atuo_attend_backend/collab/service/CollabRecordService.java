@@ -1,6 +1,7 @@
 package org.example.atuo_attend_backend.collab.service;
 
 import org.example.atuo_attend_backend.collab.domain.*;
+import org.example.atuo_attend_backend.collab.dto.CollabRecordFilterRule;
 import org.example.atuo_attend_backend.collab.mapper.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,6 +68,44 @@ public class CollabRecordService {
         return rows;
     }
 
+    public List<Map<String, Object>> listRecordsFiltered(long tableId, int page, int pageSize, List<CollabRecordFilterRule> rules) {
+        if (rules == null || rules.isEmpty()) {
+            return listRecords(tableId, page, pageSize);
+        }
+        List<CollabRecordFilterRule> validated = validateAndNormalizeRules(tableId, rules);
+
+        int offset = (page - 1) * pageSize;
+        List<BizRecord> records = recordMapper.listByTableIdWithFilters(tableId, offset, pageSize, validated);
+
+        List<BizTableColumn> columns = columnMapper.listByTableId(tableId);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (BizRecord rec : records) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", rec.getId());
+            row.put("createdBy", rec.getCreatedBy());
+            row.put("createdAt", rec.getCreatedAt());
+            row.put("updatedAt", rec.getUpdatedAt());
+            List<BizRecordField> fields = fieldMapper.listByRecordId(rec.getId());
+            Map<Long, BizRecordField> fieldMap = fields.stream().collect(Collectors.toMap(BizRecordField::getColumnId, f -> f));
+            for (BizTableColumn col : columns) {
+                BizRecordField f = fieldMap.get(col.getId());
+                Object val = f == null ? null : getFieldValue(f, col.getColumnType());
+                row.put("c" + col.getId(), val);
+                row.put("_column_" + col.getId(), col.getName());
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    public long countRecordsFiltered(long tableId, List<CollabRecordFilterRule> rules) {
+        if (rules == null || rules.isEmpty()) {
+            return countRecords(tableId);
+        }
+        List<CollabRecordFilterRule> validated = validateAndNormalizeRules(tableId, rules);
+        return recordMapper.countByTableIdWithFilters(tableId, validated);
+    }
+
     public long countRecords(long tableId) {
         return recordMapper.countByTableId(tableId);
     }
@@ -77,6 +116,35 @@ public class CollabRecordService {
         if (f.getValueDate() != null) return f.getValueDate().toString();
         if (f.getValueJson() != null) return f.getValueJson();
         return null;
+    }
+
+    private List<CollabRecordFilterRule> validateAndNormalizeRules(long tableId, List<CollabRecordFilterRule> rules) {
+        List<BizTableColumn> columns = columnMapper.listByTableId(tableId);
+        Map<Long, BizTableColumn> colMap = new HashMap<>();
+        for (BizTableColumn c : columns) {
+            colMap.put(c.getId(), c);
+        }
+
+        Set<String> allowedOps = Set.of("eq", "ne", "contains", "not_contains", "empty", "not_empty");
+        Set<String> allowedColNames = Set.of("重要程度", "当前状态", "验收结果");
+
+        List<CollabRecordFilterRule> out = new ArrayList<>();
+        for (CollabRecordFilterRule r : rules) {
+            if (r == null) continue;
+            if (r.getColumnId() == null) throw new IllegalArgumentException("filters.columnId 缺失");
+            if (r.getOp() == null || !allowedOps.contains(r.getOp())) throw new IllegalArgumentException("filters.op 非法");
+
+            BizTableColumn col = colMap.get(r.getColumnId());
+            if (col == null) throw new IllegalArgumentException("filters.columnId 不存在");
+            if (!allowedColNames.contains(col.getName())) throw new IllegalArgumentException("本版本仅支持筛选重要程度/当前状态/验收结果");
+
+            String op = r.getOp();
+            if (!"empty".equals(op) && !"not_empty".equals(op)) {
+                if (r.getValue() == null || r.getValue().isBlank()) throw new IllegalArgumentException("filters.value 缺失");
+            }
+            out.add(r);
+        }
+        return out;
     }
 
     @Transactional(rollbackFor = Exception.class)

@@ -306,6 +306,23 @@ export default {
     csvAiParsing: 'Analyse…',
     csvAiProgress: 'Lot {current}/{total}…',
     csvAiNoDrafts: 'Aucun brouillon. Vérifiez les colonnes CSV ou le schéma.',
-    csvAiPreviewFailed: 'Échec.'
+    csvAiPreviewFailed: 'Échec.',
+    filter: 'Filtre',
+    filterHint: 'Filtre composite (AND)',
+    filterTitle: 'Filtre composite',
+    filterColumn: 'Colonne / champ',
+    filterOperator: 'Opérateur',
+    filterValue: 'Valeur',
+    filterValueNotNeeded: 'Valeur non nécessaire',
+    filterAddRule: 'Ajouter une condition',
+    filterClear: 'Effacer',
+    filterApply: 'Appliquer le filtre',
+    filterValueRequired: 'Veuillez choisir une valeur de correspondance',
+    filterOpEq: 'Égal à',
+    filterOpNe: 'Différent de',
+    filterOpContains: 'Contient',
+    filterOpNotContains: 'Ne contient pas',
+    filterOpEmpty: 'Est vide',
+    filterOpNotEmpty: 'N’est pas vide'
   }
 }

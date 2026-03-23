@@ -308,6 +308,23 @@ export default {
     csvAiParsing: '解析中（分割）…',
     csvAiProgress: '{current}/{total} バッチ処理中…',
     csvAiNoDrafts: '下書きが得られませんでした。CSV 列や表構造を確認してください。',
-    csvAiPreviewFailed: '解析に失敗しました。UTF-8 や DeepSeek 設定を確認してください。'
+    csvAiPreviewFailed: '解析に失敗しました。UTF-8 や DeepSeek 設定を確認してください。',
+    filter: 'フィルター',
+    filterHint: '複合フィルター（AND）',
+    filterTitle: '複合フィルター',
+    filterColumn: 'モジュール/列',
+    filterOperator: '条件',
+    filterValue: '一致値',
+    filterValueNotNeeded: '値不要',
+    filterAddRule: '条件を追加',
+    filterClear: 'クリア',
+    filterApply: 'フィルター適用',
+    filterValueRequired: '一致値を選択してください',
+    filterOpEq: '等しい',
+    filterOpNe: '等しくない',
+    filterOpContains: '含む',
+    filterOpNotContains: '含まない',
+    filterOpEmpty: '空',
+    filterOpNotEmpty: '空でない'
   }
 }

@@ -502,6 +502,23 @@ export default {
     csvAiParsing: '解析中（多分片）…',
     csvAiProgress: '正在处理第 {current}/{total} 批…',
     csvAiNoDrafts: '未解析出任何任务草稿，请检查 CSV 列或表结构。',
-    csvAiPreviewFailed: 'CSV 解析失败，请检查文件编码(UTF-8)、列内容或 DeepSeek 配置。'
+    csvAiPreviewFailed: 'CSV 解析失败，请检查文件编码(UTF-8)、列内容或 DeepSeek 配置。',
+    filter: '筛选',
+    filterHint: '组合筛选（多条规则 AND）',
+    filterTitle: '组合筛选',
+    filterColumn: '模块/列',
+    filterOperator: '条件',
+    filterValue: '匹配值',
+    filterValueNotNeeded: '不需要值',
+    filterAddRule: '添加条件',
+    filterClear: '清除',
+    filterApply: '应用筛选',
+    filterValueRequired: '请选择匹配值',
+    filterOpEq: '等于',
+    filterOpNe: '不等于',
+    filterOpContains: '包含',
+    filterOpNotContains: '不包含',
+    filterOpEmpty: '为空',
+    filterOpNotEmpty: '不为空'
   }
 }

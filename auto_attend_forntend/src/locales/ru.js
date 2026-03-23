@@ -306,6 +306,23 @@ export default {
     csvAiParsing: 'Parsing…',
     csvAiProgress: 'Пакет {current}/{total}…',
     csvAiNoDrafts: 'Черновиков нет. Проверьте столбцы CSV или схему.',
-    csvAiPreviewFailed: 'Parse failed.'
+    csvAiPreviewFailed: 'Parse failed.',
+    filter: 'Фильтр',
+    filterHint: 'Составной фильтр (AND)',
+    filterTitle: 'Составной фильтр',
+    filterColumn: 'Колонка / поле',
+    filterOperator: 'Условие',
+    filterValue: 'Значение',
+    filterValueNotNeeded: 'Значение не требуется',
+    filterAddRule: 'Добавить условие',
+    filterClear: 'Очистить',
+    filterApply: 'Применить фильтр',
+    filterValueRequired: 'Выберите значение для сопоставления',
+    filterOpEq: 'Равно',
+    filterOpNe: 'Не равно',
+    filterOpContains: 'Содержит',
+    filterOpNotContains: 'Не содержит',
+    filterOpEmpty: 'Пусто',
+    filterOpNotEmpty: 'Не пусто'
   }
 }

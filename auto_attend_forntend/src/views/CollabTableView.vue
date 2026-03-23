@@ -14,6 +14,9 @@
           <span class="ai-magic-icon" aria-hidden="true">📄</span>
           <span class="ai-magic-label">{{ $t('collabTable.csvAiMode') }}</span>
         </button>
+        <button type="button" class="secondary-button" @click="openFilterModal" :title="$t('collabTable.filterHint')">
+          {{ $t('collabTable.filter') }}<span v-if="activeFilters && activeFilters.length">({{ activeFilters.length }})</span>
+        </button>
         <button type="button" class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
       </div>
     </div>
@@ -382,6 +385,71 @@
       </div>
     </div>
 
+    <!-- 组合筛选弹窗 -->
+    <div v-if="showFilterModal" class="drawer-mask" @click="closeFilterModal">
+      <div class="drawer filter-modal" @click.stop>
+        <div class="drawer-header">
+          <h3>{{ $t('collabTable.filterTitle') }}</h3>
+          <button class="close-btn" @click="closeFilterModal">×</button>
+        </div>
+        <div class="drawer-body">
+          <div class="field-list">
+            <div v-for="(r, idx) in filterRules" :key="'fr-' + idx" class="filter-rule-row">
+              <div class="filter-rule-col">
+                <label class="field-label">{{ $t('collabTable.filterColumn') }}</label>
+                <select class="field-input" v-model="r.columnId" @change="onFilterRuleColumnChanged(idx)">
+                  <option v-for="c in filterableColumns" :key="c.id" :value="c.id">
+                    {{ c.name }}
+                  </option>
+                </select>
+              </div>
+              <div class="filter-rule-col">
+                <label class="field-label">{{ $t('collabTable.filterOperator') }}</label>
+                <select class="field-input" v-model="r.op">
+                  <option value="eq">{{ $t('collabTable.filterOpEq') }}</option>
+                  <option value="ne">{{ $t('collabTable.filterOpNe') }}</option>
+                  <option value="contains">{{ $t('collabTable.filterOpContains') }}</option>
+                  <option value="not_contains">{{ $t('collabTable.filterOpNotContains') }}</option>
+                  <option value="empty">{{ $t('collabTable.filterOpEmpty') }}</option>
+                  <option value="not_empty">{{ $t('collabTable.filterOpNotEmpty') }}</option>
+                </select>
+              </div>
+              <div class="filter-rule-col filter-rule-value">
+                <label class="field-label">{{ $t('collabTable.filterValue') }}</label>
+                <select
+                  v-if="requiresFilterValue(r.op)"
+                  class="field-input"
+                  v-model="r.value"
+                >
+                  <option value="">{{ $t('collabTable.pleaseSelect') }}</option>
+                  <option v-for="v in getFilterValueOptions(r.columnId)" :key="v" :value="v">
+                    {{ v }}
+                  </option>
+                </select>
+                <div v-else class="text-muted small">{{ $t('collabTable.filterValueNotNeeded') }}</div>
+              </div>
+              <div class="filter-rule-actions">
+                <button type="button" class="link-button danger" @click="removeFilterRule(idx)">×</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="drawer-actions filter-actions">
+            <button type="button" class="secondary-button small" @click="addFilterRule">
+              {{ $t('collabTable.filterAddRule') }}
+            </button>
+            <div style="flex: 1"></div>
+            <button type="button" class="link-button" @click="clearFilterRules">
+              {{ $t('collabTable.filterClear') }}
+            </button>
+            <button type="button" class="primary-button" @click="applyFilters" :disabled="filterRules.length === 0">
+              {{ $t('collabTable.filterApply') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 图片在线预览（字段 / 附件 / 列表缩略图） -->
     <div v-if="imagePreviewOpen" class="image-preview-backdrop" @click.self="closeImagePreview">
       <div class="image-preview-modal" @click.stop>
@@ -446,6 +514,9 @@ export default {
       aiInputText: '',
       aiTasks: [],
       aiLoading: false,
+      showFilterModal: false,
+      filterRules: [],
+      activeFilters: [],
       csvAiFile: null,
       csvAiFileName: '',
       csvAiLoading: false,
@@ -467,6 +538,10 @@ export default {
       const pn = (this.projectName || '').trim()
       if (!pn) return base
       return this.$t('collabTable.pageTitleWithProject', { project: pn, table: base })
+    },
+    filterableColumns () {
+      const allowed = ['重要程度', '当前状态', '验收结果']
+      return Array.isArray(this.columns) ? this.columns.filter(c => allowed.includes(c.name)) : []
     }
   },
   created () {
@@ -497,6 +572,96 @@ export default {
     },
     closeAiModal () {
       this.showAiModal = false
+    },
+    openFilterModal () {
+      // 从当前激活的筛选规则恢复编辑
+      this.filterRules = Array.isArray(this.activeFilters) ? this.activeFilters.map(r => ({ ...r })) : []
+      if (!this.filterRules.length) {
+        const defCol = this.filterableColumns[0]
+        this.filterRules = [{
+          columnId: defCol ? defCol.id : null,
+          op: 'eq',
+          value: ''
+        }]
+      }
+      this.showFilterModal = true
+    },
+    closeFilterModal () {
+      this.showFilterModal = false
+    },
+    createEmptyFilterRule () {
+      const defCol = this.filterableColumns[0]
+      return {
+        columnId: defCol ? defCol.id : null,
+        op: 'eq',
+        value: ''
+      }
+    },
+    addFilterRule () {
+      this.filterRules.push(this.createEmptyFilterRule())
+    },
+    removeFilterRule (idx) {
+      this.filterRules.splice(idx, 1)
+      if (this.filterRules.length === 0) this.filterRules = [this.createEmptyFilterRule()]
+    },
+    requiresFilterValue (op) {
+      return op !== 'empty' && op !== 'not_empty'
+    },
+    getColumnById (colId) {
+      const id = Number(colId)
+      return this.columns.find(c => Number(c.id) === id)
+    },
+    getFilterValueOptions (colId) {
+      const col = this.getColumnById(colId)
+      if (!col || !col.optionGroup || !Array.isArray(col.optionGroup.options)) return []
+      return col.optionGroup.options
+    },
+    onFilterRuleColumnChanged (idx) {
+      const r = this.filterRules[idx]
+      if (!r) return
+      if (!this.requiresFilterValue(r.op)) return
+      const opts = this.getFilterValueOptions(r.columnId)
+      if (!opts.length) {
+        r.value = ''
+        return
+      }
+      // 若当前 value 不在新列的可选项中，则重置为第一个
+      if (!opts.includes(r.value)) r.value = opts[0]
+    },
+    clearFilterRules () {
+      this.activeFilters = []
+      this.filterRules = [this.createEmptyFilterRule()]
+      this.closeFilterModal()
+      this.loadRecords()
+    },
+    buildFiltersPayload () {
+      const payload = []
+      for (const r of this.filterRules) {
+        if (!r || r.columnId == null) continue
+        if (!r.op) continue
+        const rule = { columnId: r.columnId, op: r.op }
+        if (this.requiresFilterValue(r.op)) {
+          rule.value = r.value
+        }
+        payload.push(rule)
+      }
+      return payload
+    },
+    async applyFilters () {
+      // 基本校验：value 必须存在（除 empty/not_empty）
+      for (const r of this.filterRules) {
+        if (!r || r.columnId == null || !r.op) continue
+        if (this.requiresFilterValue(r.op)) {
+          if (r.value == null || String(r.value).trim() === '') {
+            alert(this.$t('collabTable.filterValueRequired') || '请选择匹配值')
+            return
+          }
+        }
+      }
+      const payload = this.buildFiltersPayload()
+      this.activeFilters = payload
+      this.closeFilterModal()
+      await this.loadRecords(payload)
     },
     onCsvAiFileSelected (e) {
       const f = e.target && e.target.files && e.target.files[0]
@@ -690,11 +855,16 @@ export default {
         this.tableLoading = false
       }
     },
-    async loadRecords () {
+    async loadRecords (filters) {
       this.recordsLoading = true
       try {
+        const effectiveFilters = filters !== undefined ? filters : this.activeFilters
+        const params = { page: 1, pageSize: 100, _t: Date.now() }
+        if (Array.isArray(effectiveFilters) && effectiveFilters.length) {
+          params.filters = JSON.stringify(effectiveFilters)
+        }
         const resp = await this.$http.get(`/collab/projects/${this.projectId}/records`, {
-          params: { page: 1, pageSize: 100, _t: Date.now() }
+          params
         })
         if (resp.data && resp.data.code === 0) {
           const items = resp.data.data.items || []
@@ -1618,6 +1788,30 @@ export default {
 
 .field-list .field-row {
   margin-bottom: 14px;
+}
+
+.filter-rule-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.filter-rule-col {
+  flex: 1;
+  min-width: 160px;
+}
+
+.filter-rule-value {
+  min-width: 220px;
+}
+
+.filter-rule-actions {
+  padding-bottom: 2px;
+}
+
+.filter-actions {
+  margin-top: 16px;
 }
 
 .field-label {

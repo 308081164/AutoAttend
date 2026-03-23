@@ -502,6 +502,23 @@ export default {
     csvAiParsing: 'Parsing (chunked)…',
     csvAiProgress: 'Processing batch {current}/{total}…',
     csvAiNoDrafts: 'No task drafts were parsed. Check CSV columns or table schema.',
-    csvAiPreviewFailed: 'CSV parse failed. Check UTF-8, columns, or DeepSeek config.'
+    csvAiPreviewFailed: 'CSV parse failed. Check UTF-8, columns, or DeepSeek config.',
+    filter: 'Filter',
+    filterHint: 'Composite filter (AND)',
+    filterTitle: 'Composite filter',
+    filterColumn: 'Column / field',
+    filterOperator: 'Operator',
+    filterValue: 'Match value',
+    filterValueNotNeeded: 'Value not needed',
+    filterAddRule: 'Add condition',
+    filterClear: 'Clear',
+    filterApply: 'Apply filter',
+    filterValueRequired: 'Please choose a match value',
+    filterOpEq: 'Equals',
+    filterOpNe: 'Not equals',
+    filterOpContains: 'Contains',
+    filterOpNotContains: 'Does not contain',
+    filterOpEmpty: 'Is empty',
+    filterOpNotEmpty: 'Is not empty'
   }
 }
