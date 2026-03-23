@@ -6,10 +6,13 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -22,8 +25,20 @@ public class DeepSeekClient {
     private static final Logger log = LoggerFactory.getLogger(DeepSeekClient.class);
     private static final String BASE_URL = "https://api.deepseek.com";
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public DeepSeekClient(
+            RestTemplateBuilder restTemplateBuilder,
+            @Value("${app.deepseek.http.connect-timeout-seconds:30}") int connectTimeoutSeconds,
+            @Value("${app.deepseek.http.read-timeout-seconds:600}") int readTimeoutSeconds) {
+        int connect = Math.max(5, connectTimeoutSeconds);
+        int read = Math.max(60, readTimeoutSeconds);
+        this.restTemplate = restTemplateBuilder
+                .setConnectTimeout(Duration.ofSeconds(connect))
+                .setReadTimeout(Duration.ofSeconds(read))
+                .build();
+    }
 
     /**
      * 发送 chat completion 请求，返回助手消息的 content；失败返回 null。

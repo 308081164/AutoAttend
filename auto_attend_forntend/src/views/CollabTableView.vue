@@ -506,7 +506,7 @@ export default {
       this.csvAiLoading = true
       this.csvAiWarnings = []
       this.csvAiProgress = ''
-      const chunkTimeout = 180000
+      const chunkTimeout = 360000
       const sessionTimeout = 120000
       let sessionId = null
       try {

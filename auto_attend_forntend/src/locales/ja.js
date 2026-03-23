@@ -301,7 +301,7 @@ export default {
     aiTabCsv: 'CSV＋DeepSeek',
     csvAiMode: 'CSV 取込',
     csvAiTitle: 'CSV スマート取込',
-    csvAiHint: 'CSV は直接書き込みません。最大30行ずつ DeepSeek で現在の表に合わせて整形します。挿入前に確認してください。管理画面の DeepSeek API Key が必要です。',
+    csvAiHint: 'CSV は直接書き込みません。サーバが約12行ずつ（設定可）DeepSeek で整形します。504 の場合はバッチを小さくするか Nginx の読み取りタイムアウトを延長してください。管理画面の DeepSeek API Key が必要です。',
     csvAiPickFile: 'CSV を選択',
     csvAiParseBtn: '下書きに解析',
     csvAiParsing: '解析中（分割）…',

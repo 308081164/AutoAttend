@@ -65,6 +65,8 @@ public class CollabCsvAiImportSessionStore {
         private String schemaText;
         private String memberText;
         private String systemPrompt;
+        /** 创建会话时写入，与 {@link CollabCsvAiImportService} 配置一致 */
+        private int rowsPerChunk;
 
         public long getUserId() {
             return userId;
@@ -138,11 +140,20 @@ public class CollabCsvAiImportSessionStore {
             this.systemPrompt = systemPrompt;
         }
 
+        public int getRowsPerChunk() {
+            return rowsPerChunk;
+        }
+
+        public void setRowsPerChunk(int rowsPerChunk) {
+            this.rowsPerChunk = rowsPerChunk;
+        }
+
         public int getTotalChunks() {
             if (dataRows == null || dataRows.isEmpty()) {
                 return 0;
             }
-            return (int) Math.ceil((double) dataRows.size() / CollabCsvAiImportService.MAX_ROWS_PER_CHUNK);
+            int step = rowsPerChunk > 0 ? rowsPerChunk : CollabCsvAiImportService.DEFAULT_MAX_ROWS_PER_CHUNK;
+            return (int) Math.ceil((double) dataRows.size() / step);
         }
     }
 }

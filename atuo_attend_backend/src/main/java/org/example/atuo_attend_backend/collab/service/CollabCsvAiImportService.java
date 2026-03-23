@@ -15,8 +15,11 @@ import org.example.atuo_attend_backend.collab.mapper.BizProjectMemberMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import jakarta.annotation.PostConstruct;
 
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -31,8 +34,10 @@ public class CollabCsvAiImportService {
 
     private static final Logger log = LoggerFactory.getLogger(CollabCsvAiImportService.class);
 
-    /** 单批送入模型的最大数据行数（不含表头） */
-    public static final int MAX_ROWS_PER_CHUNK = 30;
+    /** 配置项未加载时的默认单批行数（不含表头）；运行中实际值见 {@link #maxRowsPerChunk} */
+    public static final int DEFAULT_MAX_ROWS_PER_CHUNK = 12;
+    /** 允许的配置上限（单次 prompt 过大仍易触发网关超时） */
+    public static final int HARD_CAP_ROWS_PER_CHUNK = 30;
     /** 单文件最大字节 */
     public static final int MAX_FILE_BYTES = 6 * 1024 * 1024;
     /** 最多处理的数据行 */
@@ -45,6 +50,25 @@ public class CollabCsvAiImportService {
     private final DeepSeekClient deepSeekClient;
     private final AiTokenUsageMapper tokenUsageMapper;
     private final CollabCsvAiImportSessionStore sessionStore;
+
+    @Value("${app.collab.csv-ai-import.max-rows-per-chunk:12}")
+    private int configuredMaxRowsPerChunk;
+
+    /** 钳位后的单批行数，由 {@link #initChunkConfig()} 赋值 */
+    private int maxRowsPerChunk = DEFAULT_MAX_ROWS_PER_CHUNK;
+
+    @PostConstruct
+    void initChunkConfig() {
+        int n = configuredMaxRowsPerChunk;
+        if (n < 5) {
+            n = 5;
+        }
+        if (n > HARD_CAP_ROWS_PER_CHUNK) {
+            n = HARD_CAP_ROWS_PER_CHUNK;
+        }
+        this.maxRowsPerChunk = n;
+        log.info("collab CSV AI import: max-rows-per-chunk={}", maxRowsPerChunk);
+    }
 
     public CollabCsvAiImportService(CollabTableService tableService,
                                     BizProjectMemberMapper projectMemberMapper,
@@ -95,6 +119,7 @@ public class CollabCsvAiImportService {
         session.setSchemaText(buildSchemaDescription(schema));
         session.setMemberText(buildMemberLines(projectId));
         session.setSystemPrompt(buildSystemPrompt());
+        session.setRowsPerChunk(maxRowsPerChunk);
 
         String sessionId = sessionStore.create(session);
         int chunksTotal = session.getTotalChunks();
@@ -103,7 +128,7 @@ public class CollabCsvAiImportService {
         data.put("sessionId", sessionId);
         data.put("csvRowCount", parsed.dataRows().size());
         data.put("chunksTotal", chunksTotal);
-        data.put("chunkSize", MAX_ROWS_PER_CHUNK);
+        data.put("chunkSize", maxRowsPerChunk);
         return data;
     }
 
@@ -131,16 +156,18 @@ public class CollabCsvAiImportService {
             throw new IllegalArgumentException("chunkIndex 超出范围（0～" + (totalChunks - 1) + "）");
         }
 
-        int from = chunkIndex * MAX_ROWS_PER_CHUNK;
-        int to = Math.min(from + MAX_ROWS_PER_CHUNK, allRows.size());
+        int step = session.getRowsPerChunk() > 0 ? session.getRowsPerChunk() : maxRowsPerChunk;
+        int from = chunkIndex * step;
+        int to = Math.min(from + step, allRows.size());
         List<String[]> chunk = allRows.subList(from, to);
-        String userMsg = buildChunkUserMessage(chunkIndex + 1, totalChunks, session.getHeader(), chunk);
+        String userMsg = buildChunkUserMessage(chunkIndex + 1, totalChunks, step, session.getHeader(), chunk);
 
         List<DeepSeekClient.ChatMessage> messages = List.of(
                 new DeepSeekClient.ChatMessage("system", session.getSystemPrompt()),
                 new DeepSeekClient.ChatMessage("user", session.getSchemaText() + "\n\n" + session.getMemberText() + "\n\n" + userMsg)
         );
-        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
+        /* 单批输出 JSON 通常远小于 8k；略降上限可缩短模型生成时间与网关等待 */
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 4096);
 
         List<String> warnings = new ArrayList<>();
         List<CollabAiTaskController.AiTaskDraft> items = new ArrayList<>();
@@ -336,10 +363,10 @@ public class CollabCsvAiImportService {
                 + "attachmentIds 始终为 []。严格输出 JSON 对象 {\"items\":[...]} ，无其它文字。";
     }
 
-    private String buildChunkUserMessage(int chunkIndex, int totalChunks, String[] header, List<String[]> rows) {
+    private String buildChunkUserMessage(int chunkIndex, int totalChunks, int rowsPerChunkHint, String[] header, List<String[]> rows) {
         StringBuilder sb = new StringBuilder();
         sb.append("【本批 CSV 数据】第 ").append(chunkIndex).append("/").append(totalChunks).append(" 批，共 ")
-                .append(rows.size()).append(" 行（每批最多 ").append(MAX_ROWS_PER_CHUNK).append(" 行）。\n");
+                .append(rows.size()).append(" 行（每批最多 ").append(rowsPerChunkHint).append(" 行）。\n");
         sb.append("CSV 表头: ");
         sb.append(String.join(" | ", header));
         sb.append("\n\n数据（Markdown 表，一行对应 CSV 一条数据）：\n");

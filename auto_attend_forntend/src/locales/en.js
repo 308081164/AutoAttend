@@ -495,7 +495,7 @@ export default {
     aiTabCsv: 'CSV + DeepSeek',
     csvAiMode: 'CSV smart import',
     csvAiTitle: 'CSV smart import',
-    csvAiHint: 'CSV is not imported directly. Each batch (max 30 data rows) is sent to DeepSeek to align with your table columns/options. Review drafts before insert. Requires DeepSeek API key in admin AI settings. Max ~3000 data rows per file.',
+    csvAiHint: 'CSV is not imported directly. The server calls DeepSeek in batches (default ~12 rows per batch, configurable). If you see 504, reduce batch size or raise Nginx proxy_read_timeout. Requires DeepSeek API key in admin AI settings. Max ~3000 data rows per file.',
     csvAiPickFile: 'Choose CSV',
     csvAiParseBtn: 'Parse to drafts',
     csvAiParsing: 'Parsing (chunked)…',

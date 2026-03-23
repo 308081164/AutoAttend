@@ -495,7 +495,7 @@ export default {
     aiTabCsv: 'CSV + DeepSeek',
     csvAiMode: 'CSV 智能导入',
     csvAiTitle: 'CSV 智能导入',
-    csvAiHint: '上传 CSV 后不会直接写入表格。系统按每批最多 30 行数据调用 DeepSeek，结合当前表的列与选项清洗为任务草稿；请核对后再插入。需管理后台配置 DeepSeek API Key。单文件建议不超过约 3000 行数据。',
+    csvAiHint: '上传 CSV 后不会直接写入表格。服务端按批（默认约每批 12 行，可配置）调用 DeepSeek，结合当前表的列与选项清洗为任务草稿；若遇网关 504，请缩小单批行数或调大 Nginx 读超时。需管理后台配置 DeepSeek API Key。单文件建议不超过约 3000 行数据。',
     csvAiPickFile: '选择 CSV 文件',
     csvAiParseBtn: '解析为任务草稿',
     csvAiParsing: '解析中（多分片）…',
