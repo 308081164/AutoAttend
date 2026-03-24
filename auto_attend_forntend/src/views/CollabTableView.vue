@@ -3,7 +3,26 @@
     <div class="table-header">
       <div class="header-left">
         <router-link to="/collab/projects" class="back-link">{{ $t('collabTable.backToList') }}</router-link>
-        <h2 class="table-title">{{ pageTableTitle }}</h2>
+        <div class="title-block">
+          <div class="title-row">
+            <h2 class="table-title">{{ pageTableTitle }}</h2>
+            <button type="button" class="secondary-button filter-title-button" @click="openFilterModal" :title="$t('collabTable.filterHint')">
+              {{ $t('collabTable.filter') }}<span v-if="activeFilters && activeFilters.length">({{ activeFilters.length }})</span>
+            </button>
+          </div>
+          <div v-if="activeFilters && activeFilters.length" class="active-filter-chips">
+            <span v-for="(f, idx) in activeFilters" :key="'af-' + idx" class="filter-chip">
+              <span class="filter-chip-text">{{ formatActiveFilterLabel(f) }}</span>
+              <button
+                type="button"
+                class="filter-chip-remove"
+                @click.stop="removeActiveFilterAt(idx)"
+                :aria-label="$t('collabTable.filterRemoveRule')"
+                :title="$t('collabTable.filterRemoveRule')"
+              >×</button>
+            </span>
+          </div>
+        </div>
       </div>
       <div class="header-actions">
         <button type="button" class="ai-magic-button" @click="openAiInput('text')" :title="$t('collabTable.aiInputModeHint')">
@@ -13,9 +32,6 @@
         <button type="button" class="ai-csv-button" @click="openAiInput('csv')" :title="$t('collabTable.csvAiHint')">
           <span class="ai-magic-icon" aria-hidden="true">📄</span>
           <span class="ai-magic-label">{{ $t('collabTable.csvAiMode') }}</span>
-        </button>
-        <button type="button" class="secondary-button" @click="openFilterModal" :title="$t('collabTable.filterHint')">
-          {{ $t('collabTable.filter') }}<span v-if="activeFilters && activeFilters.length">({{ activeFilters.length }})</span>
         </button>
         <button type="button" class="primary-button" @click="openAddRecord">{{ $t('collabTable.newRecord') }}</button>
       </div>
@@ -394,44 +410,54 @@
         </div>
         <div class="drawer-body">
           <div class="field-list">
-            <div v-for="(r, idx) in filterRules" :key="'fr-' + idx" class="filter-rule-row">
-              <div class="filter-rule-col">
-                <label class="field-label">{{ $t('collabTable.filterColumn') }}</label>
-                <select class="field-input" v-model="r.columnId" @change="onFilterRuleColumnChanged(idx)">
-                  <option v-for="c in filterableColumns" :key="c.id" :value="c.id">
-                    {{ c.name }}
-                  </option>
-                </select>
-              </div>
-              <div class="filter-rule-col">
-                <label class="field-label">{{ $t('collabTable.filterOperator') }}</label>
-                <select class="field-input" v-model="r.op">
-                  <option value="eq">{{ $t('collabTable.filterOpEq') }}</option>
-                  <option value="ne">{{ $t('collabTable.filterOpNe') }}</option>
-                  <option value="contains">{{ $t('collabTable.filterOpContains') }}</option>
-                  <option value="not_contains">{{ $t('collabTable.filterOpNotContains') }}</option>
-                  <option value="empty">{{ $t('collabTable.filterOpEmpty') }}</option>
-                  <option value="not_empty">{{ $t('collabTable.filterOpNotEmpty') }}</option>
-                </select>
-              </div>
-              <div class="filter-rule-col filter-rule-value">
-                <label class="field-label">{{ $t('collabTable.filterValue') }}</label>
-                <select
-                  v-if="requiresFilterValue(r.op)"
-                  class="field-input"
-                  v-model="r.value"
-                >
-                  <option value="">{{ $t('collabTable.pleaseSelect') }}</option>
-                  <option v-for="v in getFilterValueOptions(r.columnId)" :key="v" :value="v">
-                    {{ v }}
-                  </option>
-                </select>
-                <div v-else class="text-muted small">{{ $t('collabTable.filterValueNotNeeded') }}</div>
-              </div>
-              <div class="filter-rule-actions">
-                <button type="button" class="link-button danger" @click="removeFilterRule(idx)">×</button>
-              </div>
+            <div v-if="!filterRules.length" class="filter-empty-block">
+              <p class="text-muted small">{{ $t('collabTable.filterEmptyHint') }}</p>
+              <button type="button" class="secondary-button small" @click="addFilterRule">
+                {{ $t('collabTable.filterAddRule') }}
+              </button>
             </div>
+            <template v-else>
+              <div v-for="(r, idx) in filterRules" :key="'fr-' + idx" class="filter-rule-row">
+                <div class="filter-rule-col">
+                  <label class="field-label">{{ $t('collabTable.filterColumn') }}</label>
+                  <select class="field-input" v-model="r.columnId" @change="onFilterRuleColumnChanged(idx)">
+                    <option v-for="c in filterableColumns" :key="c.id" :value="c.id">
+                      {{ c.name }}
+                    </option>
+                  </select>
+                </div>
+                <div class="filter-rule-col">
+                  <label class="field-label">{{ $t('collabTable.filterOperator') }}</label>
+                  <select class="field-input" v-model="r.op">
+                    <option value="eq">{{ $t('collabTable.filterOpEq') }}</option>
+                    <option value="ne">{{ $t('collabTable.filterOpNe') }}</option>
+                    <option value="contains">{{ $t('collabTable.filterOpContains') }}</option>
+                    <option value="not_contains">{{ $t('collabTable.filterOpNotContains') }}</option>
+                    <option value="empty">{{ $t('collabTable.filterOpEmpty') }}</option>
+                    <option value="not_empty">{{ $t('collabTable.filterOpNotEmpty') }}</option>
+                  </select>
+                </div>
+                <div class="filter-rule-col filter-rule-value">
+                  <label class="field-label">{{ $t('collabTable.filterValue') }}</label>
+                  <select
+                    v-if="requiresFilterValue(r.op)"
+                    class="field-input"
+                    v-model="r.value"
+                  >
+                    <option value="">{{ $t('collabTable.pleaseSelect') }}</option>
+                    <option v-for="v in getFilterValueOptions(r.columnId)" :key="v" :value="v">
+                      {{ v }}
+                    </option>
+                  </select>
+                  <div v-else class="text-muted small">{{ $t('collabTable.filterValueNotNeeded') }}</div>
+                </div>
+                <div class="filter-rule-actions">
+                  <button type="button" class="filter-rule-remove-btn" @click="removeFilterRule(idx)">
+                    {{ $t('collabTable.filterRemoveRule') }}
+                  </button>
+                </div>
+              </div>
+            </template>
           </div>
 
           <div class="drawer-actions filter-actions">
@@ -440,9 +466,9 @@
             </button>
             <div style="flex: 1"></div>
             <button type="button" class="link-button" @click="clearFilterRules">
-              {{ $t('collabTable.filterClear') }}
+              {{ $t('collabTable.filterClearAll') }}
             </button>
-            <button type="button" class="primary-button" @click="applyFilters" :disabled="filterRules.length === 0">
+            <button type="button" class="primary-button" @click="applyFilters">
               {{ $t('collabTable.filterApply') }}
             </button>
           </div>
@@ -602,7 +628,29 @@ export default {
     },
     removeFilterRule (idx) {
       this.filterRules.splice(idx, 1)
-      if (this.filterRules.length === 0) this.filterRules = [this.createEmptyFilterRule()]
+    },
+    async removeActiveFilterAt (idx) {
+      if (!Array.isArray(this.activeFilters) || idx < 0 || idx >= this.activeFilters.length) return
+      const next = this.activeFilters.filter((_, i) => i !== idx)
+      this.activeFilters = next
+      await this.loadRecords(next)
+    },
+    formatActiveFilterLabel (f) {
+      if (!f) return ''
+      const col = this.getColumnById(f.columnId)
+      const colName = col ? (col.name || '') : ('#' + f.columnId)
+      const opKeys = {
+        eq: 'filterOpEq',
+        ne: 'filterOpNe',
+        contains: 'filterOpContains',
+        not_contains: 'filterOpNotContains',
+        empty: 'filterOpEmpty',
+        not_empty: 'filterOpNotEmpty'
+      }
+      const opLabel = this.$t('collabTable.' + (opKeys[f.op] || 'filterOpEq'))
+      if (!this.requiresFilterValue(f.op)) return `${colName} · ${opLabel}`
+      const v = f.value != null && String(f.value).trim() !== '' ? String(f.value) : '—'
+      return `${colName} · ${opLabel} · ${v}`
     },
     requiresFilterValue (op) {
       return op !== 'empty' && op !== 'not_empty'
@@ -630,9 +678,9 @@ export default {
     },
     clearFilterRules () {
       this.activeFilters = []
-      this.filterRules = [this.createEmptyFilterRule()]
+      this.filterRules = []
       this.closeFilterModal()
-      this.loadRecords()
+      this.loadRecords([])
     },
     buildFiltersPayload () {
       const payload = []
@@ -648,6 +696,12 @@ export default {
       return payload
     },
     async applyFilters () {
+      if (!this.filterRules.length) {
+        this.activeFilters = []
+        this.closeFilterModal()
+        await this.loadRecords([])
+        return
+      }
       // 基本校验：value 必须存在（除 empty/not_empty）
       for (const r of this.filterRules) {
         if (!r || r.columnId == null || !r.op) continue
@@ -1450,14 +1504,97 @@ export default {
 .table-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
 .header-left {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.filter-title-button {
+  flex-shrink: 0;
+}
+
+.active-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 10px;
+  font-size: 12px;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+.filter-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-chip-remove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.filter-chip-remove:hover {
+  background: #fecaca;
+  color: #b91c1c;
+}
+
+.filter-empty-block {
+  padding: 8px 0 16px;
+}
+
+.filter-rule-remove-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-rule-remove-btn:hover {
+  background: #fef2f2;
 }
 
 .back-link {
@@ -1468,6 +1605,7 @@ export default {
 .table-title {
   margin: 0;
   font-size: 18px;
+  line-height: 1.3;
 }
 
 .header-actions {
@@ -1475,6 +1613,7 @@ export default {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .ai-magic-button {
@@ -1807,6 +1946,8 @@ export default {
 }
 
 .filter-rule-actions {
+  flex-shrink: 0;
+  align-self: flex-end;
   padding-bottom: 2px;
 }
 
