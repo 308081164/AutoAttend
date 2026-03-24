@@ -40,9 +40,28 @@
     <div v-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
     <div v-else-if="!columns.length" class="placeholder">{{ $t('collabTable.noColumns') }}</div>
     <div v-else class="table-wrapper">
+      <div v-if="selectedCount > 0" class="batch-toolbar">
+        <span class="batch-toolbar-text">{{ $t('collabTable.batchSelected', { n: selectedCount }) }}</span>
+        <button type="button" class="secondary-button small" :disabled="batchDeleting" @click="clearRowSelection">
+          {{ $t('collabTable.batchClearSelection') }}
+        </button>
+        <button type="button" class="danger-button small" :disabled="batchDeleting" @click="confirmBatchDelete">
+          {{ batchDeleting ? $t('collabTable.batchDeleting') : $t('collabTable.batchDelete') }}
+        </button>
+      </div>
       <table class="data-table">
         <thead>
           <tr>
+            <th class="col-check" @click.stop>
+              <input
+                ref="selectAllCheckbox"
+                type="checkbox"
+                class="row-check-input"
+                :disabled="!records.length || recordsLoading"
+                :checked="allRowsSelected"
+                @change="onToggleSelectAll($event)"
+              >
+            </th>
             <th class="col-serial">{{ $t('collabTable.serialNo') }}</th>
             <th v-for="col in columns" :key="col.id" class="col-header" :class="getColumnHeaderClass(col)">{{ getColumnDisplayName(col) }}</th>
             <th class="col-ops">{{ $t('collabTable.operations') }}</th>
@@ -50,6 +69,14 @@
         </thead>
         <tbody>
           <tr v-for="(row, idx) in records" :key="row.id" @click="openRecord(row)">
+            <td class="cell col-check" @click.stop>
+              <input
+                type="checkbox"
+                class="row-check-input"
+                :checked="!!rowSelection[row.id]"
+                @change="toggleRowSelection(row, $event.target.checked)"
+              >
+            </td>
             <td class="cell col-serial">{{ idx + 1 }}</td>
             <td v-for="col in columns" :key="col.id" class="cell" :class="getCellClass(col)">
               <template v-if="isAttachmentColumn(col)">
@@ -555,7 +582,10 @@ export default {
       imagePreviewUrl: '',
       imagePreviewTitle: '',
       imagePreviewAttachment: null,
-      imagePreviewEscapeHandler: null
+      imagePreviewEscapeHandler: null,
+      /** 批量选择：recordId -> true */
+      rowSelection: {},
+      batchDeleting: false
     }
   },
   computed: {
@@ -568,7 +598,22 @@ export default {
     filterableColumns () {
       const allowed = ['重要程度', '当前状态', '验收结果']
       return Array.isArray(this.columns) ? this.columns.filter(c => allowed.includes(c.name)) : []
+    },
+    selectedCount () {
+      return Object.keys(this.rowSelection).length
+    },
+    allRowsSelected () {
+      if (!this.records.length) return false
+      return this.records.every(r => this.rowSelection[r.id])
     }
+  },
+  updated () {
+    this.$nextTick(() => {
+      const el = this.$refs.selectAllCheckbox
+      if (el) {
+        el.indeterminate = this.selectedCount > 0 && !this.allRowsSelected
+      }
+    })
   },
   created () {
     this.projectId = Number(this.$route.params.projectId)
@@ -936,10 +981,58 @@ export default {
           if (!Number.isNaN(total) && all.length >= total) break
         }
         this.records = all
+        this.pruneRowSelectionAfterLoad()
         this.revokeListAttachmentPreviewUrls()
         await this.loadListAttachmentPreviews()
       } finally {
         this.recordsLoading = false
+      }
+    },
+    pruneRowSelectionAfterLoad () {
+      const idSet = new Set(this.records.map(r => r.id))
+      Object.keys(this.rowSelection).forEach(k => {
+        if (!idSet.has(Number(k))) this.$delete(this.rowSelection, k)
+      })
+    },
+    onToggleSelectAll (e) {
+      const on = e.target.checked
+      if (on) {
+        this.records.forEach(r => this.$set(this.rowSelection, r.id, true))
+      } else {
+        this.rowSelection = {}
+      }
+    },
+    toggleRowSelection (row, checked) {
+      if (checked) this.$set(this.rowSelection, row.id, true)
+      else this.$delete(this.rowSelection, row.id)
+    },
+    clearRowSelection () {
+      this.rowSelection = {}
+    },
+    confirmBatchDelete () {
+      const ids = Object.keys(this.rowSelection).map(Number)
+      if (!ids.length) return
+      if (!window.confirm(this.$t('collabTable.confirmBatchDelete', { n: ids.length }))) return
+      this.batchDeleteRecords(ids)
+    },
+    async batchDeleteRecords (ids) {
+      this.batchDeleting = true
+      try {
+        for (const id of ids) {
+          await this.$http.delete(`/collab/records/${id}`)
+        }
+        if (this.drawerRecord && ids.includes(this.drawerRecord.id)) {
+          this.revokeAttachmentPreviewUrls()
+          this.drawerRecord = null
+          this.drawerEditValues = {}
+        }
+        this.rowSelection = {}
+        await this.loadRecords()
+      } catch (e) {
+        alert(this.$t('collabTable.batchDeleteFailed'))
+        await this.loadRecords()
+      } finally {
+        this.batchDeleting = false
       }
     },
     getColumnHeaderClass (col) {
@@ -1770,9 +1863,26 @@ export default {
   width: 100%;
 }
 
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 10px 14px;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+}
+
+.batch-toolbar-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e40af;
+  margin-right: auto;
+}
+
 .data-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 940px;
   border-collapse: collapse;
 }
 
@@ -1793,6 +1903,20 @@ export default {
 .data-table td.cell-problem { min-width: 200px; max-width: 380px; }
 .data-table th.col-attachment,
 .data-table td.cell-attachment { width: 120px; }
+.data-table th.col-check,
+.data-table td.col-check {
+  width: 44px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.row-check-input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
+
 .data-table th.col-serial,
 .data-table td.col-serial { width: 60px; text-align: center; font-variant-numeric: tabular-nums; }
 .data-table th.col-ops { width: 100px; }
@@ -2024,6 +2148,11 @@ export default {
 .danger-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.danger-button.small {
+  padding: 4px 12px;
+  font-size: 13px;
 }
 
 .ops-cell {
