@@ -96,8 +96,47 @@
                 </div>
               </template>
               <template v-else>
+                <div
+                  v-if="isStatusTagColumn(col) && isSingleSelect(col)"
+                  class="status-inline-editor"
+                  @click.stop
+                >
+                  <button
+                    type="button"
+                    class="status-select status-picker-trigger"
+                    :class="getStatusTagClass(col, row['c' + col.id])"
+                    :disabled="isStatusUpdating(row.id, col.id)"
+                    @click.stop="toggleStatusPicker(row.id, col.id)"
+                  >
+                    <span class="status-picker-text">{{ row['c' + col.id] || $t('collabTable.pleaseSelect') }}</span>
+                  </button>
+                  <div
+                    v-if="isStatusPickerOpen(row.id, col.id)"
+                    class="status-picker-menu"
+                    @click.stop
+                  >
+                    <button
+                      type="button"
+                      class="status-picker-item"
+                      :class="{ active: !row['c' + col.id] }"
+                      @click.stop="onInlineStatusChange(row, col, ''); closeStatusPicker()"
+                    >
+                      {{ $t('collabTable.pleaseSelect') }}
+                    </button>
+                    <button
+                      v-for="opt in getStatusOptions(col)"
+                      :key="'status-opt-' + row.id + '-' + col.id + '-' + opt"
+                      type="button"
+                      class="status-picker-item"
+                      :class="[getStatusTagClass(col, opt), { active: row['c' + col.id] === opt }]"
+                      @click.stop="onInlineStatusChange(row, col, opt); closeStatusPicker()"
+                    >
+                      {{ opt }}
+                    </button>
+                  </div>
+                </div>
                 <span
-                  v-if="isStatusTagColumn(col)"
+                  v-else-if="isStatusTagColumn(col)"
                   class="status-tag"
                   :class="getStatusTagClass(col, row['c' + col.id])"
                 >
@@ -650,6 +689,8 @@ export default {
       imagePreviewTitle: '',
       imagePreviewAttachment: null,
       imagePreviewEscapeHandler: null,
+      statusUpdatingMap: {},
+      statusPickerOpenKey: '',
       /** 批量选择：recordId -> true */
       rowSelection: {},
       batchDeleting: false
@@ -691,6 +732,7 @@ export default {
   },
   beforeDestroy () {
     this.detachImagePreviewEscape()
+    this.detachStatusPickerOutside()
     this.closeImagePreview()
     this.revokeListAttachmentPreviewUrls()
   },
@@ -1400,6 +1442,60 @@ export default {
       if (name === '当前状态' || name === '解决情况') cls = statusMap[v] || ''
       if (name === '验收结果') cls = acceptMap[v] || ''
       return cls || 'status-tag-slate'
+    },
+    statusUpdateKey (recordId, colId) {
+      return `${recordId}:${colId}`
+    },
+    isStatusUpdating (recordId, colId) {
+      return !!this.statusUpdatingMap[this.statusUpdateKey(recordId, colId)]
+    },
+    statusPickerKey (recordId, colId) {
+      return `${recordId}:${colId}`
+    },
+    isStatusPickerOpen (recordId, colId) {
+      return this.statusPickerOpenKey === this.statusPickerKey(recordId, colId)
+    },
+    toggleStatusPicker (recordId, colId) {
+      const key = this.statusPickerKey(recordId, colId)
+      this.statusPickerOpenKey = (this.statusPickerOpenKey === key) ? '' : key
+      if (this.statusPickerOpenKey) this.attachStatusPickerOutside()
+      else this.detachStatusPickerOutside()
+    },
+    closeStatusPicker () {
+      this.statusPickerOpenKey = ''
+      this.detachStatusPickerOutside()
+    },
+    attachStatusPickerOutside () {
+      if (this._statusPickerOutsideHandler) return
+      this._statusPickerOutsideHandler = () => {
+        this.closeStatusPicker()
+      }
+      document.addEventListener('click', this._statusPickerOutsideHandler)
+    },
+    detachStatusPickerOutside () {
+      if (!this._statusPickerOutsideHandler) return
+      document.removeEventListener('click', this._statusPickerOutsideHandler)
+      this._statusPickerOutsideHandler = null
+    },
+    getStatusOptions (col) {
+      return this.getSelectOptions(col) || []
+    },
+    async onInlineStatusChange (row, col, nextValue) {
+      if (!row || !col) return
+      const fieldKey = 'c' + col.id
+      const prev = row[fieldKey] == null ? '' : String(row[fieldKey])
+      const next = nextValue == null ? '' : String(nextValue)
+      if (prev === next) return
+      const key = this.statusUpdateKey(row.id, col.id)
+      this.$set(this.statusUpdatingMap, key, true)
+      this.$set(row, fieldKey, next || null)
+      try {
+        await this.$http.put(`/collab/records/${row.id}`, { fields: { [fieldKey]: next || null } })
+      } catch (e) {
+        this.$set(row, fieldKey, prev || null)
+      } finally {
+        this.$delete(this.statusUpdatingMap, key)
+      }
     },
     getSelectOptions (col) {
       if (!col.optionGroup || !col.optionGroup.options) return []
@@ -2268,6 +2364,97 @@ export default {
 .status-tag-orange { color: #9a3412; background: #ffedd5; }
 .status-tag-red { color: #991b1b; background: #fee2e2; }
 .status-tag-slate { color: #334155; background: #e2e8f0; }
+
+.status-inline-editor {
+  display: inline-flex;
+  position: relative;
+  max-width: 100%;
+}
+
+.status-select {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 108px;
+  padding: 2px 28px 2px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) calc(50% - 1px),
+    calc(100% - 11px) calc(50% - 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.status-select:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+.status-select:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.status-picker-trigger {
+  justify-content: flex-start;
+}
+
+.status-picker-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  max-width: 280px;
+  max-height: 240px;
+  overflow: auto;
+  z-index: 25;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  padding: 6px;
+}
+
+.status-picker-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: #fff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.status-picker-item:last-child {
+  margin-bottom: 0;
+}
+
+.status-picker-item.active {
+  border-color: #93c5fd;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2);
+}
 
 .list-thumbs {
   display: flex;
