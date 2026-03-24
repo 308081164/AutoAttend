@@ -9,7 +9,9 @@ import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.collab.ai.CollabAiTaskResponseParser;
 import org.example.atuo_attend_backend.collab.controller.CollabAiTaskController;
+import org.example.atuo_attend_backend.collab.dto.CollabCsvQuickImportRequest;
 import org.example.atuo_attend_backend.collab.domain.BizProjectMember;
+import org.example.atuo_attend_backend.collab.domain.BizTableColumn;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMemberMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
@@ -50,6 +52,7 @@ public class CollabCsvAiImportService {
     private final DeepSeekClient deepSeekClient;
     private final AiTokenUsageMapper tokenUsageMapper;
     private final CollabCsvAiImportSessionStore sessionStore;
+    private final CollabRecordService recordService;
 
     @Value("${app.collab.csv-ai-import.max-rows-per-chunk:12}")
     private int configuredMaxRowsPerChunk;
@@ -76,7 +79,8 @@ public class CollabCsvAiImportService {
                                     AiAnalysisConfigService aiConfigService,
                                     DeepSeekClient deepSeekClient,
                                     AiTokenUsageMapper tokenUsageMapper,
-                                    CollabCsvAiImportSessionStore sessionStore) {
+                                    CollabCsvAiImportSessionStore sessionStore,
+                                    CollabRecordService recordService) {
         this.tableService = tableService;
         this.projectMemberMapper = projectMemberMapper;
         this.userMapper = userMapper;
@@ -84,6 +88,7 @@ public class CollabCsvAiImportService {
         this.deepSeekClient = deepSeekClient;
         this.tokenUsageMapper = tokenUsageMapper;
         this.sessionStore = sessionStore;
+        this.recordService = recordService;
     }
 
     /**
@@ -214,6 +219,144 @@ public class CollabCsvAiImportService {
         return data;
     }
 
+    /**
+     * 快捷引导导入：创建会话并返回表头 + 若干样例行。
+     */
+    public Map<String, Object> createQuickImportSession(long userId, long projectId, MultipartFile file) throws Exception {
+        validateFileBasics(file);
+        Map<String, Object> schema = tableService.getTableWithColumns(projectId);
+        if (schema == null) {
+            throw new IllegalStateException("项目未绑定表格");
+        }
+        CsvParseResult parsed = parseCsv(file);
+        if (parsed.header().length == 0) {
+            throw new IllegalArgumentException("CSV 无表头");
+        }
+        if (parsed.dataRows().isEmpty()) {
+            throw new IllegalArgumentException("CSV 无数据行");
+        }
+        if (parsed.dataRows().size() > MAX_TOTAL_DATA_ROWS) {
+            throw new IllegalArgumentException("数据行过多（上限 " + MAX_TOTAL_DATA_ROWS + "），请拆分文件");
+        }
+
+        CollabCsvAiImportSessionStore.Session session = new CollabCsvAiImportSessionStore.Session();
+        session.setUserId(userId);
+        session.setProjectId(projectId);
+        session.setHeader(parsed.header());
+        session.setDataRows(parsed.dataRows());
+        String sessionId = sessionStore.create(session);
+
+        List<Map<String, String>> sampleRows = new ArrayList<>();
+        int sampleCount = Math.min(5, parsed.dataRows().size());
+        for (int i = 0; i < sampleCount; i++) {
+            sampleRows.add(toRowMap(parsed.header(), parsed.dataRows().get(i)));
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("sessionId", sessionId);
+        data.put("csvRowCount", parsed.dataRows().size());
+        data.put("headers", Arrays.asList(parsed.header()));
+        data.put("sampleRows", sampleRows);
+        return data;
+    }
+
+    /**
+     * 快捷引导导入：依据映射规则将会话中的 CSV 行写入多维表。
+     */
+    public Map<String, Object> commitQuickImport(long userId, long projectId, CollabCsvQuickImportRequest body) {
+        if (body == null || body.getSessionId() == null || body.getSessionId().isBlank()) {
+            throw new IllegalArgumentException("sessionId 缺失");
+        }
+        CollabCsvAiImportSessionStore.Session session = sessionStore.get(body.getSessionId());
+        if (session == null) {
+            throw new IllegalStateException("会话已过期或无效，请重新上传 CSV");
+        }
+        if (session.getUserId() != userId || session.getProjectId() != projectId) {
+            throw new IllegalStateException("无权访问该导入会话");
+        }
+        List<CollabCsvQuickImportRequest.MappingRule> rules = body.getMappings() != null ? body.getMappings() : List.of();
+        if (rules.isEmpty()) {
+            throw new IllegalArgumentException("请至少配置一条映射规则");
+        }
+
+        Map<String, Object> schema = tableService.getTableWithColumns(projectId);
+        if (schema == null) {
+            throw new IllegalStateException("项目未绑定表格");
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) schema.get("columns");
+        if (columns == null || columns.isEmpty()) {
+            throw new IllegalStateException("表格列定义为空");
+        }
+        Map<Long, Map<String, Object>> colById = new HashMap<>();
+        for (Map<String, Object> c : columns) {
+            Object idObj = c.get("id");
+            if (idObj == null) continue;
+            long id = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+            colById.put(id, c);
+        }
+        Map<String, Integer> headerIndex = buildHeaderIndex(session.getHeader());
+
+        List<RuleSpec> specs = new ArrayList<>();
+        for (CollabCsvQuickImportRequest.MappingRule r : rules) {
+            if (r == null || r.getTargetColumnId() == null) continue;
+            long colId = r.getTargetColumnId();
+            Map<String, Object> col = colById.get(colId);
+            if (col == null) {
+                throw new IllegalArgumentException("目标列不存在: " + colId);
+            }
+            List<Integer> indexes = new ArrayList<>();
+            if (r.getSourceHeaders() != null) {
+                for (String h : r.getSourceHeaders()) {
+                    if (h == null || h.isBlank()) continue;
+                    Integer idx = headerIndex.get(h.trim());
+                    if (idx != null) indexes.add(idx);
+                }
+            }
+            if (indexes.isEmpty()) continue;
+            String joinWith = r.getJoinWith() != null ? r.getJoinWith() : "\n";
+            String columnType = String.valueOf(col.getOrDefault("columnType", "text"));
+            specs.add(new RuleSpec(colId, columnType, indexes, joinWith));
+        }
+        if (specs.isEmpty()) {
+            throw new IllegalArgumentException("映射规则无效：请选择来源 CSV 列");
+        }
+
+        var table = tableService.getTableByProjectId(projectId);
+        if (table == null) {
+            throw new IllegalStateException("项目未绑定表格");
+        }
+
+        int created = 0;
+        int skipped = 0;
+        List<String[]> rows = session.getDataRows() != null ? session.getDataRows() : List.of();
+        for (String[] row : rows) {
+            Map<String, Object> fields = new LinkedHashMap<>();
+            for (RuleSpec spec : specs) {
+                Object value = buildMappedValue(spec, row);
+                if (value != null) {
+                    fields.put("c" + spec.targetColumnId(), value);
+                }
+            }
+            if (fields.isEmpty()) {
+                skipped++;
+                continue;
+            }
+            try {
+                recordService.createRecord(table.getId(), userId, fields);
+                created++;
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException((e.getMessage() != null ? e.getMessage() : "导入失败") + "（已成功导入 " + created + " 条）");
+            }
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("createdCount", created);
+        data.put("skippedCount", skipped);
+        data.put("totalRows", rows.size());
+        return data;
+    }
+
     /** 导入完成或放弃时释放内存（也可依赖会话 TTL 自动清理） */
     public void discardSession(long userId, long projectId, String sessionId) {
         CollabCsvAiImportSessionStore.Session session = sessionStore.get(sessionId);
@@ -289,6 +432,60 @@ public class CollabCsvAiImportService {
             }
         }
         return true;
+    }
+
+    private static Map<String, Integer> buildHeaderIndex(String[] header) {
+        Map<String, Integer> m = new LinkedHashMap<>();
+        if (header == null) return m;
+        for (int i = 0; i < header.length; i++) {
+            String h = header[i] != null ? header[i].trim() : "";
+            if (!h.isEmpty() && !m.containsKey(h)) {
+                m.put(h, i);
+            }
+        }
+        return m;
+    }
+
+    private static Map<String, String> toRowMap(String[] header, String[] row) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (int i = 0; i < header.length; i++) {
+            String key = header[i];
+            String val = (row != null && i < row.length && row[i] != null) ? row[i] : "";
+            out.put(key, val);
+        }
+        return out;
+    }
+
+    private static Object buildMappedValue(RuleSpec spec, String[] row) {
+        List<String> parts = new ArrayList<>();
+        for (Integer idx : spec.sourceIndexes()) {
+            if (idx == null || idx < 0) continue;
+            String v = (row != null && idx < row.length && row[idx] != null) ? row[idx].trim() : "";
+            if (!v.isEmpty()) parts.add(v);
+        }
+        if (parts.isEmpty()) return null;
+
+        String columnType = spec.columnType();
+        if ("multi_select".equals(columnType) || "multi_user".equals(columnType) || "attachment".equals(columnType)) {
+            List<String> arr = new ArrayList<>();
+            for (String p : parts) {
+                String[] seg = p.split("[,，;；|、\\s]+");
+                for (String s : seg) {
+                    if (s != null && !s.isBlank()) arr.add(s.trim());
+                }
+            }
+            return arr.isEmpty() ? null : arr;
+        }
+        if ("number".equals(columnType)) {
+            String joined = String.join(spec.joinWith(), parts).trim();
+            if (joined.isEmpty()) return null;
+            try {
+                return Double.parseDouble(joined);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return String.join(spec.joinWith(), parts).trim();
     }
 
     private String buildMemberLines(long projectId) {
@@ -396,5 +593,8 @@ public class CollabCsvAiImportService {
     }
 
     private record CsvParseResult(String[] header, List<String[]> dataRows) {
+    }
+
+    private record RuleSpec(long targetColumnId, String columnType, List<Integer> sourceIndexes, String joinWith) {
     }
 }

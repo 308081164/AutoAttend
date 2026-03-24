@@ -343,7 +343,16 @@
             </button>
           </div>
           <div v-show="aiModalMode === 'csv'" class="ai-csv-section">
-            <p class="hint-text">{{ $t('collabTable.csvAiHint') }}</p>
+            <div class="csv-import-mode-tabs" role="tablist">
+              <button type="button" role="tab" :aria-selected="csvImportMode === 'ai'" :class="{ active: csvImportMode === 'ai' }" @click="csvImportMode = 'ai'">
+                {{ $t('collabTable.csvImportModeAi') }}
+              </button>
+              <button type="button" role="tab" :aria-selected="csvImportMode === 'quick'" :class="{ active: csvImportMode === 'quick' }" @click="csvImportMode = 'quick'">
+                {{ $t('collabTable.csvImportModeQuick') }}
+              </button>
+            </div>
+            <p class="hint-text" v-if="csvImportMode === 'ai'">{{ $t('collabTable.csvAiHint') }}</p>
+            <p class="hint-text" v-else>{{ $t('collabTable.csvQuickHint') }}</p>
             <div class="ai-upload-row">
               <input ref="csvAiFileInput" type="file" accept=".csv,text/csv" style="display:none" @change="onCsvAiFileSelected">
               <button type="button" class="secondary-button small" @click="$refs.csvAiFileInput && $refs.csvAiFileInput.click()">
@@ -351,13 +360,56 @@
               </button>
               <span v-if="csvAiFileName" class="csv-file-name">{{ csvAiFileName }}</span>
             </div>
-            <button type="button" class="primary-button" @click="runCsvAiPreview" :disabled="csvAiLoading || !csvAiFile">
+            <button
+              v-if="csvImportMode === 'ai'"
+              type="button"
+              class="primary-button"
+              @click="runCsvAiPreview"
+              :disabled="csvAiLoading || !csvAiFile"
+            >
               {{ csvAiLoading ? $t('collabTable.csvAiParsing') : $t('collabTable.csvAiParseBtn') }}
+            </button>
+            <button
+              v-else
+              type="button"
+              class="primary-button"
+              @click="analyzeQuickCsv"
+              :disabled="csvAiLoading || !csvAiFile"
+            >
+              {{ csvAiLoading ? $t('collabTable.csvQuickAnalyzing') : $t('collabTable.csvQuickAnalyze') }}
             </button>
             <p v-if="csvAiProgress" class="csv-progress-text">{{ csvAiProgress }}</p>
             <ul v-if="csvAiWarnings.length" class="csv-warn-list">
               <li v-for="(w, wi) in csvAiWarnings" :key="'cw-' + wi">{{ w }}</li>
             </ul>
+            <div v-if="csvImportMode === 'quick' && quickCsvHeaders.length" class="quick-csv-mapping-panel">
+              <h4 class="quick-csv-title">{{ $t('collabTable.csvQuickMappingTitle') }}</h4>
+              <div class="quick-csv-sample">
+                <span class="text-muted small">{{ $t('collabTable.csvQuickSampleHint') }}</span>
+                <div v-if="quickCsvSampleRows.length" class="quick-csv-sample-box">
+                  <pre>{{ JSON.stringify(quickCsvSampleRows[0], null, 2) }}</pre>
+                </div>
+              </div>
+              <div class="quick-map-list">
+                <div v-for="m in quickCsvMappings" :key="'qm-' + m.targetColumnId" class="quick-map-row">
+                  <div class="quick-map-target">{{ getColumnById(m.targetColumnId) ? getColumnById(m.targetColumnId).name : ('#' + m.targetColumnId) }}</div>
+                  <div class="quick-map-source">
+                    <select v-model="m.sourceHeaders" class="field-input quick-multi-select" multiple>
+                      <option v-for="h in quickCsvHeaders" :key="'qh-' + h" :value="h">{{ h }}</option>
+                    </select>
+                    <input v-model="m.joinWith" type="text" class="field-input quick-join-input" :placeholder="$t('collabTable.csvQuickJoinPlaceholder')">
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="primary-button"
+                @click="commitQuickCsvImport"
+                :disabled="quickCsvImporting"
+              >
+                {{ quickCsvImporting ? $t('collabTable.csvQuickImporting') : $t('collabTable.csvQuickImport') }}
+              </button>
+            </div>
           </div>
           <div v-show="aiModalMode === 'text'" class="ai-input-section">
             <label class="field-label">{{ $t('collabTable.aiInputRawText') }}</label>
@@ -575,6 +627,12 @@ export default {
       csvAiLoading: false,
       csvAiProgress: '',
       csvAiWarnings: [],
+      csvImportMode: 'ai',
+      quickCsvSessionId: '',
+      quickCsvHeaders: [],
+      quickCsvSampleRows: [],
+      quickCsvMappings: [],
+      quickCsvImporting: false,
       aiCommitting: false,
       aiSessionAttachments: [],
       aiSelectedAttachmentIds: [],
@@ -631,6 +689,7 @@ export default {
     openAiInput (mode) {
       this.aiModalMode = mode === 'csv' ? 'csv' : 'text'
       this.showAiModal = true
+      this.csvImportMode = 'ai'
       this.aiInputText = ''
       this.aiTasks = []
       this.aiSelectedAttachmentIds = []
@@ -639,10 +698,15 @@ export default {
       this.csvAiFileName = ''
       this.csvAiWarnings = []
       this.csvAiProgress = ''
+      this.clearQuickCsvState()
       if (this.$refs.csvAiFileInput) this.$refs.csvAiFileInput.value = ''
     },
     closeAiModal () {
+      if (this.quickCsvSessionId) {
+        this.$http.delete(`/collab/projects/${this.projectId}/csv-quick-import/session/${this.quickCsvSessionId}`, { timeout: 15000 }).catch(() => {})
+      }
       this.showAiModal = false
+      this.clearQuickCsvState()
     },
     openFilterModal () {
       // 从当前激活的筛选规则恢复编辑
@@ -763,9 +827,106 @@ export default {
       await this.loadRecords(payload)
     },
     onCsvAiFileSelected (e) {
+      if (this.quickCsvSessionId) {
+        this.$http.delete(`/collab/projects/${this.projectId}/csv-quick-import/session/${this.quickCsvSessionId}`, { timeout: 15000 }).catch(() => {})
+      }
       const f = e.target && e.target.files && e.target.files[0]
       this.csvAiFile = f || null
       this.csvAiFileName = f ? f.name : ''
+      this.csvAiWarnings = []
+      this.csvAiProgress = ''
+      this.quickCsvSessionId = ''
+      this.quickCsvHeaders = []
+      this.quickCsvSampleRows = []
+      this.quickCsvMappings = []
+    },
+    clearQuickCsvState () {
+      this.quickCsvSessionId = ''
+      this.quickCsvHeaders = []
+      this.quickCsvSampleRows = []
+      this.quickCsvMappings = []
+      this.quickCsvImporting = false
+    },
+    initQuickCsvMappings (headers) {
+      const headerSet = new Set((headers || []).map(h => String(h || '').trim()))
+      const out = []
+      for (const col of this.columns || []) {
+        const name = String(col.name || '').trim()
+        if (!name) continue
+        out.push({
+          targetColumnId: col.id,
+          sourceHeaders: headerSet.has(name) ? [name] : [],
+          joinWith: '\n'
+        })
+      }
+      this.quickCsvMappings = out
+    },
+    async analyzeQuickCsv () {
+      if (!this.csvAiFile) return
+      this.csvAiLoading = true
+      this.csvAiWarnings = []
+      try {
+        const fd = new FormData()
+        fd.append('file', this.csvAiFile)
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/csv-quick-import/session`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 120000
+        })
+        if (!resp.data || resp.data.code !== 0 || !resp.data.data) {
+          alert((resp.data && resp.data.message) || this.$t('collabTable.csvQuickAnalyzeFailed'))
+          return
+        }
+        const d = resp.data.data
+        this.quickCsvSessionId = d.sessionId || ''
+        this.quickCsvHeaders = Array.isArray(d.headers) ? d.headers : []
+        this.quickCsvSampleRows = Array.isArray(d.sampleRows) ? d.sampleRows : []
+        this.initQuickCsvMappings(this.quickCsvHeaders)
+      } catch (e) {
+        const msg = (e.response && e.response.data && e.response.data.message) || ''
+        alert(msg || this.$t('collabTable.csvQuickAnalyzeFailed'))
+      } finally {
+        this.csvAiLoading = false
+      }
+    },
+    async commitQuickCsvImport () {
+      if (!this.quickCsvSessionId) {
+        alert(this.$t('collabTable.csvQuickNeedAnalyze'))
+        return
+      }
+      const mappings = (this.quickCsvMappings || [])
+        .map(m => ({
+          targetColumnId: m.targetColumnId,
+          sourceHeaders: Array.isArray(m.sourceHeaders) ? m.sourceHeaders.filter(Boolean) : [],
+          joinWith: m.joinWith != null ? String(m.joinWith) : '\n'
+        }))
+        .filter(m => m.sourceHeaders.length > 0)
+      if (!mappings.length) {
+        alert(this.$t('collabTable.csvQuickNeedMapping'))
+        return
+      }
+      this.quickCsvImporting = true
+      try {
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/csv-quick-import/commit`, {
+          sessionId: this.quickCsvSessionId,
+          mappings
+        }, { timeout: 180000 })
+        if (!resp.data || resp.data.code !== 0 || !resp.data.data) {
+          alert((resp.data && resp.data.message) || this.$t('collabTable.csvQuickImportFailed'))
+          return
+        }
+        const d = resp.data.data
+        alert(this.$t('collabTable.csvQuickImportDone', { created: d.createdCount || 0, skipped: d.skippedCount || 0 }))
+        this.showAiModal = false
+        this.clearQuickCsvState()
+        this.csvAiFile = null
+        this.csvAiFileName = ''
+        await this.loadRecords()
+      } catch (e) {
+        const msg = (e.response && e.response.data && e.response.data.message) || ''
+        alert(msg || this.$t('collabTable.csvQuickImportFailed'))
+      } finally {
+        this.quickCsvImporting = false
+      }
     },
     async runCsvAiPreview () {
       if (!this.csvAiFile) return
@@ -1814,11 +1975,96 @@ export default {
   margin-bottom: 16px;
 }
 
+.csv-import-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.csv-import-mode-tabs button {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.csv-import-mode-tabs button.active {
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
 .ai-csv-section .hint-text {
   font-size: 13px;
   color: #64748b;
   line-height: 1.5;
   margin: 0 0 10px;
+}
+
+.quick-csv-mapping-panel {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.quick-csv-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.quick-csv-sample-box {
+  margin-top: 6px;
+  max-height: 130px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.quick-csv-sample-box pre {
+  margin: 0;
+  padding: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.quick-map-list {
+  margin: 10px 0 12px;
+}
+
+.quick-map-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.quick-map-target {
+  font-size: 13px;
+  color: #334155;
+  line-height: 30px;
+}
+
+.quick-map-source {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  gap: 8px;
+}
+
+.quick-multi-select {
+  min-height: 80px;
+}
+
+.quick-join-input {
+  min-height: 32px;
 }
 
 .csv-file-name {
