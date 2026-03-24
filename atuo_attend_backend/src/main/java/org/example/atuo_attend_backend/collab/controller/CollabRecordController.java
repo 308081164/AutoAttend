@@ -126,7 +126,7 @@ public class CollabRecordController {
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> fields = (Map<String, Object>) body.get("fields");
-        recordService.updateRecord(recordId, fields);
+        recordService.updateRecordWithAudit(recordId, fields, userId, "api");
         return ApiResponse.ok(null);
     }
 
@@ -137,7 +137,20 @@ public class CollabRecordController {
         if (projectId < 0 || !projectService.canAccessProject(userId, projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
-        recordService.deleteRecord(recordId);
+        recordService.deleteRecordWithAudit(recordId, userId, "api");
         return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/records/{recordId}/history")
+    public ApiResponse<?> listRecordHistory(@PathVariable long recordId,
+                                            @RequestParam(defaultValue = "1") int page,
+                                            @RequestParam(defaultValue = "50") int pageSize,
+                                            HttpServletRequest req) {
+        long userId = requireUserId(req);
+        long projectId = recordService.getProjectIdByRecordId(recordId);
+        if (projectId < 0 || !projectService.canAccessProject(userId, projectId)) {
+            return ApiResponse.error(40300, "无权限访问");
+        }
+        return ApiResponse.ok(recordService.listRecordHistory(recordId, page, pageSize));
     }
 }

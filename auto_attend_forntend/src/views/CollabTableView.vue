@@ -169,6 +169,7 @@
           <button :class="{ active: drawerTab === 'fields' }" @click="drawerTab = 'fields'">{{ $t('collabTable.fields') }}</button>
           <button :class="{ active: drawerTab === 'comments' }" @click="drawerTab = 'comments'; loadComments()">{{ $t('collabTable.discussion') }}</button>
           <button :class="{ active: drawerTab === 'attachments' }" @click="drawerTab = 'attachments'; loadAttachments()">{{ $t('collabTable.attachments') }}</button>
+          <button :class="{ active: drawerTab === 'history' }" @click="drawerTab = 'history'; loadHistory()">{{ $t('collabTable.editHistory') }}</button>
         </div>
         <div class="drawer-body">
           <div v-if="drawerTab === 'fields'" class="field-list">
@@ -290,6 +291,36 @@
                 </template>
               </li>
             </ul>
+          </div>
+          <div v-if="drawerTab === 'history'" class="history-panel">
+            <div v-if="historyLoading" class="text-muted">{{ $t('collabTable.loadingRecords') }}</div>
+            <div v-else-if="!historyItems.length" class="text-muted">{{ $t('collabTable.historyEmpty') }}</div>
+            <div v-else class="history-list">
+              <div v-for="h in historyItems" :key="'h-' + h.id" class="history-item">
+                <div class="history-topline">
+                  <span class="history-action">{{ formatHistoryAction(h.action) }}</span>
+                  <span class="history-time">{{ formatTime(h.createdAt) }}</span>
+                </div>
+                <div class="history-meta">
+                  <span>{{ h.operatorName || h.operatorEmail || ('ID ' + h.operatorUserId) }}</span>
+                  <span v-if="h.operatorSystemRole" class="history-role">{{ h.operatorSystemRole }}</span>
+                  <span v-if="h.operatorProjectRole" class="history-role">{{ h.operatorProjectRole }}</span>
+                </div>
+                <div class="history-field">
+                  <strong>{{ h.columnName || $t('collabTable.historyUnknownField') }}</strong>
+                </div>
+                <div class="history-values">
+                  <div class="history-old">
+                    <span class="text-muted">{{ $t('collabTable.historyOldValue') }}:</span>
+                    <span>{{ h.oldValue == null || h.oldValue === '' ? '-' : h.oldValue }}</span>
+                  </div>
+                  <div class="history-new">
+                    <span class="text-muted">{{ $t('collabTable.historyNewValue') }}:</span>
+                    <span>{{ h.newValue == null || h.newValue === '' ? '-' : h.newValue }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -648,6 +679,8 @@ export default {
       drawerSaving: false,
       comments: [],
       attachments: [],
+      historyItems: [],
+      historyLoading: false,
       newComment: '',
       showAddModal: false,
       newRecordFields: {},
@@ -1369,6 +1402,7 @@ export default {
       this.drawerTab = 'fields'
       this.comments = []
       this.attachments = []
+      this.historyItems = []
       this.newComment = ''
       await this.loadAttachments()
       this.loadProjectMembersForDrawer()
@@ -1746,6 +1780,29 @@ export default {
           }
         }
       } catch (e) { /* ignore */ }
+    },
+    async loadHistory () {
+      if (!this.drawerRecord) return
+      this.historyLoading = true
+      try {
+        const resp = await this.$http.get(`/collab/records/${this.drawerRecord.id}/history`, {
+          params: { page: 1, pageSize: 100 }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.historyItems = Array.isArray(resp.data.data.items) ? resp.data.data.items : []
+        } else {
+          this.historyItems = []
+        }
+      } catch (e) {
+        this.historyItems = []
+      } finally {
+        this.historyLoading = false
+      }
+    },
+    formatHistoryAction (action) {
+      if (action === 'create') return this.$t('collabTable.historyActionCreate')
+      if (action === 'delete') return this.$t('collabTable.historyActionDelete')
+      return this.$t('collabTable.historyActionUpdate')
     },
     async submitComment () {
       if (!this.drawerRecord || !this.newComment.trim()) return
@@ -2793,6 +2850,65 @@ export default {
 .attachment-list a,
 .attachment-list .link-button {
   color: #2563eb;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.history-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.history-action {
+  font-size: 12px;
+  color: #0f766e;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.history-time {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.history-meta {
+  font-size: 12px;
+  color: #334155;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.history-role {
+  color: #4f46e5;
+}
+
+.history-field {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.history-values {
+  font-size: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
 }
 
 .attachment-field-preview {

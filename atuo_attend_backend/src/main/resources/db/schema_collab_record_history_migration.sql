@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS biz_record_history (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    project_id BIGINT NOT NULL,
+    table_id BIGINT NOT NULL,
+    record_id BIGINT NOT NULL,
+    column_id BIGINT NULL,
+    action VARCHAR(32) NOT NULL,
+    old_value TEXT NULL,
+    new_value TEXT NULL,
+    operator_user_id BIGINT NULL,
+    operator_system_role VARCHAR(32) NULL,
+    operator_project_role VARCHAR(32) NULL,
+    source VARCHAR(32) NOT NULL DEFAULT 'api',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_record_created (record_id, created_at),
+    KEY idx_project_created (project_id, created_at),
+    KEY idx_operator (operator_user_id),
+    FOREIGN KEY (record_id) REFERENCES biz_record(id) ON DELETE CASCADE,
+    FOREIGN KEY (column_id) REFERENCES biz_table_column(id) ON DELETE SET NULL,
+    FOREIGN KEY (operator_user_id) REFERENCES biz_user(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -23,6 +23,9 @@ public class CollabRecordService {
     private final BizRecordCommentMapper commentMapper;
     private final BizAttachmentMapper attachmentMapper;
     private final BizProjectMapper projectMapper;
+    private final BizProjectMemberMapper projectMemberMapper;
+    private final BizUserMapper userMapper;
+    private final BizRecordHistoryMapper historyMapper;
 
     @Value("${app.collab.table.max-records:1500}")
     private int configuredMaxRecordsPerTable;
@@ -36,7 +39,10 @@ public class CollabRecordService {
                                BizTableColumnMapper columnMapper,
                                BizRecordCommentMapper commentMapper,
                                BizAttachmentMapper attachmentMapper,
-                               BizProjectMapper projectMapper) {
+                               BizProjectMapper projectMapper,
+                               BizProjectMemberMapper projectMemberMapper,
+                               BizUserMapper userMapper,
+                               BizRecordHistoryMapper historyMapper) {
         this.recordMapper = recordMapper;
         this.fieldMapper = fieldMapper;
         this.tableMapper = tableMapper;
@@ -44,6 +50,9 @@ public class CollabRecordService {
         this.commentMapper = commentMapper;
         this.attachmentMapper = attachmentMapper;
         this.projectMapper = projectMapper;
+        this.projectMemberMapper = projectMemberMapper;
+        this.userMapper = userMapper;
+        this.historyMapper = historyMapper;
     }
 
     @PostConstruct
@@ -185,12 +194,18 @@ public class CollabRecordService {
 
     @Transactional(rollbackFor = Exception.class)
     public BizRecord createRecord(long tableId, Long createdBy, Map<String, Object> fieldValues) {
+        return createRecordWithAudit(tableId, createdBy, fieldValues, createdBy, "api");
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public BizRecord createRecordWithAudit(long tableId, Long createdBy, Map<String, Object> fieldValues, Long operatorUserId, String source) {
         assertCanCreateRecord(tableId);
         BizRecord record = new BizRecord();
         record.setTableId(tableId);
         record.setCreatedBy(createdBy);
         recordMapper.insert(record);
 
+        OperatorMeta operatorMeta = resolveOperatorMeta(tableId, operatorUserId);
         List<BizTableColumn> columns = columnMapper.listByTableId(tableId);
         for (BizTableColumn col : columns) {
             Object val = fieldValues == null ? null : fieldValues.get("c" + col.getId());
@@ -200,6 +215,7 @@ public class CollabRecordService {
             rf.setColumnId(col.getId());
             setFieldValue(rf, col.getColumnType(), val);
             fieldMapper.insert(rf);
+            insertHistory(tableId, record.getId(), col.getId(), "create", null, fieldValueToText(rf, col.getColumnType()), operatorMeta, source);
         }
         return record;
     }
@@ -232,22 +248,34 @@ public class CollabRecordService {
 
     @Transactional(rollbackFor = Exception.class)
     public void updateRecord(long recordId, Map<String, Object> fieldValues) {
+        updateRecordWithAudit(recordId, fieldValues, null, "api");
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void updateRecordWithAudit(long recordId, Map<String, Object> fieldValues, Long operatorUserId, String source) {
         BizRecord rec = recordMapper.findById(recordId);
         if (rec == null) return;
+        OperatorMeta operatorMeta = resolveOperatorMeta(rec.getTableId(), operatorUserId);
         List<BizTableColumn> columns = columnMapper.listByTableId(rec.getTableId());
         for (BizTableColumn col : columns) {
             Object val = fieldValues == null ? null : fieldValues.get("c" + col.getId());
             BizRecordField existing = fieldMapper.findByRecordAndColumn(recordId, col.getId());
             if (val != null) {
                 if (existing != null) {
+                    String before = fieldValueToText(existing, col.getColumnType());
                     setFieldValue(existing, col.getColumnType(), val);
                     fieldMapper.update(existing);
+                    String after = fieldValueToText(existing, col.getColumnType());
+                    if (!Objects.equals(before, after)) {
+                        insertHistory(rec.getTableId(), recordId, col.getId(), "update", before, after, operatorMeta, source);
+                    }
                 } else {
                     BizRecordField rf = new BizRecordField();
                     rf.setRecordId(recordId);
                     rf.setColumnId(col.getId());
                     setFieldValue(rf, col.getColumnType(), val);
                     fieldMapper.insert(rf);
+                    insertHistory(rec.getTableId(), recordId, col.getId(), "update", null, fieldValueToText(rf, col.getColumnType()), operatorMeta, source);
                 }
             }
         }
@@ -284,7 +312,82 @@ public class CollabRecordService {
 
     @Transactional(rollbackFor = Exception.class)
     public void deleteRecord(long recordId) {
+        deleteRecordWithAudit(recordId, null, "api");
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteRecordWithAudit(long recordId, Long operatorUserId, String source) {
+        BizRecord rec = recordMapper.findById(recordId);
+        if (rec == null) return;
+        OperatorMeta operatorMeta = resolveOperatorMeta(rec.getTableId(), operatorUserId);
+        List<BizTableColumn> columns = columnMapper.listByTableId(rec.getTableId());
+        Map<Long, BizTableColumn> colMap = new HashMap<>();
+        for (BizTableColumn c : columns) colMap.put(c.getId(), c);
+        for (BizRecordField f : fieldMapper.listByRecordId(recordId)) {
+            BizTableColumn col = colMap.get(f.getColumnId());
+            String colType = col != null ? col.getColumnType() : "text";
+            String oldVal = fieldValueToText(f, colType);
+            if (oldVal != null && !oldVal.isBlank()) {
+                insertHistory(rec.getTableId(), recordId, f.getColumnId(), "delete", oldVal, null, operatorMeta, source);
+            }
+        }
         fieldMapper.deleteByRecordId(recordId);
         recordMapper.deleteById(recordId);
+    }
+
+    public Map<String, Object> listRecordHistory(long recordId, int page, int pageSize) {
+        int offset = (page - 1) * pageSize;
+        List<Map<String, Object>> items = historyMapper.listByRecordId(recordId, offset, pageSize);
+        long total = historyMapper.countByRecordId(recordId);
+        Map<String, Object> out = new HashMap<>();
+        out.put("items", items);
+        out.put("total", total);
+        return out;
+    }
+
+    private void insertHistory(long tableId, long recordId, long columnId, String action,
+                               String oldValue, String newValue, OperatorMeta operatorMeta, String source) {
+        BizProjectTable table = tableMapper.findById(tableId);
+        BizRecordHistory h = new BizRecordHistory();
+        h.setProjectId(table != null ? table.getProjectId() : null);
+        h.setTableId(tableId);
+        h.setRecordId(recordId);
+        h.setColumnId(columnId);
+        h.setAction(action);
+        h.setOldValue(oldValue);
+        h.setNewValue(newValue);
+        if (operatorMeta != null) {
+            h.setOperatorUserId(operatorMeta.userId());
+            h.setOperatorSystemRole(operatorMeta.systemRole());
+            h.setOperatorProjectRole(operatorMeta.projectRole());
+        }
+        h.setSource(source != null ? source : "api");
+        historyMapper.insert(h);
+    }
+
+    private OperatorMeta resolveOperatorMeta(Long tableId, Long operatorUserId) {
+        if (operatorUserId == null || tableId == null) return new OperatorMeta(null, null, null);
+        BizUser u = userMapper.findById(operatorUserId);
+        BizProjectTable table = tableMapper.findById(tableId);
+        String projectRole = null;
+        if (table != null) {
+            BizProjectMember pm = projectMemberMapper.findByProjectAndUser(table.getProjectId(), operatorUserId);
+            if (pm != null) projectRole = pm.getRole();
+        }
+        return new OperatorMeta(operatorUserId, u != null ? u.getRole() : null, projectRole);
+    }
+
+    private String fieldValueToText(BizRecordField f, String columnType) {
+        Object val = getFieldValue(f, columnType);
+        if (val == null) return null;
+        if (val instanceof String) return (String) val;
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(val);
+        } catch (Exception e) {
+            return String.valueOf(val);
+        }
+    }
+
+    private record OperatorMeta(Long userId, String systemRole, String projectRole) {
     }
 }
