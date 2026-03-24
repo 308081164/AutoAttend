@@ -1469,7 +1469,7 @@ export default {
         验收中: 'status-tag-blue',
         已验收: 'status-tag-green',
         驳回: 'status-tag-orange',
-        驳回，需要重新: 'status-tag-orange'
+        '驳回，需要重新': 'status-tag-orange'
       }
       let cls = ''
       if (name === '重要程度') cls = levelMap[v] || ''
