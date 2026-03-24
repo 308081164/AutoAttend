@@ -96,7 +96,16 @@
                 </div>
               </template>
               <template v-else>
-                {{ formatCell(row['c' + col.id], col) }}
+                <span
+                  v-if="isStatusTagColumn(col)"
+                  class="status-tag"
+                  :class="getStatusTagClass(col, row['c' + col.id])"
+                >
+                  {{ formatCell(row['c' + col.id], col) }}
+                </span>
+                <template v-else>
+                  {{ formatCell(row['c' + col.id], col) }}
+                </template>
               </template>
             </td>
             <td class="ops-cell">
@@ -1348,6 +1357,50 @@ export default {
     isSingleSelect (col) {
       return (col.columnType || '').toLowerCase() === 'single_select' && col.optionGroup && col.optionGroup.options && col.optionGroup.options.length
     },
+    isStatusTagColumn (col) {
+      const n = String(col && col.name ? col.name : '').trim()
+      return n === '重要程度' || n === '当前状态' || n === '解决情况' || n === '验收结果'
+    },
+    getStatusTagClass (col, rawValue) {
+      const name = String(col && col.name ? col.name : '').trim()
+      const v = String(rawValue == null ? '' : rawValue).trim()
+      const levelMap = {
+        严重紧急: 'status-tag-red',
+        紧急重要: 'status-tag-red',
+        高: 'status-tag-red',
+        中: 'status-tag-amber',
+        低: 'status-tag-slate',
+        下一阶段待办: 'status-tag-amber',
+        待规划: 'status-tag-slate'
+      }
+      const statusMap = {
+        已创建: 'status-tag-blue',
+        待处理: 'status-tag-blue',
+        待排期: 'status-tag-amber',
+        处理中: 'status-tag-violet',
+        开发中: 'status-tag-violet',
+        测试中: 'status-tag-cyan',
+        待验收: 'status-tag-cyan',
+        已验收: 'status-tag-green',
+        已完成: 'status-tag-green',
+        已关闭: 'status-tag-slate',
+        已驳回: 'status-tag-orange',
+        驳回: 'status-tag-orange'
+      }
+      const acceptMap = {
+        待验收: 'status-tag-cyan',
+        未验收: 'status-tag-cyan',
+        验收中: 'status-tag-blue',
+        已验收: 'status-tag-green',
+        驳回: 'status-tag-orange',
+        驳回，需要重新: 'status-tag-orange'
+      }
+      let cls = ''
+      if (name === '重要程度') cls = levelMap[v] || ''
+      if (name === '当前状态' || name === '解决情况') cls = statusMap[v] || ''
+      if (name === '验收结果') cls = acceptMap[v] || ''
+      return cls || 'status-tag-slate'
+    },
     getSelectOptions (col) {
       if (!col.optionGroup || !col.optionGroup.options) return []
       return col.optionGroup.options
@@ -2192,6 +2245,29 @@ export default {
   width: 120px;
   vertical-align: middle;
 }
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-tag-blue { color: #0c4a6e; background: #dbeafe; }
+.status-tag-cyan { color: #155e75; background: #cffafe; }
+.status-tag-green { color: #166534; background: #dcfce7; }
+.status-tag-violet { color: #5b21b6; background: #ede9fe; }
+.status-tag-amber { color: #92400e; background: #fef3c7; }
+.status-tag-orange { color: #9a3412; background: #ffedd5; }
+.status-tag-red { color: #991b1b; background: #fee2e2; }
+.status-tag-slate { color: #334155; background: #e2e8f0; }
 
 .list-thumbs {
   display: flex;
