@@ -3,8 +3,11 @@ package org.example.atuo_attend_backend.collab.service;
 import org.example.atuo_attend_backend.collab.domain.*;
 import org.example.atuo_attend_backend.collab.dto.CollabRecordFilterRule;
 import org.example.atuo_attend_backend.collab.mapper.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.annotation.PostConstruct;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -21,6 +24,12 @@ public class CollabRecordService {
     private final BizAttachmentMapper attachmentMapper;
     private final BizProjectMapper projectMapper;
 
+    @Value("${app.collab.table.max-records:1500}")
+    private int configuredMaxRecordsPerTable;
+
+    /** 钳位后的单表记录上限 */
+    private int maxRecordsPerTable = 1500;
+
     public CollabRecordService(BizRecordMapper recordMapper,
                                BizRecordFieldMapper fieldMapper,
                                BizProjectTableMapper tableMapper,
@@ -35,6 +44,33 @@ public class CollabRecordService {
         this.commentMapper = commentMapper;
         this.attachmentMapper = attachmentMapper;
         this.projectMapper = projectMapper;
+    }
+
+    @PostConstruct
+    void initMaxRecordsPerTable() {
+        int n = configuredMaxRecordsPerTable;
+        if (n < 1) {
+            n = 1;
+        }
+        if (n > 1_000_000) {
+            n = 1_000_000;
+        }
+        this.maxRecordsPerTable = n;
+    }
+
+    public int getMaxRecordsPerTable() {
+        return maxRecordsPerTable;
+    }
+
+    /**
+     * 插入前校验：当前表记录数不得已达上限。
+     */
+    public void assertCanCreateRecord(long tableId) {
+        long current = recordMapper.countByTableId(tableId);
+        if (current >= maxRecordsPerTable) {
+            throw new IllegalArgumentException(
+                    "该表格记录已达上限（" + maxRecordsPerTable + " 条），请删除部分记录后再试");
+        }
     }
 
     public long getProjectIdByRecordId(long recordId) {
@@ -149,6 +185,7 @@ public class CollabRecordService {
 
     @Transactional(rollbackFor = Exception.class)
     public BizRecord createRecord(long tableId, Long createdBy, Map<String, Object> fieldValues) {
+        assertCanCreateRecord(tableId);
         BizRecord record = new BizRecord();
         record.setTableId(tableId);
         record.setCreatedBy(createdBy);

@@ -176,14 +176,22 @@ public class CollabAiTaskController {
         for (AiTaskDraft t : body.getTasks()) {
             Map<String, Object> fields = draftToRecordFields(t, columnByName, creatorLabel, nowIso, emailToUserId);
             if (!fields.isEmpty()) {
-                var rec = recordService.createRecord(table.getId(), userId, fields);
-                if (t.getAttachmentIds() != null) {
-                    for (Long aid : t.getAttachmentIds()) {
-                        if (aid == null) continue;
-                        attachmentMapper.updateRecordId(aid, rec.getId());
+                try {
+                    var rec = recordService.createRecord(table.getId(), userId, fields);
+                    if (t.getAttachmentIds() != null) {
+                        for (Long aid : t.getAttachmentIds()) {
+                            if (aid == null) continue;
+                            attachmentMapper.updateRecordId(aid, rec.getId());
+                        }
                     }
+                    created++;
+                } catch (IllegalArgumentException ex) {
+                    String msg = ex.getMessage() != null ? ex.getMessage() : "无法继续插入";
+                    if (created > 0) {
+                        return ApiResponse.error(40010, msg + "（本轮已成功插入 " + created + " 条）");
+                    }
+                    return ApiResponse.error(40000, msg);
                 }
-                created++;
             }
         }
         Map<String, Object> data = new HashMap<>();

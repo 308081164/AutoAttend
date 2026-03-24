@@ -909,24 +909,35 @@ export default {
         this.tableLoading = false
       }
     },
+    /**
+     * 拉取当前项目下全部记录（含筛选条件）：分页请求直至取完，避免单页 100 条截断。
+     */
     async loadRecords (filters) {
       this.recordsLoading = true
       try {
         const effectiveFilters = filters !== undefined ? filters : this.activeFilters
-        const params = { page: 1, pageSize: 100, _t: Date.now() }
+        const baseParams = { _t: Date.now() }
         if (Array.isArray(effectiveFilters) && effectiveFilters.length) {
-          params.filters = JSON.stringify(effectiveFilters)
+          baseParams.filters = JSON.stringify(effectiveFilters)
         }
-        const resp = await this.$http.get(`/collab/projects/${this.projectId}/records`, {
-          params
-        })
-        if (resp.data && resp.data.code === 0) {
-          const items = resp.data.data.items || []
-          // 新数组引用，确保表格必定随接口数据重绘
-          this.records = Array.isArray(items) ? items.slice() : []
-          this.revokeListAttachmentPreviewUrls()
-          await this.loadListAttachmentPreviews()
+        const pageSize = 500
+        const maxPages = 10000
+        const all = []
+        for (let page = 1; page <= maxPages; page++) {
+          const resp = await this.$http.get(`/collab/projects/${this.projectId}/records`, {
+            params: { ...baseParams, page, pageSize }
+          })
+          if (!resp.data || resp.data.code !== 0) break
+          const data = resp.data.data || {}
+          const batch = Array.isArray(data.items) ? data.items : []
+          all.push(...batch)
+          const total = data.total != null ? Number(data.total) : NaN
+          if (batch.length < pageSize) break
+          if (!Number.isNaN(total) && all.length >= total) break
         }
+        this.records = all
+        this.revokeListAttachmentPreviewUrls()
+        await this.loadListAttachmentPreviews()
       } finally {
         this.recordsLoading = false
       }

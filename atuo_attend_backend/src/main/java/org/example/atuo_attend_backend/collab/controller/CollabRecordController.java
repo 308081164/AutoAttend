@@ -92,11 +92,15 @@ public class CollabRecordController {
         if (table == null) return ApiResponse.error(40400, "项目未绑定表格");
         @SuppressWarnings("unchecked")
         Map<String, Object> fields = (Map<String, Object>) body.get("fields");
-        BizRecord record = recordService.createRecord(table.getId(), userId, fields);
-        Map<String, Object> data = new HashMap<>();
-        data.put("id", record.getId());
-        data.put("createdAt", record.getCreatedAt());
-        return ApiResponse.ok(data);
+        try {
+            BizRecord record = recordService.createRecord(table.getId(), userId, fields);
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", record.getId());
+            data.put("createdAt", record.getCreatedAt());
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
     }
 
     @GetMapping("/records/{recordId}")
