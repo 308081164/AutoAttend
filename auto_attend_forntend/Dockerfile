@@ -35,6 +35,10 @@ server {
     proxy_connect_timeout 60s;
     proxy_send_timeout 60s;
     proxy_read_timeout 60s;
+    # 后端重启/JVM 启动瞬间连接被拒绝时，短暂重试减轻 502
+    proxy_next_upstream error timeout http_502 http_503 http_504;
+    proxy_next_upstream_tries 3;
+    proxy_next_upstream_timeout 15s;
   }
 }
 EOF

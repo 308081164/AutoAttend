@@ -11,7 +11,7 @@ RUN mvn -q -B -Dmaven.test.skip=true package
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 # git：Diff 本地兜底；default-mysql-client：启动时执行 SQL 迁移
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates default-mysql-client \
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates default-mysql-client curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/target/*.jar app.jar

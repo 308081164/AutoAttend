@@ -236,6 +236,19 @@ location / {
    ```
    若返回 200/401 等非 502，说明后端正常，502 多半是前端容器内 Nginx 到 backend 的网络或超时；可重新部署一次前端镜像（已加强 /api 代理超时与转发头）后再试。
 
+4. **部署后短暂大量 502（新版本已缓解）**  
+   原因常见为：**后端 JVM 尚未监听 8848** 或 **`docker compose` 强制重建 backend 后，前端 Nginx 仍持有失效上游连接**。当前仓库已做：
+   - 后端容器 **healthcheck**：`curl http://127.0.0.1:8848/actuator/health`；
+   - `docker-compose.prod.yml` 中前端 **depends_on: backend condition service_healthy**；
+   - 部署脚本在 **force-recreate backend 后等待 healthy，再 `up` frontend**；
+   - 前端镜像内 Nginx 对 `/api/` 增加 **proxy_next_upstream** 短暂重试。  
+   若仍 502，在服务器执行：
+   ```bash
+   docker inspect -f '{{.State.Health.Status}}' autoattend-backend
+   curl -sf http://127.0.0.1:8848/actuator/health
+   ```
+   前者应为 `healthy`，后者应返回含 `"status":"UP"` 的 JSON；否则先看 `docker logs autoattend-backend`。
+
 ### 协作登录 500 / Table 'biz_user' doesn't exist
 
 若调用 **POST /api/collab/auth/login** 返回 500，后端日志出现 `Table 'autoattend.biz_user' doesn't exist`：说明协作模块的数据库表未创建。MySQL 的 init 脚本只在**首次初始化空数据目录**时执行；若服务器上 MySQL 此前已跑过且未挂载协作建表脚本，需要**手动执行一次**协作表结构。

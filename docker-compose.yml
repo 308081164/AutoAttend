@@ -68,13 +68,20 @@ services:
     ports:
       - "8848:8848"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8848/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
 
   frontend:
     build:
       context: ./auto_attend_forntend
     container_name: autoattend-frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "8849:80"
     restart: unless-stopped
