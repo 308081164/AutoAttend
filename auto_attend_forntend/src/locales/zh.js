@@ -551,6 +551,20 @@ export default {
     filterOpContains: '包含',
     filterOpNotContains: '不包含',
     filterOpEmpty: '为空',
-    filterOpNotEmpty: '不为空'
+    filterOpNotEmpty: '不为空',
+    dashboardSwitch: '仪表盘',
+    dashboardHint: '切换到图表仪表盘视图',
+    backToTableView: '返回表格',
+    dashboardNoData: '暂无可统计的任务数据',
+    dashboardTaskCompletion: '任务完成情况饼图',
+    dashboardWeeklyCreated: '近期新增任务折线图（按周）',
+    dashboardWeeklyResolved: '问题解决折线图（按周）',
+    dashboardImportantDistribution: '重要程度统计柱状图',
+    dashboardWordCloud: '问题词云图',
+    dashboardAvgResolveDuration: '问题平均解决时长计数图',
+    dashboardComingSoon: '预留区域（下个版本实现）',
+    dashboardResolved: '已完成',
+    dashboardUnresolved: '未完成',
+    dashboardUnknown: '未标注'
   }
 }

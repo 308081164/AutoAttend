@@ -25,6 +25,14 @@
         </div>
       </div>
       <div class="header-actions">
+        <button
+          type="button"
+          class="secondary-button"
+          @click="toggleDashboardView"
+          :title="showDashboard ? $t('collabTable.backToTableView') : $t('collabTable.dashboardHint')"
+        >
+          {{ showDashboard ? $t('collabTable.backToTableView') : $t('collabTable.dashboardSwitch') }}
+        </button>
         <button type="button" class="ai-magic-button" @click="openAiInput('text')" :title="$t('collabTable.aiInputModeHint')">
           <span class="ai-magic-icon" aria-hidden="true">✦</span>
           <span class="ai-magic-label">{{ $t('collabTable.aiInputMode') }}</span>
@@ -38,6 +46,36 @@
     </div>
 
     <div v-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
+    <div v-else-if="showDashboard" class="dashboard-wrapper">
+      <div v-if="recordsLoading" class="loading-tip">{{ $t('collabTable.loadingRecords') }}</div>
+      <div v-else-if="!records.length" class="empty-tip">{{ $t('collabTable.dashboardNoData') }}</div>
+      <div v-else class="dashboard-grid">
+        <div class="dashboard-card">
+          <div class="dashboard-card-title">{{ $t('collabTable.dashboardTaskCompletion') }}</div>
+          <canvas ref="taskCompletionChart"></canvas>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-card-title">{{ $t('collabTable.dashboardWeeklyCreated') }}</div>
+          <canvas ref="weeklyCreatedChart"></canvas>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-card-title">{{ $t('collabTable.dashboardWeeklyResolved') }}</div>
+          <canvas ref="weeklyResolvedChart"></canvas>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-card-title">{{ $t('collabTable.dashboardImportantDistribution') }}</div>
+          <canvas ref="importanceChart"></canvas>
+        </div>
+        <div class="dashboard-card dashboard-card-placeholder">
+          <div class="dashboard-card-title">{{ $t('collabTable.dashboardWordCloud') }}</div>
+          <div class="dashboard-placeholder">{{ $t('collabTable.dashboardComingSoon') }}</div>
+        </div>
+        <div class="dashboard-card dashboard-card-placeholder">
+          <div class="dashboard-card-title">{{ $t('collabTable.dashboardAvgResolveDuration') }}</div>
+          <div class="dashboard-placeholder">{{ $t('collabTable.dashboardComingSoon') }}</div>
+        </div>
+      </div>
+    </div>
     <div v-else-if="!columns.length" class="placeholder">{{ $t('collabTable.noColumns') }}</div>
     <div v-else class="table-wrapper">
       <div v-if="selectedCount > 0" class="batch-toolbar">
@@ -662,6 +700,10 @@
 </template>
 
 <script>
+import { Chart as ChartJS, registerables } from 'chart.js'
+
+ChartJS.register(...registerables)
+
 export default {
   name: 'CollabTableView',
   data () {
@@ -726,7 +768,15 @@ export default {
       statusPickerOpenKey: '',
       /** 批量选择：recordId -> true */
       rowSelection: {},
-      batchDeleting: false
+      batchDeleting: false,
+      showDashboard: false,
+      dashboardWeeks: 8,
+      dashboardCharts: {
+        taskCompletion: null,
+        weeklyCreated: null,
+        weeklyResolved: null,
+        importance: null
+      }
     }
   },
   computed: {
@@ -768,8 +818,143 @@ export default {
     this.detachStatusPickerOutside()
     this.closeImagePreview()
     this.revokeListAttachmentPreviewUrls()
+    this.destroyDashboardCharts()
   },
   methods: {
+    toggleDashboardView () {
+      this.showDashboard = !this.showDashboard
+      if (this.showDashboard) this.$nextTick(() => this.renderDashboardCharts())
+    },
+    destroyDashboardCharts () {
+      Object.keys(this.dashboardCharts).forEach(k => {
+        const chart = this.dashboardCharts[k]
+        if (chart && typeof chart.destroy === 'function') chart.destroy()
+        this.dashboardCharts[k] = null
+      })
+    },
+    getColumnIdByName (name) {
+      const target = String(name || '').trim()
+      const col = (this.columns || []).find(c => String(c && c.name ? c.name : '').trim() === target)
+      return col ? col.id : null
+    },
+    getRecordStringValue (row, columnName) {
+      const colId = this.getColumnIdByName(columnName)
+      if (!colId || !row) return ''
+      const raw = row['c' + colId]
+      return raw == null ? '' : String(raw).trim()
+    },
+    isResolvedRecord (row) {
+      const text = [
+        this.getRecordStringValue(row, '解决情况'),
+        this.getRecordStringValue(row, '验收结果'),
+        this.getRecordStringValue(row, '当前状态')
+      ].join(' ')
+      const hitWords = ['已解决', '已完成', '通过任务关闭', '通过', '完成', '关闭', '已验收']
+      return hitWords.some(w => text.includes(w))
+    },
+    weekStartDate (input) {
+      const d = input instanceof Date ? new Date(input.getTime()) : new Date(input)
+      if (Number.isNaN(d.getTime())) return null
+      d.setHours(0, 0, 0, 0)
+      const day = d.getDay()
+      const diff = day === 0 ? 6 : day - 1
+      d.setDate(d.getDate() - diff)
+      return d
+    },
+    weekLabel (dateObj) {
+      if (!dateObj) return ''
+      const y = dateObj.getFullYear()
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0')
+      const d = String(dateObj.getDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    },
+    buildWeeklySeries (rows, filterFn) {
+      const weeks = Number(this.dashboardWeeks) > 0 ? Number(this.dashboardWeeks) : 8
+      const nowWeek = this.weekStartDate(new Date())
+      const labels = []
+      const counts = []
+      const weekMap = {}
+      for (let i = weeks - 1; i >= 0; i--) {
+        const d = new Date(nowWeek.getTime())
+        d.setDate(d.getDate() - i * 7)
+        const key = this.weekLabel(d)
+        labels.push(key)
+        weekMap[key] = 0
+      }
+      ;(rows || []).forEach(row => {
+        if (typeof filterFn === 'function' && !filterFn(row)) return
+        const t = row && row.createdAt ? new Date(row.createdAt) : null
+        if (!t || Number.isNaN(t.getTime())) return
+        const wk = this.weekLabel(this.weekStartDate(t))
+        if (Object.prototype.hasOwnProperty.call(weekMap, wk)) weekMap[wk] += 1
+      })
+      labels.forEach(l => counts.push(weekMap[l] || 0))
+      return { labels, counts }
+    },
+    getImportanceDistribution () {
+      const colId = this.getColumnIdByName('重要程度')
+      if (!colId) return { labels: [], counts: [] }
+      const map = {}
+      ;(this.records || []).forEach(row => {
+        const raw = row['c' + colId]
+        const key = raw == null || String(raw).trim() === '' ? this.$t('collabTable.dashboardUnknown') : String(raw).trim()
+        map[key] = (map[key] || 0) + 1
+      })
+      const labels = Object.keys(map)
+      const counts = labels.map(k => map[k])
+      return { labels, counts }
+    },
+    renderDashboardCharts () {
+      if (!this.showDashboard) return
+      this.destroyDashboardCharts()
+      const total = (this.records || []).length
+      const resolved = (this.records || []).filter(r => this.isResolvedRecord(r)).length
+      const unresolved = Math.max(total - resolved, 0)
+      const createdSeries = this.buildWeeklySeries(this.records)
+      const resolvedSeries = this.buildWeeklySeries(this.records, r => this.isResolvedRecord(r))
+      const importance = this.getImportanceDistribution()
+
+      if (this.$refs.taskCompletionChart) {
+        this.dashboardCharts.taskCompletion = new ChartJS(this.$refs.taskCompletionChart, {
+          type: 'pie',
+          data: {
+            labels: [this.$t('collabTable.dashboardResolved'), this.$t('collabTable.dashboardUnresolved')],
+            datasets: [{ data: [resolved, unresolved], backgroundColor: ['#22c55e', '#94a3b8'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        })
+      }
+      if (this.$refs.weeklyCreatedChart) {
+        this.dashboardCharts.weeklyCreated = new ChartJS(this.$refs.weeklyCreatedChart, {
+          type: 'line',
+          data: {
+            labels: createdSeries.labels,
+            datasets: [{ label: this.$t('collabTable.dashboardWeeklyCreated'), data: createdSeries.counts, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.2)', fill: true, tension: 0.25 }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        })
+      }
+      if (this.$refs.weeklyResolvedChart) {
+        this.dashboardCharts.weeklyResolved = new ChartJS(this.$refs.weeklyResolvedChart, {
+          type: 'line',
+          data: {
+            labels: resolvedSeries.labels,
+            datasets: [{ label: this.$t('collabTable.dashboardWeeklyResolved'), data: resolvedSeries.counts, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.2)', fill: true, tension: 0.25 }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        })
+      }
+      if (this.$refs.importanceChart) {
+        this.dashboardCharts.importance = new ChartJS(this.$refs.importanceChart, {
+          type: 'bar',
+          data: {
+            labels: importance.labels,
+            datasets: [{ label: this.$t('collabTable.dashboardImportantDistribution'), data: importance.counts, backgroundColor: '#f59e0b' }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        })
+      }
+    },
     openAiInput (mode) {
       this.aiModalMode = mode === 'csv' ? 'csv' : 'text'
       this.showAiModal = true
@@ -1229,6 +1414,7 @@ export default {
         this.pruneRowSelectionAfterLoad()
         this.revokeListAttachmentPreviewUrls()
         await this.loadListAttachmentPreviews()
+        if (this.showDashboard) this.$nextTick(() => this.renderDashboardCharts())
       } finally {
         this.recordsLoading = false
       }
@@ -2313,6 +2499,51 @@ export default {
   border-radius: 8px;
   border: 1px solid #e5e7eb;
   width: 100%;
+}
+
+.dashboard-wrapper {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  padding: 14px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-card canvas {
+  width: 100% !important;
+  height: 240px !important;
+}
+
+.dashboard-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.dashboard-card-placeholder {
+  justify-content: center;
+  align-items: center;
+}
+
+.dashboard-placeholder {
+  color: #64748b;
+  font-size: 13px;
 }
 
 .batch-toolbar {

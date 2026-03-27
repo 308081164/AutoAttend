@@ -551,6 +551,20 @@ export default {
     filterOpContains: 'Contains',
     filterOpNotContains: 'Does not contain',
     filterOpEmpty: 'Is empty',
-    filterOpNotEmpty: 'Is not empty'
+    filterOpNotEmpty: 'Is not empty',
+    dashboardSwitch: 'Dashboard',
+    dashboardHint: 'Switch to chart dashboard view',
+    backToTableView: 'Back to table',
+    dashboardNoData: 'No task data to visualize',
+    dashboardTaskCompletion: 'Task completion pie chart',
+    dashboardWeeklyCreated: 'Weekly new tasks line chart',
+    dashboardWeeklyResolved: 'Weekly resolved issues line chart',
+    dashboardImportantDistribution: 'Importance distribution bar chart',
+    dashboardWordCloud: 'Issue word cloud',
+    dashboardAvgResolveDuration: 'Average issue resolution duration',
+    dashboardComingSoon: 'Reserved area (coming next version)',
+    dashboardResolved: 'Resolved',
+    dashboardUnresolved: 'Unresolved',
+    dashboardUnknown: 'Unknown'
   }
 }
