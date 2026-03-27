@@ -881,7 +881,8 @@ export default {
         labels.push(key)
         weekMap[key] = 0
       }
-      (rows || []).forEach(row => {
+      const safeRows = Array.isArray(rows) ? rows : []
+      safeRows.forEach(row => {
         if (typeof filterFn === 'function' && !filterFn(row)) return
         const t = row && row.createdAt ? new Date(row.createdAt) : null
         if (!t || Number.isNaN(t.getTime())) return
@@ -895,7 +896,8 @@ export default {
       const colId = this.getColumnIdByName('重要程度')
       if (!colId) return { labels: [], counts: [] }
       const map = {}
-      (this.records || []).forEach(row => {
+      const safeRecords = Array.isArray(this.records) ? this.records : []
+      safeRecords.forEach(row => {
         const raw = row['c' + colId]
         const key = raw == null || String(raw).trim() === '' ? this.$t('collabTable.dashboardUnknown') : String(raw).trim()
         map[key] = (map[key] || 0) + 1
