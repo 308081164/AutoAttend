@@ -25,6 +25,22 @@ public class QuoteProject {
     private String quoteValidityNote;
     /** 报价单出具方来源：legal_entity=配置法人模板，natural_person=配置自然人模板，manual=本项目手写 */
     private String quoteSubjectMode;
+    /** GitHub provision：仓库 full_name（owner/repo） */
+    private String githubRepoFullName;
+    /** GitHub provision：仓库页面 URL */
+    private String githubRepoHtmlUrl;
+    /** GitHub provision：webhook id */
+    private Long githubWebhookId;
+    /** GitHub provision：webhook secret（预留后续验签） */
+    private String githubWebhookSecret;
+    /** provision 状态：draft|provisioning|done|failed */
+    private String provisionStatus;
+    /** provision 最后错误 */
+    private String provisionLastError;
+    /** 是否已同步需求到协作多维表 */
+    private Boolean provisionSyncedToCollab;
+    /** 同步时间 */
+    private LocalDateTime provisionSyncedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -64,6 +80,22 @@ public class QuoteProject {
     public void setQuoteValidityNote(String quoteValidityNote) { this.quoteValidityNote = quoteValidityNote; }
     public String getQuoteSubjectMode() { return quoteSubjectMode; }
     public void setQuoteSubjectMode(String quoteSubjectMode) { this.quoteSubjectMode = quoteSubjectMode; }
+    public String getGithubRepoFullName() { return githubRepoFullName; }
+    public void setGithubRepoFullName(String githubRepoFullName) { this.githubRepoFullName = githubRepoFullName; }
+    public String getGithubRepoHtmlUrl() { return githubRepoHtmlUrl; }
+    public void setGithubRepoHtmlUrl(String githubRepoHtmlUrl) { this.githubRepoHtmlUrl = githubRepoHtmlUrl; }
+    public Long getGithubWebhookId() { return githubWebhookId; }
+    public void setGithubWebhookId(Long githubWebhookId) { this.githubWebhookId = githubWebhookId; }
+    public String getGithubWebhookSecret() { return githubWebhookSecret; }
+    public void setGithubWebhookSecret(String githubWebhookSecret) { this.githubWebhookSecret = githubWebhookSecret; }
+    public String getProvisionStatus() { return provisionStatus; }
+    public void setProvisionStatus(String provisionStatus) { this.provisionStatus = provisionStatus; }
+    public String getProvisionLastError() { return provisionLastError; }
+    public void setProvisionLastError(String provisionLastError) { this.provisionLastError = provisionLastError; }
+    public Boolean getProvisionSyncedToCollab() { return provisionSyncedToCollab; }
+    public void setProvisionSyncedToCollab(Boolean provisionSyncedToCollab) { this.provisionSyncedToCollab = provisionSyncedToCollab; }
+    public LocalDateTime getProvisionSyncedAt() { return provisionSyncedAt; }
+    public void setProvisionSyncedAt(LocalDateTime provisionSyncedAt) { this.provisionSyncedAt = provisionSyncedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

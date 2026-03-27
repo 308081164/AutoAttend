@@ -38,6 +38,10 @@ public interface QuoteProjectMapper {
             "quote_contract_context_json AS quoteContractContextJson, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
             "quote_subject_mode AS quoteSubjectMode, " +
+            "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
+            "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
+            "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
+            "provision_synced_to_collab AS provisionSyncedToCollab, provision_synced_at AS provisionSyncedAt, " +
             "created_at AS createdAt, updated_at AS updatedAt " +
             "FROM biz_quote_project WHERE id = #{id}")
     QuoteProject findById(@Param("id") long id);
@@ -48,9 +52,36 @@ public interface QuoteProjectMapper {
             "quote_contract_context_json AS quoteContractContextJson, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
             "quote_subject_mode AS quoteSubjectMode, " +
+            "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
+            "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
+            "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
+            "provision_synced_to_collab AS provisionSyncedToCollab, provision_synced_at AS provisionSyncedAt, " +
             "created_at AS createdAt, updated_at AS updatedAt " +
             "FROM biz_quote_project ORDER BY updated_at DESC LIMIT #{limit} OFFSET #{offset}")
     List<QuoteProject> listPaged(@Param("offset") int offset, @Param("limit") int limit);
+
+    @Update("""
+            UPDATE biz_quote_project
+            SET github_repo_full_name=#{repoFullName},
+                github_repo_html_url=#{repoHtmlUrl},
+                github_webhook_id=#{webhookId},
+                github_webhook_secret=#{webhookSecret},
+                provision_status=#{status},
+                provision_last_error=#{lastError},
+                provision_synced_to_collab=#{syncedToCollab},
+                provision_synced_at=#{syncedAt},
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=#{id}
+            """)
+    int updateProvisionState(@Param("id") long id,
+                             @Param("repoFullName") String repoFullName,
+                             @Param("repoHtmlUrl") String repoHtmlUrl,
+                             @Param("webhookId") Long webhookId,
+                             @Param("webhookSecret") String webhookSecret,
+                             @Param("status") String status,
+                             @Param("lastError") String lastError,
+                             @Param("syncedToCollab") Integer syncedToCollab,
+                             @Param("syncedAt") java.time.LocalDateTime syncedAt);
 
     @Select("SELECT COUNT(*) FROM biz_quote_project")
     long countAll();

@@ -234,6 +234,28 @@
       </div>
 
       <section v-if="projectId" class="card">
+        <h2>项目创建</h2>
+        <p class="hint">一键创建 GitHub 仓库，并将报价需求同步到项目协作多维表，配置 Webhook（push 自动接入）。</p>
+        <div v-if="provisionMeta.repoFullName" class="provision-meta">
+          <p><strong>仓库：</strong><a :href="provisionMeta.repoHtmlUrl" target="_blank" rel="noopener">{{ provisionMeta.repoFullName }}</a></p>
+          <p><strong>状态：</strong>{{ provisionMeta.provisionStatus || '—' }} <span v-if="provisionMeta.provisionLastError" class="err">（{{ provisionMeta.provisionLastError }}）</span></p>
+          <p><strong>多维表同步：</strong>{{ provisionMeta.provisionSyncedToCollab ? '已同步' : '未同步' }} <span v-if="provisionMeta.provisionSyncedAt">（{{ provisionMeta.provisionSyncedAt }}）</span></p>
+        </div>
+        <button type="button" class="btn primary" :disabled="provisioning" @click="openProvisionModal">
+          {{ provisioning ? '创建中…' : '创建仓库' }}
+        </button>
+        <p v-if="provisionMsg" :class="provisionOk ? 'ok' : 'err'">{{ provisionMsg }}</p>
+        <div v-if="provisionResult && provisionResult.steps && provisionResult.steps.length" class="provision-steps">
+          <h3 class="subh">执行结果</h3>
+          <ul>
+            <li v-for="(s, i) in provisionResult.steps" :key="'ps-' + i">
+              <strong>{{ s.key }}</strong>：<span :class="s.ok ? 'ok' : 'err'">{{ s.message }}</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section v-if="projectId" class="card">
         <h2>报价计算</h2>
         <div class="risk-grid">
           <label v-for="r in riskConfigsForCalculator" :key="r.riskKey" class="chk">
@@ -356,6 +378,41 @@
         </div>
         <p class="hint">{{ $t('quote.contractSupplementSaveHint') }}</p>
       </section>
+
+      <!-- 创建仓库弹窗（MVP，内联） -->
+      <div v-if="showProvisionModal" class="drawer-mask" @click="closeProvisionModal">
+        <div class="drawer" @click.stop>
+          <div class="drawer-header">
+            <h3>创建 GitHub 仓库</h3>
+            <button class="close-btn" @click="closeProvisionModal">×</button>
+          </div>
+          <div class="drawer-body">
+            <div class="grid">
+              <label class="full">仓库名 <input v-model="provisionForm.repoName" class="inp wide" placeholder="例如：autoattend-quote-123" /></label>
+              <label>可见性
+                <select v-model="provisionForm.repoPrivate" class="inp">
+                  <option :value="true">Private</option>
+                  <option :value="false">Public</option>
+                </select>
+              </label>
+              <label class="full">简介 <input v-model="provisionForm.description" class="inp wide" placeholder="可选" /></label>
+            </div>
+            <div class="risk-grid">
+              <label class="chk"><input type="checkbox" v-model="provisionForm.autoInit" /> 初始化 README</label>
+              <label class="chk"><input type="checkbox" v-model="provisionForm.syncMd" /> 写入需求清单 MD</label>
+              <label class="chk"><input type="checkbox" v-model="provisionForm.syncCollabTable" /> 同步到多维表</label>
+              <label class="chk"><input type="checkbox" v-model="provisionForm.createWebhook" /> 创建 Webhook</label>
+            </div>
+            <div class="btn-row export-row">
+              <button type="button" class="btn primary" :disabled="provisioning" @click="runProvision">
+                {{ provisioning ? '创建中…' : '开始创建' }}
+              </button>
+              <button type="button" class="btn secondary" :disabled="provisioning" @click="closeProvisionModal">取消</button>
+            </div>
+            <p class="hint" style="margin-top:10px">提示：需要先在「GitHub 集成」配置 GitHub Token，才能创建仓库与 Webhook。</p>
+          </div>
+        </div>
+      </div>
 
       <section v-if="calcResult && calcResult.id" class="card">
         <h2>{{ $t('quote.contractTitle') }}</h2>
@@ -500,6 +557,29 @@ export default {
       calcPrefsDebounceTimer: null,
       /** 功能点表头「?」说明：`field:moduleIndex` 或 null */
       openTableHint: null,
+      // 项目创建（GitHub provision）
+      showProvisionModal: false,
+      provisioning: false,
+      provisionMsg: '',
+      provisionOk: false,
+      provisionResult: null,
+      provisionMeta: {
+        repoFullName: '',
+        repoHtmlUrl: '',
+        provisionStatus: '',
+        provisionLastError: '',
+        provisionSyncedToCollab: false,
+        provisionSyncedAt: ''
+      },
+      provisionForm: {
+        repoName: '',
+        repoPrivate: true,
+        description: '',
+        autoInit: true,
+        syncMd: true,
+        syncCollabTable: true,
+        createWebhook: true
+      },
       contractContext: defaultContractContext(),
       /** 功能模块：manual | ai */
       moduleEntryMode: 'manual',
@@ -805,10 +885,94 @@ export default {
           if (d.latestResult) {
             this.calcResult = { ...d.latestResult, riskHints: [], confidenceLevel: '' }
           }
+          this.provisionMeta = {
+            repoFullName: d.githubRepoFullName || '',
+            repoHtmlUrl: d.githubRepoHtmlUrl || '',
+            provisionStatus: d.provisionStatus || '',
+            provisionLastError: d.provisionLastError || '',
+            provisionSyncedToCollab: d.provisionSyncedToCollab === true,
+            provisionSyncedAt: d.provisionSyncedAt || ''
+          }
+          if (!this.provisionForm.repoName) {
+            this.provisionForm.repoName = this.suggestRepoName()
+            this.provisionForm.description = this.suggestRepoDesc()
+          }
           await this.loadContractIfAny()
         } finally {
           this.$nextTick(() => { this.restoringCalcPrefs = false })
         }
+      }
+    },
+    suggestRepoName () {
+      const base = (this.form.name || '').trim()
+      const clean = base
+        .toLowerCase()
+        .replace(/[^a-z0-9\\-\\s_]+/g, '')
+        .replace(/\\s+/g, '-')
+        .replace(/_+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+      if (clean) return `autoattend-${clean}`.slice(0, 80)
+      return `autoattend-quote-${this.projectId || 'new'}`
+    },
+    suggestRepoDesc () {
+      const name = (this.form.name || '').trim()
+      return name ? `AutoAttend 报价项目：${name}` : 'AutoAttend 报价项目'
+    },
+    openProvisionModal () {
+      this.provisionMsg = ''
+      this.provisionOk = false
+      this.provisionResult = null
+      if (!this.provisionForm.repoName) {
+        this.provisionForm.repoName = this.suggestRepoName()
+      }
+      if (!this.provisionForm.description) {
+        this.provisionForm.description = this.suggestRepoDesc()
+      }
+      this.showProvisionModal = true
+    },
+    closeProvisionModal () {
+      if (this.provisioning) return
+      this.showProvisionModal = false
+    },
+    async runProvision () {
+      if (!this.projectId) return
+      const repoName = (this.provisionForm.repoName || '').trim()
+      if (!repoName) {
+        this.provisionOk = false
+        this.provisionMsg = '请填写仓库名'
+        return
+      }
+      this.provisioning = true
+      this.provisionMsg = ''
+      this.provisionOk = false
+      this.provisionResult = null
+      try {
+        const body = {
+          repoName: repoName,
+          repoPrivate: this.provisionForm.repoPrivate === true,
+          description: (this.provisionForm.description || '').trim(),
+          autoInit: this.provisionForm.autoInit === true,
+          syncMd: this.provisionForm.syncMd === true,
+          syncCollabTable: this.provisionForm.syncCollabTable === true,
+          createWebhook: this.provisionForm.createWebhook === true
+        }
+        const resp = await this.$http.post(`/admin/quote/projects/${this.projectId}/provision`, body, { timeout: 120000 })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.provisionOk = true
+          this.provisionMsg = '已提交创建'
+          this.provisionResult = resp.data.data
+          await this.loadProject(this.projectId)
+          this.showProvisionModal = false
+        } else {
+          this.provisionOk = false
+          this.provisionMsg = (resp.data && resp.data.message) || '创建失败'
+        }
+      } catch (e) {
+        this.provisionOk = false
+        this.provisionMsg = (e.response && e.response.data && e.response.data.message) || '网络错误'
+      } finally {
+        this.provisioning = false
       }
     },
     async loadContractIfAny () {
@@ -1444,6 +1608,48 @@ label.block { display: block; margin-top: 10px; }
 .btn-sm.danger { color: #991b1b; border-color: #fca5a5; background: #fff; }
 .btn-sm.danger:hover { background: #fef2f2; border-color: #f87171; }
 .actions { margin-bottom: 18px; }
+.provision-meta p { margin: 6px 0; }
+.provision-steps ul { margin: 8px 0 0; padding-left: 18px; }
+.provision-steps li { margin: 4px 0; }
+
+/* 弹窗（与协作页抽屉风格对齐的轻量实现） */
+.drawer-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.drawer {
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.drawer-header h3 { margin: 0; font-size: 16px; color: #0f172a; }
+.drawer-body { padding: 14px; }
+.close-btn {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: #334155;
+}
 .risk-grid { display: flex; flex-wrap: wrap; gap: 14px 18px; margin: 14px 0; font-size: 15px; color: #1e293b; }
 .chk { flex-direction: row; align-items: center; font-weight: 500; }
 .result-box {

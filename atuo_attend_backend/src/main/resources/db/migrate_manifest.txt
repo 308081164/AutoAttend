@@ -16,3 +16,4 @@ schema_quote_contract_context_migration.sql
 schema_quote_project_doc_meta_migration.sql
 schema_quote_subject_mode_migration.sql
 schema_collab_record_history_migration.sql
+schema_quote_github_provision_migration.sql

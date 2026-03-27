@@ -690,6 +690,13 @@ public class QuoteService {
         m.put("quoteContactInfo", p.getQuoteContactInfo());
         m.put("quoteValidityNote", p.getQuoteValidityNote());
         m.put("quoteSubjectMode", p.getQuoteSubjectMode() != null ? p.getQuoteSubjectMode() : "legal_entity");
+        m.put("githubRepoFullName", p.getGithubRepoFullName());
+        m.put("githubRepoHtmlUrl", p.getGithubRepoHtmlUrl());
+        m.put("githubWebhookId", p.getGithubWebhookId());
+        m.put("provisionStatus", p.getProvisionStatus());
+        m.put("provisionLastError", p.getProvisionLastError());
+        m.put("provisionSyncedToCollab", p.getProvisionSyncedToCollab());
+        m.put("provisionSyncedAt", p.getProvisionSyncedAt());
         m.put("createdAt", p.getCreatedAt());
         m.put("updatedAt", p.getUpdatedAt());
         return m;

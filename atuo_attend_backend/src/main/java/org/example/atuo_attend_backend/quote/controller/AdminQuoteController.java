@@ -7,6 +7,7 @@ import org.example.atuo_attend_backend.quote.mapper.QuoteBaselineMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuotePriceConfigMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuoteRiskConfigMapper;
 import org.example.atuo_attend_backend.quote.service.QuoteDocumentExportService;
+import org.example.atuo_attend_backend.quote.service.QuoteProvisionService;
 import org.example.atuo_attend_backend.quote.service.QuoteService;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/api/admin/quote")
 public class AdminQuoteController {
@@ -28,15 +31,18 @@ public class AdminQuoteController {
     private final QuoteBaselineMapper baselineMapper;
     private final QuoteRiskConfigMapper riskConfigMapper;
     private final QuotePriceConfigMapper priceConfigMapper;
+    private final QuoteProvisionService quoteProvisionService;
 
     public AdminQuoteController(QuoteService quoteService, QuoteDocumentExportService quoteDocumentExportService,
                                 QuoteBaselineMapper baselineMapper,
-                                QuoteRiskConfigMapper riskConfigMapper, QuotePriceConfigMapper priceConfigMapper) {
+                                QuoteRiskConfigMapper riskConfigMapper, QuotePriceConfigMapper priceConfigMapper,
+                                QuoteProvisionService quoteProvisionService) {
         this.quoteService = quoteService;
         this.quoteDocumentExportService = quoteDocumentExportService;
         this.baselineMapper = baselineMapper;
         this.riskConfigMapper = riskConfigMapper;
         this.priceConfigMapper = priceConfigMapper;
+        this.quoteProvisionService = quoteProvisionService;
     }
 
     @PostMapping("/projects")
@@ -83,6 +89,27 @@ public class AdminQuoteController {
         Map<String, Object> d = quoteService.getProjectDetail(id);
         if (d == null) return ApiResponse.error(40400, "项目不存在");
         return ApiResponse.ok(d);
+    }
+
+    /**
+     * 报价 -> 项目创建（MVP）：创建个人 GitHub 仓库、写入需求清单 MD、同步到协作多维表、配置 Webhook。
+     */
+    @PostMapping("/projects/{id}/provision")
+    public ApiResponse<Map<String, Object>> provision(@PathVariable long id,
+                                                      @RequestBody(required = false) QuoteProvisionRequest body,
+                                                      HttpServletRequest req) {
+        if (quoteProvisionService == null) {
+            return ApiResponse.error(50000, "provision 服务未就绪");
+        }
+        try {
+            return ApiResponse.ok(quoteProvisionService.provision(id, body, req));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "provision 失败");
+        }
     }
 
     @PutMapping("/projects/{id}")
