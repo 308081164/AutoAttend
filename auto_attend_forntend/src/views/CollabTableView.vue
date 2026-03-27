@@ -1472,9 +1472,11 @@ export default {
       return ''
     },
     getCellClass (col) {
-      if ((col.name || '').trim() === '问题描述') return 'cell-problem'
-      if (this.isAttachmentColumn(col)) return 'cell-attachment'
-      return ''
+      const classes = []
+      if ((col.name || '').trim() === '问题描述') classes.push('cell-problem')
+      if (this.isAttachmentColumn(col)) classes.push('cell-attachment')
+      if (this.isStatusTagColumn(col)) classes.push('cell-status')
+      return classes.join(' ')
     },
     getListAttachmentById (recordId, attachmentId) {
       const list = this.recordAttachmentsMap[recordId]
@@ -2495,6 +2497,7 @@ export default {
 
 .table-wrapper {
   overflow-x: auto;
+  overflow-y: visible;
   background: #fff;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
@@ -2618,6 +2621,10 @@ export default {
   white-space: nowrap;
 }
 
+.data-table td.cell-status {
+  overflow: visible;
+}
+
 .cell-problem {
   white-space: nowrap;
   overflow: hidden;
@@ -2657,6 +2664,7 @@ export default {
   display: inline-flex;
   position: relative;
   max-width: 100%;
+  z-index: 30;
 }
 
 .status-select {
