@@ -77,6 +77,25 @@ public class AdminQuoteController {
         }
     }
 
+    /**
+     * 根据当前功能清单与项目上下文生成「验收测试用例/测试清单」JSON（不落库）；与 DeepSeek、AI 配置同源。
+     */
+    @PostMapping("/ai/acceptance-test-cases")
+    public ApiResponse<Map<String, Object>> generateAcceptanceTestCasesWithAi(@RequestBody(required = false) QuoteAiAcceptanceTestCasesRequest body) {
+        if (body == null) {
+            body = new QuoteAiAcceptanceTestCasesRequest();
+        }
+        try {
+            return ApiResponse.ok(quoteService.generateAcceptanceTestCasesWithAi(body));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "生成失败");
+        }
+    }
+
     @GetMapping("/projects")
     public ApiResponse<Map<String, Object>> listProjects(
             @RequestParam(value = "page", defaultValue = "1") int page,

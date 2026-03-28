@@ -1193,6 +1193,25 @@ public class QuoteService {
         if (days != null) sb.append("验收异议期（工作日）：").append(days).append("\n");
         Object acn = ctx.get("acceptanceCriteriaNote");
         if (acn != null && !acn.toString().isBlank()) sb.append("验收标准补充说明：").append(acn).append("\n");
+        Object atc = ctx.get("acceptanceTestCases");
+        if (atc instanceof List<?> list && !list.isEmpty()) {
+            sb.append("验收测试用例/测试清单（结构化，共 ").append(list.size()).append(" 条，与附件二一致）：\n");
+            int shown = 0;
+            for (Object o : list) {
+                if (shown >= 18) {
+                    sb.append("…（以下条目略）\n");
+                    break;
+                }
+                if (o instanceof Map<?, ?> mm) {
+                    Map<String, Object> m = (Map<String, Object>) mm;
+                    sb.append("- ").append(Objects.toString(m.get("caseName"), ""))
+                            .append("｜模块：").append(Objects.toString(m.get("module"), ""))
+                            .append("｜优先级：").append(Objects.toString(m.get("priority"), ""))
+                            .append("｜结果：").append(Objects.toString(m.get("testResult"), "")).append("\n");
+                }
+                shown++;
+            }
+        }
         Object del = ctx.get("deliverables");
         if (del instanceof List<?> dlist && !dlist.isEmpty()) {
             sb.append("约定交付物：\n");
@@ -1304,9 +1323,9 @@ public class QuoteService {
     @SuppressWarnings("unchecked")
     private String renderAttachmentAcceptanceHtml(QuoteProject p, Map<String, Object> ctx) {
         StringBuilder sb = new StringBuilder();
-        sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>附件二 验收标准</title>");
-        sb.append("<style>body{font-family:sans-serif;padding:24px;line-height:1.6} h2{font-size:16px;margin-top:20px} ol{padding-left:20px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;font-size:13px}</style></head><body>");
-        sb.append("<h1>附件二：验收标准（草案）</h1>");
+        sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>附件二 验收标准与测试用例</title>");
+        sb.append("<style>body{font-family:sans-serif;padding:24px;line-height:1.6} h2{font-size:16px;margin-top:20px} ol{padding-left:20px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;font-size:13px}.tc-table th,.tc-table td{font-size:12px;vertical-align:top;word-break:break-word}</style></head><body>");
+        sb.append("<h1>附件二：验收标准与测试用例清单（草案）</h1>");
         sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
         int od = 5;
         Object days = ctx != null ? ctx.get("acceptanceObjectionDays") : null;
@@ -1325,12 +1344,42 @@ public class QuoteService {
         sb.append("<li>甲方应在收到验收申请之日起 <strong>").append(od).append("</strong> 个工作日内完成验收；逾期未提出书面异议的，视为该阶段验收通过（双方另有书面约定的除外）。</li>");
         sb.append("<li>甲方提出的异议应具体、可复现；乙方应在合理期限内予以修复或说明。重复验收次数及范围以主合同约定为准。</li>");
         sb.append("</ol>");
-        sb.append("<h2>二、功能与质量标准</h2>");
+        sb.append("<h2>二、功能验收测试用例清单</h2>");
         Object acn = ctx != null ? ctx.get("acceptanceCriteriaNote") : null;
-        if (acn != null && !acn.toString().isBlank()) {
-            sb.append("<p>").append(esc(acn.toString().trim())).append("</p>");
+        Object atc = ctx != null ? ctx.get("acceptanceTestCases") : null;
+        if (atc instanceof List<?> tcl && !tcl.isEmpty()) {
+            sb.append("<p>下列用例与<strong>附件一《功能清单》</strong>中模块及功能点对应，作为交付验收的操作依据；「测试结果」在验收执行中填写，以双方确认的通过/驳回为准。</p>");
+            if (acn != null && !acn.toString().isBlank()) {
+                sb.append("<p><strong>补充说明（与用例一并作为验收参考）：</strong>").append(esc(acn.toString().trim())).append("</p>");
+            }
+            sb.append("<table class=\"tc-table\"><thead><tr>");
+            sb.append("<th>序号</th><th>用例名称</th><th>归属模块</th><th>优先级</th><th>前置条件</th>");
+            sb.append("<th>测试角色（系统角色）</th><th>测试步骤</th><th>预期结果</th><th>测试结果</th><th>备注</th>");
+            sb.append("</tr></thead><tbody>");
+            int ti = 1;
+            for (Object o : tcl) {
+                if (o instanceof Map<?, ?> raw) {
+                    Map<String, Object> m = (Map<String, Object>) raw;
+                    sb.append("<tr><td>").append(ti++).append("</td><td>").append(esc(Objects.toString(m.get("caseName"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("module"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("priority"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("preconditions"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("testRole"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("steps"), "")).replace("\n", "<br/>"))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("expectedResult"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("testResult"), "待测试")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("remark"), "")))
+                            .append("</td></tr>");
+                }
+            }
+            sb.append("</tbody></table>");
         } else {
-            sb.append("<p>双方确认：以主合同及<strong>附件一《功能清单》</strong>中所列功能及双方确认的用例/界面为准；功能完整、主要流程可用、无明显缺陷即视为达到交付验收标准。</p>");
+            if (acn != null && !acn.toString().isBlank()) {
+                sb.append("<p>").append(esc(acn.toString().trim())).append("</p>");
+            } else {
+                sb.append("<p>双方确认：以主合同及<strong>附件一《功能清单》</strong>中所列功能及双方确认的用例/界面为准；功能完整、主要流程可用、无明显缺陷即视为达到交付验收标准。</p>");
+            }
+            sb.append("<p style=\"color:#666\">提示：可在报价项目「合同补充信息」中维护结构化测试用例清单，或使用「AI 生成测试清单」基于当前功能清单生成，核对后再导出本附件。</p>");
         }
         sb.append("<h2>三、交付物核对</h2>");
         sb.append("<p>乙方应按下列清单交付（以项目「合同补充信息」中勾选为准）：</p>");
@@ -1628,4 +1677,215 @@ public class QuoteService {
             default -> t;
         };
     }
+
+    /**
+     * 根据当前功能清单与项目上下文生成「验收测试用例/测试清单」JSON（不落库）。
+     */
+    public Map<String, Object> generateAcceptanceTestCasesWithAi(QuoteAiAcceptanceTestCasesRequest req) {
+        if (req == null) {
+            throw new IllegalArgumentException("请求体不能为空");
+        }
+        List<String> moduleOrder = new ArrayList<>();
+        if (req.getModules() != null) {
+            for (Map<String, Object> mod : req.getModules()) {
+                if (mod == null) continue;
+                Object mn = mod.get("name");
+                if (mn == null || mn.toString().isBlank()) continue;
+                String name = mn.toString().trim();
+                moduleOrder.add(name);
+            }
+        }
+        if (moduleOrder.isEmpty()) {
+            throw new IllegalArgumentException("请先填写并保存至少一个功能模块后再生成测试清单");
+        }
+
+        AiAnalysisConfig cfg = aiConfigService.getConfig();
+        if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
+        }
+        String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
+
+        StringBuilder userBlock = new StringBuilder();
+        userBlock.append("【项目上下文】下列维度与报价表单一致；生成用例时不得与下文功能清单或 PRD 矛盾。\n");
+        userBlock.append("项目类型：").append(labelProjectType(req.getProjectType()))
+                .append(" (code: ").append(nvl(req.getProjectType(), "")).append(")\n");
+        userBlock.append("技术栈：").append(labelTechStack(req.getTechStack()))
+                .append(" (code: ").append(nvl(req.getTechStack(), "")).append(")\n");
+        userBlock.append("设计：").append(labelDesign(req.getDesignType()))
+                .append("；数据/对接：").append(labelDataMigration(req.getDataMigration())).append("\n");
+        userBlock.append("并发：").append(labelConcurrency(req.getConcurrency()))
+                .append("；安全：").append(labelSecurity(req.getSecurityLevel()))
+                .append("；部署：").append(labelDeploy(req.getDeployType())).append("\n");
+        if (req.getPrdSummary() != null && !req.getPrdSummary().isBlank()) {
+            String prd = req.getPrdSummary().trim();
+            if (prd.length() > 6000) {
+                prd = prd.substring(0, 6000) + "…";
+            }
+            userBlock.append("\n【PRD/需求摘要】\n").append(prd).append("\n");
+        }
+        if (req.getAcceptanceCriteriaNote() != null && !req.getAcceptanceCriteriaNote().isBlank()) {
+            userBlock.append("\n【验收标准补充说明（用例须与此一致、不得抵触）】\n")
+                    .append(req.getAcceptanceCriteriaNote().trim()).append("\n");
+        }
+        userBlock.append("\n【功能清单（归属模块必须严格使用下列「模块」列中已有名称，禁止新增模块名；用例应覆盖主要功能点）】\n");
+        userBlock.append(buildModulesMarkdownFromWireMaps(req.getModules()));
+
+        String system = """
+                你是资深软件测试工程师，负责编写可执行的合同/交付验收级「测试用例清单」。
+                必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
+                {"acceptanceTestCases":[{"caseName":"","module":"","priority":"","preconditions":"","testRole":"","steps":"","expectedResult":"","testResult":"","remark":""}]}
+                
+                字段要求（全部为字符串；无内容时 remark 可为 ""，preconditions 至少写「无」或简短说明）：
+                - caseName：简洁明确的用例名称，建议能呼应具体功能点。
+                - module：必须与用户给出的功能清单表格中「模块」列某一名称完全一致，禁止自造模块名。
+                - priority：只能是「高」「中」「低」之一；参考功能点复杂度（extreme/complex→高，medium→中，simple/standard→低）。
+                - preconditions：账号/角色/数据/环境等前置条件。
+                - testRole：测试时所使用的系统角色（如「未登录访客」「普通用户」「管理员」等），须与业务相符。
+                - steps：测试步骤，使用编号「1.」「2.」分行描述。
+                - expectedResult：可观察、可判定的预期结果。
+                - testResult：新生成的用例必须固定为「待测试」三个字，禁止填「通过」或「驳回」。
+                - remark：补充说明；可空字符串。
+                
+                规则：
+                1. 至少覆盖每个模块 1～3 条用例，并与功能点名称呼应；总条数建议不超过 80 条。
+                2. 不得描述功能清单中不存在的模块或功能，不得与 PRD/验收补充说明矛盾。
+                3. JSON 中不得出现除上述字段以外的顶层键（除 acceptanceTestCases 外仅可省略其它键）。
+                """;
+
+        List<DeepSeekClient.ChatMessage> messages = List.of(
+                new DeepSeekClient.ChatMessage("system", system),
+                new DeepSeekClient.ChatMessage("user", userBlock.toString())
+        );
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
+        String content = result != null ? result.getContent() : null;
+        if (content == null || content.isBlank()) {
+            throw new IllegalStateException("AI 未返回有效内容，请稍后重试");
+        }
+        String jsonStr = stripMarkdownCodeFence(content);
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(jsonStr);
+        } catch (Exception e) {
+            throw new IllegalStateException("AI 返回格式无法解析为 JSON，请重试");
+        }
+        JsonNode arr = root.get("acceptanceTestCases");
+        if (arr == null || !arr.isArray()) {
+            throw new IllegalStateException("AI 返回缺少 acceptanceTestCases 数组");
+        }
+        List<Map<String, Object>> normalized = normalizeAcceptanceTestCasesJsonArray(arr, moduleOrder);
+        if (normalized.isEmpty()) {
+            throw new IllegalStateException("未解析出有效测试用例，请检查功能清单后重试");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("acceptanceTestCases", normalized);
+        if (result != null) {
+            Map<String, Object> usage = new LinkedHashMap<>();
+            usage.put("inputTokens", result.getInputTokens());
+            usage.put("outputTokens", result.getOutputTokens());
+            usage.put("model", result.getModel() != null ? result.getModel() : model);
+            out.put("usage", usage);
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String buildModulesMarkdownFromWireMaps(List<Map<String, Object>> modules) {
+        if (modules == null || modules.isEmpty()) {
+            return "（无模块）\n";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("| 模块 | 功能点 | 复杂度 | 数量 |\n| --- | --- | --- | --- |\n");
+        for (Map<String, Object> mod : modules) {
+            if (mod == null) continue;
+            Object mn = mod.get("name");
+            String modName = mn != null ? mn.toString().trim() : "";
+            if (modName.isEmpty()) continue;
+            Object itemsObj = mod.get("items");
+            if (!(itemsObj instanceof List<?> itemList) || itemList.isEmpty()) {
+                sb.append("| ").append(escMdCell(modName)).append(" | （无功能点） |  |  |\n");
+                continue;
+            }
+            for (Object io : itemList) {
+                if (!(io instanceof Map)) continue;
+                Map<String, Object> it = (Map<String, Object>) io;
+                Object in = it.get("name");
+                String itemName = in != null ? in.toString().trim() : "";
+                if (itemName.isEmpty()) continue;
+                String cx = Objects.toString(it.get("complexity"), "standard");
+                int qty = 1;
+                if (it.get("quantity") instanceof Number n) {
+                    qty = Math.max(1, n.intValue());
+                }
+                sb.append("| ").append(escMdCell(modName)).append(" | ").append(escMdCell(itemName)).append(" | ")
+                        .append(escMdCell(cx)).append(" | ").append(qty).append(" |\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    private List<Map<String, Object>> normalizeAcceptanceTestCasesJsonArray(JsonNode arr, List<String> moduleOrder) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        LinkedHashSet<String> allowed = new LinkedHashSet<>(moduleOrder);
+        for (JsonNode node : arr) {
+            if (node == null || !node.isObject()) continue;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("caseName", textOrEmpty(node, "caseName"));
+            String rawMod = textOrEmpty(node, "module");
+            row.put("module", snapModuleToAllowed(rawMod, moduleOrder, allowed));
+            row.put("priority", normalizeAcceptancePriority(textOrEmpty(node, "priority")));
+            row.put("preconditions", blankToHint(textOrEmpty(node, "preconditions"), "无"));
+            row.put("testRole", blankToHint(textOrEmpty(node, "testRole"), "普通用户"));
+            row.put("steps", textOrEmpty(node, "steps"));
+            row.put("expectedResult", textOrEmpty(node, "expectedResult"));
+            row.put("testResult", "待测试");
+            row.put("remark", textOrEmpty(node, "remark"));
+            if (row.get("caseName").toString().isBlank()) {
+                continue;
+            }
+            out.add(row);
+            if (out.size() >= 100) {
+                break;
+            }
+        }
+        return out;
+    }
+
+    private static String textOrEmpty(JsonNode node, String field) {
+        JsonNode n = node.get(field);
+        if (n == null || n.isNull()) return "";
+        return n.asText("").trim();
+    }
+
+    private static String blankToHint(String s, String hint) {
+        return (s == null || s.isBlank()) ? hint : s.trim();
+    }
+
+    private static String snapModuleToAllowed(String rawMod, List<String> moduleOrder, Set<String> allowed) {
+        if (rawMod != null && allowed.contains(rawMod.trim())) {
+            return rawMod.trim();
+        }
+        if (rawMod == null || rawMod.isBlank()) {
+            return moduleOrder.isEmpty() ? "" : moduleOrder.get(0);
+        }
+        String t = rawMod.trim();
+        for (String m : moduleOrder) {
+            if (t.equalsIgnoreCase(m) || t.contains(m) || m.contains(t)) {
+                return m;
+            }
+        }
+        return moduleOrder.isEmpty() ? t : moduleOrder.get(0);
+    }
+
+    private static String normalizeAcceptancePriority(String p) {
+        if (p == null || p.isBlank()) return "中";
+        String x = p.trim();
+        if (x.equals("高") || x.equalsIgnoreCase("high") || x.toUpperCase().contains("P0") || x.contains("紧急")) {
+            return "高";
+        }
+        if (x.equals("低") || x.equalsIgnoreCase("low") || x.toUpperCase().contains("P3")) {
+            return "低";
+        }
+        return "中";
+    }
+
 }

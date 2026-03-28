@@ -381,6 +381,69 @@
         <label class="block">{{ $t('quote.acceptanceCriteriaNote') }}</label>
         <textarea v-model="contractContext.acceptanceCriteriaNote" class="textarea" rows="3" :placeholder="$t('quote.acceptanceCriteriaPlaceholder')"></textarea>
 
+        <h4 class="subh acceptance-tc-subh">{{ $t('quote.acceptanceTestCasesTitle') }}</h4>
+        <p class="hint">{{ $t('quote.acceptanceTestCasesHint') }}</p>
+        <div class="btn-row export-row acceptance-tc-toolbar">
+          <button type="button" class="btn primary" :disabled="aiAcceptanceParsing" @click="runAiAcceptanceTestCases">
+            {{ aiAcceptanceParsing ? $t('quote.aiAcceptanceParsing') : $t('quote.aiAcceptanceBtn') }}
+          </button>
+          <span class="ai-merge-label">{{ $t('quote.aiAcceptanceMergeLabel') }}</span>
+          <label class="chk"><input type="radio" v-model="aiAcceptanceMergeMode" value="replace" /> {{ $t('quote.aiAcceptanceMergeReplace') }}</label>
+          <label class="chk"><input type="radio" v-model="aiAcceptanceMergeMode" value="append" /> {{ $t('quote.aiAcceptanceMergeAppend') }}</label>
+          <button type="button" class="btn secondary btn-sm" @click="addAcceptanceTestCase">{{ $t('quote.addAcceptanceTestCase') }}</button>
+        </div>
+        <p v-if="aiAcceptanceMsg" :class="aiAcceptanceOk ? 'ok' : 'err'">{{ aiAcceptanceMsg }}</p>
+        <div class="table-wrap acceptance-tc-wrap">
+          <table class="data-table compact-contract acceptance-tc-table">
+            <thead>
+              <tr>
+                <th>{{ $t('quote.tcCaseName') }}</th>
+                <th>{{ $t('quote.tcModule') }}</th>
+                <th>{{ $t('quote.tcPriority') }}</th>
+                <th>{{ $t('quote.tcPreconditions') }}</th>
+                <th>{{ $t('quote.tcTestRole') }}</th>
+                <th>{{ $t('quote.tcSteps') }}</th>
+                <th>{{ $t('quote.tcExpected') }}</th>
+                <th>{{ $t('quote.tcResult') }}</th>
+                <th>{{ $t('quote.tcRemark') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(trow, ti) in contractContext.acceptanceTestCases" :key="'atc-' + ti">
+                <td><input v-model="trow.caseName" class="inp" :placeholder="$t('quote.tcCaseNamePh')" /></td>
+                <td>
+                  <select v-model="trow.module" class="inp">
+                    <option value="">{{ $t('quote.tcModulePh') }}</option>
+                    <option v-for="mn in quoteModuleNameOptions" :key="'mn-' + mn" :value="mn">{{ mn }}</option>
+                  </select>
+                </td>
+                <td>
+                  <select v-model="trow.priority" class="inp narrow">
+                    <option value="高">{{ $t('quote.tcPriorityHigh') }}</option>
+                    <option value="中">{{ $t('quote.tcPriorityMed') }}</option>
+                    <option value="低">{{ $t('quote.tcPriorityLow') }}</option>
+                  </select>
+                </td>
+                <td><textarea v-model="trow.preconditions" class="textarea tc-cell" rows="2" :placeholder="$t('quote.tcPreconditionsPh')"></textarea></td>
+                <td><input v-model="trow.testRole" class="inp" :placeholder="$t('quote.tcTestRolePh')" /></td>
+                <td><textarea v-model="trow.steps" class="textarea tc-cell" rows="3" :placeholder="$t('quote.tcStepsPh')"></textarea></td>
+                <td><textarea v-model="trow.expectedResult" class="textarea tc-cell" rows="2" :placeholder="$t('quote.tcExpectedPh')"></textarea></td>
+                <td>
+                  <select v-model="trow.testResult" class="inp narrow">
+                    <option value="待测试">{{ $t('quote.tcResultPending') }}</option>
+                    <option value="通过">{{ $t('quote.tcResultPass') }}</option>
+                    <option value="驳回">{{ $t('quote.tcResultReject') }}</option>
+                  </select>
+                </td>
+                <td><textarea v-model="trow.remark" class="textarea tc-cell" rows="2"></textarea></td>
+                <td><button type="button" class="btn-sm danger" @click="removeAcceptanceTestCase(ti)">×</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="!contractContext.acceptanceTestCases.length" class="hint">{{ $t('quote.acceptanceTestCasesEmpty') }}</p>
+
         <h3 class="subh">{{ $t('quote.milestonesTitle') }}</h3>
         <div class="table-wrap">
           <table class="data-table compact-contract">
@@ -547,6 +610,41 @@ function normalizeMaintenanceSlaFields (raw) {
   return { maintenanceSlaKeys: keys, maintenanceSlaExtra: extra }
 }
 
+function emptyAcceptanceTestCaseRow () {
+  return {
+    caseName: '',
+    module: '',
+    priority: '中',
+    preconditions: '',
+    testRole: '',
+    steps: '',
+    expectedResult: '',
+    testResult: '待测试',
+    remark: ''
+  }
+}
+
+function normalizeAcceptanceTestCaseRow (raw) {
+  if (!raw || typeof raw !== 'object') return emptyAcceptanceTestCaseRow()
+  const trOk = ['待测试', '通过', '驳回']
+  let testResult = raw.testResult != null ? String(raw.testResult).trim() : '待测试'
+  if (!trOk.includes(testResult)) testResult = '待测试'
+  const prOk = ['高', '中', '低']
+  let priority = raw.priority != null ? String(raw.priority).trim() : '中'
+  if (!prOk.includes(priority)) priority = '中'
+  return {
+    caseName: raw.caseName != null ? String(raw.caseName) : '',
+    module: raw.module != null ? String(raw.module) : '',
+    priority,
+    preconditions: raw.preconditions != null ? String(raw.preconditions) : '',
+    testRole: raw.testRole != null ? String(raw.testRole) : '',
+    steps: raw.steps != null ? String(raw.steps) : '',
+    expectedResult: raw.expectedResult != null ? String(raw.expectedResult) : '',
+    testResult,
+    remark: raw.remark != null ? String(raw.remark) : ''
+  }
+}
+
 function defaultContractContext () {
   return {
     paymentPlan: [
@@ -562,6 +660,7 @@ function defaultContractContext () {
     deliverables: ['source_code', 'deploy_doc', 'api_doc'],
     acceptanceObjectionDays: 5,
     acceptanceCriteriaNote: '',
+    acceptanceTestCases: [],
     milestones: [
       { name: '需求/范围确认', offsetDays: 7, note: '' },
       { name: '开发与联调', offsetDays: 30, note: '' },
@@ -592,6 +691,9 @@ function normalizeContractContext (raw) {
   const tax = normalizeTaxInvoiceFields(raw)
   const sla = normalizeMaintenanceSlaFields(raw)
   const dr = raw.disputeResolutionNote != null ? String(raw.disputeResolutionNote).trim() : ''
+  const atc = Array.isArray(raw.acceptanceTestCases)
+    ? raw.acceptanceTestCases.map(normalizeAcceptanceTestCaseRow)
+    : (base.acceptanceTestCases || [])
   return {
     paymentPlan: pay,
     taxInvoicePreset: tax.taxInvoicePreset,
@@ -602,6 +704,7 @@ function normalizeContractContext (raw) {
     deliverables: del.length ? del : [...base.deliverables],
     acceptanceObjectionDays: raw.acceptanceObjectionDays != null ? Math.max(0, Number(raw.acceptanceObjectionDays) || 0) : base.acceptanceObjectionDays,
     acceptanceCriteriaNote: raw.acceptanceCriteriaNote != null ? String(raw.acceptanceCriteriaNote) : '',
+    acceptanceTestCases: atc,
     milestones: ms,
     disputeResolutionNote: dr || DEFAULT_DISPUTE_RESOLUTION
   }
@@ -700,6 +803,10 @@ export default {
       aiModuleParsing: false,
       aiModuleMsg: '',
       aiModuleOk: false,
+      aiAcceptanceParsing: false,
+      aiAcceptanceMsg: '',
+      aiAcceptanceOk: false,
+      aiAcceptanceMergeMode: 'replace',
       aiFileName: '',
       deliverableOptions: [
         { k: 'source_code', l: '源代码' },
@@ -767,6 +874,19 @@ export default {
       if (mode === 'manual') return false
       const r = this.resolvedQuotePreview
       return !r.vendorName && !r.contactInfo
+    },
+    /** 验收测试用例「归属模块」下拉：来自当前功能模块名称 */
+    quoteModuleNameOptions () {
+      const names = []
+      const seen = new Set()
+      for (const m of this.modules || []) {
+        const n = (m.name && String(m.name).trim()) ? String(m.name).trim() : ''
+        if (n && !seen.has(n)) {
+          seen.add(n)
+          names.push(n)
+        }
+      }
+      return names
     }
   },
   created () {
@@ -1169,6 +1289,7 @@ export default {
           deliverables: [...(this.contractContext.deliverables || [])],
           acceptanceObjectionDays: Math.max(0, Number(this.contractContext.acceptanceObjectionDays) || 0),
           acceptanceCriteriaNote: this.contractContext.acceptanceCriteriaNote || '',
+          acceptanceTestCases: (this.contractContext.acceptanceTestCases || []).map(normalizeAcceptanceTestCaseRow),
           milestones: (this.contractContext.milestones || []).map(m => ({
             name: m.name || '',
             offsetDays: Math.max(0, Number(m.offsetDays) || 0),
@@ -1300,6 +1421,83 @@ export default {
           items: items.length ? items : [{ name: '', complexity: 'standard', quantity: 1 }]
         }
       }).filter(m => m.name && m.items.some(it => it.name))
+    },
+    addAcceptanceTestCase () {
+      const row = emptyAcceptanceTestCaseRow()
+      const opts = this.quoteModuleNameOptions
+      if (opts.length) row.module = opts[0]
+      if (!Array.isArray(this.contractContext.acceptanceTestCases)) {
+        this.$set(this.contractContext, 'acceptanceTestCases', [])
+      }
+      this.contractContext.acceptanceTestCases.push(row)
+    },
+    removeAcceptanceTestCase (ti) {
+      if (!Array.isArray(this.contractContext.acceptanceTestCases)) return
+      this.contractContext.acceptanceTestCases.splice(ti, 1)
+    },
+    modulesPayloadForAi () {
+      return this.modules.map((m, mi) => ({
+        name: m.name,
+        sortOrder: m.sortOrder != null ? m.sortOrder : mi,
+        items: (m.items || []).filter(it => it.name && String(it.name).trim()).map(it => ({
+          name: String(it.name).trim(),
+          complexity: it.complexity || 'standard',
+          quantity: Math.max(1, Number(it.quantity) || 1)
+        }))
+      })).filter(m => m.name && String(m.name).trim() && m.items.length)
+    },
+    async runAiAcceptanceTestCases () {
+      const modules = this.modulesPayloadForAi()
+      if (!modules.length) {
+        this.aiAcceptanceOk = false
+        this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceNoModules')
+        return
+      }
+      this.aiAcceptanceParsing = true
+      this.aiAcceptanceMsg = ''
+      this.aiAcceptanceOk = false
+      try {
+        const body = {
+          projectType: this.form.projectType,
+          techStack: this.form.techStack,
+          designType: this.form.designType,
+          dataMigration: this.form.dataMigration,
+          concurrency: this.form.concurrency,
+          securityLevel: this.form.securityLevel,
+          deployType: this.form.deployType,
+          prdSummary: this.form.prdSummary || '',
+          acceptanceCriteriaNote: (this.contractContext.acceptanceCriteriaNote || '').trim(),
+          modules
+        }
+        const resp = await this.$http.post('/admin/quote/ai/acceptance-test-cases', body)
+        if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.acceptanceTestCases)) {
+          const list = resp.data.data.acceptanceTestCases.map(normalizeAcceptanceTestCaseRow)
+            .filter(r => r.caseName && String(r.caseName).trim())
+          if (!list.length) {
+            this.aiAcceptanceOk = false
+            this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceNoResult')
+            return
+          }
+          if (!Array.isArray(this.contractContext.acceptanceTestCases)) {
+            this.$set(this.contractContext, 'acceptanceTestCases', [])
+          }
+          if (this.aiAcceptanceMergeMode === 'append') {
+            this.contractContext.acceptanceTestCases = this.contractContext.acceptanceTestCases.concat(list)
+          } else {
+            this.contractContext.acceptanceTestCases = list
+          }
+          this.aiAcceptanceOk = true
+          this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceOk', { n: this.contractContext.acceptanceTestCases.length })
+        } else {
+          this.aiAcceptanceOk = false
+          this.aiAcceptanceMsg = (resp.data && resp.data.message) || this.$t('quote.aiAcceptanceFail')
+        }
+      } catch (e) {
+        this.aiAcceptanceOk = false
+        this.aiAcceptanceMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.aiAcceptanceFail')
+      } finally {
+        this.aiAcceptanceParsing = false
+      }
     },
     async runAiParseModules () {
       const text = (this.aiRequirementText || '').trim()
@@ -1928,4 +2126,11 @@ label.block { display: block; margin-top: 10px; }
   color: #1e293b;
 }
 .ai-merge-label { font-weight: 600; }
+.acceptance-tc-subh { margin-top: 20px; margin-bottom: 6px; font-size: 15px; font-weight: 600; color: #0f172a; }
+.acceptance-tc-toolbar { flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 8px; }
+.acceptance-tc-wrap { overflow-x: auto; margin: 8px 0 12px; }
+.acceptance-tc-table { min-width: 1280px; font-size: 13px; }
+.acceptance-tc-table th, .acceptance-tc-table td { vertical-align: top; }
+.acceptance-tc-table .tc-cell { min-width: 110px; font-size: 13px; padding: 6px 8px; resize: vertical; }
+.acceptance-tc-table .inp.narrow { min-width: 76px; max-width: 100px; }
 </style>
