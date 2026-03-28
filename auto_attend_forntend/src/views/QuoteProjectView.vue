@@ -11,6 +11,8 @@
 
     <div v-if="pageLoading" class="placeholder">{{ $t('quote.loading') }}</div>
     <template v-else>
+      <div class="quote-project-layout">
+        <div class="quote-project-main">
       <section class="card">
         <h2>项目基础</h2>
         <div class="grid">
@@ -228,35 +230,6 @@
         <button type="button" class="btn secondary" @click="addModule">{{ $t('quote.addModule') }}</button>
       </section>
 
-      <div class="actions">
-        <button type="button" class="btn primary" :disabled="saving" @click="saveProject">{{ saving ? '…' : $t('quote.save') }}</button>
-        <span v-if="autoSaveStatus === 'saved'" class="ok autosave-msg">{{ $t('quote.autoSaveSaved') }}</span>
-        <span v-else-if="autoSaveStatus === 'error'" class="err autosave-msg">{{ $t('quote.autoSaveError') }}</span>
-        <span v-if="saveMsg" :class="saveOk ? 'ok' : 'err'">{{ saveMsg }}</span>
-      </div>
-
-      <section v-if="projectId" class="card">
-        <h2>项目创建</h2>
-        <p class="hint">一键创建 GitHub 仓库，并将报价需求同步到项目协作多维表，配置 Webhook（push 自动接入）。</p>
-        <div v-if="provisionMeta.repoFullName" class="provision-meta">
-          <p><strong>仓库：</strong><a :href="provisionMeta.repoHtmlUrl" target="_blank" rel="noopener">{{ provisionMeta.repoFullName }}</a></p>
-          <p><strong>状态：</strong>{{ provisionMeta.provisionStatus || '—' }} <span v-if="provisionMeta.provisionLastError" class="err">（{{ provisionMeta.provisionLastError }}）</span></p>
-          <p><strong>多维表同步：</strong>{{ provisionMeta.provisionSyncedToCollab ? '已同步' : '未同步' }} <span v-if="provisionMeta.provisionSyncedAt">（{{ provisionMeta.provisionSyncedAt }}）</span></p>
-        </div>
-        <button type="button" class="btn primary" :disabled="provisioning" @click="openProvisionModal">
-          {{ provisioning ? '创建中…' : '创建仓库' }}
-        </button>
-        <p v-if="provisionMsg" :class="provisionOk ? 'ok' : 'err'">{{ provisionMsg }}</p>
-        <div v-if="provisionResult && provisionResult.steps && provisionResult.steps.length" class="provision-steps">
-          <h3 class="subh">执行结果</h3>
-          <ul>
-            <li v-for="(s, i) in provisionResult.steps" :key="'ps-' + i">
-              <strong>{{ s.key }}</strong>：<span :class="s.ok ? 'ok' : 'err'">{{ s.message }}</span>
-            </li>
-          </ul>
-        </div>
-      </section>
-
       <section v-if="projectId" class="card">
         <h2>报价计算</h2>
         <div class="risk-grid">
@@ -290,11 +263,7 @@
           <p>{{ $t('quote.riskPct') }}：{{ calcResult.riskPctTotal }} &nbsp; 风险金额：¥{{ calcResult.riskAmount }} &nbsp; {{ $t('quote.finalAmount') }}：<strong>¥{{ calcResult.finalAmount }}</strong></p>
           <p>{{ $t('quote.confidence') }}：{{ calcResult.confidenceScore }}（{{ calcResult.confidenceLevel }}）</p>
           <ul v-if="calcResult.riskHints && calcResult.riskHints.length"><li v-for="(h, i) in calcResult.riskHints" :key="i">{{ h }}</li></ul>
-          <div class="btn-row export-row">
-            <button type="button" class="btn secondary" @click="downloadQuote">{{ $t('quote.genQuote') }}</button>
-            <button type="button" class="btn secondary" @click="downloadQuotePdf">{{ $t('quote.genQuotePdf') }}</button>
-            <button type="button" class="btn secondary" @click="downloadQuoteDocx">{{ $t('quote.genQuoteWord') }}</button>
-          </div>
+          <p class="hint">{{ $t('quote.quoteExportInSidebarHint') }}</p>
         </div>
       </section>
 
@@ -472,48 +441,9 @@
 
         <h3 class="subh">{{ $t('quote.contractAttachmentsTitle') }}</h3>
         <p class="hint">{{ $t('quote.contractAttachmentsHint') }}</p>
-        <div class="btn-row export-row">
-          <button type="button" class="btn secondary" @click="downloadAttachmentFunctionList">{{ $t('quote.attachmentFunctionList') }}</button>
-          <button type="button" class="btn secondary" @click="downloadAttachmentAcceptance">{{ $t('quote.attachmentAcceptance') }}</button>
-          <button type="button" class="btn secondary" @click="downloadAttachmentMilestones">{{ $t('quote.attachmentMilestones') }}</button>
-        </div>
+        <p class="hint">{{ $t('quote.contractAttachmentsInSidebarHint') }}</p>
         <p class="hint">{{ $t('quote.contractSupplementSaveHint') }}</p>
       </section>
-
-      <!-- 创建仓库弹窗（MVP，内联） -->
-      <div v-if="showProvisionModal" class="drawer-mask" @click="closeProvisionModal">
-        <div class="drawer" @click.stop>
-          <div class="drawer-header">
-            <h3>创建 GitHub 仓库</h3>
-            <button class="close-btn" @click="closeProvisionModal">×</button>
-          </div>
-          <div class="drawer-body">
-            <div class="grid">
-              <label class="full">仓库名 <input v-model="provisionForm.repoName" class="inp wide" placeholder="例如：autoattend-quote-123" /></label>
-              <label>可见性
-                <select v-model="provisionForm.repoPrivate" class="inp">
-                  <option :value="true">Private</option>
-                  <option :value="false">Public</option>
-                </select>
-              </label>
-              <label class="full">简介 <input v-model="provisionForm.description" class="inp wide" placeholder="可选" /></label>
-            </div>
-            <div class="risk-grid">
-              <label class="chk"><input type="checkbox" v-model="provisionForm.autoInit" /> 初始化 README</label>
-              <label class="chk"><input type="checkbox" v-model="provisionForm.syncMd" /> 写入需求清单 MD</label>
-              <label class="chk"><input type="checkbox" v-model="provisionForm.syncCollabTable" /> 同步到多维表</label>
-              <label class="chk"><input type="checkbox" v-model="provisionForm.createWebhook" /> 创建 Webhook</label>
-            </div>
-            <div class="btn-row export-row">
-              <button type="button" class="btn primary" :disabled="provisioning" @click="runProvision">
-                {{ provisioning ? '创建中…' : '开始创建' }}
-              </button>
-              <button type="button" class="btn secondary" :disabled="provisioning" @click="closeProvisionModal">取消</button>
-            </div>
-            <p class="hint" style="margin-top:10px">提示：需要先在「GitHub 集成」配置 GitHub Token，才能创建仓库与 Webhook。</p>
-          </div>
-        </div>
-      </div>
 
       <section v-if="calcResult && calcResult.id" class="card">
         <h2>{{ $t('quote.contractTitle') }}</h2>
@@ -528,17 +458,178 @@
             </select>
           </label>
         </div>
-        <button type="button" class="btn primary" :disabled="contractGenLoading" @click="runGenContract">{{ $t('quote.genContract') }}</button>
+        <p class="hint">{{ $t('quote.contractBodyInSidebarHint') }}</p>
         <label class="block">合同正文（可编辑）</label>
         <textarea v-model="contract.editedContent" class="textarea contract-ta" rows="16"></textarea>
-        <div class="btn-row export-row">
-          <button type="button" class="btn secondary" @click="saveContractBody">{{ $t('quote.saveContract') }}</button>
-          <button type="button" class="btn secondary" @click="exportContractFile">{{ $t('quote.exportContract') }}</button>
-          <button type="button" class="btn secondary" @click="exportContractPdf">{{ $t('quote.exportContractPdf') }}</button>
-          <button type="button" class="btn secondary" @click="exportContractDocx">{{ $t('quote.exportContractWord') }}</button>
-        </div>
         <p v-if="contractMsg" :class="contractOk ? 'ok' : 'err'">{{ contractMsg }}</p>
       </section>
+        </div>
+
+        <aside v-if="projectId" class="quote-output-sidebar" :class="{ collapsed: outputSidebarCollapsed }">
+          <button
+            type="button"
+            class="sidebar-edge-toggle"
+            :title="outputSidebarCollapsed ? $t('quote.outputSidebarExpand') : $t('quote.outputSidebarCollapse')"
+            @click="outputSidebarCollapsed = !outputSidebarCollapsed"
+          >{{ outputSidebarCollapsed ? '◀' : '▶' }}</button>
+          <div v-show="!outputSidebarCollapsed" class="quote-output-sidebar-body">
+            <h3 class="output-sidebar-title">{{ $t('quote.outputSidebarTitle') }}</h3>
+            <p class="hint output-sidebar-hint">{{ $t('quote.outputSidebarHint') }}</p>
+
+            <div v-if="calcResult && calcResult.id" class="output-sidebar-section">
+              <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionQuote') }}</h4>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.quoteHtml }">
+                <span class="output-file-label">{{ $t('quote.outputQuoteHtml') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny secondary" :disabled="!calcResult" @click="previewQuoteHtml">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" :disabled="!calcResult" @click="downloadQuote">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.quotePdf }">
+                <span class="output-file-label">{{ $t('quote.outputQuotePdf') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny secondary" :disabled="!calcResult" @click="previewQuotePdf">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" :disabled="!calcResult" @click="downloadQuotePdf">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.quoteDocx }">
+                <span class="output-file-label">{{ $t('quote.outputQuoteDocx') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny primary" :disabled="!calcResult" @click="downloadQuoteDocx">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="output-sidebar-section">
+              <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionAttachments') }}</h4>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.attFunction }">
+                <span class="output-file-label">{{ $t('quote.attachmentFunctionList') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny secondary" @click="previewAttachmentFunctionList">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" @click="downloadAttachmentFunctionList">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.attAcceptance }">
+                <span class="output-file-label">{{ $t('quote.attachmentAcceptance') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny secondary" @click="previewAttachmentAcceptance">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" @click="downloadAttachmentAcceptance">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.attMilestones }">
+                <span class="output-file-label">{{ $t('quote.attachmentMilestones') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny secondary" @click="previewAttachmentMilestones">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" @click="downloadAttachmentMilestones">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="calcResult && calcResult.id" class="output-sidebar-section">
+              <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionContract') }}</h4>
+              <div class="output-file-row output-file-row--full" :class="{ 'is-ready': artifactReady.contractAi }">
+                <span class="output-file-label">{{ $t('quote.genContract') }}</span>
+                <button type="button" class="btn-tiny primary" :disabled="contractGenLoading" @click="runGenContract">{{ contractGenLoading ? '…' : $t('quote.outputRun') }}</button>
+              </div>
+              <div class="output-file-row output-file-row--full" :class="{ 'is-ready': artifactReady.contractBodySaved }">
+                <span class="output-file-label">{{ $t('quote.saveContract') }}</span>
+                <button type="button" class="btn-tiny secondary" @click="saveContractBody">{{ $t('quote.outputRun') }}</button>
+              </div>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.contractHtml }">
+                <span class="output-file-label">{{ $t('quote.exportContract') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny secondary" @click="previewContractHtml">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" @click="exportContractFile">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.contractPdf }">
+                <span class="output-file-label">{{ $t('quote.exportContractPdf') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny secondary" @click="previewContractPdf">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" @click="exportContractPdf">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+              <div class="output-file-row" :class="{ 'is-ready': artifactReady.contractDocx }">
+                <span class="output-file-label">{{ $t('quote.exportContractWord') }}</span>
+                <div class="output-file-actions">
+                  <button type="button" class="btn-tiny primary" @click="exportContractDocx">{{ $t('quote.outputDownload') }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="output-sidebar-section output-sidebar-section--provision">
+              <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionRepo') }}</h4>
+              <p class="hint sidebar-provision-hint">{{ $t('quote.outputRepoHint') }}</p>
+              <div v-if="provisionMeta.repoFullName" class="provision-meta sidebar-provision-meta">
+                <p><strong>{{ $t('quote.outputRepoLink') }}</strong><a :href="provisionMeta.repoHtmlUrl" target="_blank" rel="noopener">{{ provisionMeta.repoFullName }}</a></p>
+                <p><strong>{{ $t('quote.outputRepoStatus') }}</strong>{{ provisionMeta.provisionStatus || '—' }} <span v-if="provisionMeta.provisionLastError" class="err">（{{ provisionMeta.provisionLastError }}）</span></p>
+                <p><strong>{{ $t('quote.outputRepoCollab') }}</strong>{{ provisionMeta.provisionSyncedToCollab ? $t('quote.outputRepoCollabYes') : $t('quote.outputRepoCollabNo') }} <span v-if="provisionMeta.provisionSyncedAt">（{{ provisionMeta.provisionSyncedAt }}）</span></p>
+              </div>
+              <button type="button" class="btn primary btn-block-sidebar" :disabled="provisioning" @click="openProvisionModal">
+                {{ provisioning ? $t('quote.outputRepoProvisioning') : $t('quote.outputRepoOpen') }}
+              </button>
+              <p v-if="provisionMsg" :class="provisionOk ? 'ok' : 'err'">{{ provisionMsg }}</p>
+              <div v-if="provisionResult && provisionResult.steps && provisionResult.steps.length" class="provision-steps">
+                <h5 class="output-sidebar-subtitle small">{{ $t('quote.outputRepoSteps') }}</h5>
+                <ul>
+                  <li v-for="(s, i) in provisionResult.steps" :key="'pss-' + i">
+                    <strong>{{ s.key }}</strong>：<span :class="s.ok ? 'ok' : 'err'">{{ s.message }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="quote-save-bar">
+        <div class="quote-save-bar-inner">
+          <div class="quote-save-bar-left">
+            <span v-if="autoSaveStatus === 'saved'" class="ok autosave-msg">{{ $t('quote.autoSaveSaved') }}</span>
+            <span v-else-if="autoSaveStatus === 'error'" class="err autosave-msg">{{ $t('quote.autoSaveError') }}</span>
+            <span v-if="saveMsg && !saveAllMsg" :class="saveOk ? 'ok' : 'err'">{{ saveMsg }}</span>
+            <span v-if="saveAllMsg" :class="saveAllOk ? 'ok' : 'err'">{{ saveAllMsg }}</span>
+          </div>
+          <button type="button" class="btn primary quote-save-all-btn" :disabled="saveAllLoading || saving" @click="saveAll">
+            {{ saveAllLoading ? '…' : $t('quote.saveAll') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 创建仓库弹窗 -->
+      <div v-if="showProvisionModal" class="drawer-mask" @click="closeProvisionModal">
+        <div class="drawer" @click.stop>
+          <div class="drawer-header">
+            <h3>{{ $t('quote.provisionModalTitle') }}</h3>
+            <button class="close-btn" @click="closeProvisionModal">×</button>
+          </div>
+          <div class="drawer-body">
+            <div class="grid">
+              <label class="full">{{ $t('quote.provisionRepoName') }} <input v-model="provisionForm.repoName" class="inp wide" :placeholder="$t('quote.provisionRepoNamePh')" /></label>
+              <label>{{ $t('quote.provisionVisibility') }}
+                <select v-model="provisionForm.repoPrivate" class="inp">
+                  <option :value="true">Private</option>
+                  <option :value="false">Public</option>
+                </select>
+              </label>
+              <label class="full">{{ $t('quote.provisionDesc') }} <input v-model="provisionForm.description" class="inp wide" :placeholder="$t('quote.provisionDescPh')" /></label>
+            </div>
+            <div class="risk-grid">
+              <label class="chk"><input type="checkbox" v-model="provisionForm.autoInit" /> {{ $t('quote.provisionOptReadme') }}</label>
+              <label class="chk"><input type="checkbox" v-model="provisionForm.syncMd" /> {{ $t('quote.provisionOptMd') }}</label>
+              <label class="chk"><input type="checkbox" v-model="provisionForm.syncCollabTable" /> {{ $t('quote.provisionOptCollab') }}</label>
+              <label class="chk"><input type="checkbox" v-model="provisionForm.createWebhook" /> {{ $t('quote.provisionOptWebhook') }}</label>
+            </div>
+            <div class="btn-row export-row">
+              <button type="button" class="btn primary" :disabled="provisioning" @click="runProvision">
+                {{ provisioning ? $t('quote.provisionRunning') : $t('quote.provisionStart') }}
+              </button>
+              <button type="button" class="btn secondary" :disabled="provisioning" @click="closeProvisionModal">{{ $t('quote.provisionCancel') }}</button>
+            </div>
+            <p class="hint" style="margin-top:10px">{{ $t('quote.provisionFootnote') }}</p>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -795,6 +886,23 @@ export default {
         syncCollabTable: true,
         createWebhook: true
       },
+      outputSidebarCollapsed: false,
+      artifactReady: {
+        quoteHtml: false,
+        quotePdf: false,
+        quoteDocx: false,
+        attFunction: false,
+        attAcceptance: false,
+        attMilestones: false,
+        contractAi: false,
+        contractBodySaved: false,
+        contractHtml: false,
+        contractPdf: false,
+        contractDocx: false
+      },
+      saveAllLoading: false,
+      saveAllMsg: '',
+      saveAllOk: false,
       contractContext: defaultContractContext(),
       /** 功能模块：manual | ai */
       moduleEntryMode: 'manual',
@@ -1080,6 +1188,7 @@ export default {
           this.modules = [emptyModule()]
           this.contractContext = normalizeContractContext(null)
           this.resetCalcPrefsUi()
+          this.resetArtifactReady()
         } else {
           this.projectId = Number(raw)
           await this.loadProject(this.projectId)
@@ -1096,6 +1205,7 @@ export default {
         const resp = await this.$http.get('/admin/quote/projects/' + id)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const d = resp.data.data
+          this.resetArtifactReady()
           this.restoringCalcPrefs = true
           try {
             this.form.name = d.name || ''
@@ -1146,6 +1256,7 @@ export default {
               this.provisionForm.description = this.suggestRepoDesc()
             }
             await this.loadContractIfAny()
+            this.syncArtifactReadyFromServer()
           } finally {
             this.$nextTick(() => {
               this.restoringCalcPrefs = false
@@ -1176,6 +1287,74 @@ export default {
     suggestRepoDesc () {
       const name = (this.form.name || '').trim()
       return name ? `AutoAttend 报价项目：${name}` : 'AutoAttend 报价项目'
+    },
+    resetArtifactReady () {
+      const keys = Object.keys(this.artifactReady || {})
+      keys.forEach(k => this.$set(this.artifactReady, k, false))
+    },
+    markArtifactReady (key) {
+      if (!key || this.artifactReady == null || !Object.prototype.hasOwnProperty.call(this.artifactReady, key)) return
+      this.$set(this.artifactReady, key, true)
+    },
+    syncArtifactReadyFromServer () {
+      if ((this.contract.editedContent || '').trim().length > 0) {
+        this.markArtifactReady('contractAi')
+        this.markArtifactReady('contractBodySaved')
+        this.markArtifactReady('contractHtml')
+      }
+    },
+    async saveAll () {
+      if (this.pageLoading) return
+      if (this.autoSaveDebounceTimer) {
+        clearTimeout(this.autoSaveDebounceTimer)
+        this.autoSaveDebounceTimer = null
+      }
+      if (this.calcPrefsDebounceTimer) {
+        clearTimeout(this.calcPrefsDebounceTimer)
+        this.calcPrefsDebounceTimer = null
+      }
+      this.saveAllLoading = true
+      this.saveAllMsg = ''
+      this.saveAllOk = false
+      this.saveMsg = ''
+      try {
+        await this.saveProject()
+        if (!this.saveOk) {
+          this.saveAllOk = false
+          this.saveAllMsg = this.saveMsg || this.$t('quote.saveAllFail')
+          return
+        }
+        if (this.projectId) {
+          await this.$http.patch('/admin/quote/projects/' + this.projectId + '/calc-prefs', this.buildQuoteCalcPrefsPayload())
+        }
+        let contractErr = false
+        if (this.calcResult && this.calcResult.id) {
+          try {
+            const resp = await this.$http.put('/admin/quote/results/' + this.calcResult.id + '/contract', {
+              editedContent: this.contract.editedContent
+            })
+            if (!resp.data || resp.data.code !== 0) contractErr = true
+            else {
+              this.markArtifactReady('contractBodySaved')
+            }
+          } catch (e) {
+            contractErr = true
+          }
+        }
+        this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
+        if (contractErr) {
+          this.saveAllOk = false
+          this.saveAllMsg = this.$t('quote.saveAllPartial')
+        } else {
+          this.saveAllOk = true
+          this.saveAllMsg = this.$t('quote.saveAllOk')
+        }
+      } catch (e) {
+        this.saveAllOk = false
+        this.saveAllMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.saveAllFail')
+      } finally {
+        this.saveAllLoading = false
+      }
     },
     openProvisionModal () {
       this.provisionMsg = ''
@@ -1586,6 +1765,7 @@ export default {
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.calcResult = resp.data.data
           await this.loadContractIfAny()
+          this.syncArtifactReadyFromServer()
         } else {
           alert((resp.data && resp.data.message) || '计算失败')
         }
@@ -1608,12 +1788,30 @@ export default {
           a.download = resp.data.data.filename || 'quote.html'
           a.click()
           URL.revokeObjectURL(a.href)
+          this.markArtifactReady('quoteHtml')
         }
       } catch (e) {
         alert('生成失败')
       }
     },
-    async downloadBinaryGet (path, defaultFilename) {
+    async previewQuoteHtml () {
+      if (!this.projectId || !this.calcResult) return
+      try {
+        const resp = await this.$http.post('/admin/quote/projects/' + this.projectId + '/quote-doc', {
+          quoteResultId: this.calcResult.id
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.html) {
+          const blob = new Blob([resp.data.data.html], { type: 'text/html;charset=utf-8' })
+          const u = URL.createObjectURL(blob)
+          window.open(u, '_blank', 'noopener')
+          setTimeout(() => URL.revokeObjectURL(u), 120000)
+          this.markArtifactReady('quoteHtml')
+        }
+      } catch (e) {
+        alert('生成失败')
+      }
+    },
+    async downloadBinaryGet (path, defaultFilename, artifactKey) {
       try {
         const resp = await this.$http.get(path, {
           params: { quoteResultId: this.calcResult.id },
@@ -1625,6 +1823,22 @@ export default {
         a.download = defaultFilename
         a.click()
         URL.revokeObjectURL(a.href)
+        if (artifactKey) this.markArtifactReady(artifactKey)
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
+      }
+    },
+    async previewQuotePdf () {
+      if (!this.projectId || !this.calcResult) return
+      try {
+        const resp = await this.$http.get('/admin/quote/projects/' + this.projectId + '/quote-doc.pdf', {
+          params: { quoteResultId: this.calcResult.id },
+          responseType: 'blob'
+        })
+        const u = URL.createObjectURL(resp.data)
+        window.open(u, '_blank', 'noopener')
+        setTimeout(() => URL.revokeObjectURL(u), 120000)
+        this.markArtifactReady('quotePdf')
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -1633,14 +1847,16 @@ export default {
       if (!this.projectId || !this.calcResult) return
       await this.downloadBinaryGet(
         '/admin/quote/projects/' + this.projectId + '/quote-doc.pdf',
-        'quote-' + this.projectId + '.pdf'
+        'quote-' + this.projectId + '.pdf',
+        'quotePdf'
       )
     },
     async downloadQuoteDocx () {
       if (!this.projectId || !this.calcResult) return
       await this.downloadBinaryGet(
         '/admin/quote/projects/' + this.projectId + '/quote-doc.docx',
-        'quote-' + this.projectId + '.docx'
+        'quote-' + this.projectId + '.docx',
+        'quoteDocx'
       )
     },
     addPaymentPhase () {
@@ -1666,7 +1882,7 @@ export default {
       if (this.contractContext.milestones.length <= 1) return
       this.contractContext.milestones.splice(mi, 1)
     },
-    async downloadAttachmentHtml (url, fallbackName) {
+    async downloadAttachmentHtml (url, fallbackName, artifactKey) {
       if (!this.projectId) return
       try {
         const resp = await this.$http.post(url)
@@ -1677,6 +1893,24 @@ export default {
           a.download = resp.data.data.filename || fallbackName
           a.click()
           URL.revokeObjectURL(a.href)
+          if (artifactKey) this.markArtifactReady(artifactKey)
+        } else {
+          alert(this.$t('quote.attachmentFail'))
+        }
+      } catch (e) {
+        alert(this.$t('quote.attachmentFail'))
+      }
+    },
+    async previewAttachmentHtml (url, artifactKey) {
+      if (!this.projectId) return
+      try {
+        const resp = await this.$http.post(url)
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.html) {
+          const blob = new Blob([resp.data.data.html], { type: 'text/html;charset=utf-8' })
+          const u = URL.createObjectURL(blob)
+          window.open(u, '_blank', 'noopener')
+          setTimeout(() => URL.revokeObjectURL(u), 120000)
+          if (artifactKey) this.markArtifactReady(artifactKey)
         } else {
           alert(this.$t('quote.attachmentFail'))
         }
@@ -1685,13 +1919,22 @@ export default {
       }
     },
     downloadAttachmentFunctionList () {
-      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list', 'attachment-1.html')
+      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list', 'attachment-1.html', 'attFunction')
+    },
+    previewAttachmentFunctionList () {
+      this.previewAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list', 'attFunction')
     },
     downloadAttachmentMilestones () {
-      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones', 'attachment-3.html')
+      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones', 'attachment-3.html', 'attMilestones')
+    },
+    previewAttachmentMilestones () {
+      this.previewAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones', 'attMilestones')
     },
     downloadAttachmentAcceptance () {
-      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance', 'attachment-2.html')
+      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance', 'attachment-2.html', 'attAcceptance')
+    },
+    previewAttachmentAcceptance () {
+      this.previewAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance', 'attAcceptance')
     },
     async runGenContract () {
       if (!this.calcResult || !this.calcResult.id) return
@@ -1707,6 +1950,8 @@ export default {
           this.contract.editedContent = resp.data.data.editedContent || ''
           this.contractOk = true
           this.contractMsg = '已生成'
+          this.markArtifactReady('contractAi')
+          this.markArtifactReady('contractHtml')
         } else {
           this.contractOk = false
           this.contractMsg = (resp.data && resp.data.message) || '失败'
@@ -1728,6 +1973,7 @@ export default {
         if (resp.data && resp.data.code === 0) {
           this.contractOk = true
           this.contractMsg = '已保存'
+          this.markArtifactReady('contractBodySaved')
         } else {
           this.contractOk = false
           this.contractMsg = (resp.data && resp.data.message) || '失败'
@@ -1735,6 +1981,21 @@ export default {
       } catch (e) {
         this.contractOk = false
         this.contractMsg = '失败'
+      }
+    },
+    async previewContractHtml () {
+      if (!this.calcResult || !this.calcResult.id) return
+      try {
+        const resp = await this.$http.post('/admin/quote/results/' + this.calcResult.id + '/contract/export')
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.html) {
+          const blob = new Blob([resp.data.data.html], { type: 'text/html;charset=utf-8' })
+          const u = URL.createObjectURL(blob)
+          window.open(u, '_blank', 'noopener')
+          setTimeout(() => URL.revokeObjectURL(u), 120000)
+          this.markArtifactReady('contractHtml')
+        }
+      } catch (e) {
+        alert('导出失败')
       }
     },
     async exportContractFile () {
@@ -1748,9 +2009,24 @@ export default {
           a.download = resp.data.data.filename || 'contract.html'
           a.click()
           URL.revokeObjectURL(a.href)
+          this.markArtifactReady('contractHtml')
         }
       } catch (e) {
         alert('导出失败')
+      }
+    },
+    async previewContractPdf () {
+      if (!this.calcResult || !this.calcResult.id) return
+      try {
+        const resp = await this.$http.get('/admin/quote/results/' + this.calcResult.id + '/contract.pdf', {
+          responseType: 'blob'
+        })
+        const u = URL.createObjectURL(resp.data)
+        window.open(u, '_blank', 'noopener')
+        setTimeout(() => URL.revokeObjectURL(u), 120000)
+        this.markArtifactReady('contractPdf')
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
     },
     async exportContractPdf () {
@@ -1765,6 +2041,7 @@ export default {
         a.download = 'contract-' + this.calcResult.id + '.pdf'
         a.click()
         URL.revokeObjectURL(a.href)
+        this.markArtifactReady('contractPdf')
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -1781,6 +2058,7 @@ export default {
         a.download = 'contract-' + this.calcResult.id + '.docx'
         a.click()
         URL.revokeObjectURL(a.href)
+        this.markArtifactReady('contractDocx')
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -1796,9 +2074,218 @@ export default {
   max-width: none;
   margin: 0;
   padding: clamp(16px, 2vw, 28px) clamp(16px, 3vw, 40px);
+  padding-bottom: clamp(88px, 12vh, 120px);
   box-sizing: border-box;
   color: #0f172a;
   background: #f1f5f9;
+}
+.quote-project-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+}
+.quote-project-main {
+  flex: 1;
+  min-width: 0;
+}
+.quote-output-sidebar {
+  position: sticky;
+  top: 16px;
+  width: 300px;
+  flex-shrink: 0;
+  max-height: calc(100vh - 100px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  z-index: 2;
+}
+.quote-output-sidebar.collapsed {
+  width: 44px;
+  min-width: 44px;
+}
+.quote-output-sidebar.collapsed .sidebar-edge-toggle {
+  border-radius: 10px;
+  width: 100%;
+  min-height: 120px;
+}
+.sidebar-edge-toggle {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 8px 4px;
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 14px;
+  color: #475569;
+}
+.sidebar-edge-toggle:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.quote-output-sidebar-body {
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+  flex: 1;
+  min-height: 0;
+}
+.output-sidebar-title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #020617;
+}
+.output-sidebar-hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.output-sidebar-section {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.output-sidebar-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.output-sidebar-subtitle {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+.output-sidebar-subtitle.small {
+  font-size: 12px;
+  margin-top: 8px;
+}
+.output-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.output-file-row--full {
+  justify-content: flex-start;
+  gap: 12px;
+}
+.output-file-row .output-file-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  flex: 1;
+  min-width: 120px;
+  line-height: 1.35;
+}
+.output-file-row.is-ready .output-file-label {
+  color: #15803d;
+}
+.output-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.btn-tiny {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  background: #fff;
+  color: #334155;
+  white-space: nowrap;
+}
+.btn-tiny:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.btn-tiny:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-tiny.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.btn-tiny.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.btn-tiny.secondary {
+  background: #fff;
+}
+.btn-block-sidebar {
+  width: 100%;
+  margin-top: 8px;
+}
+.sidebar-provision-hint {
+  margin-bottom: 8px;
+}
+.sidebar-provision-meta p {
+  margin: 4px 0;
+  font-size: 12px;
+}
+.quote-save-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.97);
+  border-top: 1px solid #cbd5e1;
+  box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.08);
+  padding: 12px clamp(16px, 3vw, 36px);
+  box-sizing: border-box;
+}
+.quote-save-bar-inner {
+  max-width: none;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.quote-save-bar-left {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.quote-save-all-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 10px 22px;
+}
+@media (max-width: 1100px) {
+  .quote-project-layout {
+    flex-direction: column;
+  }
+  .quote-output-sidebar {
+    position: relative;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+  }
+  .quote-output-sidebar.collapsed {
+    width: 100%;
+    min-height: 0;
+  }
+  .quote-output-sidebar.collapsed .sidebar-edge-toggle {
+    min-height: auto;
+    padding: 10px;
+  }
 }
 .head-links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 6px; }
 .head-sep { color: #64748b; font-size: 15px; user-select: none; }
