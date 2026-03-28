@@ -1,24 +1,140 @@
 <template>
-  <div class="dashboard">
-    <section class="section section-header-bar">
-      <div class="header-actions">
-        <router-link to="/team" class="link-button">{{ $t('teamManage.navTitle') }}</router-link>
-        <router-link to="/ai-config" class="link-button">{{ $t('aiConfig.navTitle') }}</router-link>
-        <router-link to="/quote" class="link-button">{{ $t('quote.navTitle') }}</router-link>
-        <router-link to="/quote/config" class="link-button subtle">{{ $t('quote.quoteConfigNav') }}</router-link>
-        <router-link to="/test" class="link-button test-entry">{{ $t('test.title') }}</router-link>
-        <router-link to="/collab/projects" class="link-button collab-entry">{{ $t('dashboard.collabEntry') }}</router-link>
-        <div class="repo-filter">
-          <label>{{ $t('dashboard.project') }}：</label>
-          <select v-model="selectedRepo" @change="onRepoChange">
-            <option value="">{{ $t('dashboard.allProjects') }}</option>
-            <option v-for="repo in repos" :key="repo" :value="repo">{{ repo }}</option>
-          </select>
-        </div>
-      </div>
-    </section>
+  <div class="console-shell">
+    <div class="console-inner">
+      <div class="dashboard">
+        <section class="identity-card console-elevated">
+          <div class="identity-main">
+            <div class="identity-avatar" aria-hidden="true">{{ consoleInitial }}</div>
+            <div class="identity-text">
+              <h1 class="identity-name">{{ consoleDisplayName }}</h1>
+              <div class="identity-meta-row">
+                <span class="identity-id-label">{{ $t('dashboard.consoleLoginId') }}</span>
+                <code class="identity-id-value">{{ consoleLoginIdDisplay }}</code>
+                <button type="button" class="icon-text-btn" :disabled="!consoleLoginIdRaw" @click="copyConsoleIdentity" :title="$t('dashboard.consoleCopyId')">
+                  {{ $t('dashboard.consoleCopyId') }}
+                </button>
+                <span v-if="copyIdentityMsg" class="copy-toast">{{ copyIdentityMsg }}</span>
+              </div>
+              <div class="identity-tags">
+                <span class="identity-tag">{{ $t('dashboard.consoleTagWorkspace') }}</span>
+                <span class="identity-tag identity-tag-muted">{{ $t('dashboard.consoleTagProduct') }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-    <!-- 顶部：选中项目时展示项目基本信息，否则展示资源总览 -->
+        <div class="hub-grid">
+          <section class="hub-card console-elevated hub-quote">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-quote" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubQuoteTitle') }}</h2>
+              <router-link to="/quote" class="hub-card-more">{{ $t('dashboard.hubQuoteViewAll') }} →</router-link>
+            </div>
+            <div class="hub-metric-row">
+              <div class="hub-metric">
+                <span class="hub-metric-value">{{ quoteHub.loading ? '—' : quoteHub.total }}</span>
+                <span class="hub-metric-label">{{ $t('dashboard.hubQuoteTotal') }}</span>
+              </div>
+              <div class="hub-quick-actions">
+                <router-link to="/quote/new" class="hub-pill hub-pill-primary">{{ $t('dashboard.hubQuoteNew') }}</router-link>
+                <router-link to="/quote/config" class="hub-pill">{{ $t('dashboard.hubQuoteConfig') }}</router-link>
+              </div>
+            </div>
+            <div class="hub-subhead">
+              <span>{{ $t('dashboard.hubQuoteRecent') }}</span>
+            </div>
+            <div v-if="quoteHub.loading" class="hub-placeholder">{{ $t('collab.loading') }}</div>
+            <ul v-else-if="quoteHub.items.length" class="hub-list">
+              <li v-for="row in quoteHub.items" :key="row.id">
+                <router-link :to="'/quote/' + row.id" class="hub-list-link">
+                  <span class="hub-list-name">{{ row.name || ('#' + row.id) }}</span>
+                  <span class="hub-list-meta">#{{ row.id }}<template v-if="row.techStack"> · {{ row.techStack }}</template></span>
+                </router-link>
+              </li>
+            </ul>
+            <p v-else class="hub-placeholder muted">{{ $t('dashboard.hubQuoteEmpty') }}</p>
+          </section>
+
+          <section class="hub-card console-elevated hub-api">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-api" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubApiTitle') }}</h2>
+              <router-link to="/ai-config" class="hub-card-more">{{ $t('dashboard.hubApiOpenConfig') }} →</router-link>
+            </div>
+            <div v-if="aiHub.loading" class="hub-placeholder">{{ $t('dashboard.hubApiLoading') }}</div>
+            <template v-else>
+              <div class="hub-provider-rows">
+                <div class="hub-provider-row">
+                  <span class="hub-provider-name">{{ $t('dashboard.hubApiDeepSeek') }}</span>
+                  <span class="hub-provider-status" :class="{ ok: aiHubDeepseekOk }">{{ aiHubDeepseekLine }}</span>
+                </div>
+                <div class="hub-provider-row">
+                  <span class="hub-provider-name">{{ $t('dashboard.hubApiQwen') }}</span>
+                  <span class="hub-provider-status" :class="{ ok: aiHubQwenOk }">{{ aiHubQwenLine }}</span>
+                </div>
+              </div>
+              <div class="hub-quick-actions hub-quick-actions-foot">
+                <router-link to="/test" class="hub-pill hub-pill-primary">{{ $t('dashboard.hubApiOpenTest') }}</router-link>
+                <router-link to="/ai-config" class="hub-pill">{{ $t('aiConfig.navTitle') }}</router-link>
+              </div>
+            </template>
+          </section>
+
+          <section class="hub-card console-elevated hub-team">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-team" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubTeamTitle') }}</h2>
+              <router-link to="/team" class="hub-card-more">{{ $t('dashboard.hubTeamOpen') }} →</router-link>
+            </div>
+            <div class="hub-metric-row">
+              <div class="hub-metric">
+                <span class="hub-metric-value">{{ teamHubDisplay }}</span>
+                <span class="hub-metric-label">{{ $t('dashboard.hubTeamMembers') }}</span>
+              </div>
+            </div>
+            <p class="hub-desc">{{ $t('dashboard.hubTeamDesc') }}</p>
+            <router-link to="/team" class="hub-block-link">{{ $t('dashboard.hubTeamOpen') }}</router-link>
+          </section>
+
+          <section class="hub-card console-elevated hub-project">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-project" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubProjectTitle') }}</h2>
+              <router-link to="/collab/projects" class="hub-card-more">{{ $t('dashboard.hubProjectCollab') }} →</router-link>
+            </div>
+            <p class="hub-desc">{{ $t('dashboard.hubProjectHint') }}</p>
+            <div class="repo-filter hub-repo-filter">
+              <label>{{ $t('dashboard.project') }}</label>
+              <select v-model="selectedRepo" @change="onRepoChange">
+                <option value="">{{ $t('dashboard.allProjects') }}</option>
+                <option v-for="repo in repos" :key="repo" :value="repo">{{ repo }}</option>
+              </select>
+            </div>
+            <div v-if="!selectedRepo && statsOverview" class="hub-mini-overview">
+              <span class="hub-subhead-text">{{ $t('dashboard.hubProjectMiniOverview') }}</span>
+              <div class="hub-mini-metrics">
+                <div class="hub-mini-metric">
+                  <span class="hub-mini-val">{{ statsOverview.repoCount ?? 0 }}</span>
+                  <span class="hub-mini-lbl">{{ $t('dashboard.repoCount') }}</span>
+                </div>
+                <div class="hub-mini-metric">
+                  <span class="hub-mini-val">{{ statsOverview.totalCommits ?? 0 }}</span>
+                  <span class="hub-mini-lbl">{{ $t('dashboard.totalCommits') }}</span>
+                </div>
+                <div class="hub-mini-metric">
+                  <span class="hub-mini-val">{{ statsOverview.authorCount ?? 0 }}</span>
+                  <span class="hub-mini-lbl">{{ $t('dashboard.authorCount') }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="!selectedRepo && !statsOverview" class="hub-placeholder">{{ $t('collab.loading') }}</div>
+          </section>
+        </div>
+
+        <p class="console-board-hint">{{ $t('dashboard.consoleDataBoardHint') }}</p>
+        <h2 class="console-board-title">{{ $t('dashboard.consoleDataBoardTitle') }}</h2>
+
+        <!-- 顶部：选中项目时展示项目基本信息，否则展示资源总览 -->
     <section class="section overview-section">
       <h2 class="section-title">{{ selectedRepo ? $t('dashboard.projectInfoTitle') : $t('dashboard.overviewTitle') }}</h2>
       <!-- 已选项目：项目名称、简介、开发者、技术栈 -->
@@ -312,6 +428,8 @@
         </div>
       </div>
     </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -369,7 +487,12 @@ export default {
       dailySummaryRunMessage: '',
       dailySummaryRunOk: false,
       dailySummaryDetail: null,
-      dailyDetailLoading: false
+      dailyDetailLoading: false,
+      quoteHub: { loading: false, items: [], total: 0 },
+      teamHubCount: null,
+      teamHubLoading: false,
+      aiHub: { loading: false, deepseek: null, qwen: null },
+      copyIdentityMsg: ''
     }
   },
   watch: {
@@ -445,6 +568,38 @@ export default {
         end: m.periodEndInclusive || m.periodStart
       })
     },
+    consoleLoginIdRaw () {
+      if (typeof localStorage === 'undefined') return ''
+      return (localStorage.getItem('autoattend_username') || '').trim()
+    },
+    consoleDisplayName () {
+      return this.consoleLoginIdRaw || this.$t('dashboard.consoleGuest')
+    },
+    consoleLoginIdDisplay () {
+      return this.consoleLoginIdRaw || '—'
+    },
+    consoleInitial () {
+      const s = this.consoleDisplayName
+      if (!s) return '?'
+      return String(s).charAt(0).toUpperCase()
+    },
+    teamHubDisplay () {
+      if (this.teamHubLoading) return '…'
+      if (this.teamHubCount == null) return '—'
+      return this.teamHubCount
+    },
+    aiHubDeepseekLine () {
+      return this.formatAiProviderLine(this.aiHub.deepseek)
+    },
+    aiHubQwenLine () {
+      return this.formatAiProviderLine(this.aiHub.qwen)
+    },
+    aiHubDeepseekOk () {
+      return this.aiProviderReady(this.aiHub.deepseek)
+    },
+    aiHubQwenOk () {
+      return this.aiProviderReady(this.aiHub.qwen)
+    },
     diffHtml () {
       if (!this.diffText) return ''
       return this.diffText.split('\n').map(line => {
@@ -461,6 +616,7 @@ export default {
     this.loadStatsOverview()
     this.loadStatsCommitsByDay()
     this.loadStatsAuthors()
+    this.loadConsoleHub()
     this.loadRepos().then(() => {
       if (this.selectedRepo) {
         this.loadRepoInfo()
@@ -491,6 +647,103 @@ export default {
     })
   },
   methods: {
+    coerceBoolHub (v) {
+      return v === true || v === 'true' || v === 1 || v === '1'
+    },
+    hubHasApiKey (d) {
+      if (!d) return false
+      if (d.hasApiKey === true) return true
+      const m = d.apiKeyMasked
+      return !!(m != null && String(m).trim() !== '')
+    },
+    aiProviderReady (d) {
+      return !!(d && this.coerceBoolHub(d.enabled) && this.hubHasApiKey(d))
+    },
+    formatAiProviderLine (d) {
+      if (!d) return this.$t('dashboard.consoleKeyUnset')
+      const en = this.coerceBoolHub(d.enabled)
+      const key = this.hubHasApiKey(d)
+      const enLabel = en ? this.$t('dashboard.consoleEnabled') : this.$t('dashboard.consoleDisabled')
+      const keyLabel = key ? this.$t('dashboard.consoleKeySet') : this.$t('dashboard.consoleKeyUnset')
+      return `${enLabel} · ${keyLabel}`
+    },
+    loadConsoleHub () {
+      this.loadQuoteHub()
+      this.loadTeamHub()
+      this.loadAiHub()
+    },
+    async loadQuoteHub () {
+      this.quoteHub.loading = true
+      try {
+        const resp = await this.$http.get('/admin/quote/projects', { params: { page: 1, pageSize: 5 } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.quoteHub.items = resp.data.data.items || []
+          this.quoteHub.total = Number(resp.data.data.total) || 0
+        } else {
+          this.quoteHub.items = []
+          this.quoteHub.total = 0
+        }
+      } catch (e) {
+        this.quoteHub.items = []
+        this.quoteHub.total = 0
+      } finally {
+        this.quoteHub.loading = false
+      }
+    },
+    async loadTeamHub () {
+      this.teamHubLoading = true
+      try {
+        const r = await this.$http.get('/admin/team/members')
+        if (r.data && r.data.code === 0 && Array.isArray(r.data.data)) {
+          this.teamHubCount = r.data.data.length
+        } else {
+          this.teamHubCount = 0
+        }
+      } catch (e) {
+        this.teamHubCount = null
+      } finally {
+        this.teamHubLoading = false
+      }
+    },
+    async loadAiHub () {
+      this.aiHub.loading = true
+      this.aiHub.deepseek = null
+      this.aiHub.qwen = null
+      try {
+        const [ds, qw] = await Promise.all([
+          this.$http.get('/admin/ai-analysis/config').catch(() => ({ data: null })),
+          this.$http.get('/admin/ai-analysis/qwen-config').catch(() => ({ data: null }))
+        ])
+        if (ds.data && ds.data.code === 0 && ds.data.data) this.aiHub.deepseek = ds.data.data
+        if (qw.data && qw.data.code === 0 && qw.data.data) this.aiHub.qwen = qw.data.data
+      } finally {
+        this.aiHub.loading = false
+      }
+    },
+    copyConsoleIdentity () {
+      const u = this.consoleLoginIdRaw
+      if (!u) return
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(u).then(() => {
+          this.copyIdentityMsg = this.$t('dashboard.consoleCopied')
+          setTimeout(() => { this.copyIdentityMsg = '' }, 2000)
+        }).catch(() => this.fallbackCopyUsername(u))
+      } else {
+        this.fallbackCopyUsername(u)
+      }
+    },
+    fallbackCopyUsername (text) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+        this.copyIdentityMsg = this.$t('dashboard.consoleCopied')
+        setTimeout(() => { this.copyIdentityMsg = '' }, 2000)
+      } catch (e) { /* ignore */ }
+      document.body.removeChild(ta)
+    },
     async loadStatsOverview () {
       try {
         const resp = await this.$http.get('/admin/stats/overview', {
@@ -992,6 +1245,424 @@ export default {
 </script>
 
 <style scoped>
+.console-shell {
+  min-height: 100%;
+  background: linear-gradient(180deg, #e8f4fc 0%, #f4f7fb 35%, #f8fafc 100%);
+  padding: 20px 16px 32px;
+  box-sizing: border-box;
+}
+
+.console-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.console-elevated {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.identity-card {
+  padding: 22px 24px;
+  margin-bottom: 20px;
+}
+
+.identity-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.identity-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.identity-name {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.identity-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.identity-id-label {
+  color: #64748b;
+}
+
+.identity-id-value {
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.icon-text-btn {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.icon-text-btn:hover {
+  text-decoration: underline;
+}
+
+.icon-text-btn:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.copy-toast {
+  font-size: 12px;
+  color: #059669;
+}
+
+.identity-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.identity-tag {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 500;
+}
+
+.identity-tag-muted {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 960px) {
+  .hub-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hub-card {
+  padding: 18px 20px 20px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.hub-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.hub-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.hub-icon-quote { background: linear-gradient(135deg, #2563eb, #4f46e5); }
+.hub-icon-api { background: linear-gradient(135deg, #0891b2, #2563eb); }
+.hub-icon-team { background: linear-gradient(135deg, #059669, #10b981); }
+.hub-icon-project { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+
+.hub-card-title {
+  margin: 0;
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.hub-card-more {
+  font-size: 13px;
+  color: #2563eb;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hub-card-more:hover {
+  text-decoration: underline;
+}
+
+.hub-metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 20px;
+  margin-bottom: 12px;
+}
+
+.hub-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hub-metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-metric-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.hub-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.hub-quick-actions-foot {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.hub-pill {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+}
+
+.hub-pill:hover {
+  background: #e2e8f0;
+}
+
+.hub-pill-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.hub-pill-primary:hover {
+  background: #1d4ed8;
+}
+
+.hub-subhead {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.hub-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #f1f5f9;
+}
+
+.hub-list li {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.hub-list li:last-child {
+  border-bottom: none;
+}
+
+.hub-list-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.hub-list-link:hover .hub-list-name {
+  color: #2563eb;
+}
+
+.hub-list-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.hub-list-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.hub-placeholder {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.hub-placeholder.muted {
+  margin: 0;
+  padding: 8px 0 0;
+}
+
+.hub-provider-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.hub-provider-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.hub-provider-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.hub-provider-status {
+  font-size: 12px;
+  color: #64748b;
+  text-align: right;
+}
+
+.hub-provider-status.ok {
+  color: #059669;
+  font-weight: 600;
+}
+
+.hub-desc {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.hub-block-link {
+  margin-top: auto;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.hub-block-link:hover {
+  text-decoration: underline;
+}
+
+.hub-repo-filter {
+  margin-bottom: 14px;
+}
+
+.hub-repo-filter label {
+  margin-right: 8px;
+}
+
+.hub-mini-overview {
+  margin-top: 4px;
+}
+
+.hub-subhead-text {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.hub-mini-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hub-mini-metric {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 12px 10px;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+
+.hub-mini-val {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.hub-mini-lbl {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+  display: block;
+}
+
+.console-board-hint {
+  font-size: 13px;
+  color: #64748b;
+  margin: 24px 0 6px;
+}
+
+.console-board-title {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
 .dashboard {
   display: flex;
   flex-direction: column;
