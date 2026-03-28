@@ -230,6 +230,8 @@
 
       <div class="actions">
         <button type="button" class="btn primary" :disabled="saving" @click="saveProject">{{ saving ? '…' : $t('quote.save') }}</button>
+        <span v-if="autoSaveStatus === 'saved'" class="ok autosave-msg">{{ $t('quote.autoSaveSaved') }}</span>
+        <span v-else-if="autoSaveStatus === 'error'" class="err autosave-msg">{{ $t('quote.autoSaveError') }}</span>
         <span v-if="saveMsg" :class="saveOk ? 'ok' : 'err'">{{ saveMsg }}</span>
       </div>
 
@@ -299,6 +301,7 @@
       <section v-if="projectId" class="card contract-supplement-card">
         <h2>{{ $t('quote.contractSupplementTitle') }}</h2>
         <p class="hint">{{ $t('quote.contractSupplementHint') }}</p>
+        <p class="hint autosave-hint">{{ $t('quote.contractSupplementAutoSaveHint') }}</p>
 
         <h3 class="subh">{{ $t('quote.paymentPlanTitle') }}</h3>
         <div class="table-wrap">
@@ -324,9 +327,43 @@
         <button type="button" class="btn secondary btn-sm" @click="addPaymentPhase">{{ $t('quote.addPaymentPhase') }}</button>
 
         <div class="grid contract-grid-2">
-          <label>{{ $t('quote.taxInvoiceNote') }} <input v-model="contractContext.taxInvoiceNote" class="inp" :placeholder="$t('quote.taxInvoicePlaceholder')" /></label>
+          <label>{{ $t('quote.taxInvoiceNote') }}
+            <select v-model="contractContext.taxInvoicePreset" class="inp">
+              <option v-for="opt in taxInvoiceOptions" :key="opt.v" :value="opt.v">{{ opt.l }}</option>
+            </select>
+          </label>
           <label>{{ $t('quote.warrantyMonths') }} <input v-model.number="contractContext.warrantyMonths" type="number" min="0" max="120" class="inp num" /></label>
-          <label class="block-full">{{ $t('quote.maintenanceSlaNote') }} <input v-model="contractContext.maintenanceSlaNote" class="inp" /></label>
+          <label v-if="contractContext.taxInvoicePreset === 'other'" class="block-full">{{ $t('quote.taxInvoiceCustom') }}
+            <input v-model="contractContext.taxInvoiceCustom" class="inp" :placeholder="$t('quote.taxInvoiceCustomPh')" />
+          </label>
+        </div>
+
+        <div class="sla-block block-full">
+          <div class="sla-label-row">
+            <span class="sla-label-text">{{ $t('quote.maintenanceSlaNote') }}</span>
+            <button
+              type="button"
+              class="th-hint-icon"
+              :aria-expanded="slaHintOpen ? 'true' : 'false'"
+              :aria-controls="'quote-sla-hint'"
+              :aria-label="$t('quote.slaHintAria')"
+              @click.stop="slaHintOpen = !slaHintOpen"
+            >?</button>
+            <div
+              v-show="slaHintOpen"
+              id="quote-sla-hint"
+              class="th-hint-popover sla-hint-popover"
+              role="tooltip"
+            >{{ $t('quote.slaHintText') }}</div>
+          </div>
+          <div class="risk-grid sla-check-grid">
+            <label v-for="opt in slaPresetOptions" :key="opt.k" class="chk">
+              <input type="checkbox" :checked="contractContext.maintenanceSlaKeys.includes(opt.k)" @change="toggleSlaKey(opt.k, $event)" />
+              {{ opt.l }}
+            </label>
+          </div>
+          <label class="block sla-extra-label">{{ $t('quote.slaExtraNote') }}</label>
+          <input v-model="contractContext.maintenanceSlaExtra" class="inp block-inp" :placeholder="$t('quote.slaExtraPlaceholder')" />
         </div>
 
         <h3 class="subh">{{ $t('quote.deliverablesTitle') }}</h3>
@@ -374,6 +411,7 @@
         <p class="hint">{{ $t('quote.contractAttachmentsHint') }}</p>
         <div class="btn-row export-row">
           <button type="button" class="btn secondary" @click="downloadAttachmentFunctionList">{{ $t('quote.attachmentFunctionList') }}</button>
+          <button type="button" class="btn secondary" @click="downloadAttachmentAcceptance">{{ $t('quote.attachmentAcceptance') }}</button>
           <button type="button" class="btn secondary" @click="downloadAttachmentMilestones">{{ $t('quote.attachmentMilestones') }}</button>
         </div>
         <p class="hint">{{ $t('quote.contractSupplementSaveHint') }}</p>
@@ -449,6 +487,66 @@ function emptyModule () {
   return { name: '', sortOrder: 0, items: [{ name: '', complexity: 'standard', quantity: 1 }] }
 }
 
+const DEFAULT_DISPUTE_RESOLUTION = '协商不成，提交被告住所地有管辖权的人民法院诉讼'
+
+const TAX_INVOICE_OPTIONS = [
+  { v: 'vat_special_13', l: '含税价（增值税专票，税率 13%）' },
+  { v: 'vat_normal_13', l: '含税价（增值税普票，税率 13%）' },
+  { v: 'vat_special_6', l: '含税价（增值税专票，税率 6%）' },
+  { v: 'vat_normal_6', l: '含税价（增值税普票，税率 6%）' },
+  { v: 'vat_special_1', l: '含税价（增值税专票，税率 1%）' },
+  { v: 'vat_normal_1', l: '含税价（增值税普票，税率 1%）' },
+  { v: 'vat_normal_exempt', l: '含税价（增值税普票，免税）' },
+  { v: 'receipt', l: '含收据（非增值税发票）' },
+  { v: 'price_excl_tax', l: '报价不含税，发票类型另行约定' },
+  { v: 'other', l: '其他（见补充说明）' }
+]
+
+const SLA_PRESET_OPTIONS = [
+  { k: 'workday_4h', l: '工作日 4 小时内响应' },
+  { k: 'workday_8h', l: '工作日 8 小时内响应' },
+  { k: 'urgent_2h', l: '紧急故障 2 小时内响应' },
+  { k: 'fix_48h', l: '一般缺陷 48 小时内提供修复方案或补丁' },
+  { k: 'fix_5d', l: '非紧急问题 5 个工作日内处理' },
+  { k: 'remote_9_18', l: '远程协助支持（工作日 9:00–18:00）' },
+  { k: 'exclude_disaster', l: '不含数据灾难恢复（另行约定）' }
+]
+
+const DEFAULT_SLA_KEYS = ['workday_4h', 'fix_48h', 'remote_9_18']
+
+function normalizeTaxInvoiceFields (raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { taxInvoicePreset: 'vat_special_13', taxInvoiceCustom: '' }
+  }
+  const preset = raw.taxInvoicePreset
+  if (typeof preset === 'string' && TAX_INVOICE_OPTIONS.some(o => o.v === preset)) {
+    return {
+      taxInvoicePreset: preset,
+      taxInvoiceCustom: raw.taxInvoiceCustom != null ? String(raw.taxInvoiceCustom) : ''
+    }
+  }
+  const oldNote = raw.taxInvoiceNote != null ? String(raw.taxInvoiceNote).trim() : ''
+  if (!oldNote) return { taxInvoicePreset: 'vat_special_13', taxInvoiceCustom: '' }
+  const hit = TAX_INVOICE_OPTIONS.find(o => o.l === oldNote)
+  if (hit) return { taxInvoicePreset: hit.v, taxInvoiceCustom: '' }
+  return { taxInvoicePreset: 'other', taxInvoiceCustom: oldNote }
+}
+
+function normalizeMaintenanceSlaFields (raw) {
+  const keys = Array.isArray(raw.maintenanceSlaKeys)
+    ? raw.maintenanceSlaKeys.filter(k => typeof k === 'string' && SLA_PRESET_OPTIONS.some(o => o.k === k))
+    : []
+  const extra = raw.maintenanceSlaExtra != null ? String(raw.maintenanceSlaExtra) : ''
+  const legacyNote = raw.maintenanceSlaNote != null ? String(raw.maintenanceSlaNote).trim() : ''
+  if (!keys.length && legacyNote) {
+    return { maintenanceSlaKeys: [], maintenanceSlaExtra: legacyNote }
+  }
+  if (!keys.length) {
+    return { maintenanceSlaKeys: [...DEFAULT_SLA_KEYS], maintenanceSlaExtra: extra }
+  }
+  return { maintenanceSlaKeys: keys, maintenanceSlaExtra: extra }
+}
+
 function defaultContractContext () {
   return {
     paymentPlan: [
@@ -456,9 +554,11 @@ function defaultContractContext () {
       { phaseName: '阶段验收', percent: 40, triggerNote: '里程碑达成并通过阶段验收后' },
       { phaseName: '终验', percent: 30, triggerNote: '项目终验通过后7日内' }
     ],
-    taxInvoiceNote: '',
+    taxInvoicePreset: 'vat_special_13',
+    taxInvoiceCustom: '',
     warrantyMonths: 3,
-    maintenanceSlaNote: '',
+    maintenanceSlaKeys: [...DEFAULT_SLA_KEYS],
+    maintenanceSlaExtra: '',
     deliverables: ['source_code', 'deploy_doc', 'api_doc'],
     acceptanceObjectionDays: 5,
     acceptanceCriteriaNote: '',
@@ -467,7 +567,7 @@ function defaultContractContext () {
       { name: '开发与联调', offsetDays: 30, note: '' },
       { name: 'UAT 与终验', offsetDays: 45, note: '' }
     ],
-    disputeResolutionNote: ''
+    disputeResolutionNote: DEFAULT_DISPUTE_RESOLUTION
   }
 }
 
@@ -489,16 +589,21 @@ function normalizeContractContext (raw) {
       note: m.note != null ? String(m.note) : ''
     }))
     : base.milestones
+  const tax = normalizeTaxInvoiceFields(raw)
+  const sla = normalizeMaintenanceSlaFields(raw)
+  const dr = raw.disputeResolutionNote != null ? String(raw.disputeResolutionNote).trim() : ''
   return {
     paymentPlan: pay,
-    taxInvoiceNote: raw.taxInvoiceNote != null ? String(raw.taxInvoiceNote) : '',
+    taxInvoicePreset: tax.taxInvoicePreset,
+    taxInvoiceCustom: tax.taxInvoiceCustom,
     warrantyMonths: raw.warrantyMonths != null ? Math.max(0, Number(raw.warrantyMonths) || 0) : base.warrantyMonths,
-    maintenanceSlaNote: raw.maintenanceSlaNote != null ? String(raw.maintenanceSlaNote) : '',
+    maintenanceSlaKeys: sla.maintenanceSlaKeys,
+    maintenanceSlaExtra: sla.maintenanceSlaExtra,
     deliverables: del.length ? del : [...base.deliverables],
     acceptanceObjectionDays: raw.acceptanceObjectionDays != null ? Math.max(0, Number(raw.acceptanceObjectionDays) || 0) : base.acceptanceObjectionDays,
     acceptanceCriteriaNote: raw.acceptanceCriteriaNote != null ? String(raw.acceptanceCriteriaNote) : '',
     milestones: ms,
-    disputeResolutionNote: raw.disputeResolutionNote != null ? String(raw.disputeResolutionNote) : ''
+    disputeResolutionNote: dr || DEFAULT_DISPUTE_RESOLUTION
   }
 }
 
@@ -554,6 +659,13 @@ export default {
       /** 仅启用项，供「从预设添加」下拉（在「报价配置」页维护） */
       presetItems: [],
       restoringCalcPrefs: false,
+      restoringProject: false,
+      lastAutoSavedSnapshot: '',
+      autoSaveDebounceTimer: null,
+      autoSaveStatus: '',
+      slaHintOpen: false,
+      taxInvoiceOptions: TAX_INVOICE_OPTIONS,
+      slaPresetOptions: SLA_PRESET_OPTIONS,
       calcPrefsDebounceTimer: null,
       /** 功能点表头「?」说明：`field:moduleIndex` 或 null */
       openTableHint: null,
@@ -610,6 +722,11 @@ export default {
         au: this.audit
       })
     },
+    /** 用于整页自动保存（已存在项目） */
+    projectPayloadSnapshot () {
+      if (this.pageLoading || !this.projectId) return ''
+      return JSON.stringify(this.payload())
+    },
     riskConfigsForCalculator () {
       return (this.riskConfigs || []).filter(r => r.riskKey !== 'urgency_rush' && r.enabled)
     },
@@ -661,6 +778,7 @@ export default {
   beforeDestroy () {
     document.removeEventListener('click', this.closeTableHintOnOutside)
     if (this.calcPrefsDebounceTimer) clearTimeout(this.calcPrefsDebounceTimer)
+    if (this.autoSaveDebounceTimer) clearTimeout(this.autoSaveDebounceTimer)
   },
   watch: {
     '$route.params.id' () {
@@ -669,6 +787,13 @@ export default {
     calcPrefsSnapshot () {
       if (this.pageLoading || this.restoringCalcPrefs) return
       this.scheduleQuoteCalcPrefsSave()
+    },
+    projectPayloadSnapshot: {
+      handler (val) {
+        if (this.pageLoading || this.restoringProject || !this.projectId) return
+        if (!val || val === this.lastAutoSavedSnapshot) return
+        this.scheduleProjectAutoSave()
+      }
     }
   },
   methods: {
@@ -684,6 +809,7 @@ export default {
     },
     closeTableHintOnOutside () {
       this.openTableHint = null
+      this.slaHintOpen = false
     },
     async loadPartyBProfile () {
       try {
@@ -845,62 +971,74 @@ export default {
       }
     },
     async loadProject (id) {
-      const resp = await this.$http.get('/admin/quote/projects/' + id)
-      if (resp.data && resp.data.code === 0 && resp.data.data) {
-        const d = resp.data.data
-        this.restoringCalcPrefs = true
-        try {
-          this.form.name = d.name || ''
-          this.form.projectType = d.projectType || 'other'
-          this.form.techStack = d.techStack || 'vue_node'
-          this.form.designType = d.designType || 'need_design'
-          this.form.dataMigration = d.dataMigration || 'none'
-          this.form.concurrency = d.concurrency || 'lt100'
-          this.form.securityLevel = d.securityLevel || 'normal'
-          this.form.deployType = d.deployType || 'cloud'
-          this.form.status = d.status || 'draft'
-          this.form.linkTableId = d.linkTableId
-          this.form.prdSummary = d.prdSummary || ''
-          this.form.quoteSubjectMode = d.quoteSubjectMode || 'legal_entity'
-          this.form.quoteVendorName = d.quoteVendorName || ''
-          this.form.quoteContactInfo = d.quoteContactInfo || ''
-          this.form.quoteValidityNote = d.quoteValidityNote || ''
-          this.contractContext = normalizeContractContext(d.quoteContractContext)
-          const mods = d.modules || []
-          if (!mods.length) this.modules = [emptyModule()]
-          else {
-            this.modules = mods.map((m, idx) => ({
-              name: m.name,
-              sortOrder: m.sortOrder != null ? m.sortOrder : idx,
-              items: (m.items || []).map(it => ({
-                name: it.name,
-                complexity: it.complexity || 'standard',
-                quantity: it.quantity || 1
+      this.restoringProject = true
+      try {
+        const resp = await this.$http.get('/admin/quote/projects/' + id)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.restoringCalcPrefs = true
+          try {
+            this.form.name = d.name || ''
+            this.form.projectType = d.projectType || 'other'
+            this.form.techStack = d.techStack || 'vue_node'
+            this.form.designType = d.designType || 'need_design'
+            this.form.dataMigration = d.dataMigration || 'none'
+            this.form.concurrency = d.concurrency || 'lt100'
+            this.form.securityLevel = d.securityLevel || 'normal'
+            this.form.deployType = d.deployType || 'cloud'
+            this.form.status = d.status || 'draft'
+            this.form.linkTableId = d.linkTableId
+            this.form.prdSummary = d.prdSummary || ''
+            this.form.quoteSubjectMode = d.quoteSubjectMode || 'legal_entity'
+            this.form.quoteVendorName = d.quoteVendorName || ''
+            this.form.quoteContactInfo = d.quoteContactInfo || ''
+            this.form.quoteValidityNote = d.quoteValidityNote || ''
+            this.contractContext = normalizeContractContext(d.quoteContractContext)
+            const mods = d.modules || []
+            if (!mods.length) this.modules = [emptyModule()]
+            else {
+              this.modules = mods.map((m, idx) => ({
+                name: m.name,
+                sortOrder: m.sortOrder != null ? m.sortOrder : idx,
+                items: (m.items || []).map(it => ({
+                  name: it.name,
+                  complexity: it.complexity || 'standard',
+                  quantity: it.quantity || 1
+                }))
               }))
-            }))
+            }
+            if (d.quoteCalcPrefs) {
+              this.applyQuoteCalcPrefs(d.quoteCalcPrefs)
+            }
+            if (d.latestResult) {
+              this.calcResult = { ...d.latestResult, riskHints: [], confidenceLevel: '' }
+            }
+            this.provisionMeta = {
+              repoFullName: d.githubRepoFullName || '',
+              repoHtmlUrl: d.githubRepoHtmlUrl || '',
+              provisionStatus: d.provisionStatus || '',
+              provisionLastError: d.provisionLastError || '',
+              provisionSyncedToCollab: d.provisionSyncedToCollab === true,
+              provisionSyncedAt: d.provisionSyncedAt || ''
+            }
+            if (!this.provisionForm.repoName) {
+              this.provisionForm.repoName = this.suggestRepoName()
+              this.provisionForm.description = this.suggestRepoDesc()
+            }
+            await this.loadContractIfAny()
+          } finally {
+            this.$nextTick(() => {
+              this.restoringCalcPrefs = false
+              this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
+              this.restoringProject = false
+            })
           }
-          if (d.quoteCalcPrefs) {
-            this.applyQuoteCalcPrefs(d.quoteCalcPrefs)
-          }
-          if (d.latestResult) {
-            this.calcResult = { ...d.latestResult, riskHints: [], confidenceLevel: '' }
-          }
-          this.provisionMeta = {
-            repoFullName: d.githubRepoFullName || '',
-            repoHtmlUrl: d.githubRepoHtmlUrl || '',
-            provisionStatus: d.provisionStatus || '',
-            provisionLastError: d.provisionLastError || '',
-            provisionSyncedToCollab: d.provisionSyncedToCollab === true,
-            provisionSyncedAt: d.provisionSyncedAt || ''
-          }
-          if (!this.provisionForm.repoName) {
-            this.provisionForm.repoName = this.suggestRepoName()
-            this.provisionForm.description = this.suggestRepoDesc()
-          }
-          await this.loadContractIfAny()
-        } finally {
-          this.$nextTick(() => { this.restoringCalcPrefs = false })
+        } else {
+          this.restoringProject = false
         }
+      } catch (e) {
+        this.restoringProject = false
+        throw e
       }
     },
     suggestRepoName () {
@@ -1021,9 +1159,13 @@ export default {
             percent: Math.max(0, Math.min(100, Number(p.percent) || 0)),
             triggerNote: p.triggerNote || ''
           })),
-          taxInvoiceNote: this.contractContext.taxInvoiceNote || '',
+          taxInvoiceNote: this.buildTaxInvoiceNote(),
+          taxInvoicePreset: this.contractContext.taxInvoicePreset,
+          taxInvoiceCustom: this.contractContext.taxInvoiceCustom || '',
           warrantyMonths: Math.max(0, Number(this.contractContext.warrantyMonths) || 0),
-          maintenanceSlaNote: this.contractContext.maintenanceSlaNote || '',
+          maintenanceSlaNote: this.buildMaintenanceSlaNote(),
+          maintenanceSlaKeys: [...(this.contractContext.maintenanceSlaKeys || [])],
+          maintenanceSlaExtra: (this.contractContext.maintenanceSlaExtra || '').trim(),
           deliverables: [...(this.contractContext.deliverables || [])],
           acceptanceObjectionDays: Math.max(0, Number(this.contractContext.acceptanceObjectionDays) || 0),
           acceptanceCriteriaNote: this.contractContext.acceptanceCriteriaNote || '',
@@ -1036,7 +1178,56 @@ export default {
         }
       }
     },
+    buildTaxInvoiceNote () {
+      const ctx = this.contractContext
+      if (ctx.taxInvoicePreset === 'other') {
+        return (ctx.taxInvoiceCustom || '').trim() || '其他（待补充）'
+      }
+      const opt = TAX_INVOICE_OPTIONS.find(o => o.v === ctx.taxInvoicePreset)
+      return opt ? opt.l : (ctx.taxInvoiceCustom || '').trim()
+    },
+    buildMaintenanceSlaNote () {
+      const parts = (this.contractContext.maintenanceSlaKeys || []).map(k => {
+        const o = SLA_PRESET_OPTIONS.find(x => x.k === k)
+        return o ? o.l : ''
+      }).filter(Boolean)
+      const extra = (this.contractContext.maintenanceSlaExtra || '').trim()
+      if (extra) parts.push(extra)
+      return parts.join('；')
+    },
+    scheduleProjectAutoSave () {
+      if (this.autoSaveDebounceTimer) clearTimeout(this.autoSaveDebounceTimer)
+      this.autoSaveDebounceTimer = setTimeout(() => this.flushProjectAutoSave(), 1200)
+    },
+    async flushProjectAutoSave () {
+      if (this.pageLoading || this.restoringProject || !this.projectId || this.saving) return
+      const snap = JSON.stringify(this.payload())
+      if (snap === this.lastAutoSavedSnapshot) return
+      try {
+        await this.$http.put('/admin/quote/projects/' + this.projectId, this.payload())
+        this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
+        this.autoSaveStatus = 'saved'
+        setTimeout(() => {
+          if (this.autoSaveStatus === 'saved') this.autoSaveStatus = ''
+        }, 2500)
+      } catch (e) {
+        this.autoSaveStatus = 'error'
+      }
+    },
+    toggleSlaKey (key, ev) {
+      const arr = this.contractContext.maintenanceSlaKeys
+      if (ev.target.checked) {
+        if (!arr.includes(key)) arr.push(key)
+      } else {
+        const i = arr.indexOf(key)
+        if (i >= 0) arr.splice(i, 1)
+      }
+    },
     async saveProject () {
+      if (this.autoSaveDebounceTimer) {
+        clearTimeout(this.autoSaveDebounceTimer)
+        this.autoSaveDebounceTimer = null
+      }
       this.saving = true
       this.saveMsg = ''
       try {
@@ -1050,6 +1241,9 @@ export default {
             this.projectId = newId
             this.isNew = false
             await this.$router.replace({ name: 'quote-project', params: { id: String(newId) } })
+            this.$nextTick(() => {
+              this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
+            })
           } else {
             this.saveOk = false
             this.saveMsg = (resp.data && resp.data.message) || '失败'
@@ -1059,6 +1253,9 @@ export default {
           if (resp.data && resp.data.code === 0) {
             this.saveOk = true
             this.saveMsg = '已保存'
+            this.$nextTick(() => {
+              this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
+            })
           } else {
             this.saveOk = false
             this.saveMsg = (resp.data && resp.data.message) || '失败'
@@ -1294,6 +1491,9 @@ export default {
     },
     downloadAttachmentMilestones () {
       this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones', 'attachment-3.html')
+    },
+    downloadAttachmentAcceptance () {
+      this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance', 'attachment-2.html')
     },
     async runGenContract () {
       if (!this.calcResult || !this.calcResult.id) return
@@ -1674,6 +1874,14 @@ label.block { display: block; margin-top: 10px; }
 .contract-supplement-card .subh { margin: 18px 0 10px; font-size: 1rem; color: #0f172a; }
 .contract-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; align-items: end; }
 @media (max-width: 720px) { .contract-grid-2 { grid-template-columns: 1fr; } }
+.sla-block { margin-top: 4px; }
+.sla-label-row { position: relative; display: inline-flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.sla-label-text { font-weight: 600; color: #0f172a; font-size: 15px; }
+.sla-hint-popover { max-width: min(360px, calc(100vw - 48px)); }
+.sla-check-grid { margin-top: 4px; margin-bottom: 8px; }
+.sla-extra-label { margin-top: 8px; }
+.autosave-msg { margin-left: 10px; font-size: 14px; font-weight: 500; }
+.autosave-hint { margin-top: 8px; }
 .block-full { grid-column: 1 / -1; }
 .block-inp { width: 100%; max-width: 720px; box-sizing: border-box; margin-top: 6px; }
 .compact-contract .inp.wide { min-width: 160px; }

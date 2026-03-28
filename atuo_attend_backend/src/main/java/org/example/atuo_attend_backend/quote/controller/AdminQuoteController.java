@@ -381,6 +381,16 @@ public class AdminQuoteController {
         }
     }
 
+    /** 附件二：验收标准（草案）HTML */
+    @PostMapping("/projects/{id}/contract-attachments/acceptance")
+    public ApiResponse<Map<String, Object>> contractAttachmentAcceptance(@PathVariable long id) {
+        try {
+            return ApiResponse.ok(quoteService.buildContractAttachmentAcceptanceStandards(id));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
     @PostMapping("/results/{resultId}/contract/generate")
     public ApiResponse<Map<String, Object>> generateContract(@PathVariable long resultId, @RequestBody ContractGenerateRequest req) {
         if (req == null) req = new ContractGenerateRequest();

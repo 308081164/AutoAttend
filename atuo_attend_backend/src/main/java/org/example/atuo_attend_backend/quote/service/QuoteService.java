@@ -1012,6 +1012,17 @@ public class QuoteService {
         return data;
     }
 
+    /** 附件二：验收标准（草案）HTML */
+    public Map<String, Object> buildContractAttachmentAcceptanceStandards(long projectId) {
+        QuoteProject p = projectMapper.findById(projectId);
+        if (p == null) throw new IllegalArgumentException("项目不存在");
+        Map<String, Object> ctx = parseContractContextMap(p.getQuoteContractContextJson());
+        Map<String, Object> data = new HashMap<>();
+        data.put("html", renderAttachmentAcceptanceHtml(p, ctx));
+        data.put("filename", "attachment-2-acceptance-" + projectId + ".html");
+        return data;
+    }
+
     private static final Map<String, String> DELIVERABLE_LABELS = new LinkedHashMap<>();
 
     static {
@@ -1287,6 +1298,78 @@ public class QuoteService {
             sb.append("<tr><td colspan=\"4\">（未在项目「合同补充信息」中填写里程碑，请补充后重新导出）</td></tr>");
         }
         sb.append("</tbody></table></body></html>");
+        return sb.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private String renderAttachmentAcceptanceHtml(QuoteProject p, Map<String, Object> ctx) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>附件二 验收标准</title>");
+        sb.append("<style>body{font-family:sans-serif;padding:24px;line-height:1.6} h2{font-size:16px;margin-top:20px} ol{padding-left:20px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;font-size:13px}</style></head><body>");
+        sb.append("<h1>附件二：验收标准（草案）</h1>");
+        sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
+        int od = 5;
+        Object days = ctx != null ? ctx.get("acceptanceObjectionDays") : null;
+        if (days instanceof Number) {
+            od = Math.max(0, ((Number) days).intValue());
+        } else if (days != null) {
+            try {
+                od = Math.max(0, Integer.parseInt(days.toString()));
+            } catch (Exception ignored) {
+                od = 5;
+            }
+        }
+        sb.append("<h2>一、验收与异议期</h2>");
+        sb.append("<ol>");
+        sb.append("<li>乙方完成开发、联调及内部测试后，可向甲方提交验收申请，并交付本附件第三条所列交付物。</li>");
+        sb.append("<li>甲方应在收到验收申请之日起 <strong>").append(od).append("</strong> 个工作日内完成验收；逾期未提出书面异议的，视为该阶段验收通过（双方另有书面约定的除外）。</li>");
+        sb.append("<li>甲方提出的异议应具体、可复现；乙方应在合理期限内予以修复或说明。重复验收次数及范围以主合同约定为准。</li>");
+        sb.append("</ol>");
+        sb.append("<h2>二、功能与质量标准</h2>");
+        Object acn = ctx != null ? ctx.get("acceptanceCriteriaNote") : null;
+        if (acn != null && !acn.toString().isBlank()) {
+            sb.append("<p>").append(esc(acn.toString().trim())).append("</p>");
+        } else {
+            sb.append("<p>双方确认：以主合同及<strong>附件一《功能清单》</strong>中所列功能及双方确认的用例/界面为准；功能完整、主要流程可用、无明显缺陷即视为达到交付验收标准。</p>");
+        }
+        sb.append("<h2>三、交付物核对</h2>");
+        sb.append("<p>乙方应按下列清单交付（以项目「合同补充信息」中勾选为准）：</p>");
+        sb.append("<table><thead><tr><th>序号</th><th>交付物</th></tr></thead><tbody>");
+        Object del = ctx != null ? ctx.get("deliverables") : null;
+        int di = 1;
+        if (del instanceof List<?> dlist && !dlist.isEmpty()) {
+            for (Object k : dlist) {
+                String key = k != null ? k.toString() : "";
+                String label = DELIVERABLE_LABELS.getOrDefault(key, key);
+                sb.append("<tr><td>").append(di++).append("</td><td>").append(esc(label)).append("</td></tr>");
+            }
+        }
+        if (di == 1) {
+            sb.append("<tr><td colspan=\"2\">（未勾选约定交付物，请在报价项目中补充后重新导出）</td></tr>");
+        }
+        sb.append("</tbody></table>");
+        sb.append("<h2>四、里程碑与阶段验收（参考）</h2>");
+        sb.append("<p>下列计划与<strong>附件三《里程碑计划》</strong>一致，供阶段验收与付款节点对照使用。</p>");
+        sb.append("<table><thead><tr><th>序号</th><th>阶段名称</th><th>参考时间（生效后约 X 日）</th><th>备注</th></tr></thead><tbody>");
+        Object ms = ctx != null ? ctx.get("milestones") : null;
+        int mi = 1;
+        if (ms instanceof List<?> mlist) {
+            for (Object o : mlist) {
+                if (o instanceof Map) {
+                    Map<String, Object> m = (Map<String, Object>) o;
+                    sb.append("<tr><td>").append(mi++).append("</td><td>").append(esc(Objects.toString(m.get("name"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("offsetDays"), "")))
+                            .append("</td><td>").append(esc(Objects.toString(m.get("note"), "")))
+                            .append("</td></tr>");
+                }
+            }
+        }
+        if (mi == 1) {
+            sb.append("<tr><td colspan=\"4\">（未填写里程碑，可仅按终验执行）</td></tr>");
+        }
+        sb.append("</tbody></table>");
+        sb.append("<p style=\"margin-top:24px;color:#666;font-size:12px\">说明：本附件由系统根据报价项目「合同补充信息」按预设规则自动生成，仅供签约前讨论使用，最终以双方签章版本为准。</p>");
+        sb.append("</body></html>");
         return sb.toString();
     }
 
