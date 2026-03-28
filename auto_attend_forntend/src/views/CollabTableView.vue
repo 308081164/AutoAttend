@@ -144,13 +144,14 @@
                     class="status-select status-picker-trigger"
                     :class="getStatusTagClass(col, row['c' + col.id])"
                     :disabled="isStatusUpdating(row.id, col.id)"
-                    @click.stop="toggleStatusPicker(row.id, col.id)"
+                    @click.stop="toggleStatusPicker(row.id, col.id, $event)"
                   >
                     <span class="status-picker-text">{{ row['c' + col.id] || $t('collabTable.pleaseSelect') }}</span>
                   </button>
                   <div
                     v-if="isStatusPickerOpen(row.id, col.id)"
                     class="status-picker-menu"
+                    :style="statusPickerMenuStyle"
                     @click.stop
                   >
                     <button
@@ -766,6 +767,8 @@ export default {
       imagePreviewEscapeHandler: null,
       statusUpdatingMap: {},
       statusPickerOpenKey: '',
+      /** 下拉锚点（viewport），用于 fixed 定位，避免被表格 overflow 裁剪 */
+      statusPickerAnchor: null,
       /** 批量选择：recordId -> true */
       rowSelection: {},
       batchDeleting: false,
@@ -796,6 +799,30 @@ export default {
     allRowsSelected () {
       if (!this.records.length) return false
       return this.records.every(r => this.rowSelection[r.id])
+    },
+    statusPickerMenuStyle () {
+      const a = this.statusPickerAnchor
+      if (!a) return {}
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+      let left = a.left
+      const minW = Math.max(a.width || 0, 240)
+      const maxW = Math.min(440, vw - 16)
+      const panelW = Math.min(Math.max(minW, 240), maxW)
+      if (left + panelW > vw - 8) {
+        left = Math.max(8, vw - 8 - panelW)
+      }
+      const maxH = Math.min(480, Math.max(200, vh - a.top - 12))
+      return {
+        position: 'fixed',
+        top: a.top + 'px',
+        left: left + 'px',
+        minWidth: panelW + 'px',
+        maxWidth: maxW + 'px',
+        maxHeight: maxH + 'px',
+        zIndex: '200',
+        overflow: 'auto'
+      }
     }
   },
   updated () {
@@ -816,6 +843,7 @@ export default {
   beforeDestroy () {
     this.detachImagePreviewEscape()
     this.detachStatusPickerOutside()
+    this.detachStatusPickerScrollClose()
     this.closeImagePreview()
     this.revokeListAttachmentPreviewUrls()
     this.destroyDashboardCharts()
@@ -1679,15 +1707,33 @@ export default {
     isStatusPickerOpen (recordId, colId) {
       return this.statusPickerOpenKey === this.statusPickerKey(recordId, colId)
     },
-    toggleStatusPicker (recordId, colId) {
+    toggleStatusPicker (recordId, colId, evt) {
       const key = this.statusPickerKey(recordId, colId)
-      this.statusPickerOpenKey = (this.statusPickerOpenKey === key) ? '' : key
-      if (this.statusPickerOpenKey) this.attachStatusPickerOutside()
-      else this.detachStatusPickerOutside()
+      const opening = this.statusPickerOpenKey !== key
+      this.statusPickerOpenKey = opening ? key : ''
+      if (opening && evt && evt.currentTarget && typeof evt.currentTarget.getBoundingClientRect === 'function') {
+        const r = evt.currentTarget.getBoundingClientRect()
+        this.statusPickerAnchor = {
+          top: r.bottom + 6,
+          left: r.left,
+          width: r.width
+        }
+      } else {
+        this.statusPickerAnchor = null
+      }
+      if (this.statusPickerOpenKey) {
+        this.attachStatusPickerOutside()
+        this.attachStatusPickerScrollClose()
+      } else {
+        this.detachStatusPickerOutside()
+        this.detachStatusPickerScrollClose()
+      }
     },
     closeStatusPicker () {
       this.statusPickerOpenKey = ''
+      this.statusPickerAnchor = null
       this.detachStatusPickerOutside()
+      this.detachStatusPickerScrollClose()
     },
     attachStatusPickerOutside () {
       if (this._statusPickerOutsideHandler) return
@@ -1700,6 +1746,20 @@ export default {
       if (!this._statusPickerOutsideHandler) return
       document.removeEventListener('click', this._statusPickerOutsideHandler)
       this._statusPickerOutsideHandler = null
+    },
+    attachStatusPickerScrollClose () {
+      if (this._statusPickerScrollHandler) return
+      this._statusPickerScrollHandler = () => {
+        this.closeStatusPicker()
+      }
+      window.addEventListener('scroll', this._statusPickerScrollHandler, true)
+      window.addEventListener('resize', this._statusPickerScrollHandler)
+    },
+    detachStatusPickerScrollClose () {
+      if (!this._statusPickerScrollHandler) return
+      window.removeEventListener('scroll', this._statusPickerScrollHandler, true)
+      window.removeEventListener('resize', this._statusPickerScrollHandler)
+      this._statusPickerScrollHandler = null
     },
     getStatusOptions (col) {
       return this.getSelectOptions(col) || []
@@ -2716,33 +2776,31 @@ export default {
 }
 
 .status-picker-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 180px;
-  max-width: 280px;
-  max-height: 240px;
-  overflow: auto;
-  z-index: 25;
+  /* 具体位置与 max-height 由 statusPickerMenuStyle（fixed）覆盖，避免被 .table-wrapper overflow 裁剪 */
+  box-sizing: border-box;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
-  padding: 6px;
+  padding: 8px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .status-picker-item {
+  display: block;
   width: 100%;
   text-align: left;
   border: 1px solid transparent;
   background: #fff;
   color: #334155;
-  border-radius: 999px;
-  padding: 4px 10px;
+  border-radius: 8px;
+  padding: 8px 12px;
   margin-bottom: 4px;
   cursor: pointer;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .status-picker-item:last-child {
@@ -2873,24 +2931,31 @@ export default {
 
 .filter-rule-row {
   display: flex;
-  gap: 12px;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   margin-bottom: 14px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-sizing: border-box;
 }
 
 .filter-rule-col {
-  flex: 1;
-  min-width: 160px;
+  flex: none;
+  min-width: 0;
+  width: 100%;
 }
 
 .filter-rule-value {
-  min-width: 220px;
+  min-width: 0;
 }
 
 .filter-rule-actions {
   flex-shrink: 0;
   align-self: flex-end;
-  padding-bottom: 2px;
+  padding-bottom: 0;
 }
 
 .filter-actions {
