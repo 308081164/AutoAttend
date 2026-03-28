@@ -313,6 +313,38 @@ public class QuoteService {
         return data;
     }
 
+    /**
+     * 删除报价项目：清理该项目下的模块/功能点/计算结果与相关文档草稿，再删除项目本身。
+     * 注意：此删除不包含“已同步到协作多维表”的数据清理（尚未在 MVP 里约定回滚）。
+     */
+    @Transactional
+    public void deleteProject(long id) {
+        QuoteProject existing = projectMapper.findById(id);
+        if (existing == null) throw new IllegalArgumentException("项目不存在");
+
+        // 先清理业务树：modules/items
+        List<QuoteModule> modules = moduleMapper.listByProjectId(id);
+        if (modules != null) {
+            for (QuoteModule m : modules) {
+                itemMapper.deleteByModuleId(m.getId());
+            }
+        }
+        moduleMapper.deleteByProjectId(id);
+
+        // 再清理计算结果：result + document/contractDraft
+        List<Long> resultIds = resultMapper.listIdsByProjectId(id);
+        if (resultIds != null) {
+            for (Long rid : resultIds) {
+                documentMapper.deleteByResultId(rid);
+                contractDraftMapper.deleteByResultId(rid);
+            }
+        }
+        resultMapper.deleteByProjectId(id);
+
+        // 最后删除项目主表
+        projectMapper.deleteById(id);
+    }
+
     @Transactional
     public Map<String, Object> calculate(long projectId, QuoteCalculateRequest req) throws Exception {
         QuoteProject p = projectMapper.findById(projectId);

@@ -336,6 +336,8 @@ export default {
     loading: '加载中...',
     emptyList: '暂无报价项目',
     open: '打开',
+    deleteProject: '删除',
+    confirmDeleteQuoteProject: '确定要删除该报价项目吗？删除后本次报价数据将被清除。',
     riskConfigTitle: '风险系数（自定义）',
     riskConfigHint: 'risk_key 为系统标识不可在此修改；可改显示名称、百分比与是否参与报价勾选。',
     riskKeyCol: '标识',

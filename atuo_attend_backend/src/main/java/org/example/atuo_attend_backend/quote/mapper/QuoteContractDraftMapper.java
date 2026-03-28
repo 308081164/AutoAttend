@@ -31,4 +31,7 @@ public interface QuoteContractDraftMapper {
 
     @Update("UPDATE biz_quote_contract_draft SET edited_content = #{content}, updated_at = CURRENT_TIMESTAMP WHERE quote_result_id = #{resultId}")
     int updateEditedContent(@Param("resultId") long resultId, @Param("content") String content);
+
+    @Delete("DELETE FROM biz_quote_contract_draft WHERE quote_result_id = #{resultId}")
+    int deleteByResultId(@Param("resultId") long resultId);
 }

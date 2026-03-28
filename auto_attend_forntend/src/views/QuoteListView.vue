@@ -16,7 +16,7 @@
           <th>ID</th>
           <th>{{ $t('quote.name') }}</th>
           <th>{{ $t('quote.techStack') }}</th>
-          <th></th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -24,7 +24,14 @@
           <td>{{ row.id }}</td>
           <td>{{ row.name }}</td>
           <td>{{ row.techStack }}</td>
-          <td><router-link :to="'/quote/' + row.id">{{ $t('quote.open') }}</router-link></td>
+          <td>
+            <router-link :to="'/quote/' + row.id">{{ $t('quote.open') }}</router-link>
+            <button
+              class="danger-button"
+              :disabled="deletingId === row.id"
+              @click="deleteProject(row.id)"
+            >{{ $t('quote.deleteProject') }}</button>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -38,7 +45,7 @@
 export default {
   name: 'QuoteListView',
   data () {
-    return { items: [], loading: true }
+    return { items: [], loading: true, deletingId: null }
   },
   created () {
     this.load()
@@ -57,6 +64,22 @@ export default {
         this.items = []
       } finally {
         this.loading = false
+      }
+    },
+    async deleteProject (id) {
+      if (!confirm(this.$t('quote.confirmDeleteQuoteProject'))) return
+      this.deletingId = id
+      try {
+        const resp = await this.$http.delete('/admin/quote/projects/' + id)
+        if (resp.data && resp.data.code === 0) {
+          await this.load()
+        } else {
+          alert((resp.data && resp.data.message) || '删除失败')
+        }
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || '删除失败')
+      } finally {
+        this.deletingId = null
       }
     }
   }
@@ -87,6 +110,20 @@ export default {
   border-radius: 6px; text-decoration: none; font-size: 14px; border: 1px solid #94a3b8; font-weight: 500;
 }
 .secondary-button:hover { background: #cbd5e1; }
+.danger-button {
+  margin-left: 10px;
+  display: inline-block;
+  padding: 8px 12px;
+  background: #dc2626;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #b91c1c;
+  cursor: pointer;
+}
+.danger-button:hover { background: #b91c1c; }
+.danger-button:disabled { opacity: 0.6; cursor: not-allowed; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; }
 .data-table th, .data-table td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; color: #1e293b; }
 .data-table th { background: #e2e8f0; color: #0f172a; font-weight: 700; }

@@ -336,6 +336,8 @@ export default {
     loading: 'Loading...',
     emptyList: 'No quote projects',
     open: 'Open',
+    deleteProject: 'Delete',
+    confirmDeleteQuoteProject: 'Delete this quote project? This will clear its quote data.',
     riskConfigTitle: 'Risk factors (custom)',
     riskConfigHint: 'risk_key is fixed; you can edit label, percentage, and whether the item appears in quote checkboxes.',
     riskKeyCol: 'Key',

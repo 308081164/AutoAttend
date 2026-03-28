@@ -20,4 +20,7 @@ public interface QuoteItemMapper {
     @Select("SELECT id, module_id AS moduleId, name, complexity, quantity, estimated_days AS estimatedDays, sort_order AS sortOrder " +
             "FROM biz_quote_item WHERE module_id = #{moduleId} ORDER BY sort_order, id")
     List<QuoteItem> listByModuleId(@Param("moduleId") long moduleId);
+
+    @Delete("DELETE FROM biz_quote_item WHERE module_id = #{moduleId}")
+    int deleteByModuleId(@Param("moduleId") long moduleId);
 }

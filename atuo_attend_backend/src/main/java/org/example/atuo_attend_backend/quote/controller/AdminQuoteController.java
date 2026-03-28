@@ -122,6 +122,16 @@ public class AdminQuoteController {
         }
     }
 
+    @DeleteMapping("/projects/{id}")
+    public ApiResponse<Void> deleteProject(@PathVariable long id) {
+        try {
+            quoteService.deleteProject(id);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
     /** 仅更新报价计算勾选与审核清单（自动保存，避免用户未点「保存项目」时丢失） */
     @PatchMapping("/projects/{id}/calc-prefs")
     public ApiResponse<Void> patchQuoteCalcPrefs(@PathVariable long id, @RequestBody(required = false) QuoteCalculateRequest body) {

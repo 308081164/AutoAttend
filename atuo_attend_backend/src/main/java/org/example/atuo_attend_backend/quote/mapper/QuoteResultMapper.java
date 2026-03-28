@@ -3,6 +3,8 @@ package org.example.atuo_attend_backend.quote.mapper;
 import org.apache.ibatis.annotations.*;
 import org.example.atuo_attend_backend.quote.domain.QuoteResult;
 
+import java.util.List;
+
 @Mapper
 public interface QuoteResultMapper {
 
@@ -29,4 +31,10 @@ public interface QuoteResultMapper {
             "duration_coefficient_used AS durationCoefficientUsed, region_label_used AS regionLabelUsed, created_at AS createdAt FROM biz_quote_result " +
             "WHERE quote_project_id = #{projectId} ORDER BY id DESC LIMIT 1")
     QuoteResult findLatestByProjectId(@Param("projectId") long projectId);
+
+    @Select("SELECT id FROM biz_quote_result WHERE quote_project_id = #{projectId}")
+    List<Long> listIdsByProjectId(@Param("projectId") long projectId);
+
+    @Delete("DELETE FROM biz_quote_result WHERE quote_project_id = #{projectId}")
+    int deleteByProjectId(@Param("projectId") long projectId);
 }
