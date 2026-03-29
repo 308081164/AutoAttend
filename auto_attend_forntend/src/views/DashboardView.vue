@@ -99,6 +99,7 @@
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubTeamDesc') }}</p>
             <router-link to="/team" class="hub-block-link">{{ $t('dashboard.hubTeamOpen') }}</router-link>
+            <router-link to="/tenant-admins" class="hub-block-link hub-block-link-sub">{{ $t('dashboard.hubTenantAdminsLink') }}</router-link>
           </section>
 
           <section class="hub-card console-elevated hub-project">
@@ -1740,6 +1741,13 @@ export default {
 
 .hub-block-link:hover {
   text-decoration: underline;
+}
+
+.hub-block-link-sub {
+  margin-top: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .hub-repo-filter {

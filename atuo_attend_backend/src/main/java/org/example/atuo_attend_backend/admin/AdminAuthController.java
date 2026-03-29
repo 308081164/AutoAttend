@@ -7,6 +7,7 @@ import org.example.atuo_attend_backend.admin.model.AdminUser;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,13 +18,16 @@ public class AdminAuthController {
     private final AdminAuthService adminAuthService;
     private final CollabAuthService collabAuthService;
     private final TenantMapper tenantMapper;
+    private final AdminSessionMapper adminSessionMapper;
 
     public AdminAuthController(AdminAuthService adminAuthService,
                                CollabAuthService collabAuthService,
-                               TenantMapper tenantMapper) {
+                               TenantMapper tenantMapper,
+                               AdminSessionMapper adminSessionMapper) {
         this.adminAuthService = adminAuthService;
         this.collabAuthService = collabAuthService;
         this.tenantMapper = tenantMapper;
+        this.adminSessionMapper = adminSessionMapper;
     }
 
     @PostMapping("/login")
@@ -34,6 +38,21 @@ public class AdminAuthController {
             return ApiResponse.error(40100, "invalid phone or password");
         }
         return ApiResponse.ok(buildLoginResponse(out));
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(HttpServletRequest request) {
+        String auth = request.getHeader("Authorization");
+        if (auth != null && auth.startsWith("Bearer ")) {
+            String token = auth.substring(7).trim();
+            if (!token.isEmpty()) {
+                try {
+                    adminSessionMapper.deleteByToken(token);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/register")

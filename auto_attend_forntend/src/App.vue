@@ -49,11 +49,22 @@ export default {
     onLocaleChange () {
       setLocale(this.currentLocale)
     },
-    logout () {
-      window.localStorage.removeItem('autoattend_token')
-      window.localStorage.removeItem('autoattend_username')
-      window.localStorage.removeItem('autoattend_collab_token')
-      this.$router.push({ name: 'login' })
+    async logout () {
+      try {
+        const token = window.localStorage.getItem('autoattend_token')
+        if (token) {
+          await this.$http.post('/admin/auth/logout', null, {
+            headers: { Authorization: 'Bearer ' + token }
+          })
+        }
+      } catch (e) {
+        // ignore backend logout error, still clear local state
+      } finally {
+        window.localStorage.removeItem('autoattend_token')
+        window.localStorage.removeItem('autoattend_username')
+        window.localStorage.removeItem('autoattend_collab_token')
+        this.$router.push({ name: 'login' })
+      }
     }
   }
 }

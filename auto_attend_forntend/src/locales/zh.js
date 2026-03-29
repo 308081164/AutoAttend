@@ -164,6 +164,7 @@ export default {
     hubTeamMembers: '协作成员',
     hubTeamOpen: '进入团队管理',
     hubTeamDesc: '维护协作成员、角色与项目权限。',
+    hubTenantAdminsLink: '后台登录账号（手机号）',
     hubProjectTitle: '项目管理',
     hubProjectCollab: '协作多维表项目',
     hubProjectHint: '选择仓库后，下方图表与提交列表按该仓库筛选。',
@@ -210,6 +211,21 @@ export default {
     projectRoleMember: '成员',
     projectRoleAdmin: '项目管理员',
     defaultPasswordHint: '留空则默认 123456'
+  },
+  tenantAdminManage: {
+    title: '后台登录账号',
+    desc: '对应数据库表 aa_tenant_admin_user；修改手机号会同步协作侧超级管理员影子账号（biz_user.email）。',
+    phone: '手机号',
+    createdAt: '创建时间',
+    edit: '编辑',
+    newPasswordOptional: '新密码（可选）',
+    leaveBlank: '不改密码请留空',
+    editHint: '至少填写一项：新手机号或新密码。',
+    loading: '加载中…',
+    empty: '暂无记录',
+    loadFailed: '加载失败',
+    saveFailed: '保存失败',
+    needOneField: '请填写新手机号或新密码'
   },
   aiConfig: {
     navTitle: 'AI 配置',

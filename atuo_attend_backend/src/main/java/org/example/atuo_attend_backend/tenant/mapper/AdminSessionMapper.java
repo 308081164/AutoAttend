@@ -16,4 +16,7 @@ public interface AdminSessionMapper {
 
     @Delete("DELETE FROM aa_admin_session WHERE expires_at < NOW()")
     int deleteExpired();
+
+    @Delete("DELETE FROM aa_admin_session WHERE token = #{token}")
+    int deleteByToken(@Param("token") String token);
 }

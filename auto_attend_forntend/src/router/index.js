@@ -9,6 +9,7 @@ import CollabProjectListView from '../views/CollabProjectListView.vue'
 import CollabTableView from '../views/CollabTableView.vue'
 import MemberHomeView from '../views/MemberHomeView.vue'
 import TeamManageView from '../views/TeamManageView.vue'
+import TenantAdminManageView from '../views/TenantAdminManageView.vue'
 import CommitAnalysisView from '../views/CommitAnalysisView.vue'
 import QuoteListView from '../views/QuoteListView.vue'
 import QuoteProjectView from '../views/QuoteProjectView.vue'
@@ -46,6 +47,11 @@ const routes = [
     path: '/team',
     name: 'team-manage',
     component: TeamManageView
+  },
+  {
+    path: '/tenant-admins',
+    name: 'tenant-admins',
+    component: TenantAdminManageView
   },
   {
     path: '/ai-config',

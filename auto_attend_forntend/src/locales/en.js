@@ -164,6 +164,7 @@ export default {
     hubTeamMembers: 'Members',
     hubTeamOpen: 'Open team management',
     hubTeamDesc: 'Manage collaborators, roles, and project access.',
+    hubTenantAdminsLink: 'Console login accounts (phone)',
     hubProjectTitle: 'Projects',
     hubProjectCollab: 'Collaboration boards',
     hubProjectHint: 'Charts and commits below filter by the selected repo.',
@@ -210,6 +211,21 @@ export default {
     projectRoleMember: 'Member',
     projectRoleAdmin: 'Project Admin',
     defaultPasswordHint: 'Leave blank for default 123456'
+  },
+  tenantAdminManage: {
+    title: 'Console login accounts',
+    desc: 'Backed by aa_tenant_admin_user; changing phone also updates the collab super-admin shadow user (biz_user.email).',
+    phone: 'Phone',
+    createdAt: 'Created',
+    edit: 'Edit',
+    newPasswordOptional: 'New password (optional)',
+    leaveBlank: 'Leave blank to keep password',
+    editHint: 'Provide at least one: new phone or new password.',
+    loading: 'Loading…',
+    empty: 'No rows',
+    loadFailed: 'Failed to load',
+    saveFailed: 'Save failed',
+    needOneField: 'Enter a new phone or new password'
   },
   aiConfig: {
     navTitle: 'AI Config',
