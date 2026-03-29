@@ -12,6 +12,7 @@ import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.collab.service.CollabPasswordService;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.quota.TenantQuotaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,15 +26,18 @@ public class AdminTeamService {
     private final BizProjectMapper projectMapper;
     private final BizProjectMemberMapper projectMemberMapper;
     private final CollabPasswordService passwordService;
+    private final TenantQuotaService tenantQuotaService;
 
     public AdminTeamService(BizUserMapper userMapper,
                             BizProjectMapper projectMapper,
                             BizProjectMemberMapper projectMemberMapper,
-                            CollabPasswordService passwordService) {
+                            CollabPasswordService passwordService,
+                            TenantQuotaService tenantQuotaService) {
         this.userMapper = userMapper;
         this.projectMapper = projectMapper;
         this.projectMemberMapper = projectMemberMapper;
         this.passwordService = passwordService;
+        this.tenantQuotaService = tenantQuotaService;
     }
 
     private static long currentTenantId() {
@@ -62,6 +66,7 @@ public class AdminTeamService {
         if (userMapper.findByTenantAndEmail(tid, email) != null) {
             throw new IllegalArgumentException("该邮箱已存在");
         }
+        tenantQuotaService.assertCanAddMember(tid);
         String password = req.getPassword() != null && !req.getPassword().isBlank()
                 ? req.getPassword() : "123456";
         BizUser user = new BizUser();

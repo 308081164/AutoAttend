@@ -86,6 +86,10 @@ public interface QuoteProjectMapper {
     @Select("SELECT COUNT(*) FROM biz_quote_project WHERE tenant_id = #{tenantId}")
     long countAll(@Param("tenantId") long tenantId);
 
+    /** 已绑定 GitHub 仓库的报价项目数（用于套餐 GitHub 仓库配额） */
+    @Select("SELECT COUNT(*) FROM biz_quote_project WHERE tenant_id = #{tenantId} AND github_repo_full_name IS NOT NULL AND TRIM(github_repo_full_name) <> ''")
+    long countGithubLinkedByTenant(@Param("tenantId") long tenantId);
+
     @Delete("DELETE FROM biz_quote_project WHERE tenant_id = #{tenantId} AND id = #{id}")
     int deleteById(@Param("tenantId") long tenantId, @Param("id") long id);
 

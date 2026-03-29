@@ -17,6 +17,9 @@ public interface BizUserMapper {
     @Select("SELECT id, tenant_id AS tenantId, email, name, password_hash AS passwordHash, role, avatar, remark_name AS remarkName, job_title AS jobTitle, created_at AS createdAt, updated_at AS updatedAt FROM biz_user WHERE tenant_id = #{tenantId} ORDER BY id")
     List<BizUser> listByTenant(@Param("tenantId") long tenantId);
 
+    @Select("SELECT COUNT(*) FROM biz_user WHERE tenant_id = #{tenantId}")
+    long countByTenant(@Param("tenantId") long tenantId);
+
     @Insert("INSERT INTO biz_user (tenant_id, email, name, password_hash, role, avatar, remark_name, job_title) VALUES (#{tenantId}, #{email}, #{name}, #{passwordHash}, #{role}, #{avatar}, #{remarkName}, #{jobTitle})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(BizUser user);

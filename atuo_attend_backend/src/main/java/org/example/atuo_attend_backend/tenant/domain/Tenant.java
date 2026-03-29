@@ -7,6 +7,10 @@ public class Tenant {
     private Long id;
     private String name;
     private String slug;
+    /** 套餐档位：free / team / pro */
+    private String planCode;
+    /** active：正常；suspended：暂停（后续可在 Filter 中拦截） */
+    private String status;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -31,6 +35,22 @@ public class Tenant {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public String getPlanCode() {
+        return planCode;
+    }
+
+    public void setPlanCode(String planCode) {
+        this.planCode = planCode;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public LocalDateTime getCreatedAt() {

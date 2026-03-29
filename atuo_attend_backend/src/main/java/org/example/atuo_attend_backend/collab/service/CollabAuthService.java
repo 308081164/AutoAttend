@@ -5,8 +5,14 @@ import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.domain.TenantAdminUser;
+import org.example.atuo_attend_backend.tenant.domain.TenantInvite;
 import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
+import org.example.atuo_attend_backend.tenant.mapper.TenantInviteMapper;
+import org.example.atuo_attend_backend.tenant.quota.TenantQuotaService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 /**
  * 协作模块登录：普通用户（邮箱+密码）、租户管理员（手机号 E.164 + 密码，与后台一致）。
@@ -16,17 +22,25 @@ public class CollabAuthService {
 
     private static final String ROLE_SUPER_ADMIN = "super_admin";
 
+    private static final String ROLE_MEMBER = "member";
+
     private final BizUserMapper userMapper;
     private final TenantAdminUserMapper tenantAdminUserMapper;
+    private final TenantInviteMapper tenantInviteMapper;
+    private final TenantQuotaService tenantQuotaService;
     private final CollabPasswordService passwordService;
     private final CollabJwtService jwtService;
 
     public CollabAuthService(BizUserMapper userMapper,
                              TenantAdminUserMapper tenantAdminUserMapper,
+                             TenantInviteMapper tenantInviteMapper,
+                             TenantQuotaService tenantQuotaService,
                              CollabPasswordService passwordService,
                              CollabJwtService jwtService) {
         this.userMapper = userMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
+        this.tenantInviteMapper = tenantInviteMapper;
+        this.tenantQuotaService = tenantQuotaService;
         this.passwordService = passwordService;
         this.jwtService = jwtService;
     }
@@ -119,5 +133,47 @@ public class CollabAuthService {
 
     public BizUser getCurrentUser(long userId) {
         return userMapper.findById(userId);
+    }
+
+    /**
+     * 通过邀请令牌注册协作账号（绑定邀请所属租户）。
+     *
+     * @return JWT；失败返回 null
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public String registerByInvite(String token, String email, String password, String name) {
+        if (token == null || token.isBlank() || email == null || email.isBlank() || password == null || password.isEmpty()) {
+            return null;
+        }
+        if (password.length() > 24) {
+            return null;
+        }
+        TenantInvite inv = tenantInviteMapper.findByToken(token.trim());
+        if (inv == null) {
+            return null;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (inv.getExpiresAt() != null && inv.getExpiresAt().isBefore(now)) {
+            return null;
+        }
+        if (inv.getUsedCount() >= inv.getMaxUses()) {
+            return null;
+        }
+        long tid = inv.getTenantId();
+        tenantQuotaService.assertCanAddMember(tid);
+        String em = email.trim();
+        if (userMapper.findByTenantAndEmail(tid, em) != null) {
+            throw new IllegalArgumentException("该邮箱已在组织中注册");
+        }
+        BizUser user = new BizUser();
+        user.setTenantId(tid);
+        user.setEmail(em);
+        user.setName(name != null && !name.isBlank() ? name.trim() : em);
+        user.setPasswordHash(passwordService.hash(password));
+        user.setRole(ROLE_MEMBER);
+        user.setJobTitle("开发工程师");
+        userMapper.insert(user);
+        tenantInviteMapper.incrementUsed(inv.getId());
+        return jwtService.createToken(user.getId(), user.getEmail(), user.getRole());
     }
 }

@@ -32,7 +32,8 @@ public class CollabAuthFilter implements Filter {
         HttpServletResponse resp = (HttpServletResponse) response;
 
         String path = req.getRequestURI();
-        boolean isLogin = "POST".equalsIgnoreCase(req.getMethod()) && path != null && path.contains("/auth/login");
+        boolean isAnonymousAuth = "POST".equalsIgnoreCase(req.getMethod()) && path != null
+                && (path.contains("/auth/login") || path.contains("/auth/register-invite"));
 
         String auth = req.getHeader("Authorization");
         String token = null;
@@ -46,7 +47,7 @@ public class CollabAuthFilter implements Filter {
             if (u != null && u.getTenantId() != null) {
                 TenantContext.setTenantId(u.getTenantId());
             }
-        } else if (!isLogin) {
+        } else if (!isAnonymousAuth) {
             resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             resp.setContentType("application/json;charset=UTF-8");
             resp.getWriter().write("{\"code\":40101,\"message\":\"未登录或登录已过期\"}");

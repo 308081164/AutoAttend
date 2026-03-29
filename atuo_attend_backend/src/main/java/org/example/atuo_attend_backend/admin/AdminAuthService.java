@@ -102,6 +102,8 @@ public class AdminAuthService {
         Tenant tenant = new Tenant();
         tenant.setName(req.getOrgName().trim());
         tenant.setSlug(slug);
+        tenant.setPlanCode("free");
+        tenant.setStatus("active");
         tenantMapper.insert(tenant);
 
         TenantAdminUser user = new TenantAdminUser();

@@ -1,6 +1,10 @@
 package org.example.atuo_attend_backend.admin;
 
 import org.example.atuo_attend_backend.admin.dto.*;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.domain.TenantInvite;
+import org.example.atuo_attend_backend.tenant.invite.TenantInviteService;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectMember;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
@@ -41,13 +45,16 @@ public class AdminTeamController {
     );
 
     private final AdminTeamService teamService;
+    private final TenantInviteService tenantInviteService;
     private final MinioService minioService;
     private final CommitService commitService;
     private final CollabSyncService collabSyncService;
 
-    public AdminTeamController(AdminTeamService teamService, MinioService minioService,
+    public AdminTeamController(AdminTeamService teamService, TenantInviteService tenantInviteService,
+                              MinioService minioService,
                               CommitService commitService, CollabSyncService collabSyncService) {
         this.teamService = teamService;
+        this.tenantInviteService = tenantInviteService;
         this.minioService = minioService;
         this.commitService = commitService;
         this.collabSyncService = collabSyncService;
@@ -56,6 +63,30 @@ public class AdminTeamController {
     @GetMapping("/job-titles")
     public ApiResponse<List<String>> jobTitles() {
         return ApiResponse.ok(new ArrayList<>(JOB_TITLE_PRESETS));
+    }
+
+    /** 创建协作成员邀请（返回 token，受邀者调用协作端 register-invite） */
+    @PostMapping("/invites")
+    public ApiResponse<Map<String, Object>> createInvite(@RequestBody(required = false) CreateTenantInviteRequest body) {
+        try {
+            int maxUses = body != null && body.getMaxUses() != null ? body.getMaxUses() : 1;
+            int days = body != null && body.getExpiresInDays() != null ? body.getExpiresInDays() : 7;
+            String note = body != null ? body.getNote() : null;
+            long tid = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+            TenantInvite inv = tenantInviteService.createInvite(tid, maxUses, days, note);
+            return ApiResponse.ok(toInviteMap(inv));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @GetMapping("/invites")
+    public ApiResponse<List<Map<String, Object>>> listInvites() {
+        long tid = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        List<Map<String, Object>> items = tenantInviteService.listInvites(tid).stream()
+                .map(this::toInviteMap)
+                .collect(Collectors.toList());
+        return ApiResponse.ok(items);
     }
 
     @GetMapping("/members")
@@ -219,6 +250,18 @@ public class AdminTeamController {
         data.put("reposTotal", repos.size());
         data.put("createdCount", afterRepoIds.size());
         return ApiResponse.ok(data);
+    }
+
+    private Map<String, Object> toInviteMap(TenantInvite inv) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", inv.getId());
+        m.put("token", inv.getToken());
+        m.put("expiresAt", inv.getExpiresAt());
+        m.put("maxUses", inv.getMaxUses());
+        m.put("usedCount", inv.getUsedCount());
+        m.put("note", inv.getNote());
+        m.put("createdAt", inv.getCreatedAt());
+        return m;
     }
 
     private Map<String, Object> toMemberMap(BizUser u) {

@@ -16,6 +16,9 @@ import org.example.atuo_attend_backend.quote.mapper.QuoteModuleMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
+import org.example.atuo_attend_backend.tenant.quota.TenantQuotaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -45,6 +48,8 @@ public class QuoteProvisionService {
     private final CollabSyncService collabSyncService;
     private final CollabTableService collabTableService;
     private final CollabRecordService collabRecordService;
+    private final TenantQuotaService tenantQuotaService;
+    private final TenantMapper tenantMapper;
     private final String fixedWebhookUrl;
     @SuppressWarnings("unused")
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -57,6 +62,8 @@ public class QuoteProvisionService {
                                 CollabSyncService collabSyncService,
                                 CollabTableService collabTableService,
                                 CollabRecordService collabRecordService,
+                                TenantQuotaService tenantQuotaService,
+                                TenantMapper tenantMapper,
                                 @Value("${app.github.webhook.url:}") String fixedWebhookUrl) {
         this.githubRestTemplate = githubRestTemplate;
         this.systemConfigService = systemConfigService;
@@ -66,6 +73,8 @@ public class QuoteProvisionService {
         this.collabSyncService = collabSyncService;
         this.collabTableService = collabTableService;
         this.collabRecordService = collabRecordService;
+        this.tenantQuotaService = tenantQuotaService;
+        this.tenantMapper = tenantMapper;
         this.fixedWebhookUrl = fixedWebhookUrl != null ? fixedWebhookUrl.trim() : "";
     }
 
@@ -76,6 +85,10 @@ public class QuoteProvisionService {
     public Map<String, Object> provision(long quoteProjectId, QuoteProvisionRequest req, HttpServletRequest httpReq) {
         QuoteProject qp = quoteProjectMapper.findById(tid(), quoteProjectId);
         if (qp == null) throw new IllegalArgumentException("报价项目不存在");
+        String existingRepo = qp.getGithubRepoFullName();
+        if (existingRepo == null || existingRepo.trim().isEmpty()) {
+            tenantQuotaService.assertCanLinkGithubRepo(tid());
+        }
         if (req == null) req = new QuoteProvisionRequest();
         String repoName = req.getRepoName() != null ? req.getRepoName().trim() : "";
         if (repoName.isBlank()) throw new IllegalArgumentException("repoName 不能为空");
@@ -329,8 +342,17 @@ public class QuoteProvisionService {
     }
 
     private String buildPublicWebhookUrl(HttpServletRequest req) {
+        String path = resolveWebhookPathForCurrentTenant();
         if (fixedWebhookUrl != null && !fixedWebhookUrl.isBlank()) {
-            return fixedWebhookUrl;
+            String u = fixedWebhookUrl.replaceAll("/+$", "");
+            Tenant t = tenantMapper.findById(tid());
+            if (t != null && t.getSlug() != null && !t.getSlug().isBlank()) {
+                String slug = t.getSlug().trim();
+                if (!u.endsWith("/" + slug)) {
+                    return u + "/" + slug;
+                }
+            }
+            return u;
         }
         // 优先使用 X-Forwarded-*，以适配反向代理/HTTPS
         String proto = headerFirst(req, "X-Forwarded-Proto");
@@ -339,7 +361,15 @@ public class QuoteProvisionService {
         if (host == null || host.isBlank()) host = req.getHeader("Host");
         if (host == null || host.isBlank()) host = req.getServerName() + (req.getServerPort() > 0 ? (":" + req.getServerPort()) : "");
         String base = proto + "://" + host;
-        return base + "/api/webhooks/github";
+        return base + path;
+    }
+
+    private String resolveWebhookPathForCurrentTenant() {
+        Tenant t = tenantMapper.findById(tid());
+        if (t != null && t.getSlug() != null && !t.getSlug().isBlank()) {
+            return "/api/webhooks/github/" + t.getSlug().trim();
+        }
+        return "/api/webhooks/github";
     }
 
     private String headerFirst(HttpServletRequest req, String name) {

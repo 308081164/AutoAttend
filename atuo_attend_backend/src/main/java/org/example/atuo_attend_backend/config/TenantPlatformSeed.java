@@ -48,6 +48,8 @@ public class TenantPlatformSeed implements ApplicationRunner {
                 Tenant t = new Tenant();
                 t.setName("默认组织");
                 t.setSlug(DEFAULT_SLUG);
+                t.setPlanCode("free");
+                t.setStatus("active");
                 tenantMapper.insert(t);
                 log.info("Seeded default tenant slug={}", DEFAULT_SLUG);
             }
