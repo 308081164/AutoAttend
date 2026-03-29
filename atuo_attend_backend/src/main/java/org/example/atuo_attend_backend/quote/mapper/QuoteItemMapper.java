@@ -9,18 +9,18 @@ import java.util.List;
 @Mapper
 public interface QuoteItemMapper {
 
-    @Insert("INSERT INTO biz_quote_item (module_id, name, complexity, quantity, estimated_days, sort_order) " +
-            "VALUES (#{moduleId}, #{name}, #{complexity}, #{quantity}, #{estimatedDays}, #{sortOrder})")
+    @Insert("INSERT INTO biz_quote_item (tenant_id, module_id, name, complexity, quantity, estimated_days, sort_order) " +
+            "VALUES (#{tenantId}, #{moduleId}, #{name}, #{complexity}, #{quantity}, #{estimatedDays}, #{sortOrder})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(QuoteItem item);
 
-    @Update("UPDATE biz_quote_item SET estimated_days = #{days} WHERE id = #{id}")
-    int updateEstimatedDays(@Param("id") long id, @Param("days") BigDecimal days);
+    @Update("UPDATE biz_quote_item SET estimated_days = #{days} WHERE tenant_id = #{tenantId} AND id = #{id}")
+    int updateEstimatedDays(@Param("tenantId") long tenantId, @Param("id") long id, @Param("days") BigDecimal days);
 
-    @Select("SELECT id, module_id AS moduleId, name, complexity, quantity, estimated_days AS estimatedDays, sort_order AS sortOrder " +
-            "FROM biz_quote_item WHERE module_id = #{moduleId} ORDER BY sort_order, id")
-    List<QuoteItem> listByModuleId(@Param("moduleId") long moduleId);
+    @Select("SELECT id, tenant_id AS tenantId, module_id AS moduleId, name, complexity, quantity, estimated_days AS estimatedDays, sort_order AS sortOrder " +
+            "FROM biz_quote_item WHERE tenant_id = #{tenantId} AND module_id = #{moduleId} ORDER BY sort_order, id")
+    List<QuoteItem> listByModuleId(@Param("tenantId") long tenantId, @Param("moduleId") long moduleId);
 
-    @Delete("DELETE FROM biz_quote_item WHERE module_id = #{moduleId}")
-    int deleteByModuleId(@Param("moduleId") long moduleId);
+    @Delete("DELETE FROM biz_quote_item WHERE tenant_id = #{tenantId} AND module_id = #{moduleId}")
+    int deleteByModuleId(@Param("tenantId") long tenantId, @Param("moduleId") long moduleId);
 }

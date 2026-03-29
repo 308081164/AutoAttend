@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public class QuotePriceConfigRow {
     private Long id;
+    private Long tenantId;
     private String regionLabel;
     private BigDecimal pricePerDay;
     private BigDecimal durationCoefficient;
@@ -12,6 +13,8 @@ public class QuotePriceConfigRow {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public String getRegionLabel() { return regionLabel; }
     public void setRegionLabel(String regionLabel) { this.regionLabel = regionLabel; }
     public BigDecimal getPricePerDay() { return pricePerDay; }

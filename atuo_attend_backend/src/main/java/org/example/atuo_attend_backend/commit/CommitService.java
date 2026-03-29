@@ -2,6 +2,8 @@ package org.example.atuo_attend_backend.commit;
 
 import org.example.atuo_attend_backend.commit.mapper.CommitDiffMapper;
 import org.example.atuo_attend_backend.commit.mapper.CommitMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,10 @@ public class CommitService {
         this.localGitDiffFetcher = localGitDiffFetcher;
     }
 
+    private static long currentTenantId() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     public void saveCommit(String repoFullName,
                            String commitSha,
                            String authorName,
@@ -66,6 +72,7 @@ public class CommitService {
         }
         record.setValidCommit(true);
         record.setValidReason("MVP: always valid");
+        record.setTenantId(currentTenantId());
         if (diffText != null && !diffText.isBlank()) {
             int[] stats = parseDiffStats(diffText);
             record.setFilesChanged(stats[0]);
@@ -80,7 +87,7 @@ public class CommitService {
         if (diffText != null && !diffText.isBlank()) {
             long size = diffText.getBytes().length;
             try {
-                commitDiffMapper.insert(repoFullName, commitSha, diffText, size);
+                commitDiffMapper.insert(currentTenantId(), repoFullName, commitSha, diffText, size);
             } catch (Exception ignoreDuplicate) {
                 // diff 同样可能重复插入
             }
@@ -94,24 +101,24 @@ public class CommitService {
     /** 仅按 commitSha 查一条记录（用于 getDiff 时未传 repo 的兜底），不拉取 diff。 */
     public Optional<CommitRecord> findAnyCommitBySha(String commitSha) {
         if (commitSha == null || commitSha.isBlank()) return Optional.empty();
-        CommitRecord r = commitMapper.findOneByCommitSha(commitSha);
+        CommitRecord r = commitMapper.findOneByCommitSha(currentTenantId(), commitSha);
         return r != null ? Optional.of(r) : Optional.empty();
     }
 
     public Optional<CommitRecord> findCommit(String repoFullName, String commitSha) {
-        CommitRecord record = commitMapper.findOne(repoFullName, commitSha);
+        CommitRecord record = commitMapper.findOne(currentTenantId(), repoFullName, commitSha);
         if (record == null) {
             return Optional.empty();
         }
-        String diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+        String diffText = commitDiffMapper.findDiffText(currentTenantId(), repoFullName, commitSha);
         if (diffText == null || diffText.isBlank()) {
             fetchAndSaveDiffWithRetry(repoFullName, commitSha);
-            diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+            diffText = commitDiffMapper.findDiffText(currentTenantId(), repoFullName, commitSha);
         }
         if (diffText == null || diffText.isBlank()) {
             try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
             if (trySaveFetchedDiff(repoFullName, commitSha)) {
-                diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+                diffText = commitDiffMapper.findDiffText(currentTenantId(), repoFullName, commitSha);
             }
         }
         if (diffText == null || diffText.isBlank()) {
@@ -120,7 +127,7 @@ public class CommitService {
         record.setDiffText(diffText);
         if (!diffText.equals(DIFF_UNAVAILABLE_PLACEHOLDER) && record.getFilesChanged() == 0 && record.getInsertions() == 0 && record.getDeletions() == 0) {
             int[] stats = parseDiffStats(diffText);
-            commitMapper.updateStats(repoFullName, commitSha, stats[0], stats[1], stats[2]);
+            commitMapper.updateStats(currentTenantId(), repoFullName, commitSha, stats[0], stats[1], stats[2]);
             record.setFilesChanged(stats[0]);
             record.setInsertions(stats[1]);
             record.setDeletions(stats[2]);
@@ -174,7 +181,7 @@ public class CommitService {
         if (diffText == null || diffText.isBlank()) return false;
         long size = diffText.getBytes().length;
         try {
-            commitDiffMapper.insert(repoFullName, commitSha, diffText, size);
+            commitDiffMapper.insert(currentTenantId(), repoFullName, commitSha, diffText, size);
             return true;
         } catch (Exception ignoreDuplicate) {
             return true; // 已存在视为成功
@@ -202,68 +209,68 @@ public class CommitService {
     }
 
     private void updateCommitStatsFromDiff(String repoFullName, String commitSha) {
-        String diffText = commitDiffMapper.findDiffText(repoFullName, commitSha);
+        String diffText = commitDiffMapper.findDiffText(currentTenantId(), repoFullName, commitSha);
         if (diffText == null || diffText.isBlank()) return;
         int[] stats = parseDiffStats(diffText);
-        commitMapper.updateStats(repoFullName, commitSha, stats[0], stats[1], stats[2]);
+        commitMapper.updateStats(currentTenantId(), repoFullName, commitSha, stats[0], stats[1], stats[2]);
     }
 
     public List<CommitRecord> listPaged(int page, int pageSize) {
         int offset = Math.max((page - 1) * pageSize, 0);
-        return commitMapper.listPaged(offset, pageSize);
+        return commitMapper.listPaged(currentTenantId(), offset, pageSize);
     }
 
     public long countAll() {
-        return commitMapper.countAll();
+        return commitMapper.countAll(currentTenantId());
     }
 
     public List<CommitRecord> listPagedByRepo(String repoFullName, int page, int pageSize) {
         int offset = Math.max((page - 1) * pageSize, 0);
-        return commitMapper.listPagedByRepo(repoFullName, offset, pageSize);
+        return commitMapper.listPagedByRepo(currentTenantId(), repoFullName, offset, pageSize);
     }
 
     public long countByRepo(String repoFullName) {
-        return commitMapper.countByRepo(repoFullName);
+        return commitMapper.countByRepo(currentTenantId(), repoFullName);
     }
 
     /** 返回尚未有 diff 的提交（repoFullName + commitSha），按提交时间倒序，最多 limit 条。用于定时任务补拉。 */
     public List<CommitMapper.CommitId> listCommitsWithoutDiff(int limit) {
-        return commitMapper.listCommitsWithoutDiff(Math.min(Math.max(limit, 1), 100));
+        return commitMapper.listCommitsWithoutDiff(currentTenantId(), Math.min(Math.max(limit, 1), 100));
     }
 
     public List<String> listRepos() {
-        return commitMapper.listDistinctRepos();
+        return commitMapper.listDistinctRepos(currentTenantId());
     }
 
     public List<CommitMapper.AuthorAggregate> aggregateByAuthor(String repoFullName) {
-        return commitMapper.aggregateByAuthor(repoFullName);
+        return commitMapper.aggregateByAuthor(currentTenantId(), repoFullName);
     }
 
     /** 按日统计：最近 N 天，可选按仓库 */
     public List<CommitMapper.CommitByDay> listCommitsByDay(int days, String repoFullName) {
         OffsetDateTime since = OffsetDateTime.now().truncatedTo(ChronoUnit.DAYS).minusDays(days);
         if (repoFullName != null && !repoFullName.isBlank()) {
-            return commitMapper.listCommitsByDayByRepo(since, repoFullName.trim());
+            return commitMapper.listCommitsByDayByRepo(currentTenantId(), since, repoFullName.trim());
         }
-        return commitMapper.listCommitsByDay(since);
+        return commitMapper.listCommitsByDay(currentTenantId(), since);
     }
 
     /** 各仓库提交数 */
     public List<CommitMapper.RepoCount> listCommitsByRepo() {
-        return commitMapper.listCommitsByRepo();
+        return commitMapper.listCommitsByRepo(currentTenantId());
     }
 
     /** 去重作者数 */
     public long countDistinctAuthors(String repoFullName) {
         if (repoFullName != null && !repoFullName.isBlank()) {
-            return commitMapper.countDistinctAuthorsByRepo(repoFullName.trim());
+            return commitMapper.countDistinctAuthorsByRepo(currentTenantId(), repoFullName.trim());
         }
-        return commitMapper.countDistinctAuthors();
+        return commitMapper.countDistinctAuthors(currentTenantId());
     }
 
     /** 全库作者提交排名（Top 50） */
     public List<CommitMapper.AuthorAggregate> aggregateByAuthorAll() {
-        return commitMapper.aggregateByAuthorAll();
+        return commitMapper.aggregateByAuthorAll(currentTenantId());
     }
 
     /**
@@ -276,8 +283,8 @@ public class CommitService {
         Map<String, Object> out = new LinkedHashMap<>();
         if ("total".equals(p)) {
             List<CommitMapper.AuthorAggregate> list = (repoFullName != null && !repoFullName.isBlank())
-                    ? commitMapper.aggregateByAuthor(repoFullName.trim())
-                    : commitMapper.aggregateByAuthorAll();
+                    ? commitMapper.aggregateByAuthor(currentTenantId(), repoFullName.trim())
+                    : commitMapper.aggregateByAuthorAll(currentTenantId());
             out.put("period", "total");
             out.put("offset", 0);
             out.put("periodStart", null);
@@ -299,8 +306,8 @@ public class CommitService {
         OffsetDateTime oStart = start.atStartOfDay(STATS_ZONE).toOffsetDateTime();
         OffsetDateTime oEnd = endEx.atStartOfDay(STATS_ZONE).toOffsetDateTime();
         List<CommitMapper.AuthorAggregate> list = (repoFullName != null && !repoFullName.isBlank())
-                ? commitMapper.aggregateByAuthorBetween(repoFullName.trim(), oStart, oEnd)
-                : commitMapper.aggregateByAuthorAllBetween(oStart, oEnd);
+                ? commitMapper.aggregateByAuthorBetween(currentTenantId(), repoFullName.trim(), oStart, oEnd)
+                : commitMapper.aggregateByAuthorAllBetween(currentTenantId(), oStart, oEnd);
 
         LocalDate[] nextBounds = authorRankPeriodBounds(p, offset + 1, today);
         boolean canGoNext = !nextBounds[0].isAfter(today);
@@ -356,13 +363,23 @@ public class CommitService {
     /** 在 [start, end) 内有提交的仓库 */
     public List<String> listReposWithCommitsBetween(OffsetDateTime start, OffsetDateTime end) {
         if (start == null || end == null) return List.of();
-        return commitMapper.listReposWithCommitsBetween(start, end);
+        return commitMapper.listReposWithCommitsBetween(currentTenantId(), start, end);
     }
 
     /** 某仓库在 [start, end) 内的提交（不含 diff 拉取，仅 aa_commit 表字段） */
     public List<CommitRecord> listCommitsByRepoBetween(String repoFullName, OffsetDateTime start, OffsetDateTime end) {
         if (repoFullName == null || repoFullName.isBlank() || start == null || end == null) return List.of();
-        return commitMapper.listCommitsByRepoBetween(repoFullName.trim(), start, end);
+        return commitMapper.listCommitsByRepoBetween(currentTenantId(), repoFullName.trim(), start, end);
+    }
+
+    public long countByAuthorEmail(String authorEmail) {
+        if (authorEmail == null || authorEmail.isBlank()) return 0;
+        return commitMapper.countByAuthorEmail(currentTenantId(), authorEmail.trim());
+    }
+
+    public long countByAuthorEmailSince(String authorEmail, OffsetDateTime since) {
+        if (authorEmail == null || authorEmail.isBlank() || since == null) return 0;
+        return commitMapper.countByAuthorEmailSince(currentTenantId(), authorEmail.trim(), since);
     }
 }
 

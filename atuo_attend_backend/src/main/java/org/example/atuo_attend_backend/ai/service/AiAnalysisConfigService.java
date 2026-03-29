@@ -2,6 +2,8 @@ package org.example.atuo_attend_backend.ai.service;
 
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.mapper.AiAnalysisConfigMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,8 +21,12 @@ public class AiAnalysisConfigService {
         this.configMapper = configMapper;
     }
 
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     public AiAnalysisConfig getConfig() {
-        AiAnalysisConfig c = configMapper.findByProvider(PROVIDER_DEEPSEEK);
+        AiAnalysisConfig c = configMapper.findByProvider(tid(), PROVIDER_DEEPSEEK);
         if (c == null) {
             c = new AiAnalysisConfig();
             c.setProvider(PROVIDER_DEEPSEEK);
@@ -38,7 +44,7 @@ public class AiAnalysisConfigService {
     }
 
     public AiAnalysisConfig getQwenConfig() {
-        AiAnalysisConfig c = configMapper.findByProvider(PROVIDER_QWEN);
+        AiAnalysisConfig c = configMapper.findByProvider(tid(), PROVIDER_QWEN);
         if (c == null) {
             c = new AiAnalysisConfig();
             c.setProvider(PROVIDER_QWEN);
@@ -77,7 +83,7 @@ public class AiAnalysisConfigService {
     }
 
     public void updateConfig(String apiKey, Boolean enabled, Boolean dailySummaryEnabled, String model, String promptVersion, Integer maxDiffChars) {
-        AiAnalysisConfig existing = configMapper.findByProvider(PROVIDER_DEEPSEEK);
+        AiAnalysisConfig existing = configMapper.findByProvider(tid(), PROVIDER_DEEPSEEK);
         // 仅当传入新的完整 API Key 时更新（不含 **** 的脱敏值）
         String keyToSave = (apiKey != null && !apiKey.isBlank() && !apiKey.contains("****")) ? apiKey.trim() : (existing != null ? existing.getApiKey() : null);
         String m = (model != null && !model.isBlank()) ? model : (existing != null && existing.getModel() != null && !existing.getModel().isBlank() ? existing.getModel() : "deepseek-chat");
@@ -89,11 +95,12 @@ public class AiAnalysisConfigService {
             // 部分更新：字段为 null 时保留库中原值，避免客户端漏传导致误关「单次分析」或「每日总结」
             boolean en = enabled != null ? enabled : Boolean.TRUE.equals(existing.getEnabled());
             boolean ds = dailySummaryEnabled != null ? dailySummaryEnabled : Boolean.TRUE.equals(existing.getDailySummaryEnabled());
-            configMapper.update(PROVIDER_DEEPSEEK, keyToSave, en, ds, m, pv, maxChars);
+            configMapper.update(tid(), PROVIDER_DEEPSEEK, keyToSave, en, ds, m, pv, maxChars);
         } else {
             boolean en = Boolean.TRUE.equals(enabled);
             boolean ds = Boolean.TRUE.equals(dailySummaryEnabled);
             AiAnalysisConfig newConfig = new AiAnalysisConfig();
+            newConfig.setTenantId(tid());
             newConfig.setProvider(PROVIDER_DEEPSEEK);
             newConfig.setApiKey(keyToSave);
             newConfig.setEnabled(en);
@@ -106,7 +113,7 @@ public class AiAnalysisConfigService {
     }
 
     public void updateQwenConfig(String apiKey, Boolean enabled, String model) {
-        AiAnalysisConfig existing = configMapper.findByProvider(PROVIDER_QWEN);
+        AiAnalysisConfig existing = configMapper.findByProvider(tid(), PROVIDER_QWEN);
         String keyToSave = (apiKey != null && !apiKey.isBlank() && !apiKey.contains("****"))
                 ? apiKey.trim()
                 : (existing != null ? existing.getApiKey() : null);
@@ -117,9 +124,10 @@ public class AiAnalysisConfigService {
                 ? existing.getPromptVersion()
                 : "v1";
         if (existing != null) {
-            configMapper.update(PROVIDER_QWEN, keyToSave, en, false, m, pv, maxChars);
+            configMapper.update(tid(), PROVIDER_QWEN, keyToSave, en, false, m, pv, maxChars);
         } else {
             AiAnalysisConfig c = new AiAnalysisConfig();
+            c.setTenantId(tid());
             c.setProvider(PROVIDER_QWEN);
             c.setApiKey(keyToSave);
             c.setEnabled(en);

@@ -14,6 +14,8 @@ import org.example.atuo_attend_backend.quote.dto.QuoteProvisionRequest;
 import org.example.atuo_attend_backend.quote.mapper.QuoteItemMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuoteModuleMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -67,8 +69,12 @@ public class QuoteProvisionService {
         this.fixedWebhookUrl = fixedWebhookUrl != null ? fixedWebhookUrl.trim() : "";
     }
 
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     public Map<String, Object> provision(long quoteProjectId, QuoteProvisionRequest req, HttpServletRequest httpReq) {
-        QuoteProject qp = quoteProjectMapper.findById(quoteProjectId);
+        QuoteProject qp = quoteProjectMapper.findById(tid(), quoteProjectId);
         if (qp == null) throw new IllegalArgumentException("报价项目不存在");
         if (req == null) req = new QuoteProvisionRequest();
         String repoName = req.getRepoName() != null ? req.getRepoName().trim() : "";
@@ -95,7 +101,7 @@ public class QuoteProvisionService {
         String lastError = null;
 
         // 先标记 provisioning
-        quoteProjectMapper.updateProvisionState(quoteProjectId, qp.getGithubRepoFullName(), qp.getGithubRepoHtmlUrl(),
+        quoteProjectMapper.updateProvisionState(tid(), quoteProjectId, qp.getGithubRepoFullName(), qp.getGithubRepoHtmlUrl(),
                 qp.getGithubWebhookId(), qp.getGithubWebhookSecret(), "provisioning", null,
                 qp.getProvisionSyncedToCollab() != null && qp.getProvisionSyncedToCollab() ? 1 : 0,
                 qp.getProvisionSyncedAt());
@@ -150,7 +156,7 @@ public class QuoteProvisionService {
             steps.add(stepFail("failed", "失败：" + lastError));
             log.warn("Quote provision failed, quoteProjectId={}: {} - {}", quoteProjectId, e.getClass().getSimpleName(), lastError);
         } finally {
-            quoteProjectMapper.updateProvisionState(quoteProjectId, repoFullName, repoHtmlUrl, webhookId, webhookSecret,
+            quoteProjectMapper.updateProvisionState(tid(), quoteProjectId, repoFullName, repoHtmlUrl, webhookId, webhookSecret,
                     provisionStatus, lastError, syncedToCollab, syncedAt);
         }
 
@@ -239,8 +245,8 @@ public class QuoteProvisionService {
         Long colCreator = findColId(columns, "创建人");
         Long colCreateTime = findColId(columns, "创建时间");
 
-        for (QuoteModule m : quoteModuleMapper.listByProjectId(quoteProjectId)) {
-            List<QuoteItem> items = quoteItemMapper.listByModuleId(m.getId());
+        for (QuoteModule m : quoteModuleMapper.listByProjectId(tid(), quoteProjectId)) {
+            List<QuoteItem> items = quoteItemMapper.listByModuleId(tid(), m.getId());
             for (QuoteItem it : items) {
                 Map<String, Object> fields = new HashMap<>();
                 String desc = "【" + m.getName() + "】" + it.getName()
@@ -307,9 +313,9 @@ public class QuoteProvisionService {
         }
         sb.append("- 报价项目ID：").append(quoteProjectId).append("\n\n");
         sb.append("## 功能模块与功能点\n\n");
-        for (QuoteModule m : quoteModuleMapper.listByProjectId(quoteProjectId)) {
+        for (QuoteModule m : quoteModuleMapper.listByProjectId(tid(), quoteProjectId)) {
             sb.append("### ").append(m.getName()).append("\n\n");
-            for (QuoteItem it : quoteItemMapper.listByModuleId(m.getId())) {
+            for (QuoteItem it : quoteItemMapper.listByModuleId(tid(), m.getId())) {
                 sb.append("- ").append(it.getName())
                         .append("（复杂度：").append(it.getComplexity())
                         .append("，数量：").append(it.getQuantity())

@@ -11,10 +11,10 @@ public interface CommitMapper {
 
     @Insert("""
             INSERT INTO aa_commit(
-              repo_full_name, commit_sha, parent_sha, author_name, author_email,
+              tenant_id, repo_full_name, commit_sha, parent_sha, author_name, author_email,
               committed_at, message, files_changed, insertions, deletions, valid_commit, valid_reason
             ) VALUES (
-              #{repoFullName}, #{commitSha}, #{parentSha}, #{authorName}, #{authorEmail},
+              #{tenantId}, #{repoFullName}, #{commitSha}, #{parentSha}, #{authorName}, #{authorEmail},
               #{committedAt}, #{message}, #{filesChanged}, #{insertions}, #{deletions}, #{validCommit}, #{validReason}
             )
             """)
@@ -24,9 +24,9 @@ public interface CommitMapper {
     @Update("""
             UPDATE aa_commit
             SET files_changed = #{filesChanged}, insertions = #{insertions}, deletions = #{deletions}
-            WHERE repo_full_name = #{repoFullName} AND commit_sha = #{commitSha}
+            WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName} AND commit_sha = #{commitSha}
             """)
-    int updateStats(@Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha,
+    int updateStats(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha,
                    @Param("filesChanged") int filesChanged, @Param("insertions") int insertions, @Param("deletions") int deletions);
 
     @Select("""
@@ -44,9 +44,9 @@ public interface CommitMapper {
               valid_commit AS validCommit,
               valid_reason AS validReason
             FROM aa_commit
-            WHERE repo_full_name = #{repoFullName} AND commit_sha = #{commitSha}
+            WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName} AND commit_sha = #{commitSha}
             """)
-    CommitRecord findOne(@Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha);
+    CommitRecord findOne(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha);
 
     /** 仅按 commit_sha 查一条（用于 getDiff 时前端未传 repoFullName 的兜底） */
     @Select("""
@@ -64,11 +64,11 @@ public interface CommitMapper {
               valid_commit AS validCommit,
               valid_reason AS validReason
             FROM aa_commit
-            WHERE commit_sha = #{commitSha}
+            WHERE tenant_id = #{tenantId} AND commit_sha = #{commitSha}
             ORDER BY committed_at DESC
             LIMIT 1
             """)
-    CommitRecord findOneByCommitSha(@Param("commitSha") String commitSha);
+    CommitRecord findOneByCommitSha(@Param("tenantId") long tenantId, @Param("commitSha") String commitSha);
 
     @Select("""
             SELECT
@@ -85,10 +85,11 @@ public interface CommitMapper {
               valid_commit AS validCommit,
               valid_reason AS validReason
             FROM aa_commit
+            WHERE tenant_id = #{tenantId}
             ORDER BY committed_at DESC
             LIMIT #{limit} OFFSET #{offset}
             """)
-    List<CommitRecord> listPaged(@Param("offset") int offset, @Param("limit") int limit);
+    List<CommitRecord> listPaged(@Param("tenantId") long tenantId, @Param("offset") int offset, @Param("limit") int limit);
 
     @Select("""
             SELECT
@@ -105,11 +106,11 @@ public interface CommitMapper {
               valid_commit AS validCommit,
               valid_reason AS validReason
             FROM aa_commit
-            WHERE repo_full_name = #{repoFullName}
+            WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName}
             ORDER BY committed_at DESC
             LIMIT #{limit} OFFSET #{offset}
             """)
-    List<CommitRecord> listPagedByRepo(@Param("repoFullName") String repoFullName,
+    List<CommitRecord> listPagedByRepo(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName,
                                        @Param("offset") int offset,
                                        @Param("limit") int limit);
 
@@ -117,12 +118,12 @@ public interface CommitMapper {
     @Select("""
             SELECT c.repo_full_name AS repoFullName, c.commit_sha AS commitSha
             FROM aa_commit c
-            LEFT JOIN aa_commit_diff d ON c.repo_full_name = d.repo_full_name AND c.commit_sha = d.commit_sha
-            WHERE d.repo_full_name IS NULL
+            LEFT JOIN aa_commit_diff d ON c.tenant_id = d.tenant_id AND c.repo_full_name = d.repo_full_name AND c.commit_sha = d.commit_sha
+            WHERE c.tenant_id = #{tenantId} AND d.repo_full_name IS NULL
             ORDER BY c.committed_at DESC
             LIMIT #{limit}
             """)
-    List<CommitId> listCommitsWithoutDiff(@Param("limit") int limit);
+    List<CommitId> listCommitsWithoutDiff(@Param("tenantId") long tenantId, @Param("limit") int limit);
 
     class CommitId {
         private String repoFullName;
@@ -133,34 +134,34 @@ public interface CommitMapper {
         public void setCommitSha(String commitSha) { this.commitSha = commitSha; }
     }
 
-    @Select("SELECT COUNT(1) FROM aa_commit")
-    long countAll();
+    @Select("SELECT COUNT(1) FROM aa_commit WHERE tenant_id = #{tenantId}")
+    long countAll(@Param("tenantId") long tenantId);
 
-    @Select("SELECT COUNT(1) FROM aa_commit WHERE repo_full_name = #{repoFullName}")
-    long countByRepo(@Param("repoFullName") String repoFullName);
+    @Select("SELECT COUNT(1) FROM aa_commit WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName}")
+    long countByRepo(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName);
 
     /** 按作者邮箱统计提交数（用于员工工作台「我的统计」） */
-    @Select("SELECT COUNT(1) FROM aa_commit WHERE author_email = #{authorEmail}")
-    long countByAuthorEmail(@Param("authorEmail") String authorEmail);
+    @Select("SELECT COUNT(1) FROM aa_commit WHERE tenant_id = #{tenantId} AND author_email = #{authorEmail}")
+    long countByAuthorEmail(@Param("tenantId") long tenantId, @Param("authorEmail") String authorEmail);
 
     /** 按作者邮箱与时间范围统计提交数 */
     @Select("""
             SELECT COUNT(1) FROM aa_commit
-            WHERE author_email = #{authorEmail} AND committed_at >= #{since}
+            WHERE tenant_id = #{tenantId} AND author_email = #{authorEmail} AND committed_at >= #{since}
             """)
-    long countByAuthorEmailSince(@Param("authorEmail") String authorEmail,
+    long countByAuthorEmailSince(@Param("tenantId") long tenantId, @Param("authorEmail") String authorEmail,
                                 @Param("since") java.time.OffsetDateTime since);
 
-    @Select("SELECT DISTINCT repo_full_name FROM aa_commit ORDER BY repo_full_name")
-    List<String> listDistinctRepos();
+    @Select("SELECT DISTINCT repo_full_name FROM aa_commit WHERE tenant_id = #{tenantId} ORDER BY repo_full_name")
+    List<String> listDistinctRepos(@Param("tenantId") long tenantId);
 
     /** 在 [start, end) 时间范围内有提交的仓库列表 */
     @Select("""
             SELECT DISTINCT repo_full_name FROM aa_commit
-            WHERE committed_at >= #{start} AND committed_at < #{end}
+            WHERE tenant_id = #{tenantId} AND committed_at >= #{start} AND committed_at < #{end}
             ORDER BY repo_full_name
             """)
-    List<String> listReposWithCommitsBetween(@Param("start") java.time.OffsetDateTime start,
+    List<String> listReposWithCommitsBetween(@Param("tenantId") long tenantId, @Param("start") java.time.OffsetDateTime start,
                                             @Param("end") java.time.OffsetDateTime end);
 
     /** 某仓库在 [start, end) 内的提交，按时间正序 */
@@ -179,10 +180,10 @@ public interface CommitMapper {
               valid_commit AS validCommit,
               valid_reason AS validReason
             FROM aa_commit
-            WHERE repo_full_name = #{repoFullName} AND committed_at >= #{start} AND committed_at < #{end}
+            WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName} AND committed_at >= #{start} AND committed_at < #{end}
             ORDER BY committed_at ASC, commit_sha ASC
             """)
-    List<CommitRecord> listCommitsByRepoBetween(@Param("repoFullName") String repoFullName,
+    List<CommitRecord> listCommitsByRepoBetween(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName,
                                                 @Param("start") java.time.OffsetDateTime start,
                                                 @Param("end") java.time.OffsetDateTime end);
 
@@ -191,48 +192,50 @@ public interface CommitMapper {
             SELECT DATE(committed_at) AS day, COUNT(*) AS count,
                    COALESCE(SUM(insertions), 0) AS insertions, COALESCE(SUM(deletions), 0) AS deletions
             FROM aa_commit
-            WHERE committed_at >= #{since}
+            WHERE tenant_id = #{tenantId} AND committed_at >= #{since}
             GROUP BY DATE(committed_at)
             ORDER BY day
             """)
-    List<CommitByDay> listCommitsByDay(@Param("since") java.time.OffsetDateTime since);
+    List<CommitByDay> listCommitsByDay(@Param("tenantId") long tenantId, @Param("since") java.time.OffsetDateTime since);
 
     @Select("""
             SELECT DATE(committed_at) AS day, COUNT(*) AS count,
                    COALESCE(SUM(insertions), 0) AS insertions, COALESCE(SUM(deletions), 0) AS deletions
             FROM aa_commit
-            WHERE committed_at >= #{since} AND repo_full_name = #{repoFullName}
+            WHERE tenant_id = #{tenantId} AND committed_at >= #{since} AND repo_full_name = #{repoFullName}
             GROUP BY DATE(committed_at)
             ORDER BY day
             """)
-    List<CommitByDay> listCommitsByDayByRepo(@Param("since") java.time.OffsetDateTime since, @Param("repoFullName") String repoFullName);
+    List<CommitByDay> listCommitsByDayByRepo(@Param("tenantId") long tenantId, @Param("since") java.time.OffsetDateTime since, @Param("repoFullName") String repoFullName);
 
     /** 各仓库提交数，用于饼图 */
     @Select("""
             SELECT repo_full_name AS repoFullName, COUNT(*) AS count
             FROM aa_commit
+            WHERE tenant_id = #{tenantId}
             GROUP BY repo_full_name
             ORDER BY count DESC
             """)
-    List<RepoCount> listCommitsByRepo();
+    List<RepoCount> listCommitsByRepo(@Param("tenantId") long tenantId);
 
     /** 去重作者数（按 author_name + author_email） */
-    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM aa_commit GROUP BY author_name, author_email) t")
-    long countDistinctAuthors();
+    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM aa_commit WHERE tenant_id = #{tenantId} GROUP BY author_name, author_email) t")
+    long countDistinctAuthors(@Param("tenantId") long tenantId);
 
-    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM aa_commit WHERE repo_full_name = #{repoFullName} GROUP BY author_name, author_email) t")
-    long countDistinctAuthorsByRepo(@Param("repoFullName") String repoFullName);
+    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM aa_commit WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName} GROUP BY author_name, author_email) t")
+    long countDistinctAuthorsByRepo(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName);
 
     /** 全库作者聚合（用于「全部」时的开发者排名） */
     @Select("""
             SELECT author_name AS authorName, author_email AS authorEmail,
                    COUNT(*) AS commitCount, MAX(committed_at) AS lastCommittedAt
             FROM aa_commit
+            WHERE tenant_id = #{tenantId}
             GROUP BY author_name, author_email
             ORDER BY commitCount DESC
             LIMIT 50
             """)
-    List<AuthorAggregate> aggregateByAuthorAll();
+    List<AuthorAggregate> aggregateByAuthorAll(@Param("tenantId") long tenantId);
 
     class CommitByDay {
         private java.util.Date day;
@@ -265,36 +268,36 @@ public interface CommitMapper {
               COUNT(*) AS commitCount,
               MAX(committed_at) AS lastCommittedAt
             FROM aa_commit
-            WHERE repo_full_name = #{repoFullName}
+            WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName}
             GROUP BY author_name, author_email
             ORDER BY commitCount DESC
             """)
-    List<AuthorAggregate> aggregateByAuthor(@Param("repoFullName") String repoFullName);
+    List<AuthorAggregate> aggregateByAuthor(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName);
 
     /** 全库作者在 [start, end) 内的提交数排名 */
     @Select("""
             SELECT author_name AS authorName, author_email AS authorEmail,
                    COUNT(*) AS commitCount, MAX(committed_at) AS lastCommittedAt
             FROM aa_commit
-            WHERE committed_at >= #{start} AND committed_at < #{end}
+            WHERE tenant_id = #{tenantId} AND committed_at >= #{start} AND committed_at < #{end}
             GROUP BY author_name, author_email
             ORDER BY commitCount DESC
             LIMIT 50
             """)
-    List<AuthorAggregate> aggregateByAuthorAllBetween(@Param("start") OffsetDateTime start, @Param("end") OffsetDateTime end);
+    List<AuthorAggregate> aggregateByAuthorAllBetween(@Param("tenantId") long tenantId, @Param("start") OffsetDateTime start, @Param("end") OffsetDateTime end);
 
     /** 单仓库作者在 [start, end) 内的提交数排名 */
     @Select("""
             SELECT author_name AS authorName, author_email AS authorEmail,
                    COUNT(*) AS commitCount, MAX(committed_at) AS lastCommittedAt
             FROM aa_commit
-            WHERE repo_full_name = #{repoFullName}
+            WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName}
               AND committed_at >= #{start} AND committed_at < #{end}
             GROUP BY author_name, author_email
             ORDER BY commitCount DESC
             LIMIT 50
             """)
-    List<AuthorAggregate> aggregateByAuthorBetween(@Param("repoFullName") String repoFullName,
+    List<AuthorAggregate> aggregateByAuthorBetween(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName,
                                                    @Param("start") OffsetDateTime start,
                                                    @Param("end") OffsetDateTime end);
 

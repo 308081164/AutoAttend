@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public class QuoteItem {
     private Long id;
+    private Long tenantId;
     private Long moduleId;
     private String name;
     private String complexity;
@@ -13,6 +14,8 @@ public class QuoteItem {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public Long getModuleId() { return moduleId; }
     public void setModuleId(Long moduleId) { this.moduleId = moduleId; }
     public String getName() { return name; }

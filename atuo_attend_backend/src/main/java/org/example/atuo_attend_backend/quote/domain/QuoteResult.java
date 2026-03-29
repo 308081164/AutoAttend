@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 public class QuoteResult {
     private Long id;
+    private Long tenantId;
     private Long quoteProjectId;
     private BigDecimal totalDays;
     private BigDecimal estimatedDurationDays;
@@ -22,6 +23,8 @@ public class QuoteResult {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public Long getQuoteProjectId() { return quoteProjectId; }
     public void setQuoteProjectId(Long quoteProjectId) { this.quoteProjectId = quoteProjectId; }
     public BigDecimal getTotalDays() { return totalDays; }

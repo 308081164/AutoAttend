@@ -11,6 +11,8 @@ import org.example.atuo_attend_backend.ai.service.ProjectDailySummaryService;
 import org.example.atuo_attend_backend.commit.CommitRecord;
 import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -43,6 +45,10 @@ public class AdminAiAnalysisController {
         this.projectDailySummaryService = projectDailySummaryService;
     }
 
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     @GetMapping("/usage")
     public ApiResponse<Map<String, Object>> getTokenUsage(
             @RequestParam(value = "days", defaultValue = "30") int days,
@@ -56,10 +62,10 @@ public class AdminAiAnalysisController {
         boolean usePaging = page != null && pageSize != null && page > 0 && pageSize > 0 && pageSize <= 500;
         if (usePaging && provider != null && !provider.isBlank()) {
             String p = provider.trim();
-            summary = tokenUsageMapper.sumSinceByProvider(since, p);
-            long total = tokenUsageMapper.countSinceByProvider(since, p);
+            summary = tokenUsageMapper.sumSinceByProvider(tid(), since, p);
+            long total = tokenUsageMapper.countSinceByProvider(tid(), since, p);
             int offset = (page - 1) * pageSize;
-            items = tokenUsageMapper.listSinceByProviderPaged(since, p, offset, pageSize);
+            items = tokenUsageMapper.listSinceByProviderPaged(tid(), since, p, offset, pageSize);
             Map<String, Object> data = new HashMap<>();
             if (summary == null) summary = new HashMap<>();
             data.put("summary", summary);
@@ -71,11 +77,11 @@ public class AdminAiAnalysisController {
             return ApiResponse.ok(data);
         }
         if (provider != null && !provider.isBlank()) {
-            items = tokenUsageMapper.listSinceByProvider(since, provider.trim(), 500);
-            summary = tokenUsageMapper.sumSinceByProvider(since, provider.trim());
+            items = tokenUsageMapper.listSinceByProvider(tid(), since, provider.trim(), 500);
+            summary = tokenUsageMapper.sumSinceByProvider(tid(), since, provider.trim());
         } else {
-            items = tokenUsageMapper.listSince(since, 500);
-            summary = tokenUsageMapper.sumSince(since);
+            items = tokenUsageMapper.listSince(tid(), since, 500);
+            summary = tokenUsageMapper.sumSince(tid(), since);
         }
         if (summary == null) summary = new HashMap<>();
         Map<String, Object> data = new HashMap<>();
@@ -94,7 +100,7 @@ public class AdminAiAnalysisController {
         }
         days = Math.min(Math.max(days, 1), 365);
         LocalDateTime since = LocalDateTime.now().minusDays(days);
-        List<Map<String, Object>> daily = tokenUsageMapper.listDailyByProvider(since, provider.trim());
+        List<Map<String, Object>> daily = tokenUsageMapper.listDailyByProvider(tid(), since, provider.trim());
         Map<String, Object> data = new HashMap<>();
         data.put("daily", daily != null ? daily : List.of());
         data.put("since", since.toString());

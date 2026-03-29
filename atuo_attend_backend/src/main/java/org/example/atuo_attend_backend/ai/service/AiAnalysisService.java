@@ -11,6 +11,8 @@ import org.example.atuo_attend_backend.ai.mapper.AiAnalysisJobMapper;
 import org.example.atuo_attend_backend.ai.mapper.AiAnalysisResultMapper;
 import org.example.atuo_attend_backend.commit.CommitRecord;
 import org.example.atuo_attend_backend.commit.CommitService;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -50,11 +52,15 @@ public class AiAnalysisService {
         this.deepSeekClient = deepSeekClient;
     }
 
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     private void recordTokenUsage(DeepSeekClient.ChatResult chatResult, String repoFullName, String commitSha) {
         if (chatResult == null || tokenUsageMapper == null) return;
         try {
             int total = chatResult.getInputTokens() + chatResult.getOutputTokens();
-            tokenUsageMapper.insert(LocalDateTime.now(), PROVIDER_DEEPSEEK, chatResult.getModel(),
+            tokenUsageMapper.insert(tid(), LocalDateTime.now(), PROVIDER_DEEPSEEK, chatResult.getModel(),
                 chatResult.getInputTokens(), chatResult.getOutputTokens(), total, repoFullName, commitSha);
         } catch (Exception e) {
             log.warn("Record token usage failed: {}", e.getMessage());
@@ -62,7 +68,7 @@ public class AiAnalysisService {
     }
 
     public Optional<AiAnalysisResult> getResult(String repoFullName, String commitSha) {
-        AiAnalysisResult r = resultMapper.findByRepoAndSha(repoFullName, commitSha);
+        AiAnalysisResult r = resultMapper.findByRepoAndSha(tid(), repoFullName, commitSha);
         return r != null ? Optional.of(r) : Optional.empty();
     }
 
@@ -71,7 +77,7 @@ public class AiAnalysisService {
      */
     @Transactional(rollbackFor = Exception.class)
     public Optional<AiAnalysisResult> runAnalysis(String repoFullName, String commitSha) {
-        AiAnalysisResult existing = resultMapper.findByRepoAndSha(repoFullName, commitSha);
+        AiAnalysisResult existing = resultMapper.findByRepoAndSha(tid(), repoFullName, commitSha);
         if (existing != null) {
             return Optional.of(existing);
         }
@@ -94,9 +100,10 @@ public class AiAnalysisService {
         if (diffText.length() > maxChars) {
             diffText = diffText.substring(0, maxChars) + "\n\n... (diff 已截断)";
         }
-        AiAnalysisJob job = jobMapper.findByRepoAndSha(repoFullName, commitSha);
+        AiAnalysisJob job = jobMapper.findByRepoAndSha(tid(), repoFullName, commitSha);
         if (job == null) {
             job = new AiAnalysisJob();
+            job.setTenantId(tid());
             job.setRepoFullName(repoFullName);
             job.setCommitSha(commitSha);
             job.setStatus("running");
@@ -105,7 +112,7 @@ public class AiAnalysisService {
             job.setRetryCount(0);
             jobMapper.insert(job);
         } else if ("success".equals(job.getStatus())) {
-            return Optional.ofNullable(resultMapper.findByRepoAndSha(repoFullName, commitSha));
+            return Optional.ofNullable(resultMapper.findByRepoAndSha(tid(), repoFullName, commitSha));
         } else {
             job.setStatus("running");
             job.setLastError(null);
@@ -132,6 +139,7 @@ public class AiAnalysisService {
             jobMapper.update(job);
             return Optional.empty();
         }
+        result.setTenantId(tid());
         resultMapper.insert(result);
         job.setStatus("success");
         job.setLastError(null);

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 public class ProjectDailySummary {
     private Long id;
+    private Long tenantId;
     private String repoFullName;
     private LocalDate summaryDate;
     private String title;
@@ -18,6 +19,8 @@ public class ProjectDailySummary {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public String getRepoFullName() { return repoFullName; }
     public void setRepoFullName(String repoFullName) { this.repoFullName = repoFullName; }
     public LocalDate getSummaryDate() { return summaryDate; }

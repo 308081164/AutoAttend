@@ -19,6 +19,8 @@ import org.example.atuo_attend_backend.collab.service.CollabTableService;
 import org.example.atuo_attend_backend.collab.service.MinioService;
 import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -52,6 +54,10 @@ public class CollabAiTaskController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final ZoneId COLLAB_STATS_ZONE = ZoneId.of("Asia/Shanghai");
+
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
 
     public CollabAiTaskController(CollabProjectService projectService,
                                   CollabTableService tableService,
@@ -124,7 +130,7 @@ public class CollabAiTaskController {
         }
         if (result.getInputTokens() > 0 || result.getOutputTokens() > 0) {
             try {
-                tokenUsageMapper.insert(LocalDateTime.now(), "qwen", result.getModel(),
+                tokenUsageMapper.insert(tid(), LocalDateTime.now(), "qwen", result.getModel(),
                         result.getInputTokens(), result.getOutputTokens(), result.getTotalTokens(), null, null);
             } catch (Exception e) {
                 log.warn("Record Qwen token usage failed: {}", e.getMessage());

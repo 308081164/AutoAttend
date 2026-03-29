@@ -2,6 +2,9 @@ package org.example.atuo_attend_backend.commit.task;
 
 import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.commit.mapper.CommitMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,16 +25,24 @@ public class DiffFetchScheduledTask {
     private static final int FETCH_LIMIT = 20;
 
     private final CommitService commitService;
+    private final TenantMapper tenantMapper;
 
     @Value("${app.diff-fetch.schedule.max-per-run:5}")
     private int maxPerRun;
 
-    public DiffFetchScheduledTask(CommitService commitService) {
+    public DiffFetchScheduledTask(CommitService commitService, TenantMapper tenantMapper) {
         this.commitService = commitService;
+        this.tenantMapper = tenantMapper;
     }
 
     @Scheduled(fixedDelayString = "${app.diff-fetch.schedule.fixed-delay-ms:900000}")
     public void runDiffFetch() {
+        for (Tenant t : tenantMapper.listAll()) {
+            TenantContext.runWithTenantId(t.getId(), () -> runDiffFetchForCurrentTenant());
+        }
+    }
+
+    private void runDiffFetchForCurrentTenant() {
         int limit = maxPerRun <= 0 ? 5 : Math.min(maxPerRun, 20);
         List<CommitMapper.CommitId> withoutDiff = commitService.listCommitsWithoutDiff(FETCH_LIMIT);
         if (withoutDiff == null || withoutDiff.isEmpty()) {

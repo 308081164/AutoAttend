@@ -1,6 +1,9 @@
 package org.example.atuo_attend_backend.collab.auth;
 
+import org.example.atuo_attend_backend.collab.domain.BizUser;
+import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.collab.service.CollabJwtService;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.stereotype.Component;
 
 import jakarta.servlet.*;
@@ -16,9 +19,11 @@ import java.io.IOException;
 public class CollabAuthFilter implements Filter {
 
     private final CollabJwtService jwtService;
+    private final BizUserMapper bizUserMapper;
 
-    public CollabAuthFilter(CollabJwtService jwtService) {
+    public CollabAuthFilter(CollabJwtService jwtService, BizUserMapper bizUserMapper) {
         this.jwtService = jwtService;
+        this.bizUserMapper = bizUserMapper;
     }
 
     @Override
@@ -37,6 +42,10 @@ public class CollabAuthFilter implements Filter {
         Long userId = token != null ? jwtService.getUserIdFromToken(token) : null;
         if (userId != null) {
             req.setAttribute("collabUserId", userId);
+            BizUser u = bizUserMapper.findById(userId);
+            if (u != null && u.getTenantId() != null) {
+                TenantContext.setTenantId(u.getTenantId());
+            }
         } else if (!isLogin) {
             resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             resp.setContentType("application/json;charset=UTF-8");

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class BizUser {
     private Long id;
+    private Long tenantId;
     private String email;
     private String name;
     private String passwordHash;
@@ -16,6 +17,8 @@ public class BizUser {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getName() { return name; }

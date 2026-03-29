@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class AiAnalysisConfig {
     private Long id;
+    private Long tenantId;
     private String provider;
     private String apiKey;
     private Boolean enabled;
@@ -17,6 +18,8 @@ public class AiAnalysisConfig {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public String getProvider() { return provider; }
     public void setProvider(String provider) { this.provider = provider; }
     public String getApiKey() { return apiKey; }

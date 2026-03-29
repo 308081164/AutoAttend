@@ -10,6 +10,8 @@ import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMemberMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.collab.service.CollabPasswordService;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,12 +36,20 @@ public class AdminTeamService {
         this.passwordService = passwordService;
     }
 
+    private static long currentTenantId() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     public List<BizUser> listMembers() {
-        return userMapper.listAll();
+        return userMapper.listByTenant(currentTenantId());
     }
 
     public BizUser getMember(long id) {
-        return userMapper.findById(id);
+        BizUser u = userMapper.findById(id);
+        if (u == null || u.getTenantId() == null || !u.getTenantId().equals(currentTenantId())) {
+            return null;
+        }
+        return u;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -48,12 +58,14 @@ public class AdminTeamService {
             throw new IllegalArgumentException("邮箱不能为空");
         }
         String email = req.getEmail().trim();
-        if (userMapper.findByEmail(email) != null) {
+        long tid = currentTenantId();
+        if (userMapper.findByTenantAndEmail(tid, email) != null) {
             throw new IllegalArgumentException("该邮箱已存在");
         }
         String password = req.getPassword() != null && !req.getPassword().isBlank()
                 ? req.getPassword() : "123456";
         BizUser user = new BizUser();
+        user.setTenantId(tid);
         user.setEmail(email);
         user.setName(req.getName() != null ? req.getName().trim() : email);
         user.setPasswordHash(passwordService.hash(password));
@@ -66,7 +78,7 @@ public class AdminTeamService {
 
     @Transactional(rollbackFor = Exception.class)
     public void updateMember(long id, UpdateMemberRequest req) {
-        BizUser user = userMapper.findById(id);
+        BizUser user = getMember(id);
         if (user == null) throw new IllegalArgumentException("用户不存在");
         if (req.getName() != null) user.setName(req.getName().trim());
         if (req.getRemarkName() != null) user.setRemarkName(req.getRemarkName().trim());
@@ -83,7 +95,7 @@ public class AdminTeamService {
         if (newPassword == null || newPassword.isBlank()) {
             throw new IllegalArgumentException("新密码不能为空");
         }
-        BizUser user = userMapper.findById(id);
+        BizUser user = getMember(id);
         if (user == null) throw new IllegalArgumentException("用户不存在");
         user.setPasswordHash(passwordService.hash(newPassword));
         userMapper.update(user);
@@ -95,7 +107,7 @@ public class AdminTeamService {
 
     @Transactional(rollbackFor = Exception.class)
     public void setMemberProjects(long userId, List<MemberProjectItem> projects) {
-        BizUser user = userMapper.findById(userId);
+        BizUser user = getMember(userId);
         if (user == null) throw new IllegalArgumentException("用户不存在");
         List<Long> currentIds = projectMemberMapper.listProjectIdsByUserId(userId);
         for (Long projectId : currentIds) {
@@ -105,7 +117,7 @@ public class AdminTeamService {
             for (MemberProjectItem item : projects) {
                 if (item.getProjectId() == null) continue;
                 BizProject p = projectMapper.findById(item.getProjectId());
-                if (p == null) continue;
+                if (p == null || p.getTenantId() == null || !p.getTenantId().equals(currentTenantId())) continue;
                 String role = "admin".equals(item.getRole()) ? "admin" : "member";
                 BizProjectMember m = new BizProjectMember();
                 m.setProjectId(item.getProjectId());
@@ -118,6 +130,6 @@ public class AdminTeamService {
     }
 
     public List<BizProject> listAllProjects() {
-        return projectMapper.listAll();
+        return projectMapper.listByTenant(currentTenantId());
     }
 }

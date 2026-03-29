@@ -6,6 +6,9 @@ import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisService;
 import org.example.atuo_attend_backend.commit.CommitRecord;
 import org.example.atuo_attend_backend.commit.CommitService;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,17 +34,26 @@ public class AiAnalysisScheduledTask {
     private final AiAnalysisConfigService configService;
     private final AiAnalysisService analysisService;
     private final CommitService commitService;
+    private final TenantMapper tenantMapper;
 
     public AiAnalysisScheduledTask(AiAnalysisConfigService configService,
                                   AiAnalysisService analysisService,
-                                  CommitService commitService) {
+                                  CommitService commitService,
+                                  TenantMapper tenantMapper) {
         this.configService = configService;
         this.analysisService = analysisService;
         this.commitService = commitService;
+        this.tenantMapper = tenantMapper;
     }
 
     @Scheduled(fixedDelayString = "${app.ai-analysis.schedule.fixed-delay-ms:600000}")
     public void runAutoAnalysis() {
+        for (Tenant t : tenantMapper.listAll()) {
+            TenantContext.runWithTenantId(t.getId(), this::runAutoAnalysisForCurrentTenant);
+        }
+    }
+
+    private void runAutoAnalysisForCurrentTenant() {
         AiAnalysisConfig config = configService.getConfig();
         if (!Boolean.TRUE.equals(config.getEnabled()) || config.getApiKey() == null || config.getApiKey().isBlank()) {
             log.trace("AI auto-analysis skipped: disabled or no API key");

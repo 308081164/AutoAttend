@@ -15,6 +15,8 @@ import org.example.atuo_attend_backend.collab.domain.BizTableColumn;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMemberMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -89,6 +91,10 @@ public class CollabCsvAiImportService {
         this.tokenUsageMapper = tokenUsageMapper;
         this.sessionStore = sessionStore;
         this.recordService = recordService;
+    }
+
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
     }
 
     /**
@@ -182,7 +188,7 @@ public class CollabCsvAiImportService {
         } else {
             if (result.getInputTokens() > 0 || result.getOutputTokens() > 0) {
                 try {
-                    tokenUsageMapper.insert(LocalDateTime.now(), "deepseek", model,
+                    tokenUsageMapper.insert(tid(), LocalDateTime.now(), "deepseek", model,
                             result.getInputTokens(), result.getOutputTokens(), result.getTotalTokens(),
                             null, "collab_csv_chunk:" + chunkIndex);
                 } catch (Exception e) {

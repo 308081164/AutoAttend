@@ -5,6 +5,7 @@ import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMemberMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -36,17 +37,18 @@ public class CollabProjectService {
         BizUser user = userMapper.findById(userId);
         if (user == null) return List.of();
 
+        long tid = user.getTenantId() != null ? user.getTenantId() : TenantConstants.DEFAULT_TENANT_ID;
         if (ROLE_SUPER_ADMIN.equals(user.getRole())) {
-            return projectMapper.listAll();
+            return projectMapper.listByTenant(tid);
         }
         if (ROLE_SUB_ADMIN.equals(user.getRole())) {
             List<Long> projectIds = memberMapper.listProjectIdsByUserIdAndRole(userId, "admin");
-            return projectMapper.listAll().stream()
+            return projectMapper.listByTenant(tid).stream()
                     .filter(p -> projectIds.contains(p.getId()))
                     .collect(Collectors.toList());
         }
         List<Long> myProjectIds = memberMapper.listProjectIdsByUserId(userId);
-        return projectMapper.listAll().stream()
+        return projectMapper.listByTenant(tid).stream()
                 .filter(p -> myProjectIds.contains(p.getId()))
                 .collect(Collectors.toList());
     }

@@ -18,3 +18,5 @@ schema_quote_subject_mode_migration.sql
 schema_collab_record_history_migration.sql
 schema_quote_github_provision_migration.sql
 schema_tenant_platform_migration.sql
+schema_tenant_id_phase1_columns.sql
+schema_tenant_id_phase1_constraints.sql

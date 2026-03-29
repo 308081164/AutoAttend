@@ -5,6 +5,8 @@ import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.service.CollabSyncService;
 import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,8 +27,19 @@ public class GithubWebhookController {
     @PostMapping("/github")
     public ApiResponse<?> onGithubWebhook(@RequestHeader("X-GitHub-Event") String event,
                                           @RequestHeader(value = "X-GitHub-Delivery", required = false) String deliveryId,
+                                          @RequestHeader(value = "X-Tenant-Id", required = false) String tenantIdHeader,
                                           @RequestHeader HttpHeaders headers,
                                           @RequestBody(required = false) GithubPushPayload payload) {
+        long tenantId = TenantConstants.DEFAULT_TENANT_ID;
+        if (tenantIdHeader != null && !tenantIdHeader.isBlank()) {
+            try {
+                tenantId = Long.parseLong(tenantIdHeader.trim());
+            } catch (NumberFormatException ignored) {
+                tenantId = TenantConstants.DEFAULT_TENANT_ID;
+            }
+        }
+        TenantContext.setTenantId(tenantId);
+
         if (!Objects.equals(event, "push") || payload == null || payload.getRepository() == null) {
             return ApiResponse.ok(null);
         }

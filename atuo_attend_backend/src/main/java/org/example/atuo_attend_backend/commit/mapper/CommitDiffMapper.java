@@ -6,10 +6,11 @@ import org.apache.ibatis.annotations.*;
 public interface CommitDiffMapper {
 
     @Insert("""
-            INSERT INTO aa_commit_diff(repo_full_name, commit_sha, diff_text, diff_size_bytes)
-            VALUES(#{repoFullName}, #{commitSha}, #{diffText}, #{diffSizeBytes})
+            INSERT INTO aa_commit_diff(tenant_id, repo_full_name, commit_sha, diff_text, diff_size_bytes)
+            VALUES(#{tenantId}, #{repoFullName}, #{commitSha}, #{diffText}, #{diffSizeBytes})
             """)
-    int insert(@Param("repoFullName") String repoFullName,
+    int insert(@Param("tenantId") long tenantId,
+               @Param("repoFullName") String repoFullName,
                @Param("commitSha") String commitSha,
                @Param("diffText") String diffText,
                @Param("diffSizeBytes") long diffSizeBytes);
@@ -17,8 +18,7 @@ public interface CommitDiffMapper {
     @Select("""
             SELECT diff_text
             FROM aa_commit_diff
-            WHERE repo_full_name = #{repoFullName} AND commit_sha = #{commitSha}
+            WHERE tenant_id = #{tenantId} AND repo_full_name = #{repoFullName} AND commit_sha = #{commitSha}
             """)
-    String findDiffText(@Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha);
+    String findDiffText(@Param("tenantId") long tenantId, @Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha);
 }
-

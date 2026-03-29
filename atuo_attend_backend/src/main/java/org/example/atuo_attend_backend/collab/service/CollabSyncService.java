@@ -2,6 +2,8 @@ package org.example.atuo_attend_backend.collab.service;
 
 import org.example.atuo_attend_backend.collab.domain.*;
 import org.example.atuo_attend_backend.collab.mapper.*;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,10 @@ public class CollabSyncService {
     private final BizOptionGroupMapper optionGroupMapper;
     private final CollabPasswordService passwordService;
 
+    private static long currentTenantId() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     public CollabSyncService(BizUserMapper userMapper,
                              BizProjectMapper projectMapper,
                              BizProjectMemberMapper memberMapper,
@@ -48,7 +54,8 @@ public class CollabSyncService {
     @Transactional(rollbackFor = Exception.class)
     public BizUser ensureUser(String email, String name) {
         if (email == null || email.isBlank()) return null;
-        BizUser user = userMapper.findByEmail(email.trim());
+        long tid = currentTenantId();
+        BizUser user = userMapper.findByTenantAndEmail(tid, email.trim());
         if (user != null) {
             if (name != null && !name.equals(user.getName())) {
                 user.setName(name);
@@ -57,6 +64,7 @@ public class CollabSyncService {
             return user;
         }
         user = new BizUser();
+        user.setTenantId(tid);
         user.setEmail(email.trim());
         user.setName(name != null ? name.trim() : email);
         user.setPasswordHash(passwordService.hash(DEFAULT_PASSWORD));
@@ -74,10 +82,12 @@ public class CollabSyncService {
     public BizProject ensureProjectAndTable(String repoFullName) {
         if (repoFullName == null || repoFullName.isBlank()) return null;
         String repoId = repoFullName.trim();
-        BizProject project = projectMapper.findByRepoId(repoId);
+        long tid = currentTenantId();
+        BizProject project = projectMapper.findByTenantAndRepoId(tid, repoId);
         if (project != null) return project;
 
         project = new BizProject();
+        project.setTenantId(tid);
         project.setName(repoId);
         project.setDescription("");
         project.setRepoId(repoId);

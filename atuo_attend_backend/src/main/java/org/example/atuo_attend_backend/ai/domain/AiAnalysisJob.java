@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class AiAnalysisJob {
     private Long id;
+    private Long tenantId;
     private String repoFullName;
     private String commitSha;
     private String status;
@@ -16,6 +17,8 @@ public class AiAnalysisJob {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public String getRepoFullName() { return repoFullName; }
     public void setRepoFullName(String repoFullName) { this.repoFullName = repoFullName; }
     public String getCommitSha() { return commitSha; }

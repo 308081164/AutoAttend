@@ -8,19 +8,19 @@ import java.util.List;
 @Mapper
 public interface BizProjectMapper {
 
-    @Select("SELECT * FROM biz_project WHERE id = #{id}")
+    @Select("SELECT id, tenant_id AS tenantId, name, description, repo_id AS repoId, status, created_at AS createdAt, updated_at AS updatedAt FROM biz_project WHERE id = #{id}")
     BizProject findById(@Param("id") long id);
 
-    @Select("SELECT * FROM biz_project WHERE repo_id = #{repoId}")
-    BizProject findByRepoId(@Param("repoId") String repoId);
+    @Select("SELECT id, tenant_id AS tenantId, name, description, repo_id AS repoId, status, created_at AS createdAt, updated_at AS updatedAt FROM biz_project WHERE tenant_id = #{tenantId} AND repo_id = #{repoId}")
+    BizProject findByTenantAndRepoId(@Param("tenantId") long tenantId, @Param("repoId") String repoId);
 
-    @Select("SELECT * FROM biz_project ORDER BY id")
-    List<BizProject> listAll();
+    @Select("SELECT id, tenant_id AS tenantId, name, description, repo_id AS repoId, status, created_at AS createdAt, updated_at AS updatedAt FROM biz_project WHERE tenant_id = #{tenantId} ORDER BY id")
+    List<BizProject> listByTenant(@Param("tenantId") long tenantId);
 
-    @Insert("INSERT INTO biz_project (name, description, repo_id, status) VALUES (#{name}, #{description}, #{repoId}, #{status})")
+    @Insert("INSERT INTO biz_project (tenant_id, name, description, repo_id, status) VALUES (#{tenantId}, #{name}, #{description}, #{repoId}, #{status})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(BizProject project);
 
-    @Update("UPDATE biz_project SET name = #{name}, description = #{description}, status = #{status} WHERE id = #{id}")
+    @Update("UPDATE biz_project SET name = #{name}, description = #{description}, status = #{status} WHERE id = #{id} AND tenant_id = #{tenantId}")
     int update(BizProject project);
 }

@@ -9,10 +9,10 @@ import java.util.List;
 public interface QuoteProjectMapper {
 
     @Insert("""
-            INSERT INTO biz_quote_project (name, project_type, tech_stack, design_type, data_migration,
+            INSERT INTO biz_quote_project (tenant_id, name, project_type, tech_stack, design_type, data_migration,
                 concurrency, security_level, deploy_type, status, link_table_id, prd_summary, quote_calc_prefs_json, quote_contract_context_json,
                 quote_vendor_name, quote_contact_info, quote_validity_note, quote_subject_mode)
-            VALUES (#{name}, #{projectType}, #{techStack}, #{designType}, #{dataMigration},
+            VALUES (#{tenantId}, #{name}, #{projectType}, #{techStack}, #{designType}, #{dataMigration},
                 #{concurrency}, #{securityLevel}, #{deployType}, #{status}, #{linkTableId}, #{prdSummary}, #{quoteCalcPrefsJson}, #{quoteContractContextJson},
                 #{quoteVendorName}, #{quoteContactInfo}, #{quoteValidityNote}, #{quoteSubjectMode})
             """)
@@ -28,11 +28,11 @@ public interface QuoteProjectMapper {
                 quote_vendor_name=#{quoteVendorName}, quote_contact_info=#{quoteContactInfo}, quote_validity_note=#{quoteValidityNote},
                 quote_subject_mode=#{quoteSubjectMode},
                 updated_at=CURRENT_TIMESTAMP
-            WHERE id=#{id}
+            WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
     int update(QuoteProject p);
 
-    @Select("SELECT id, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
+    @Select("SELECT id, tenant_id AS tenantId, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
             "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
             "status, link_table_id AS linkTableId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
             "quote_contract_context_json AS quoteContractContextJson, " +
@@ -43,10 +43,10 @@ public interface QuoteProjectMapper {
             "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
             "provision_synced_to_collab AS provisionSyncedToCollab, provision_synced_at AS provisionSyncedAt, " +
             "created_at AS createdAt, updated_at AS updatedAt " +
-            "FROM biz_quote_project WHERE id = #{id}")
-    QuoteProject findById(@Param("id") long id);
+            "FROM biz_quote_project WHERE tenant_id = #{tenantId} AND id = #{id}")
+    QuoteProject findById(@Param("tenantId") long tenantId, @Param("id") long id);
 
-    @Select("SELECT id, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
+    @Select("SELECT id, tenant_id AS tenantId, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
             "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
             "status, link_table_id AS linkTableId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
             "quote_contract_context_json AS quoteContractContextJson, " +
@@ -57,8 +57,8 @@ public interface QuoteProjectMapper {
             "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
             "provision_synced_to_collab AS provisionSyncedToCollab, provision_synced_at AS provisionSyncedAt, " +
             "created_at AS createdAt, updated_at AS updatedAt " +
-            "FROM biz_quote_project ORDER BY updated_at DESC LIMIT #{limit} OFFSET #{offset}")
-    List<QuoteProject> listPaged(@Param("offset") int offset, @Param("limit") int limit);
+            "FROM biz_quote_project WHERE tenant_id = #{tenantId} ORDER BY updated_at DESC LIMIT #{limit} OFFSET #{offset}")
+    List<QuoteProject> listPaged(@Param("tenantId") long tenantId, @Param("offset") int offset, @Param("limit") int limit);
 
     @Update("""
             UPDATE biz_quote_project
@@ -71,9 +71,9 @@ public interface QuoteProjectMapper {
                 provision_synced_to_collab=#{syncedToCollab},
                 provision_synced_at=#{syncedAt},
                 updated_at=CURRENT_TIMESTAMP
-            WHERE id=#{id}
+            WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
-    int updateProvisionState(@Param("id") long id,
+    int updateProvisionState(@Param("tenantId") long tenantId, @Param("id") long id,
                              @Param("repoFullName") String repoFullName,
                              @Param("repoHtmlUrl") String repoHtmlUrl,
                              @Param("webhookId") Long webhookId,
@@ -83,12 +83,12 @@ public interface QuoteProjectMapper {
                              @Param("syncedToCollab") Integer syncedToCollab,
                              @Param("syncedAt") java.time.LocalDateTime syncedAt);
 
-    @Select("SELECT COUNT(*) FROM biz_quote_project")
-    long countAll();
+    @Select("SELECT COUNT(*) FROM biz_quote_project WHERE tenant_id = #{tenantId}")
+    long countAll(@Param("tenantId") long tenantId);
 
-    @Delete("DELETE FROM biz_quote_project WHERE id = #{id}")
-    int deleteById(@Param("id") long id);
+    @Delete("DELETE FROM biz_quote_project WHERE tenant_id = #{tenantId} AND id = #{id}")
+    int deleteById(@Param("tenantId") long tenantId, @Param("id") long id);
 
-    @Update("UPDATE biz_quote_project SET quote_calc_prefs_json = #{json}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}")
-    int updateQuoteCalcPrefs(@Param("id") long id, @Param("json") String json);
+    @Update("UPDATE biz_quote_project SET quote_calc_prefs_json = #{json}, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = #{tenantId} AND id = #{id}")
+    int updateQuoteCalcPrefs(@Param("tenantId") long tenantId, @Param("id") long id, @Param("json") String json);
 }

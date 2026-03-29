@@ -3,7 +3,7 @@ package org.example.atuo_attend_backend.collab.controller;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
-import org.example.atuo_attend_backend.commit.mapper.CommitMapper;
+import org.example.atuo_attend_backend.commit.CommitService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,14 +23,14 @@ public class CollabStatsController {
 
     private final CollabAuthService authService;
     private final CollabProjectService projectService;
-    private final CommitMapper commitMapper;
+    private final CommitService commitService;
 
     public CollabStatsController(CollabAuthService authService,
                                 CollabProjectService projectService,
-                                CommitMapper commitMapper) {
+                                CommitService commitService) {
         this.authService = authService;
         this.projectService = projectService;
-        this.commitMapper = commitMapper;
+        this.commitService = commitService;
     }
 
     private long requireUserId(HttpServletRequest req) {
@@ -53,9 +53,9 @@ public class CollabStatsController {
         List<BizProject> projects = projectService.listProjectsForUser(userId);
         long projectCount = projects.size();
         String email = user.getEmail();
-        long commitCountTotal = commitMapper.countByAuthorEmail(email);
+        long commitCountTotal = commitService.countByAuthorEmail(email);
         OffsetDateTime since7d = OffsetDateTime.now().minus(7, ChronoUnit.DAYS);
-        long commitCount7d = commitMapper.countByAuthorEmailSince(email, since7d);
+        long commitCount7d = commitService.countByAuthorEmailSince(email, since7d);
 
         Map<String, Object> data = new HashMap<>();
         data.put("projectCount", projectCount);

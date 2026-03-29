@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.example.atuo_attend_backend.tenant.domain.AdminSession;
 import org.example.atuo_attend_backend.tenant.domain.TenantAdminUser;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
 import org.springframework.stereotype.Component;
@@ -85,6 +86,8 @@ public class AdminAuthFilter implements Filter {
         if (tau != null) {
             req.setAttribute(ATTR_PHONE, tau.getPhone());
         }
+
+        TenantContext.setTenantId(session.getTenantId());
 
         chain.doFilter(request, response);
     }

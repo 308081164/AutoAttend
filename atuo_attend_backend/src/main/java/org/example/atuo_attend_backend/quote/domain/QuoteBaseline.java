@@ -4,12 +4,15 @@ import java.math.BigDecimal;
 
 public class QuoteBaseline {
     private Long id;
+    private Long tenantId;
     private String techStack;
     private String complexity;
     private BigDecimal days;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public String getTechStack() { return techStack; }
     public void setTechStack(String techStack) { this.techStack = techStack; }
     public String getComplexity() { return complexity; }

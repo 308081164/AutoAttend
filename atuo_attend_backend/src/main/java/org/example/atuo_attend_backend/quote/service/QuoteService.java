@@ -11,6 +11,8 @@ import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.example.atuo_attend_backend.quote.domain.*;
 import org.example.atuo_attend_backend.quote.dto.*;
 import org.example.atuo_attend_backend.quote.mapper.*;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,6 +67,10 @@ public class QuoteService {
         this.systemConfigService = systemConfigService;
     }
 
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     @Transactional
     public long createProject(QuoteProjectSaveDto dto) {
         QuoteProject p = toProject(dto);
@@ -73,6 +79,7 @@ public class QuoteService {
         if (p.getQuoteSubjectMode() == null) {
             p.setQuoteSubjectMode("legal_entity");
         }
+        p.setTenantId(tid());
         projectMapper.insert(p);
         saveModules(p.getId(), dto.getModules());
         return p.getId();
@@ -80,10 +87,11 @@ public class QuoteService {
 
     @Transactional
     public void updateProject(long id, QuoteProjectSaveDto dto) {
-        QuoteProject existing = projectMapper.findById(id);
+        QuoteProject existing = projectMapper.findById(tid(), id);
         if (existing == null) throw new IllegalArgumentException("项目不存在");
         QuoteProject p = toProject(dto);
         p.setId(id);
+        p.setTenantId(tid());
         if (dto.getQuoteCalcPrefs() == null) {
             p.setQuoteCalcPrefsJson(existing.getQuoteCalcPrefsJson());
         }
@@ -103,7 +111,7 @@ public class QuoteService {
             p.setQuoteSubjectMode(existing.getQuoteSubjectMode() != null ? existing.getQuoteSubjectMode() : "legal_entity");
         }
         projectMapper.update(p);
-        moduleMapper.deleteByProjectId(id);
+        moduleMapper.deleteByProjectId(tid(), id);
         saveModules(id, dto.getModules());
     }
 
@@ -169,6 +177,7 @@ public class QuoteService {
         for (QuoteModuleSaveDto md : modules) {
             if (md.getName() == null || md.getName().isBlank()) continue;
             QuoteModule m = new QuoteModule();
+            m.setTenantId(tid());
             m.setQuoteProjectId(projectId);
             m.setName(md.getName().trim());
             m.setSortOrder(md.getSortOrder() != 0 ? md.getSortOrder() : mi++);
@@ -177,6 +186,7 @@ public class QuoteService {
             for (QuoteItemSaveDto it : md.getItems()) {
                 if (it.getName() == null || it.getName().isBlank()) continue;
                 QuoteItem item = new QuoteItem();
+                item.setTenantId(tid());
                 item.setModuleId(m.getId());
                 item.setName(it.getName().trim());
                 item.setComplexity(nvl(it.getComplexity(), "standard"));
@@ -189,17 +199,17 @@ public class QuoteService {
     }
 
     public Map<String, Object> getProjectDetail(long id) {
-        QuoteProject p = projectMapper.findById(id);
+        QuoteProject p = projectMapper.findById(tid(),id);
         if (p == null) return null;
         Map<String, Object> out = projectToMap(p);
         List<Map<String, Object>> moduleList = new ArrayList<>();
-        for (QuoteModule m : moduleMapper.listByProjectId(id)) {
+        for (QuoteModule m : moduleMapper.listByProjectId(tid(),id)) {
             Map<String, Object> mm = new LinkedHashMap<>();
             mm.put("id", m.getId());
             mm.put("name", m.getName());
             mm.put("sortOrder", m.getSortOrder());
             List<Map<String, Object>> items = new ArrayList<>();
-            for (QuoteItem it : itemMapper.listByModuleId(m.getId())) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
                 Map<String, Object> im = new LinkedHashMap<>();
                 im.put("id", it.getId());
                 im.put("name", it.getName());
@@ -212,7 +222,7 @@ public class QuoteService {
             moduleList.add(mm);
         }
         out.put("modules", moduleList);
-        QuoteResult latest = resultMapper.findLatestByProjectId(id);
+        QuoteResult latest = resultMapper.findLatestByProjectId(tid(),id);
         Map<String, Object> calcPrefs = parseQuoteCalcPrefsJson(p.getQuoteCalcPrefsJson());
         if (calcPrefs == null && latest != null) {
             calcPrefs = inferQuoteCalcPrefsFromLatestResult(latest);
@@ -263,7 +273,7 @@ public class QuoteService {
 
     private Long guessPriceConfigId(BigDecimal pricePerDay, String regionLabel) {
         if (pricePerDay == null) return null;
-        for (Map<String, Object> row : priceConfigMapper.listAll()) {
+        for (Map<String, Object> row : priceConfigMapper.listAll(tid())) {
             BigDecimal pd = toBd(row.get("pricePerDay"));
             String label = Objects.toString(row.get("regionLabel"), "");
             if (pd.compareTo(pricePerDay) == 0 && (regionLabel == null || regionLabel.equals(label))) {
@@ -277,11 +287,11 @@ public class QuoteService {
     @Transactional
     public void saveQuoteCalcPrefs(long projectId, QuoteCalculateRequest req) {
         if (req == null) req = new QuoteCalculateRequest();
-        QuoteProject existing = projectMapper.findById(projectId);
+        QuoteProject existing = projectMapper.findById(tid(),projectId);
         if (existing == null) throw new IllegalArgumentException("项目不存在");
         try {
             String json = objectMapper.writeValueAsString(buildQuoteCalcPrefsMap(req));
-            projectMapper.updateQuoteCalcPrefs(projectId, json);
+            projectMapper.updateQuoteCalcPrefs(tid(),projectId, json);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("无法序列化报价偏好");
         }
@@ -300,9 +310,9 @@ public class QuoteService {
         page = Math.max(1, page);
         pageSize = Math.min(Math.max(pageSize, 1), 100);
         int offset = (page - 1) * pageSize;
-        long total = projectMapper.countAll();
+        long total = projectMapper.countAll(tid());
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (QuoteProject p : projectMapper.listPaged(offset, pageSize)) {
+        for (QuoteProject p : projectMapper.listPaged(tid(),offset, pageSize)) {
             rows.add(projectToListItemMap(p));
         }
         Map<String, Object> data = new HashMap<>();
@@ -319,50 +329,50 @@ public class QuoteService {
      */
     @Transactional
     public void deleteProject(long id) {
-        QuoteProject existing = projectMapper.findById(id);
+        QuoteProject existing = projectMapper.findById(tid(),id);
         if (existing == null) throw new IllegalArgumentException("项目不存在");
 
         // 先清理业务树：modules/items
-        List<QuoteModule> modules = moduleMapper.listByProjectId(id);
+        List<QuoteModule> modules = moduleMapper.listByProjectId(tid(),id);
         if (modules != null) {
             for (QuoteModule m : modules) {
-                itemMapper.deleteByModuleId(m.getId());
+                itemMapper.deleteByModuleId(tid(),m.getId());
             }
         }
-        moduleMapper.deleteByProjectId(id);
+        moduleMapper.deleteByProjectId(tid(),id);
 
         // 再清理计算结果：result + document/contractDraft
-        List<Long> resultIds = resultMapper.listIdsByProjectId(id);
+        List<Long> resultIds = resultMapper.listIdsByProjectId(tid(),id);
         if (resultIds != null) {
             for (Long rid : resultIds) {
-                documentMapper.deleteByResultId(rid);
-                contractDraftMapper.deleteByResultId(rid);
+                documentMapper.deleteByResultId(tid(),rid);
+                contractDraftMapper.deleteByResultId(tid(),rid);
             }
         }
-        resultMapper.deleteByProjectId(id);
+        resultMapper.deleteByProjectId(tid(),id);
 
         // 最后删除项目主表
-        projectMapper.deleteById(id);
+        projectMapper.deleteById(tid(),id);
     }
 
     @Transactional
     public Map<String, Object> calculate(long projectId, QuoteCalculateRequest req) throws Exception {
-        QuoteProject p = projectMapper.findById(projectId);
+        QuoteProject p = projectMapper.findById(tid(),projectId);
         if (p == null) throw new IllegalArgumentException("项目不存在");
-        List<QuoteModule> modules = moduleMapper.listByProjectId(projectId);
+        List<QuoteModule> modules = moduleMapper.listByProjectId(tid(),projectId);
         BigDecimal totalDays = BigDecimal.ZERO;
         for (QuoteModule m : modules) {
-            for (QuoteItem it : itemMapper.listByModuleId(m.getId())) {
-                BigDecimal base = baselineMapper.findDays(p.getTechStack(), it.getComplexity());
-                if (base == null) base = baselineMapper.findDays("other", it.getComplexity());
+            for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
+                BigDecimal base = baselineMapper.findDays(tid(),p.getTechStack(), it.getComplexity());
+                if (base == null) base = baselineMapper.findDays(tid(),"other", it.getComplexity());
                 if (base == null) base = new BigDecimal("1.5");
                 BigDecimal line = base.multiply(new BigDecimal(it.getQuantity())).setScale(2, RoundingMode.HALF_UP);
-                itemMapper.updateEstimatedDays(it.getId(), line);
+                itemMapper.updateEstimatedDays(tid(),it.getId(), line);
                 totalDays = totalDays.add(line);
             }
         }
         Map<String, BigDecimal> riskByKey = new HashMap<>();
-        for (Map<String, Object> row : riskConfigMapper.listEnabled()) {
+        for (Map<String, Object> row : riskConfigMapper.listEnabled(tid())) {
             String key = (String) row.get("riskKey");
             Object pct = row.get("defaultPct");
             BigDecimal d = toBd(pct);
@@ -388,10 +398,10 @@ public class QuoteService {
         }
         Map<String, Object> priceRow = null;
         if (req.getPriceConfigId() != null) {
-            priceRow = priceConfigMapper.findById(req.getPriceConfigId());
+            priceRow = priceConfigMapper.findById(tid(),req.getPriceConfigId());
         }
         if (priceRow == null) {
-            List<Map<String, Object>> list = priceConfigMapper.listEnabled();
+            List<Map<String, Object>> list = priceConfigMapper.listEnabled(tid());
             if (!list.isEmpty()) priceRow = list.get(0);
         }
         if (priceRow == null) throw new IllegalStateException("未配置人天单价，请先执行 schema_quote_mysql.sql 或新增单价配置");
@@ -422,9 +432,10 @@ public class QuoteService {
         r.setDurationCoefficientUsed(durationCoeff);
         r.setEstimatedDurationDays(estimatedDuration);
         r.setRegionLabelUsed(regionLabel);
+        r.setTenantId(tid());
         resultMapper.insert(r);
         try {
-            projectMapper.updateQuoteCalcPrefs(projectId, objectMapper.writeValueAsString(buildQuoteCalcPrefsMap(req)));
+            projectMapper.updateQuoteCalcPrefs(tid(),projectId, objectMapper.writeValueAsString(buildQuoteCalcPrefsMap(req)));
         } catch (Exception ignored) {
             // 不因偏好落库失败影响报价结果
         }
@@ -444,7 +455,7 @@ public class QuoteService {
         int score = 78;
         int itemCount = 0;
         for (QuoteModule m : modules) {
-            itemCount += itemMapper.listByModuleId(m.getId()).size();
+            itemCount += itemMapper.listByModuleId(tid(),m.getId()).size();
         }
         if (itemCount == 0) score -= 25;
         else if (itemCount < 3) score -= 10;
@@ -477,12 +488,12 @@ public class QuoteService {
     }
 
     public Map<String, Object> buildQuoteDocument(long projectId, Long quoteResultId) {
-        QuoteProject p = projectMapper.findById(projectId);
+        QuoteProject p = projectMapper.findById(tid(),projectId);
         if (p == null) throw new IllegalArgumentException("项目不存在");
-        QuoteResult r = quoteResultId != null ? resultMapper.findById(quoteResultId) : resultMapper.findLatestByProjectId(projectId);
+        QuoteResult r = quoteResultId != null ? resultMapper.findById(tid(),quoteResultId) : resultMapper.findLatestByProjectId(tid(),projectId);
         if (r == null || r.getQuoteProjectId() != projectId) throw new IllegalArgumentException("请先计算报价或指定有效的报价结果 ID");
         String html = renderQuoteHtml(p, r);
-        documentMapper.insert(r.getId(), "quote", html, 1);
+        documentMapper.insert(tid(), r.getId(), "quote", html, 1);
         Map<String, Object> data = new HashMap<>();
         data.put("html", html);
         data.put("filename", "quote-" + projectId + "-" + r.getId() + ".html");
@@ -519,8 +530,8 @@ public class QuoteService {
         sb.append("<p><strong>生成时间：</strong>").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))).append("</p>");
         sb.append("<p><strong>技术栈：</strong>").append(esc(p.getTechStack())).append(" &nbsp; <strong>项目类型：</strong>").append(esc(p.getProjectType())).append("</p>");
         sb.append("<table><thead><tr><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>人天</th></tr></thead><tbody>");
-        for (QuoteModule m : moduleMapper.listByProjectId(p.getId())) {
-            for (QuoteItem it : itemMapper.listByModuleId(m.getId())) {
+        for (QuoteModule m : moduleMapper.listByProjectId(tid(),p.getId())) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
                 sb.append("<tr><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
                         .append("</td><td>").append(esc(it.getComplexity())).append("</td><td>").append(it.getQuantity())
                         .append("</td><td>").append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0")
@@ -623,9 +634,9 @@ public class QuoteService {
 
     @Transactional
     public Map<String, Object> generateContract(long quoteResultId, ContractGenerateRequest req) throws Exception {
-        QuoteResult r = resultMapper.findById(quoteResultId);
+        QuoteResult r = resultMapper.findById(tid(),quoteResultId);
         if (r == null) throw new IllegalArgumentException("报价结果不存在");
-        QuoteProject p = projectMapper.findById(r.getQuoteProjectId());
+        QuoteProject p = projectMapper.findById(tid(),r.getQuoteProjectId());
         if (p == null) throw new IllegalArgumentException("报价关联项目不存在");
         AiAnalysisConfig cfg = aiConfigService.getConfig();
         if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
@@ -645,7 +656,7 @@ public class QuoteService {
         );
         String content = deepSeekClient.chat(cfg.getApiKey(), model, messages, false);
         if (content == null || content.isBlank()) throw new IllegalStateException("AI 未返回合同内容");
-        QuoteContractDraft d = contractDraftMapper.findByResultId(quoteResultId);
+        QuoteContractDraft d = contractDraftMapper.findByResultId(tid(),quoteResultId);
         if (d == null) {
             d = new QuoteContractDraft();
             d.setQuoteResultId(quoteResultId);
@@ -655,8 +666,10 @@ public class QuoteService {
             d.setAiPromptSnapshot(userPrompt);
             d.setAiRawResponse(content);
             d.setEditedContent(content);
+            d.setTenantId(tid());
             contractDraftMapper.insert(d);
         } else {
+            d.setTenantId(tid());
             d.setClientName(req.getClientName());
             d.setCompanyName(req.getCompanyName());
             d.setTemplateType(req.getTemplateType() != null ? req.getTemplateType() : "software_dev");
@@ -672,7 +685,7 @@ public class QuoteService {
     }
 
     public Map<String, Object> getContract(long quoteResultId) {
-        QuoteContractDraft d = contractDraftMapper.findByResultId(quoteResultId);
+        QuoteContractDraft d = contractDraftMapper.findByResultId(tid(),quoteResultId);
         if (d == null) return null;
         Map<String, Object> m = new HashMap<>();
         m.put("clientName", d.getClientName());
@@ -685,19 +698,19 @@ public class QuoteService {
 
     @Transactional
     public void updateContract(long quoteResultId, ContractUpdateRequest req) {
-        if (contractDraftMapper.findByResultId(quoteResultId) == null) {
+        if (contractDraftMapper.findByResultId(tid(),quoteResultId) == null) {
             throw new IllegalArgumentException("合同草稿不存在，请先生成");
         }
-        contractDraftMapper.updateEditedContent(quoteResultId, req.getEditedContent());
+        contractDraftMapper.updateEditedContent(tid(),quoteResultId, req.getEditedContent());
     }
 
     public Map<String, Object> exportContractHtml(long quoteResultId) {
-        QuoteContractDraft d = contractDraftMapper.findByResultId(quoteResultId);
+        QuoteContractDraft d = contractDraftMapper.findByResultId(tid(),quoteResultId);
         if (d == null) throw new IllegalArgumentException("合同草稿不存在");
         String body = d.getEditedContent() != null ? d.getEditedContent() : d.getAiRawResponse();
         String html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><title>合同</title></head><body><pre style='white-space:pre-wrap;font-family:sans-serif'>"
                 + esc(body != null ? body : "") + "</pre></body></html>";
-        documentMapper.insert(quoteResultId, "contract", html, 1);
+        documentMapper.insert(tid(), quoteResultId, "contract", html, 1);
         Map<String, Object> data = new HashMap<>();
         data.put("html", html);
         data.put("filename", "contract-" + quoteResultId + ".html");
@@ -768,7 +781,7 @@ public class QuoteService {
     }
 
     public List<Map<String, Object>> listPresetItems(boolean includeDisabled) {
-        List<QuotePresetItem> list = includeDisabled ? presetItemMapper.listAll() : presetItemMapper.listEnabled();
+        List<QuotePresetItem> list = includeDisabled ? presetItemMapper.listAll(tid()) : presetItemMapper.listEnabled(tid());
         List<Map<String, Object>> out = new ArrayList<>();
         for (QuotePresetItem it : list) {
             out.add(presetItemToMap(it));
@@ -800,13 +813,14 @@ public class QuoteService {
         row.setCategory(dto.getCategory() != null && !dto.getCategory().isBlank() ? dto.getCategory().trim() : null);
         row.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
         row.setEnabled(dto.getEnabled() == null || dto.getEnabled());
+        row.setTenantId(tid());
         presetItemMapper.insert(row);
         return row.getId();
     }
 
     @Transactional
     public void updatePresetItem(long id, QuotePresetItemSaveDto dto) {
-        QuotePresetItem existing = presetItemMapper.findById(id);
+        QuotePresetItem existing = presetItemMapper.findById(tid(), id);
         if (existing == null) throw new IllegalArgumentException("预设项不存在");
         if (dto.getName() == null || dto.getName().isBlank()) {
             throw new IllegalArgumentException("预设功能点名称不能为空");
@@ -821,8 +835,8 @@ public class QuoteService {
 
     @Transactional
     public void deletePresetItem(long id) {
-        if (presetItemMapper.findById(id) == null) throw new IllegalArgumentException("预设项不存在");
-        presetItemMapper.deleteById(id);
+        if (presetItemMapper.findById(tid(), id) == null) throw new IllegalArgumentException("预设项不存在");
+        presetItemMapper.deleteById(tid(), id);
     }
 
     @Transactional
@@ -832,14 +846,14 @@ public class QuoteService {
         }
         for (QuoteRiskConfigUpdateItem it : batch.getItems()) {
             if (it.getId() == null) throw new IllegalArgumentException("风险配置 id 不能为空");
-            if (riskConfigMapper.countById(it.getId()) == 0) throw new IllegalArgumentException("无效的风险配置 id: " + it.getId());
+            if (riskConfigMapper.countById(tid(), it.getId()) == 0) throw new IllegalArgumentException("无效的风险配置 id: " + it.getId());
             if (it.getLabel() == null || it.getLabel().isBlank()) throw new IllegalArgumentException("风险项名称不能为空");
             BigDecimal pct = it.getDefaultPct() != null ? it.getDefaultPct() : BigDecimal.ZERO;
             if (pct.compareTo(RISK_PCT_MIN) < 0 || pct.compareTo(RISK_PCT_MAX) > 0) {
                 throw new IllegalArgumentException("风险百分比需在 " + RISK_PCT_MIN + "～" + RISK_PCT_MAX + " 之间（可为负表示降价）");
             }
             int en = Boolean.TRUE.equals(it.getEnabled()) ? 1 : 0;
-            riskConfigMapper.updateRow(it.getId(), it.getLabel().trim(), pct.setScale(2, RoundingMode.HALF_UP), en);
+            riskConfigMapper.updateRow(tid(), it.getId(), it.getLabel().trim(), pct.setScale(2, RoundingMode.HALF_UP), en);
         }
     }
 
@@ -863,30 +877,32 @@ public class QuoteService {
         if (ts.isEmpty()) throw new IllegalArgumentException("技术栈不能为空");
         if (cx.isEmpty()) throw new IllegalArgumentException("复杂度不能为空");
         validateBaselineDays(dto.getDays());
-        if (baselineMapper.countByStackAndComplexity(ts, cx) > 0) {
+        if (baselineMapper.countByStackAndComplexity(tid(),ts, cx) > 0) {
             throw new IllegalArgumentException("该技术栈与复杂度组合已存在");
         }
         QuoteBaseline row = new QuoteBaseline();
         row.setTechStack(ts);
         row.setComplexity(cx);
         row.setDays(dto.getDays().setScale(2, RoundingMode.HALF_UP));
+        row.setTenantId(tid());
         baselineMapper.insert(row);
         return row.getId();
     }
 
     @Transactional
     public void updateBaseline(long id, QuoteBaselineSaveDto dto) {
-        if (baselineMapper.findById(id) == null) throw new IllegalArgumentException("人天基准不存在");
+        if (baselineMapper.findById(tid(),id) == null) throw new IllegalArgumentException("人天基准不存在");
         String ts = dto.getTechStack() != null ? dto.getTechStack().trim() : "";
         String cx = dto.getComplexity() != null ? dto.getComplexity().trim() : "";
         if (ts.isEmpty()) throw new IllegalArgumentException("技术栈不能为空");
         if (cx.isEmpty()) throw new IllegalArgumentException("复杂度不能为空");
         validateBaselineDays(dto.getDays());
-        if (baselineMapper.countByStackAndComplexityExcluding(ts, cx, id) > 0) {
+        if (baselineMapper.countByStackAndComplexityExcluding(tid(),ts, cx, id) > 0) {
             throw new IllegalArgumentException("该技术栈与复杂度组合已被其他行占用");
         }
         QuoteBaseline row = new QuoteBaseline();
         row.setId(id);
+        row.setTenantId(tid());
         row.setTechStack(ts);
         row.setComplexity(cx);
         row.setDays(dto.getDays().setScale(2, RoundingMode.HALF_UP));
@@ -895,8 +911,8 @@ public class QuoteService {
 
     @Transactional
     public void deleteBaseline(long id) {
-        if (baselineMapper.findById(id) == null) throw new IllegalArgumentException("人天基准不存在");
-        baselineMapper.deleteById(id);
+        if (baselineMapper.findById(tid(),id) == null) throw new IllegalArgumentException("人天基准不存在");
+        baselineMapper.deleteById(tid(), id);
     }
 
     private void validatePricePerDay(BigDecimal p) {
@@ -931,7 +947,7 @@ public class QuoteService {
         String rl = dto.getRegionLabel() != null ? dto.getRegionLabel().trim() : "";
         if (rl.isEmpty()) throw new IllegalArgumentException("地域/档位名称不能为空");
         validatePricePerDay(dto.getPricePerDay());
-        if (priceConfigMapper.countByRegionLabel(rl) > 0) {
+        if (priceConfigMapper.countByRegionLabel(tid(), rl) > 0) {
             throw new IllegalArgumentException("该档位名称已存在");
         }
         QuotePriceConfigRow row = new QuotePriceConfigRow();
@@ -942,27 +958,29 @@ public class QuoteService {
         row.setCurrency(cur);
         row.setDurationCoefficient(resolveDurationCoefficientForSave(dto.getDurationCoefficient()));
         row.setEnabled(dto.getEnabled() == null || dto.getEnabled());
+        row.setTenantId(tid());
         priceConfigMapper.insert(row);
         return row.getId();
     }
 
     @Transactional
     public void updatePriceConfig(long id, QuotePriceConfigSaveDto dto) {
-        Map<String, Object> cur = priceConfigMapper.findById(id);
+        Map<String, Object> cur = priceConfigMapper.findById(tid(),id);
         if (cur == null) throw new IllegalArgumentException("单价配置不存在");
         String rl = dto.getRegionLabel() != null ? dto.getRegionLabel().trim() : "";
         if (rl.isEmpty()) throw new IllegalArgumentException("地域/档位名称不能为空");
         validatePricePerDay(dto.getPricePerDay());
-        if (priceConfigMapper.countByRegionLabelExcluding(rl, id) > 0) {
+        if (priceConfigMapper.countByRegionLabelExcluding(tid(), rl, id) > 0) {
             throw new IllegalArgumentException("该档位名称已被其他行占用");
         }
         boolean wasEn = mapRowEnabled(cur);
         boolean newEn = dto.getEnabled() == null || dto.getEnabled();
-        if (wasEn && !newEn && priceConfigMapper.countEnabled() <= 1) {
+        if (wasEn && !newEn && priceConfigMapper.countEnabled(tid()) <= 1) {
             throw new IllegalArgumentException("至少保留一条启用的单价档位");
         }
         QuotePriceConfigRow row = new QuotePriceConfigRow();
         row.setId(id);
+        row.setTenantId(tid());
         row.setRegionLabel(rl);
         row.setPricePerDay(dto.getPricePerDay().setScale(2, RoundingMode.HALF_UP));
         String curc = dto.getCurrency() != null && !dto.getCurrency().isBlank() ? dto.getCurrency().trim().toUpperCase() : "CNY";
@@ -975,12 +993,12 @@ public class QuoteService {
 
     @Transactional
     public void deletePriceConfig(long id) {
-        Map<String, Object> cur = priceConfigMapper.findById(id);
+        Map<String, Object> cur = priceConfigMapper.findById(tid(),id);
         if (cur == null) throw new IllegalArgumentException("单价配置不存在");
-        if (mapRowEnabled(cur) && priceConfigMapper.countEnabled() <= 1) {
+        if (mapRowEnabled(cur) && priceConfigMapper.countEnabled(tid()) <= 1) {
             throw new IllegalArgumentException("至少保留一条启用的单价档位，无法删除");
         }
-        priceConfigMapper.deleteById(id);
+        priceConfigMapper.deleteById(tid(), id);
     }
 
     // --- 合同：乙方主体模板（系统级）与附件 HTML ---
@@ -994,7 +1012,7 @@ public class QuoteService {
     }
 
     public Map<String, Object> buildContractAttachmentFunctionList(long projectId) {
-        QuoteProject p = projectMapper.findById(projectId);
+        QuoteProject p = projectMapper.findById(tid(),projectId);
         if (p == null) throw new IllegalArgumentException("项目不存在");
         Map<String, Object> data = new HashMap<>();
         data.put("html", renderAttachmentFunctionListHtml(p));
@@ -1003,7 +1021,7 @@ public class QuoteService {
     }
 
     public Map<String, Object> buildContractAttachmentMilestoneSchedule(long projectId) {
-        QuoteProject p = projectMapper.findById(projectId);
+        QuoteProject p = projectMapper.findById(tid(),projectId);
         if (p == null) throw new IllegalArgumentException("项目不存在");
         Map<String, Object> ctx = parseContractContextMap(p.getQuoteContractContextJson());
         Map<String, Object> data = new HashMap<>();
@@ -1014,7 +1032,7 @@ public class QuoteService {
 
     /** 附件二：验收标准（草案）HTML */
     public Map<String, Object> buildContractAttachmentAcceptanceStandards(long projectId) {
-        QuoteProject p = projectMapper.findById(projectId);
+        QuoteProject p = projectMapper.findById(tid(),projectId);
         if (p == null) throw new IllegalArgumentException("项目不存在");
         Map<String, Object> ctx = parseContractContextMap(p.getQuoteContractContextJson());
         Map<String, Object> data = new HashMap<>();
@@ -1106,8 +1124,8 @@ public class QuoteService {
     private String buildFunctionListMarkdownForPrompt(QuoteProject p) {
         StringBuilder sb = new StringBuilder();
         sb.append("| 模块 | 功能点 | 复杂度 | 数量 | 估算人天 |\n| --- | --- | --- | --- | --- |\n");
-        for (QuoteModule m : moduleMapper.listByProjectId(p.getId())) {
-            for (QuoteItem it : itemMapper.listByModuleId(m.getId())) {
+        for (QuoteModule m : moduleMapper.listByProjectId(tid(),p.getId())) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
                 sb.append("| ").append(escMdCell(m.getName())).append(" | ").append(escMdCell(it.getName())).append(" | ")
                         .append(escMdCell(it.getComplexity())).append(" | ").append(it.getQuantity()).append(" | ")
                         .append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0").append(" |\n");
@@ -1123,7 +1141,7 @@ public class QuoteService {
 
     private String formatSelectedRisksForPrompt(QuoteResult r) {
         Map<String, String> keyToLabel = new LinkedHashMap<>();
-        for (Map<String, Object> row : riskConfigMapper.listAll()) {
+        for (Map<String, Object> row : riskConfigMapper.listAll(tid())) {
             Object k = row.get("riskKey");
             if (k != null) keyToLabel.put(k.toString(), Objects.toString(row.get("label"), k.toString()));
         }
@@ -1279,8 +1297,8 @@ public class QuoteService {
         sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
         sb.append("<p>说明：本附件与主合同「开发范围」或「验收依据」挂钩，以双方确认版本为准。</p>");
         sb.append("<table><thead><tr><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>估算人天</th></tr></thead><tbody>");
-        for (QuoteModule m : moduleMapper.listByProjectId(p.getId())) {
-            for (QuoteItem it : itemMapper.listByModuleId(m.getId())) {
+        for (QuoteModule m : moduleMapper.listByProjectId(tid(),p.getId())) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
                 sb.append("<tr><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
                         .append("</td><td>").append(esc(it.getComplexity())).append("</td><td>").append(it.getQuantity())
                         .append("</td><td>").append(it.getEstimatedDays() != null ? esc(it.getEstimatedDays().toPlainString()) : "0")

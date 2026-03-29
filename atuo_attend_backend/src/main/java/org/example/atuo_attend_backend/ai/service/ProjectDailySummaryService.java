@@ -10,6 +10,8 @@ import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.mapper.ProjectDailySummaryMapper;
 import org.example.atuo_attend_backend.commit.CommitRecord;
 import org.example.atuo_attend_backend.commit.CommitService;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +56,10 @@ public class ProjectDailySummaryService {
         this.tokenUsageMapper = tokenUsageMapper;
     }
 
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     private ZoneId zone() {
         try {
             return ZoneId.of(timezoneId != null ? timezoneId : "Asia/Shanghai");
@@ -95,7 +101,7 @@ public class ProjectDailySummaryService {
             } catch (Exception e) {
                 log.warn("Daily summary failed for {} @ {}: {}", repo, summaryDate, e.getMessage());
                 try {
-                    summaryMapper.upsert(repo, summaryDate, null,
+                    summaryMapper.upsert(tid(), repo, summaryDate, null,
                             "（本日总结生成失败，请检查日志与 DeepSeek 配额。）\n\n`" + truncate(e.getMessage(), 500) + "`",
                             0, cfg.getModel(), "failed", truncate(e.getMessage(), 2000));
                 } catch (Exception ignore) {
@@ -147,7 +153,7 @@ public class ProjectDailySummaryService {
         }
         String content = chatResult.getContent().trim();
         String title = extractTitle(content, repo, summaryDate);
-        summaryMapper.upsert(repo, summaryDate, title, content, commits.size(), cfg.getModel(), "success", null);
+        summaryMapper.upsert(tid(), repo, summaryDate, title, content, commits.size(), cfg.getModel(), "success", null);
         recordTokenUsage(chatResult, repo, summaryDate);
         log.info("Daily summary saved: {} @ {} ({} commits)", repo, summaryDate, commits.size());
     }
@@ -157,7 +163,7 @@ public class ProjectDailySummaryService {
         try {
             int total = chatResult.getInputTokens() + chatResult.getOutputTokens();
             String pseudoSha = "daily_summary:" + summaryDate;
-            tokenUsageMapper.insert(LocalDateTime.now(), PROVIDER_DEEPSEEK, chatResult.getModel(),
+            tokenUsageMapper.insert(tid(), LocalDateTime.now(), PROVIDER_DEEPSEEK, chatResult.getModel(),
                     chatResult.getInputTokens(), chatResult.getOutputTokens(), total, repo, pseudoSha);
         } catch (Exception e) {
             log.warn("Record daily summary token usage failed: {}", e.getMessage());
@@ -203,7 +209,7 @@ public class ProjectDailySummaryService {
             sb.append("   规模：文件 ").append(c.getFilesChanged()).append("，+").append(c.getInsertions())
                     .append(" -").append(c.getDeletions()).append("\n");
 
-            AiAnalysisResult ar = resultMapper.findByRepoAndSha(repo, sha);
+            AiAnalysisResult ar = resultMapper.findByRepoAndSha(tid(), repo, sha);
             if (ar != null) {
                 sb.append("   [AI分析] ");
                 sb.append("摘要:").append(truncate(Objects.toString(ar.getWorkSummary(), ""), 200));
@@ -244,7 +250,7 @@ public class ProjectDailySummaryService {
     }
 
     public Optional<ProjectDailySummary> findById(long id) {
-        ProjectDailySummary s = summaryMapper.findById(id);
+        ProjectDailySummary s = summaryMapper.findById(tid(), id);
         return Optional.ofNullable(s);
     }
 
@@ -260,8 +266,8 @@ public class ProjectDailySummaryService {
         page = Math.max(1, page);
         pageSize = Math.min(Math.max(pageSize, 1), 100);
         int offset = (page - 1) * pageSize;
-        long total = summaryMapper.countByRepo(repoFullName.trim());
-        List<ProjectDailySummaryListItem> items = summaryMapper.listByRepoPaged(repoFullName.trim(), offset, pageSize);
+        long total = summaryMapper.countByRepo(tid(), repoFullName.trim());
+        List<ProjectDailySummaryListItem> items = summaryMapper.listByRepoPaged(tid(), repoFullName.trim(), offset, pageSize);
         Map<String, Object> data = new HashMap<>();
         data.put("items", items);
         data.put("total", total);

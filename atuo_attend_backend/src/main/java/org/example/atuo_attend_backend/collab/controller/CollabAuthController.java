@@ -25,7 +25,7 @@ public class CollabAuthController {
 
     @PostMapping("/login")
     public ApiResponse<CollabLoginResponse> login(@RequestBody CollabLoginRequest request) {
-        String token = authService.login(request.getEmail(), request.getPassword());
+        String token = authService.login(request.getEmail(), request.getPassword(), request.getTenantId());
         if (token == null) {
             return ApiResponse.error(40100, "邮箱或密码错误");
         }

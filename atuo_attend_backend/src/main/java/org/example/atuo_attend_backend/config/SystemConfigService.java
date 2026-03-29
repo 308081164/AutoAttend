@@ -3,6 +3,8 @@ package org.example.atuo_attend_backend.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -27,9 +29,13 @@ public class SystemConfigService {
         this.mapper = mapper;
     }
 
+    private static long tenantId() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     /** 获取 GitHub Token 原始值（供拉取 Diff 使用）；未配置返回 null。 */
     public String getGitHubToken() {
-        String v = mapper.findByKey(KEY_GITHUB_TOKEN);
+        String v = mapper.findByKey(tenantId(), KEY_GITHUB_TOKEN);
         return (v != null && !v.isBlank()) ? v.trim() : null;
     }
 
@@ -44,17 +50,17 @@ public class SystemConfigService {
     public void setGitHubToken(String token) {
         if (token != null && token.contains("****")) return;
         String value = token == null ? "" : token.trim();
-        mapper.upsert(KEY_GITHUB_TOKEN, value);
+        mapper.upsert(tenantId(), KEY_GITHUB_TOKEN, value);
     }
 
     public String getGitHubApiProxy() {
-        String v = mapper.findByKey(KEY_GITHUB_API_PROXY);
+        String v = mapper.findByKey(tenantId(), KEY_GITHUB_API_PROXY);
         return (v != null && !v.isBlank()) ? v.trim() : null;
     }
 
     public void setGitHubApiProxy(String proxy) {
         String value = (proxy != null && !proxy.isBlank()) ? proxy.trim() : null;
-        mapper.upsert(KEY_GITHUB_API_PROXY, value != null ? value : "");
+        mapper.upsert(tenantId(), KEY_GITHUB_API_PROXY, value != null ? value : "");
     }
 
     /**
@@ -63,7 +69,7 @@ public class SystemConfigService {
      * 自然人：嵌套对象 naturalPerson（fullName、idNumber、address、contactPhone、bankName、bankAccount、email 等）。
      */
     public Map<String, Object> getQuotePartyBProfile() {
-        String raw = mapper.findByKey(KEY_QUOTE_PARTY_B_PROFILE);
+        String raw = mapper.findByKey(tenantId(), KEY_QUOTE_PARTY_B_PROFILE);
         if (raw == null || raw.isBlank()) return new LinkedHashMap<>();
         try {
             return objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() {});
@@ -105,6 +111,6 @@ public class SystemConfigService {
             }
         }
         String json = merged.isEmpty() ? "{}" : objectMapper.writeValueAsString(merged);
-        mapper.upsert(KEY_QUOTE_PARTY_B_PROFILE, json);
+        mapper.upsert(tenantId(), KEY_QUOTE_PARTY_B_PROFILE, json);
     }
 }

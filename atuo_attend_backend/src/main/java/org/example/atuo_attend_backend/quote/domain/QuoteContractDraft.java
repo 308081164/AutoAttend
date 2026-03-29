@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class QuoteContractDraft {
     private Long id;
+    private Long tenantId;
     private Long quoteResultId;
     private String clientName;
     private String companyName;
@@ -16,6 +17,8 @@ public class QuoteContractDraft {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public Long getQuoteResultId() { return quoteResultId; }
     public void setQuoteResultId(Long quoteResultId) { this.quoteResultId = quoteResultId; }
     public String getClientName() { return clientName; }

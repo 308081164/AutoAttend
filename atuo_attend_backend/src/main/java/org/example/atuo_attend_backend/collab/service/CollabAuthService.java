@@ -3,6 +3,7 @@ package org.example.atuo_attend_backend.collab.service;
 import org.example.atuo_attend_backend.admin.PhoneNormalizer;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.domain.TenantAdminUser;
 import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,10 @@ public class CollabAuthService {
         this.jwtService = jwtService;
     }
 
-    public String login(String emailOrPhone, String password) {
+    /**
+     * @param tenantId 邮箱登录时限定租户；为 null 时使用默认租户 1。手机号管理员登录以租户管理员表为准，忽略此参数。
+     */
+    public String login(String emailOrPhone, String password, Long tenantId) {
         if (emailOrPhone == null || emailOrPhone.isBlank()) {
             return null;
         }
@@ -40,28 +44,25 @@ public class CollabAuthService {
         if (phone != null && password != null && password.length() <= 24) {
             TenantAdminUser tau = tenantAdminUserMapper.findByPhone(phone);
             if (tau != null && passwordService.verify(password, tau.getPasswordHash())) {
-                BizUser biz = ensureBizUserForTenantAdminInternal(phone, password);
+                BizUser biz = ensureBizUserForTenantAdminInternal(phone, password, tau.getTenantId());
                 return jwtService.createToken(biz.getId(), biz.getEmail(), biz.getRole());
             }
         }
 
-        BizUser user = userMapper.findByEmail(trimmed);
+        long tid = tenantId != null ? tenantId : TenantConstants.DEFAULT_TENANT_ID;
+        BizUser user = userMapper.findByTenantAndEmail(tid, trimmed);
         if (user == null || !passwordService.verify(password, user.getPasswordHash())) {
             return null;
         }
         return jwtService.createToken(user.getId(), user.getEmail(), user.getRole());
     }
 
-    /**
-     * 同步租户管理员到 biz_user（email 字段存 E.164 手机号），保证协作侧 super_admin 与后台密码一致。
-     */
     public void ensureBizUserForTenantAdmin(String phoneE164, String rawPassword) {
-        ensureBizUserForTenantAdminInternal(phoneE164, rawPassword);
+        TenantAdminUser tau = tenantAdminUserMapper.findByPhone(phoneE164);
+        long t = tau != null ? tau.getTenantId() : TenantConstants.DEFAULT_TENANT_ID;
+        ensureBizUserForTenantAdminInternal(phoneE164, rawPassword, t);
     }
 
-    /**
-     * 为当前租户管理员签发协作 JWT（后台已登录会话）。
-     */
     public String issueCollabTokenForPhone(String phoneE164) {
         if (phoneE164 == null || phoneE164.isBlank()) {
             return null;
@@ -71,9 +72,11 @@ public class CollabAuthService {
         if (tau == null) {
             return null;
         }
-        BizUser biz = userMapper.findByEmail(phone);
+        long tid = tau.getTenantId();
+        BizUser biz = userMapper.findByTenantAndEmail(tid, phone);
         if (biz == null) {
             biz = new BizUser();
+            biz.setTenantId(tid);
             biz.setEmail(phone);
             biz.setName("管理员");
             biz.setPasswordHash(tau.getPasswordHash());
@@ -91,11 +94,12 @@ public class CollabAuthService {
         return jwtService.createToken(biz.getId(), biz.getEmail(), biz.getRole());
     }
 
-    private BizUser ensureBizUserForTenantAdminInternal(String phoneE164, String rawPassword) {
-        BizUser user = userMapper.findByEmail(phoneE164);
+    private BizUser ensureBizUserForTenantAdminInternal(String phoneE164, String rawPassword, long tenantId) {
+        BizUser user = userMapper.findByTenantAndEmail(tenantId, phoneE164);
         String hashed = passwordService.hash(rawPassword);
         if (user == null) {
             user = new BizUser();
+            user.setTenantId(tenantId);
             user.setEmail(phoneE164);
             user.setName("管理员");
             user.setPasswordHash(hashed);

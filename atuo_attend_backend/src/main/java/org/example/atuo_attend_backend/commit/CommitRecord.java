@@ -5,6 +5,8 @@ import java.time.OffsetDateTime;
 public class CommitRecord {
 
     private Long id;
+    /** 租户 ID，与 aa_commit.tenant_id 一致 */
+    private Long tenantId;
     private String repoFullName;
     private String commitSha;
     private String parentSha;
@@ -25,6 +27,14 @@ public class CommitRecord {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(Long tenantId) {
+        this.tenantId = tenantId;
     }
 
     public String getRepoFullName() {

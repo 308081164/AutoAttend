@@ -10,10 +10,10 @@ import java.util.Map;
 public interface AiTokenUsageMapper {
 
     @Insert("""
-            INSERT INTO aa_ai_token_usage (used_at, provider, model, input_tokens, output_tokens, total_tokens, repo_full_name, commit_sha)
-            VALUES (#{usedAt}, #{provider}, #{model}, #{inputTokens}, #{outputTokens}, #{totalTokens}, #{repoFullName}, #{commitSha})
+            INSERT INTO aa_ai_token_usage (tenant_id, used_at, provider, model, input_tokens, output_tokens, total_tokens, repo_full_name, commit_sha)
+            VALUES (#{tenantId}, #{usedAt}, #{provider}, #{model}, #{inputTokens}, #{outputTokens}, #{totalTokens}, #{repoFullName}, #{commitSha})
             """)
-    int insert(@Param("usedAt") LocalDateTime usedAt, @Param("provider") String provider, @Param("model") String model,
+    int insert(@Param("tenantId") long tenantId, @Param("usedAt") LocalDateTime usedAt, @Param("provider") String provider, @Param("model") String model,
                @Param("inputTokens") int inputTokens, @Param("outputTokens") int outputTokens, @Param("totalTokens") int totalTokens,
                @Param("repoFullName") String repoFullName, @Param("commitSha") String commitSha);
 
@@ -21,53 +21,53 @@ public interface AiTokenUsageMapper {
             SELECT used_at AS usedAt, provider, model, input_tokens AS inputTokens, output_tokens AS outputTokens,
                    total_tokens AS totalTokens, repo_full_name AS repoFullName, commit_sha AS commitSha
             FROM aa_ai_token_usage
-            WHERE used_at >= #{since}
+            WHERE tenant_id = #{tenantId} AND used_at >= #{since}
             ORDER BY used_at DESC
             LIMIT #{limit}
             """)
-    List<Map<String, Object>> listSince(@Param("since") LocalDateTime since, @Param("limit") int limit);
+    List<Map<String, Object>> listSince(@Param("tenantId") long tenantId, @Param("since") LocalDateTime since, @Param("limit") int limit);
 
     @Select("""
             SELECT used_at AS usedAt, provider, model, input_tokens AS inputTokens, output_tokens AS outputTokens,
                    total_tokens AS totalTokens, repo_full_name AS repoFullName, commit_sha AS commitSha
             FROM aa_ai_token_usage
-            WHERE used_at >= #{since} AND provider = #{provider}
+            WHERE tenant_id = #{tenantId} AND used_at >= #{since} AND provider = #{provider}
             ORDER BY used_at DESC
             LIMIT #{limit}
             """)
-    List<Map<String, Object>> listSinceByProvider(@Param("since") LocalDateTime since, @Param("provider") String provider, @Param("limit") int limit);
+    List<Map<String, Object>> listSinceByProvider(@Param("tenantId") long tenantId, @Param("since") LocalDateTime since, @Param("provider") String provider, @Param("limit") int limit);
 
     @Select("""
             SELECT COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
                    COALESCE(SUM(total_tokens), 0) AS totalTokens, COUNT(*) AS callCount
             FROM aa_ai_token_usage
-            WHERE used_at >= #{since}
+            WHERE tenant_id = #{tenantId} AND used_at >= #{since}
             """)
-    Map<String, Object> sumSince(@Param("since") LocalDateTime since);
+    Map<String, Object> sumSince(@Param("tenantId") long tenantId, @Param("since") LocalDateTime since);
 
     @Select("""
             SELECT COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
                    COALESCE(SUM(total_tokens), 0) AS totalTokens, COUNT(*) AS callCount
             FROM aa_ai_token_usage
-            WHERE used_at >= #{since} AND provider = #{provider}
+            WHERE tenant_id = #{tenantId} AND used_at >= #{since} AND provider = #{provider}
             """)
-    Map<String, Object> sumSinceByProvider(@Param("since") LocalDateTime since, @Param("provider") String provider);
+    Map<String, Object> sumSinceByProvider(@Param("tenantId") long tenantId, @Param("since") LocalDateTime since, @Param("provider") String provider);
 
     @Select("""
             SELECT COUNT(*) AS total FROM aa_ai_token_usage
-            WHERE used_at >= #{since} AND provider = #{provider}
+            WHERE tenant_id = #{tenantId} AND used_at >= #{since} AND provider = #{provider}
             """)
-    long countSinceByProvider(@Param("since") LocalDateTime since, @Param("provider") String provider);
+    long countSinceByProvider(@Param("tenantId") long tenantId, @Param("since") LocalDateTime since, @Param("provider") String provider);
 
     @Select("""
             SELECT used_at AS usedAt, provider, model, input_tokens AS inputTokens, output_tokens AS outputTokens,
                    total_tokens AS totalTokens, repo_full_name AS repoFullName, commit_sha AS commitSha
             FROM aa_ai_token_usage
-            WHERE used_at >= #{since} AND provider = #{provider}
+            WHERE tenant_id = #{tenantId} AND used_at >= #{since} AND provider = #{provider}
             ORDER BY used_at DESC
             LIMIT #{limit} OFFSET #{offset}
             """)
-    List<Map<String, Object>> listSinceByProviderPaged(@Param("since") LocalDateTime since, @Param("provider") String provider,
+    List<Map<String, Object>> listSinceByProviderPaged(@Param("tenantId") long tenantId, @Param("since") LocalDateTime since, @Param("provider") String provider,
                                                        @Param("offset") int offset, @Param("limit") int limit);
 
     @Select("""
@@ -75,8 +75,8 @@ public interface AiTokenUsageMapper {
                    COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
                    COALESCE(SUM(total_tokens), 0) AS totalTokens
             FROM aa_ai_token_usage
-            WHERE used_at >= #{since} AND provider = #{provider}
+            WHERE tenant_id = #{tenantId} AND used_at >= #{since} AND provider = #{provider}
             GROUP BY DATE(used_at) ORDER BY date ASC
             """)
-    List<Map<String, Object>> listDailyByProvider(@Param("since") LocalDateTime since, @Param("provider") String provider);
+    List<Map<String, Object>> listDailyByProvider(@Param("tenantId") long tenantId, @Param("since") LocalDateTime since, @Param("provider") String provider);
 }

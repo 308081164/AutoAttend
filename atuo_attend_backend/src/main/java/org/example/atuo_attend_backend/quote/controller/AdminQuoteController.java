@@ -9,6 +9,8 @@ import org.example.atuo_attend_backend.quote.mapper.QuoteRiskConfigMapper;
 import org.example.atuo_attend_backend.quote.service.QuoteDocumentExportService;
 import org.example.atuo_attend_backend.quote.service.QuoteProvisionService;
 import org.example.atuo_attend_backend.quote.service.QuoteService;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -43,6 +45,10 @@ public class AdminQuoteController {
         this.riskConfigMapper = riskConfigMapper;
         this.priceConfigMapper = priceConfigMapper;
         this.quoteProvisionService = quoteProvisionService;
+    }
+
+    private static long tid() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
     }
 
     @PostMapping("/projects")
@@ -230,7 +236,7 @@ public class AdminQuoteController {
 
     @GetMapping("/baselines")
     public ApiResponse<List<Map<String, Object>>> baselines() {
-        return ApiResponse.ok(baselineMapper.listAll());
+        return ApiResponse.ok(baselineMapper.listAll(tid()));
     }
 
     @PostMapping("/baselines")
@@ -267,7 +273,7 @@ public class AdminQuoteController {
 
     @GetMapping("/risk-config")
     public ApiResponse<List<Map<String, Object>>> riskConfig() {
-        return ApiResponse.ok(riskConfigMapper.listAll());
+        return ApiResponse.ok(riskConfigMapper.listAll(tid()));
     }
 
     /** 批量更新风险系数（标签、百分比可为负、是否启用）；risk_key 不可改 */
@@ -323,7 +329,7 @@ public class AdminQuoteController {
     @GetMapping("/price-config")
     public ApiResponse<List<Map<String, Object>>> priceConfig(
             @RequestParam(value = "all", defaultValue = "false") boolean all) {
-        return ApiResponse.ok(all ? priceConfigMapper.listAll() : priceConfigMapper.listEnabled());
+        return ApiResponse.ok(all ? priceConfigMapper.listAll(tid()) : priceConfigMapper.listEnabled(tid()));
     }
 
     @PostMapping("/price-config")
