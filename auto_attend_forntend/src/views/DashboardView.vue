@@ -4,9 +4,12 @@
       <div class="dashboard">
         <section class="identity-card console-elevated">
           <div class="identity-main">
-            <div class="identity-avatar" aria-hidden="true">{{ consoleInitial }}</div>
+            <div class="identity-avatar" aria-hidden="true">{{ companyAvatarInitial }}</div>
             <div class="identity-text">
-              <h1 class="identity-name">{{ consoleDisplayName }}</h1>
+              <div class="identity-title-row">
+                <h1 class="identity-name">{{ companyDisplayName }}</h1>
+                <router-link to="/quote/config" class="identity-edit-subject">{{ $t('dashboard.consoleEditSubject') }}</router-link>
+              </div>
               <div class="identity-meta-row">
                 <span class="identity-id-label">{{ $t('dashboard.consoleLoginId') }}</span>
                 <code class="identity-id-value">{{ consoleLoginIdDisplay }}</code>
@@ -17,6 +20,8 @@
               </div>
               <div class="identity-tags">
                 <span class="identity-tag">{{ $t('dashboard.consoleTagWorkspace') }}</span>
+                <span v-if="enterpriseVerified" class="identity-tag identity-tag-success">{{ $t('dashboard.consoleEnterpriseVerified') }}</span>
+                <span v-else class="identity-tag identity-tag-warn">{{ $t('dashboard.consoleEnterprisePending') }}</span>
                 <span class="identity-tag identity-tag-muted">{{ $t('dashboard.consoleTagProduct') }}</span>
               </div>
             </div>
@@ -128,6 +133,24 @@
               </div>
             </div>
             <div v-else-if="!selectedRepo && !statsOverview" class="hub-placeholder">{{ $t('collab.loading') }}</div>
+          </section>
+
+          <section class="hub-card console-elevated hub-ops hub-card-placeholder">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-ops" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubOpsTitle') }}</h2>
+            </div>
+            <p class="hub-desc">{{ $t('dashboard.hubOpsPlaceholder') }}</p>
+            <span class="hub-soon">{{ $t('dashboard.hubComingSoon') }}</span>
+          </section>
+
+          <section class="hub-card console-elevated hub-market hub-card-placeholder">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-market" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubMarketTitle') }}</h2>
+            </div>
+            <p class="hub-desc">{{ $t('dashboard.hubMarketPlaceholder') }}</p>
+            <span class="hub-soon">{{ $t('dashboard.hubComingSoon') }}</span>
           </section>
         </div>
 
@@ -492,7 +515,11 @@ export default {
       teamHubCount: null,
       teamHubLoading: false,
       aiHub: { loading: false, deepseek: null, qwen: null },
-      copyIdentityMsg: ''
+      copyIdentityMsg: '',
+      partyBProfile: null,
+      partyBProfileLoading: false,
+      /** 当前版本默认视为已认证；后续可对接企业认证接口 */
+      enterpriseVerified: true
     }
   },
   watch: {
@@ -572,16 +599,23 @@ export default {
       if (typeof localStorage === 'undefined') return ''
       return (localStorage.getItem('autoattend_username') || '').trim()
     },
-    consoleDisplayName () {
-      return this.consoleLoginIdRaw || this.$t('dashboard.consoleGuest')
+    companyDisplayName () {
+      if (this.partyBProfileLoading) return '…'
+      const p = this.partyBProfile || {}
+      const legal = (p.legalName && String(p.legalName).trim()) || ''
+      if (legal) return legal
+      const np = p.naturalPerson || {}
+      const nat = (np.fullName && String(np.fullName).trim()) || ''
+      if (nat) return nat
+      return this.$t('dashboard.consoleCompanyPlaceholder')
+    },
+    companyAvatarInitial () {
+      const n = this.companyDisplayName
+      if (!n || n === '…') return '?'
+      return String(n).charAt(0).toUpperCase()
     },
     consoleLoginIdDisplay () {
       return this.consoleLoginIdRaw || '—'
-    },
-    consoleInitial () {
-      const s = this.consoleDisplayName
-      if (!s) return '?'
-      return String(s).charAt(0).toUpperCase()
     },
     teamHubDisplay () {
       if (this.teamHubLoading) return '…'
@@ -671,6 +705,22 @@ export default {
       this.loadQuoteHub()
       this.loadTeamHub()
       this.loadAiHub()
+      this.loadPartyBProfileForHeader()
+    },
+    async loadPartyBProfileForHeader () {
+      this.partyBProfileLoading = true
+      try {
+        const resp = await this.$http.get('/admin/quote/party-b-profile')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.partyBProfile = resp.data.data
+        } else {
+          this.partyBProfile = {}
+        }
+      } catch (e) {
+        this.partyBProfile = {}
+      } finally {
+        this.partyBProfileLoading = false
+      }
     },
     async loadQuoteHub () {
       this.quoteHub.loading = true
@@ -1289,12 +1339,31 @@ export default {
   flex-shrink: 0;
 }
 
+.identity-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px 14px;
+  margin-bottom: 8px;
+}
+
 .identity-name {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 22px;
   font-weight: 700;
   color: #0f172a;
   letter-spacing: -0.02em;
+}
+
+.identity-edit-subject {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.identity-edit-subject:hover {
+  text-decoration: underline;
 }
 
 .identity-meta-row {
@@ -1362,14 +1431,32 @@ export default {
   color: #475569;
 }
 
+.identity-tag-success {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.identity-tag-warn {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
 .hub-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
   margin-bottom: 8px;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1100px) {
+  .hub-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
   .hub-grid {
     grid-template-columns: 1fr;
   }
@@ -1380,6 +1467,22 @@ export default {
   min-height: 200px;
   display: flex;
   flex-direction: column;
+}
+
+.hub-card-placeholder {
+  opacity: 0.92;
+}
+
+.hub-card-placeholder .hub-desc {
+  flex: 1;
+}
+
+.hub-soon {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-top: auto;
+  padding-top: 8px;
 }
 
 .hub-card-head {
@@ -1405,6 +1508,8 @@ export default {
 .hub-icon-api { background: linear-gradient(135deg, #0891b2, #2563eb); }
 .hub-icon-team { background: linear-gradient(135deg, #059669, #10b981); }
 .hub-icon-project { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+.hub-icon-ops { background: linear-gradient(135deg, #475569, #64748b); }
+.hub-icon-market { background: linear-gradient(135deg, #ea580c, #f97316); }
 
 .hub-card-title {
   margin: 0;
