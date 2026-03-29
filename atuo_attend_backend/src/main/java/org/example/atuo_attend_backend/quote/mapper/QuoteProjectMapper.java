@@ -95,4 +95,8 @@ public interface QuoteProjectMapper {
 
     @Update("UPDATE biz_quote_project SET quote_calc_prefs_json = #{json}, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = #{tenantId} AND id = #{id}")
     int updateQuoteCalcPrefs(@Param("tenantId") long tenantId, @Param("id") long id, @Param("json") String json);
+
+    /** link_table_id 存协作项目 biz_project.id，便于报价与多维表关联 */
+    @Update("UPDATE biz_quote_project SET link_table_id=#{linkTableId}, updated_at=CURRENT_TIMESTAMP WHERE tenant_id=#{tenantId} AND id=#{id}")
+    int updateLinkTableId(@Param("tenantId") long tenantId, @Param("id") long id, @Param("linkTableId") long linkTableId);
 }

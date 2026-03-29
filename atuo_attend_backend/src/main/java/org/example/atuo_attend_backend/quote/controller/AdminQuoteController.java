@@ -7,6 +7,7 @@ import org.example.atuo_attend_backend.quote.mapper.QuoteBaselineMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuotePriceConfigMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuoteRiskConfigMapper;
 import org.example.atuo_attend_backend.quote.service.QuoteDocumentExportService;
+import org.example.atuo_attend_backend.quote.service.QuoteCollabLinkService;
 import org.example.atuo_attend_backend.quote.service.QuoteProvisionService;
 import org.example.atuo_attend_backend.quote.service.QuoteService;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
@@ -34,17 +35,20 @@ public class AdminQuoteController {
     private final QuoteRiskConfigMapper riskConfigMapper;
     private final QuotePriceConfigMapper priceConfigMapper;
     private final QuoteProvisionService quoteProvisionService;
+    private final QuoteCollabLinkService quoteCollabLinkService;
 
     public AdminQuoteController(QuoteService quoteService, QuoteDocumentExportService quoteDocumentExportService,
                                 QuoteBaselineMapper baselineMapper,
                                 QuoteRiskConfigMapper riskConfigMapper, QuotePriceConfigMapper priceConfigMapper,
-                                QuoteProvisionService quoteProvisionService) {
+                                QuoteProvisionService quoteProvisionService,
+                                QuoteCollabLinkService quoteCollabLinkService) {
         this.quoteService = quoteService;
         this.quoteDocumentExportService = quoteDocumentExportService;
         this.baselineMapper = baselineMapper;
         this.riskConfigMapper = riskConfigMapper;
         this.priceConfigMapper = priceConfigMapper;
         this.quoteProvisionService = quoteProvisionService;
+        this.quoteCollabLinkService = quoteCollabLinkService;
     }
 
     private static long tid() {
@@ -366,8 +370,34 @@ public class AdminQuoteController {
 
     @GetMapping("/projects/{id}/link-table-requirements")
     public ApiResponse<List<Map<String, Object>>> linkTableRequirements(@PathVariable long id) {
-        // 可选：后续与多维表需求记录对接
-        return ApiResponse.ok(List.of());
+        try {
+            return ApiResponse.ok(quoteCollabLinkService.listLinkTableRequirements(id));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    @PostMapping("/projects/{id}/link-table-requirements/apply")
+    public ApiResponse<Map<String, Object>> applyLinkTableRequirements(@PathVariable long id,
+                                                                       @RequestBody(required = false) QuoteApplyLinkTableRequest body) {
+        try {
+            int n = quoteCollabLinkService.applyLinkTableRequirements(id, body != null ? body.getRecordIds() : null);
+            Map<String, Object> data = new HashMap<>();
+            data.put("importedCount", n);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    /** 为关联仓库的协作项目创建「待开发功能清单」多维表（幂等） */
+    @PostMapping("/projects/{id}/collab/import-feature-table")
+    public ApiResponse<Map<String, Object>> importCollabFeatureTable(@PathVariable long id) {
+        try {
+            return ApiResponse.ok(quoteCollabLinkService.ensureCollabFeatureTable(id));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
     }
 
     /** 乙方（受托方）主体与收款信息模板（含法人/组织字段与嵌套 naturalPerson），全系统共用，供合同 AI 与商务引用 */

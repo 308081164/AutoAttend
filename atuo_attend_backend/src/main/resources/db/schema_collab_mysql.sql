@@ -45,14 +45,15 @@ CREATE TABLE IF NOT EXISTS biz_project_member (
     FOREIGN KEY (user_id) REFERENCES biz_user(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 项目绑定表（一项目一表）
+-- 项目绑定表（一项目可多表：purpose 区分用途）
 CREATE TABLE IF NOT EXISTS biz_project_table (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     project_id BIGINT NOT NULL,
     name VARCHAR(128) NOT NULL DEFAULT '任务表',
+    purpose VARCHAR(32) NOT NULL DEFAULT 'issue_tracking' COMMENT 'issue_tracking=项目调整；feature_backlog=待开发功能清单',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_project (project_id),
+    UNIQUE KEY uk_project_purpose (project_id, purpose),
     FOREIGN KEY (project_id) REFERENCES biz_project(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

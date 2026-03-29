@@ -38,7 +38,8 @@ if [ -f /app/db/migrate_manifest.txt ]; then
     f="/app/db/$line"
     if [ -f "$f" ]; then
       echo "[entrypoint] -> $line"
-      mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "$f" \
+      # --force：单条 SQL 失败时仍执行同文件内后续语句（避免「DROP 旧索引失败」导致整文件中止、后续 ADD 列未执行）
+      mysql --force -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "$f" \
         || echo "[entrypoint] !! $line 执行有报错（若列/表已存在可忽略）"
     else
       echo "[entrypoint] !! 缺少文件: $f"

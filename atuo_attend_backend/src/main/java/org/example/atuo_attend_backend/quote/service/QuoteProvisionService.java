@@ -139,6 +139,7 @@ public class QuoteProvisionService {
 
             BizProject project = collabSyncService.ensureProjectAndTable(repoFullName);
             if (project == null) throw new IllegalStateException("创建协作项目失败");
+            quoteProjectMapper.updateLinkTableId(tid(), quoteProjectId, project.getId());
             steps.add(stepOk("ensureCollabProject", "已创建/复用协作项目", Map.of("projectId", project.getId(), "repoId", project.getRepoId())));
 
             if (syncCollab) {

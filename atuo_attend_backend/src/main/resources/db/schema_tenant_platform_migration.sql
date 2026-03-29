@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS aa_tenant (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   slug VARCHAR(64) NOT NULL,
+  plan_code VARCHAR(32) NOT NULL DEFAULT 'free' COMMENT '套餐档位 free|team|pro',
+  status VARCHAR(32) NOT NULL DEFAULT 'active' COMMENT 'active|suspended',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_aa_tenant_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

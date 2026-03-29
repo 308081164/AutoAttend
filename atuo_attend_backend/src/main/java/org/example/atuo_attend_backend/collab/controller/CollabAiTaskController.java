@@ -89,6 +89,7 @@ public class CollabAiTaskController {
 
     @PostMapping("/projects/{projectId}/ai-tasks/preview")
     public ApiResponse<?> preview(@PathVariable long projectId,
+                                  @RequestParam(defaultValue = "issue_tracking") String purpose,
                                   @RequestBody AiTaskPreviewRequest body,
                                   HttpServletRequest req) {
         long userId = requireUserId(req);
@@ -99,7 +100,7 @@ public class CollabAiTaskController {
         if (qwen == null || !Boolean.TRUE.equals(qwen.getEnabled()) || qwen.getApiKey() == null || qwen.getApiKey().isBlank()) {
             return ApiResponse.error(40000, "AI 未启用或未配置通义·千问 API Key");
         }
-        BizProjectTable table = tableService.getTableByProjectId(projectId);
+        BizProjectTable table = tableService.getTableByProjectIdAndPurpose(projectId, purpose);
         if (table == null) return ApiResponse.error(40400, "项目未绑定表格");
 
         String rawText = body.getRawText() != null ? body.getRawText().trim() : "";
@@ -107,7 +108,7 @@ public class CollabAiTaskController {
             return ApiResponse.error(40000, "请输入客户原始描述");
         }
 
-        Map<String, Object> schema = tableService.getTableWithColumns(projectId);
+        Map<String, Object> schema = tableService.getTableWithColumns(projectId, purpose);
         String systemPrompt = buildSystemPrompt();
         // 文本部分
         String userContent = buildUserContent(rawText, schema, body.getAttachmentIds());
@@ -150,18 +151,19 @@ public class CollabAiTaskController {
 
     @PostMapping("/projects/{projectId}/ai-tasks/commit")
     public ApiResponse<?> commit(@PathVariable long projectId,
+                                 @RequestParam(defaultValue = "issue_tracking") String purpose,
                                  @RequestBody AiTaskCommitRequest body,
                                  HttpServletRequest req) {
         long userId = requireUserId(req);
         if (!projectService.canAccessProject(userId, projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
-        BizProjectTable table = tableService.getTableByProjectId(projectId);
+        BizProjectTable table = tableService.getTableByProjectIdAndPurpose(projectId, purpose);
         if (table == null) return ApiResponse.error(40400, "项目未绑定表格");
         if (body.getTasks() == null || body.getTasks().isEmpty()) {
             return ApiResponse.error(40000, "没有可插入的任务");
         }
-        Map<String, Object> schema = tableService.getTableWithColumns(projectId);
+        Map<String, Object> schema = tableService.getTableWithColumns(projectId, purpose);
         if (schema == null) return ApiResponse.error(40400, "项目未绑定表格");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> columns = (List<Map<String, Object>>) schema.get("columns");

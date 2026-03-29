@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.collab.service;
 
+import org.example.atuo_attend_backend.collab.CollabTablePurpose;
 import org.example.atuo_attend_backend.collab.domain.*;
 import org.example.atuo_attend_backend.collab.mapper.*;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 协作模块同步：Webhook 推送时同步用户、项目（随仓库自动创建）、项目成员。
@@ -95,8 +97,10 @@ public class CollabSyncService {
         projectMapper.insert(project);
 
         BizProjectTable table = new BizProjectTable();
+        table.setTenantId(tid);
         table.setProjectId(project.getId());
-        table.setName("任务表");
+        table.setName("项目调整");
+        table.setPurpose(CollabTablePurpose.ISSUE_TRACKING);
         tableMapper.insert(table);
 
         createDefaultColumnsAndOptionGroups(project.getId(), table.getId());
@@ -136,7 +140,7 @@ public class CollabSyncService {
         optionGroupMapper.insert(module);
 
         int order = 0;
-        insertColumn(tableId, "问题描述", "text", null, order++);
+        insertColumn(tableId, "问题描述", "text", null, order++); // 列名保持与筛选/仪表盘逻辑一致
         insertColumn(tableId, "归属模块", "single_select", module.getId(), order++);
         insertColumn(tableId, "图像展示", "attachment", null, order++);
         insertColumn(tableId, "负责人", "multi_user", null, order++);
@@ -155,6 +159,83 @@ public class CollabSyncService {
         col.setOptionGroupId(optionGroupId);
         col.setSortOrder(sortOrder);
         columnMapper.insert(col);
+    }
+
+    /**
+     * 创建「待开发功能清单」多维表（若已存在则直接返回）。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public BizProjectTable ensureFeatureBacklogTable(long projectId) {
+        BizProject project = projectMapper.findById(projectId);
+        if (project == null) {
+            throw new IllegalArgumentException("协作项目不存在");
+        }
+        BizProjectTable existing = tableMapper.findByProjectIdAndPurpose(projectId, CollabTablePurpose.FEATURE_BACKLOG);
+        if (existing != null) {
+            return existing;
+        }
+        BizOptionGroup important = findOrCreateGlobalImportantGroup(projectId);
+        BizOptionGroup module = findOrCreateProjectModuleGroup(projectId);
+
+        BizOptionGroup devProgress = new BizOptionGroup();
+        devProgress.setName("开发进度");
+        devProgress.setOptions("[\"待开发\",\"开发中\",\"联调中\",\"测试中\",\"已完成\",\"阻塞\"]");
+        devProgress.setScope("project");
+        devProgress.setProjectId(projectId);
+        optionGroupMapper.insert(devProgress);
+
+        BizProjectTable table = new BizProjectTable();
+        table.setTenantId(project.getTenantId());
+        table.setProjectId(projectId);
+        table.setName("待开发功能清单");
+        table.setPurpose(CollabTablePurpose.FEATURE_BACKLOG);
+        tableMapper.insert(table);
+
+        int order = 0;
+        insertColumn(table.getId(), "功能名称", "text", null, order++);
+        insertColumn(table.getId(), "功能描述", "text", null, order++);
+        insertColumn(table.getId(), "归属模块", "single_select", module.getId(), order++);
+        insertColumn(table.getId(), "开发进度", "single_select", devProgress.getId(), order++);
+        insertColumn(table.getId(), "图像展示", "attachment", null, order++);
+        insertColumn(table.getId(), "负责人", "multi_user", null, order++);
+        insertColumn(table.getId(), "重要程度", "single_select", important.getId(), order++);
+        insertColumn(table.getId(), "预计完成", "datetime", null, order++);
+        insertColumn(table.getId(), "创建人", "text", null, order++);
+        insertColumn(table.getId(), "创建时间", "datetime", null, order++);
+        log.info("Feature backlog table created: projectId={}, tableId={}", projectId, table.getId());
+        return table;
+    }
+
+    private BizOptionGroup findOrCreateGlobalImportantGroup(long projectId) {
+        for (BizOptionGroup g : optionGroupMapper.listByProject(projectId)) {
+            if ("重要程度".equals(g.getName()) && "global".equals(g.getScope())) {
+                return g;
+            }
+        }
+        BizOptionGroup important = new BizOptionGroup();
+        important.setName("重要程度");
+        important.setOptions("[\"严重紧急\",\"阶段性优先解决\",\"下一阶段待办\",\"等待排期\"]");
+        important.setScope("global");
+        important.setProjectId(null);
+        optionGroupMapper.insert(important);
+        return important;
+    }
+
+    private BizOptionGroup findOrCreateProjectModuleGroup(long projectId) {
+        List<BizOptionGroup> list = optionGroupMapper.listByProject(projectId);
+        for (BizOptionGroup g : list) {
+            if ("归属模块".equals(g.getName()) && "project".equals(g.getScope())
+                    && Objects.equals(projectId, g.getProjectId())) {
+                return g;
+            }
+        }
+        BizOptionGroup module = new BizOptionGroup();
+        module.setName("归属模块");
+        module.setOptions("[]");
+        module.setScope("project");
+        module.setProjectId(projectId);
+        optionGroupMapper.insert(module);
+        return module;
     }
 
     /**

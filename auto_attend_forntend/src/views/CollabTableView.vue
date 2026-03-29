@@ -1,5 +1,21 @@
 <template>
-  <div class="collab-table-page">
+  <div class="collab-table-page collab-table-layout">
+    <aside v-if="projectId" class="collab-sidebar" aria-label="多维表切换">
+      <nav class="collab-sidebar-nav">
+        <router-link
+          class="collab-sidebar-link"
+          :class="{ active: tablePurpose === 'issue_tracking' }"
+          :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'issue_tracking' } }"
+        >{{ $t('collabTable.sidebarIssue') }}</router-link>
+        <router-link
+          class="collab-sidebar-link"
+          :class="{ active: tablePurpose === 'feature_backlog' }"
+          :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'feature_backlog' } }"
+        >{{ $t('collabTable.sidebarFeature') }}</router-link>
+      </nav>
+      <p class="collab-sidebar-hint">{{ tablePurpose === 'feature_backlog' ? $t('collabTable.sidebarHintFeature') : $t('collabTable.sidebarHintIssue') }}</p>
+    </aside>
+    <div class="collab-table-main">
     <div class="table-header">
       <div class="header-left">
         <router-link to="/collab/projects" class="back-link">{{ $t('collabTable.backToList') }}</router-link>
@@ -26,6 +42,7 @@
       </div>
       <div class="header-actions">
         <button
+          v-if="tablePurpose === 'issue_tracking'"
           type="button"
           class="secondary-button"
           @click="toggleDashboardView"
@@ -682,6 +699,7 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- 图片在线预览（字段 / 附件 / 列表缩略图） -->
     <div v-if="imagePreviewOpen" class="image-preview-backdrop" @click.self="closeImagePreview">
@@ -795,7 +813,21 @@ export default {
         weeklyResolved: null,
         importance: null,
         avgResolve: null
+      },
+      /** issue_tracking=项目调整；feature_backlog=待开发功能清单 */
+      tablePurpose: 'issue_tracking'
+    }
+  },
+  watch: {
+    '$route.query.purpose' () {
+      this.syncPurposeFromRoute()
+      this.loadTable()
+      this.loadRecords()
+      if (this.drawerRecord) {
+        this.drawerRecord = null
+        this.drawerEditValues = {}
       }
+      this.showDashboard = false
     }
   },
   computed: {
@@ -811,7 +843,9 @@ export default {
       return this.$t('collabTable.pageTitleWithProject', { project: pn, table: base })
     },
     filterableColumns () {
-      const allowed = ['重要程度', '当前状态', '验收结果']
+      const allowed = this.tablePurpose === 'feature_backlog'
+        ? ['重要程度', '开发进度']
+        : ['重要程度', '当前状态', '验收结果']
       return Array.isArray(this.columns) ? this.columns.filter(c => allowed.includes(c.name)) : []
     },
     selectedCount () {
@@ -856,6 +890,7 @@ export default {
   },
   created () {
     this.projectId = Number(this.$route.params.projectId)
+    this.syncPurposeFromRoute()
     this.loadProjectSummary()
     this.loadTable()
     this.loadRecords()
@@ -870,7 +905,16 @@ export default {
     this.destroyDashboardCharts()
   },
   methods: {
+    syncPurposeFromRoute () {
+      const p = this.$route.query.purpose
+      if (p === 'feature_backlog' || p === 'issue_tracking') {
+        this.tablePurpose = p
+      } else {
+        this.tablePurpose = 'issue_tracking'
+      }
+    },
     toggleDashboardView () {
+      if (this.tablePurpose !== 'issue_tracking') return
       this.showDashboard = !this.showDashboard
       if (this.showDashboard) this.$nextTick(() => this.renderDashboardCharts())
     },
@@ -893,6 +937,10 @@ export default {
       return raw == null ? '' : String(raw).trim()
     },
     isResolvedRecord (row) {
+      if (this.tablePurpose === 'feature_backlog') {
+        const st = this.getRecordStringValue(row, '开发进度')
+        return st.includes('已完成')
+      }
       const text = [
         this.getRecordStringValue(row, '解决情况'),
         this.getRecordStringValue(row, '验收结果'),
@@ -1427,7 +1475,7 @@ export default {
         const resp = await this.$http.post(`/collab/projects/${this.projectId}/ai-tasks/preview`, {
           rawText: this.aiInputText,
           attachmentIds: this.aiSelectedAttachmentIds
-        })
+        }, { params: { purpose: this.tablePurpose } })
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
           this.aiTasks = resp.data.data.items
         } else {
@@ -1448,7 +1496,7 @@ export default {
       try {
         const resp = await this.$http.post(`/collab/projects/${this.projectId}/ai-tasks/commit`, {
           tasks: this.aiTasks
-        })
+        }, { params: { purpose: this.tablePurpose } })
         if (resp.data && resp.data.code === 0) {
           this.showAiModal = false
           this.aiInputText = ''
@@ -1529,7 +1577,9 @@ export default {
     async loadTable () {
       this.tableLoading = true
       try {
-        const resp = await this.$http.get(`/collab/projects/${this.projectId}/table`)
+        const resp = await this.$http.get(`/collab/projects/${this.projectId}/table`, {
+          params: { purpose: this.tablePurpose }
+        })
         if (resp.data && resp.data.code === 0) {
           const d = resp.data.data
           this.tableBaseName = d.name != null && String(d.name).trim() !== ''
@@ -1550,7 +1600,7 @@ export default {
       this.recordsLoading = true
       try {
         const effectiveFilters = filters !== undefined ? filters : this.activeFilters
-        const baseParams = { _t: Date.now() }
+        const baseParams = { _t: Date.now(), purpose: this.tablePurpose }
         if (Array.isArray(effectiveFilters) && effectiveFilters.length) {
           baseParams.filters = JSON.stringify(effectiveFilters)
         }
@@ -1626,13 +1676,15 @@ export default {
       }
     },
     getColumnHeaderClass (col) {
-      if ((col.name || '').trim() === '问题描述') return 'col-problem'
+      const n = (col.name || '').trim()
+      if (n === '问题描述' || n === '功能描述') return 'col-problem'
       if (this.isAttachmentColumn(col)) return 'col-attachment'
       return ''
     },
     getCellClass (col) {
       const classes = []
-      if ((col.name || '').trim() === '问题描述') classes.push('cell-problem')
+      const cn = (col.name || '').trim()
+      if (cn === '问题描述' || cn === '功能描述') classes.push('cell-problem')
       if (this.isAttachmentColumn(col)) classes.push('cell-attachment')
       if (this.isStatusTagColumn(col)) classes.push('cell-status')
       return classes.join(' ')
@@ -1782,7 +1834,7 @@ export default {
     },
     isStatusTagColumn (col) {
       const n = String(col && col.name ? col.name : '').trim()
-      return n === '重要程度' || n === '当前状态' || n === '解决情况' || n === '验收结果'
+      return n === '重要程度' || n === '当前状态' || n === '解决情况' || n === '验收结果' || n === '开发进度'
     },
     getStatusTagClass (col, rawValue) {
       const name = String(col && col.name ? col.name : '').trim()
@@ -1818,10 +1870,19 @@ export default {
         驳回: 'status-tag-orange',
         '驳回，需要重新': 'status-tag-orange'
       }
+      const devProgressMap = {
+        待开发: 'status-tag-slate',
+        开发中: 'status-tag-violet',
+        联调中: 'status-tag-cyan',
+        测试中: 'status-tag-cyan',
+        已完成: 'status-tag-green',
+        阻塞: 'status-tag-orange'
+      }
       let cls = ''
       if (name === '重要程度') cls = levelMap[v] || ''
       if (name === '当前状态' || name === '解决情况') cls = statusMap[v] || ''
       if (name === '验收结果') cls = acceptMap[v] || ''
+      if (name === '开发进度') cls = devProgressMap[v] || ''
       return cls || 'status-tag-slate'
     },
     statusUpdateKey (recordId, colId) {
@@ -1926,7 +1987,8 @@ export default {
       return (col.name || '').trim() === '创建人'
     },
     isProblemDescColumn (col) {
-      return (col.name || '').trim() === '问题描述'
+      const n = (col.name || '').trim()
+      return n === '问题描述' || n === '功能描述'
     },
     isMultiUserColumn (col) {
       return (col.columnType || '').toLowerCase() === 'multi_user'
@@ -2058,6 +2120,7 @@ export default {
       if (!opts.length) return null
       const name = String((col.optionGroup && col.optionGroup.name) || col.name || '').trim()
       if (name === '当前状态' || name === '解决情况') return opts.indexOf('已创建') !== -1 ? '已创建' : opts[0]
+      if (name === '开发进度') return opts.indexOf('待开发') !== -1 ? '待开发' : opts[0]
       if (name === '验收结果') return opts.indexOf('未验收') !== -1 ? '未验收' : (opts.indexOf('待验收') !== -1 ? '待验收' : opts[0])
       return null
     },
@@ -2329,7 +2392,9 @@ export default {
           v = this.normalizeFieldValue(col, v)
           if (v !== null && v !== undefined) fields['c' + col.id] = v
         })
-        const resp = await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields })
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields }, {
+          params: { purpose: this.tablePurpose }
+        })
         const recordId = resp.data && resp.data.data && resp.data.data.id
         if (recordId && this.newRecordImageFile && this.newRecordAttachmentColId) {
           let uploadFile = this.newRecordImageFile
@@ -3590,5 +3655,74 @@ export default {
 .thumb-img-clickable,
 .attachment-preview-img-clickable {
   cursor: zoom-in;
+}
+.collab-table-layout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+.collab-sidebar {
+  width: 208px;
+  flex-shrink: 0;
+  padding: 16px 12px;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.collab-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.collab-sidebar-link {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #334155;
+  text-decoration: none;
+  font-size: 14px;
+}
+.collab-sidebar-link:hover {
+  background: #e2e8f0;
+}
+.collab-sidebar-link.router-link-active {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+.collab-sidebar-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+.collab-table-main {
+  flex: 1;
+  min-width: 0;
+}
+.link-table-list {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+}
+.link-table-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+.link-table-title {
+  flex: 1;
+  font-size: 14px;
+}
+.link-table-mod {
+  font-size: 12px;
+  color: #64748b;
+}
+.drawer-wide {
+  max-width: 560px;
 }
 </style>

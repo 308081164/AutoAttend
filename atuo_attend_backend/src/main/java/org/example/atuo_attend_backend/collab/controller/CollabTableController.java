@@ -25,14 +25,25 @@ public class CollabTableController {
         return id;
     }
 
-    @GetMapping("/{projectId}/table")
-    public ApiResponse<?> getTable(@PathVariable long projectId, HttpServletRequest req) {
+    @GetMapping("/{projectId}/tables")
+    public ApiResponse<?> listTables(@PathVariable long projectId, HttpServletRequest req) {
         long userId = requireUserId(req);
         if (!projectService.canAccessProject(userId, projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
-        var table = tableService.getTableWithColumns(projectId);
-        if (table == null) return ApiResponse.error(40400, "项目未绑定表格");
+        return ApiResponse.ok(tableService.listTableSummaries(projectId));
+    }
+
+    @GetMapping("/{projectId}/table")
+    public ApiResponse<?> getTable(@PathVariable long projectId,
+                                   @RequestParam(defaultValue = "issue_tracking") String purpose,
+                                   HttpServletRequest req) {
+        long userId = requireUserId(req);
+        if (!projectService.canAccessProject(userId, projectId)) {
+            return ApiResponse.error(40300, "无权限访问该项目");
+        }
+        var table = tableService.getTableWithColumns(projectId, purpose);
+        if (table == null) return ApiResponse.error(40400, "项目未绑定该用途的表格");
         return ApiResponse.ok(table);
     }
 }

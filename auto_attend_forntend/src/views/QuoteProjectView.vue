@@ -616,9 +616,43 @@
             <span v-if="saveMsg && !saveAllMsg" :class="saveOk ? 'ok' : 'err'">{{ saveMsg }}</span>
             <span v-if="saveAllMsg" :class="saveAllOk ? 'ok' : 'err'">{{ saveAllMsg }}</span>
           </div>
+          <button type="button" class="btn secondary quote-save-all-btn" :disabled="saveAllLoading || saving || importFeatureLoading" @click="importCollabFeatureTable">
+            {{ importFeatureLoading ? '…' : $t('quote.importCollabFeatureTable') }}
+          </button>
+          <button type="button" class="btn secondary quote-save-all-btn" :disabled="saveAllLoading || saving || linkTableLoading" @click="openLinkTableModal">
+            {{ $t('quote.importFromCollabTable') }}
+          </button>
           <button type="button" class="btn primary quote-save-all-btn" :disabled="saveAllLoading || saving" @click="saveAll">
             {{ saveAllLoading ? '…' : $t('quote.saveAll') }}
           </button>
+        </div>
+      </div>
+
+      <!-- 从多维表带入需求 -->
+      <div v-if="showLinkTableModal" class="drawer-mask" @click.self="closeLinkTableModal">
+        <div class="drawer drawer-wide" @click.stop>
+          <div class="drawer-header">
+            <h3>{{ $t('quote.linkTableModalTitle') }}</h3>
+            <button class="close-btn" @click="closeLinkTableModal">×</button>
+          </div>
+          <div class="drawer-body">
+            <p class="hint">{{ $t('quote.linkTableModalHint') }}</p>
+            <div v-if="linkTableLoading" class="placeholder">{{ $t('quote.loading') }}</div>
+            <div v-else-if="!linkTableRows.length" class="hint">{{ $t('quote.linkTableEmpty') }}</div>
+            <div v-else class="link-table-list">
+              <label v-for="row in linkTableRows" :key="'ltr-' + row.recordId" class="link-table-row">
+                <input type="checkbox" :value="row.recordId" v-model="linkTableSelectedIds" />
+                <span class="link-table-title">{{ row.title }}</span>
+                <span v-if="row.module" class="link-table-mod">{{ row.module }}</span>
+              </label>
+            </div>
+            <div class="btn-row export-row" style="margin-top:16px">
+              <button type="button" class="btn primary" :disabled="linkTableApplying || !linkTableSelectedCount" @click="applyLinkTableImport">
+                {{ linkTableApplying ? '…' : $t('quote.linkTableApply') }}
+              </button>
+              <button type="button" class="btn secondary" @click="closeLinkTableModal">{{ $t('quote.provisionCancel') }}</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -930,6 +964,13 @@ export default {
       saveAllLoading: false,
       saveAllMsg: '',
       saveAllOk: false,
+      showLinkTableModal: false,
+      linkTableLoading: false,
+      linkTableRows: [],
+      linkTableSelectedIds: [],
+      linkTableApplying: false,
+      importFeatureLoading: false,
+      importFeatureMsg: '',
       contractContext: defaultContractContext(),
       /** 功能模块：manual | ai */
       moduleEntryMode: 'manual',
@@ -955,6 +996,9 @@ export default {
     }
   },
   computed: {
+    linkTableSelectedCount () {
+      return Array.isArray(this.linkTableSelectedIds) ? this.linkTableSelectedIds.length : 0
+    },
     /** 用于侦听报价偏好变化并防抖落库 */
     calcPrefsSnapshot () {
       return JSON.stringify({
@@ -1337,6 +1381,67 @@ export default {
         this.markArtifactReady('contractAi')
         this.markArtifactReady('contractBodySaved')
         this.markArtifactReady('contractHtml')
+      }
+    },
+    async openLinkTableModal () {
+      if (!this.projectId) return
+      this.showLinkTableModal = true
+      this.linkTableLoading = true
+      this.linkTableRows = []
+      this.linkTableSelectedIds = []
+      try {
+        const resp = await this.$http.get('/admin/quote/projects/' + this.projectId + '/link-table-requirements')
+        if (resp.data && resp.data.code === 0 && Array.isArray(resp.data.data)) {
+          this.linkTableRows = resp.data.data
+        } else {
+          this.linkTableRows = []
+        }
+      } catch (e) {
+        this.linkTableRows = []
+        alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.linkTableLoadFail'))
+      } finally {
+        this.linkTableLoading = false
+      }
+    },
+    closeLinkTableModal () {
+      this.showLinkTableModal = false
+    },
+    async applyLinkTableImport () {
+      const ids = (this.linkTableSelectedIds || []).map(id => Number(id)).filter(id => id > 0)
+      if (!ids.length || !this.projectId) return
+      this.linkTableApplying = true
+      try {
+        const resp = await this.$http.post('/admin/quote/projects/' + this.projectId + '/link-table-requirements/apply', { recordIds: ids })
+        if (resp.data && resp.data.code === 0) {
+          const n = (resp.data.data && resp.data.data.importedCount) || 0
+          await this.loadProject(this.projectId)
+          alert(this.$t('quote.linkTableApplyOk', { n }))
+          this.closeLinkTableModal()
+        } else {
+          alert((resp.data && resp.data.message) || this.$t('quote.linkTableApplyFail'))
+        }
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.linkTableApplyFail'))
+      } finally {
+        this.linkTableApplying = false
+      }
+    },
+    async importCollabFeatureTable () {
+      if (!this.projectId) return
+      this.importFeatureLoading = true
+      try {
+        const resp = await this.$http.post('/admin/quote/projects/' + this.projectId + '/collab/import-feature-table')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const cp = resp.data.data.collabProjectId
+          alert(this.$t('quote.importFeatureOk'))
+          this.$router.push({ name: 'collab-table', params: { projectId: String(cp) }, query: { purpose: 'feature_backlog' } })
+        } else {
+          alert((resp.data && resp.data.message) || this.$t('quote.importFeatureFail'))
+        }
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.importFeatureFail'))
+      } finally {
+        this.importFeatureLoading = false
       }
     },
     async saveAll () {

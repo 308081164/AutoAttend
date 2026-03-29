@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.collab.service;
 
+import org.example.atuo_attend_backend.collab.CollabTablePurpose;
 import org.example.atuo_attend_backend.collab.domain.BizProjectTable;
 import org.example.atuo_attend_backend.collab.domain.BizTableColumn;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectTableMapper;
@@ -29,11 +30,38 @@ public class CollabTableService {
     }
 
     public BizProjectTable getTableByProjectId(long projectId) {
-        return tableMapper.findByProjectId(projectId);
+        return tableMapper.findByProjectIdAndPurpose(projectId, CollabTablePurpose.ISSUE_TRACKING);
+    }
+
+    public BizProjectTable getTableByProjectIdAndPurpose(long projectId, String purpose) {
+        if (purpose == null || purpose.isBlank()) {
+            purpose = CollabTablePurpose.ISSUE_TRACKING;
+        }
+        return tableMapper.findByProjectIdAndPurpose(projectId, purpose);
+    }
+
+    public List<Map<String, Object>> listTableSummaries(long projectId) {
+        List<BizProjectTable> tables = tableMapper.listByProjectId(projectId);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (BizProjectTable t : tables) {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", t.getId());
+            m.put("name", t.getName());
+            m.put("purpose", t.getPurpose());
+            out.add(m);
+        }
+        return out;
     }
 
     public Map<String, Object> getTableWithColumns(long projectId) {
-        BizProjectTable table = tableMapper.findByProjectId(projectId);
+        return getTableWithColumns(projectId, CollabTablePurpose.ISSUE_TRACKING);
+    }
+
+    public Map<String, Object> getTableWithColumns(long projectId, String purpose) {
+        if (purpose == null || purpose.isBlank()) {
+            purpose = CollabTablePurpose.ISSUE_TRACKING;
+        }
+        BizProjectTable table = tableMapper.findByProjectIdAndPurpose(projectId, purpose);
         if (table == null) return null;
         List<BizTableColumn> columns = columnMapper.listByTableId(table.getId());
         List<BizOptionGroup> optionGroups = optionGroupMapper.listByProject(projectId);
@@ -63,6 +91,7 @@ public class CollabTableService {
         result.put("id", table.getId());
         result.put("projectId", projectId);
         result.put("name", table.getName());
+        result.put("purpose", table.getPurpose());
         result.put("columns", columnList);
         return result;
     }

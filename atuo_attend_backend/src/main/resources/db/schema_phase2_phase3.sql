@@ -1,7 +1,7 @@
--- 阶段 2/3：套餐字段、邀请表（幂等，需 MySQL 8.0.29+ 支持 IF NOT EXISTS）
+-- 阶段 2/3：套餐字段、邀请表。ADD COLUMN 不含 IF NOT EXISTS，兼容 MySQL 8.0 早期版本；重复部署依赖 mysql --force 跳过「列已存在」错误。
 
-ALTER TABLE aa_tenant ADD COLUMN IF NOT EXISTS plan_code VARCHAR(32) NOT NULL DEFAULT 'free' COMMENT '套餐档位 free|team|pro';
-ALTER TABLE aa_tenant ADD COLUMN IF NOT EXISTS status VARCHAR(32) NOT NULL DEFAULT 'active' COMMENT 'active|suspended';
+ALTER TABLE aa_tenant ADD COLUMN plan_code VARCHAR(32) NOT NULL DEFAULT 'free' COMMENT '套餐档位 free|team|pro';
+ALTER TABLE aa_tenant ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'active' COMMENT 'active|suspended';
 
 CREATE TABLE IF NOT EXISTS aa_tenant_invite (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

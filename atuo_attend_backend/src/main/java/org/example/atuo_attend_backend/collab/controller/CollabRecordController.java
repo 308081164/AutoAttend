@@ -44,12 +44,13 @@ public class CollabRecordController {
                                      @RequestParam(defaultValue = "1") int page,
                                      @RequestParam(defaultValue = "50") int pageSize,
                                        @RequestParam(required = false) String filters,
+                                     @RequestParam(defaultValue = "issue_tracking") String purpose,
                                      HttpServletRequest req) {
         long userId = requireUserId(req);
         if (!projectService.canAccessProject(userId, projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
-        BizProjectTable table = tableService.getTableByProjectId(projectId);
+        BizProjectTable table = tableService.getTableByProjectIdAndPurpose(projectId, purpose);
         if (table == null) return ApiResponse.error(40400, "项目未绑定表格");
 
         List<CollabRecordFilterRule> rules = null;
@@ -82,13 +83,14 @@ public class CollabRecordController {
 
     @PostMapping("/projects/{projectId}/records")
     public ApiResponse<?> createRecord(@PathVariable long projectId,
+                                      @RequestParam(defaultValue = "issue_tracking") String purpose,
                                       @RequestBody Map<String, Object> body,
                                       HttpServletRequest req) {
         long userId = requireUserId(req);
         if (!projectService.canAccessProject(userId, projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
-        BizProjectTable table = tableService.getTableByProjectId(projectId);
+        BizProjectTable table = tableService.getTableByProjectIdAndPurpose(projectId, purpose);
         if (table == null) return ApiResponse.error(40400, "项目未绑定表格");
         @SuppressWarnings("unchecked")
         Map<String, Object> fields = (Map<String, Object>) body.get("fields");
