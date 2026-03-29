@@ -3,6 +3,7 @@ export default {
     title: '流帮Project',
     slogan: 'От процесса до результата — помогаем довести до конца.',
     adminLabel: 'Админ',
+    backToHome: 'На главную',
     logout: 'Выход'
   },
   login: {

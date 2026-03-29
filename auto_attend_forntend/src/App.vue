@@ -6,13 +6,15 @@
         <div class="app-slogan">{{ $t('app.slogan') }}</div>
       </div>
       <div class="app-header-right">
+        <router-link
+          v-if="showBackToHome"
+          to="/"
+          class="back-home-link"
+        >{{ $t('app.backToHome') }}</router-link>
         <select v-model="currentLocale" class="lang-select" @change="onLocaleChange">
           <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
         <span v-if="username" class="app-username">{{ $t('app.adminLabel') }}：{{ username }}</span>
-        <router-link v-if="username" to="/team" class="link-button">{{ $t('teamManage.navTitle') }}</router-link>
-        <router-link v-if="username" to="/ai-config" class="link-button">{{ $t('aiConfig.navTitle') }}</router-link>
-        <router-link v-if="username" to="/quote" class="link-button">{{ $t('quote.navTitle') }}</router-link>
         <button v-if="username" class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </header>
@@ -36,6 +38,11 @@ export default {
   computed: {
     username () {
       return window.localStorage.getItem('autoattend_username') || ''
+    },
+    /** 管理员已登录且不在控制台首页时显示「返回首页」 */
+    showBackToHome () {
+      if (!this.username) return false
+      return this.$route.name !== 'dashboard'
     }
   },
   methods: {
@@ -105,6 +112,28 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.back-home-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.back-home-link:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
 }
 
 .lang-select {

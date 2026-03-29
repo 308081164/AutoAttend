@@ -3,6 +3,7 @@ export default {
     title: '流帮Project',
     slogan: '软件流程，帮你搞定！',
     adminLabel: '管理员',
+    backToHome: '返回首页',
     logout: '退出'
   },
   login: {

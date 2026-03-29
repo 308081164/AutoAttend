@@ -3,6 +3,7 @@ export default {
     title: '流帮Project',
     slogan: 'ソフトの工程、まるごとおまかせ。',
     adminLabel: '管理者',
+    backToHome: 'ホームへ',
     logout: 'ログアウト'
   },
   login: {

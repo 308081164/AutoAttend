@@ -3,6 +3,7 @@ export default {
     title: '流帮Project',
     slogan: 'Software workflow—sorted for you.',
     adminLabel: 'Admin',
+    backToHome: 'Back to home',
     logout: 'Logout'
   },
   login: {

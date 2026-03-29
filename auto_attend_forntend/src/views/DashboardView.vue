@@ -203,42 +203,56 @@
       </template>
     </section>
 
-    <!-- 图表区（仅提交趋势 + 开发者排名，已移除各仓库提交占比） -->
+    <!-- 图表区：提交趋势 + 开发者排名（合并为单卡片，Tab 切换） -->
     <div class="charts-row">
-      <section class="section chart-section chart-section-full">
-        <h2 class="section-title">{{ $t('dashboard.commitTrend') }}</h2>
-        <div class="chart-wrap">
-          <canvas ref="trendChart"></canvas>
-        </div>
-        <div class="chart-legend">
-          <button :class="{ active: trendRange === '7d' }" @click="trendRange = '7d'; loadStatsCommitsByDay()">{{ $t('dashboard.commitTrendRange') }}</button>
-          <button :class="{ active: trendRange === '30d' }" @click="trendRange = '30d'; loadStatsCommitsByDay()">{{ $t('dashboard.commitTrendRange30') }}</button>
-        </div>
-      </section>
-    </div>
-    <div class="charts-row">
-      <section class="section chart-section chart-section-wide">
-        <div class="section-header author-rank-header">
-          <h2 class="section-title">{{ $t('dashboard.authorRanking') }}</h2>
-        </div>
-        <div class="author-rank-toolbar">
-          <div class="chart-legend author-rank-modes">
-            <button type="button" :class="{ active: authorRankPeriod === 'week' }" @click="setAuthorRankPeriod('week')">{{ $t('dashboard.authorRankWeek') }}</button>
-            <button type="button" :class="{ active: authorRankPeriod === 'month' }" @click="setAuthorRankPeriod('month')">{{ $t('dashboard.authorRankMonth') }}</button>
-            <button type="button" :class="{ active: authorRankPeriod === 'year' }" @click="setAuthorRankPeriod('year')">{{ $t('dashboard.authorRankYear') }}</button>
-            <button type="button" :class="{ active: authorRankPeriod === 'total' }" @click="setAuthorRankPeriod('total')">{{ $t('dashboard.authorRankTotal') }}</button>
-          </div>
-          <div class="author-rank-nav" v-if="authorRankPeriod !== 'total'">
-            <button type="button" class="link-button" :disabled="authorRankLoading" @click="authorRankPrev">{{ $t('dashboard.authorRankPrevPeriod') }}</button>
-            <span class="author-rank-range">{{ authorRankRangeText }}</span>
-            <button type="button" class="link-button" :disabled="authorRankLoading || !authorRankMeta.canGoNext" @click="authorRankNext">{{ $t('dashboard.authorRankNextPeriod') }}</button>
-          </div>
-          <div class="author-rank-nav" v-else>
-            <span class="author-rank-range muted">{{ authorRankRangeText }}</span>
+      <section class="section chart-section chart-section-merged">
+        <div class="chart-merge-head">
+          <div class="chart-tab-strip" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="chartTab === 'trend'"
+              :class="{ active: chartTab === 'trend' }"
+              @click="setChartTab('trend')"
+            >{{ $t('dashboard.commitTrend') }}</button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="chartTab === 'author'"
+              :class="{ active: chartTab === 'author' }"
+              @click="setChartTab('author')"
+            >{{ $t('dashboard.authorRanking') }}</button>
           </div>
         </div>
-        <div class="chart-wrap chart-wrap-bar">
-          <canvas ref="authorChart"></canvas>
+        <div v-if="chartTab === 'trend'" class="chart-panel chart-panel-trend">
+          <div class="chart-wrap">
+            <canvas ref="trendChart"></canvas>
+          </div>
+          <div class="chart-legend">
+            <button :class="{ active: trendRange === '7d' }" @click="trendRange = '7d'; loadStatsCommitsByDay()">{{ $t('dashboard.commitTrendRange') }}</button>
+            <button :class="{ active: trendRange === '30d' }" @click="trendRange = '30d'; loadStatsCommitsByDay()">{{ $t('dashboard.commitTrendRange30') }}</button>
+          </div>
+        </div>
+        <div v-if="chartTab === 'author'" class="chart-panel chart-panel-author">
+          <div class="author-rank-toolbar">
+            <div class="chart-legend author-rank-modes">
+              <button type="button" :class="{ active: authorRankPeriod === 'week' }" @click="setAuthorRankPeriod('week')">{{ $t('dashboard.authorRankWeek') }}</button>
+              <button type="button" :class="{ active: authorRankPeriod === 'month' }" @click="setAuthorRankPeriod('month')">{{ $t('dashboard.authorRankMonth') }}</button>
+              <button type="button" :class="{ active: authorRankPeriod === 'year' }" @click="setAuthorRankPeriod('year')">{{ $t('dashboard.authorRankYear') }}</button>
+              <button type="button" :class="{ active: authorRankPeriod === 'total' }" @click="setAuthorRankPeriod('total')">{{ $t('dashboard.authorRankTotal') }}</button>
+            </div>
+            <div class="author-rank-nav" v-if="authorRankPeriod !== 'total'">
+              <button type="button" class="link-button" :disabled="authorRankLoading" @click="authorRankPrev">{{ $t('dashboard.authorRankPrevPeriod') }}</button>
+              <span class="author-rank-range">{{ authorRankRangeText }}</span>
+              <button type="button" class="link-button" :disabled="authorRankLoading || !authorRankMeta.canGoNext" @click="authorRankNext">{{ $t('dashboard.authorRankNextPeriod') }}</button>
+            </div>
+            <div class="author-rank-nav" v-else>
+              <span class="author-rank-range muted">{{ authorRankRangeText }}</span>
+            </div>
+          </div>
+          <div class="chart-wrap chart-wrap-bar">
+            <canvas ref="authorChart"></canvas>
+          </div>
         </div>
       </section>
     </div>
@@ -498,6 +512,8 @@ export default {
       authorRankMeta: { canGoNext: false, canGoPrevious: true },
       authorRankLoading: false,
       trendRange: '7d',
+      /** 合并图表卡片：trend=提交趋势，author=开发者排名 */
+      chartTab: 'trend',
       chartInstances: { trend: null, author: null },
       repoInfo: {},
       repoInfoLoading: false,
@@ -542,8 +558,12 @@ export default {
       if (this.selectedRepo) this.loadRepoInfo()
       else this.repoInfo = {}
     },
-    commitsByDay () { this.renderTrendChart() },
-    authorsStats () { this.renderAuthorChart() },
+    commitsByDay () {
+      if (this.chartTab === 'trend') this.renderTrendChart()
+    },
+    authorsStats () {
+      if (this.chartTab === 'author') this.renderAuthorChart()
+    },
     '$route.query' () {
       this.$nextTick(() => this.tryOpenCommitFromQuery())
     }
@@ -661,8 +681,7 @@ export default {
   mounted () {
     this.$nextTick(() => {
       setTimeout(() => {
-        this.renderTrendChart()
-        this.renderAuthorChart()
+        if (this.chartTab === 'trend') this.renderTrendChart()
       }, 100)
     })
   },
@@ -880,6 +899,24 @@ export default {
       if (!this.authorRankMeta.canGoNext) return
       this.authorRankOffset += 1
       this.loadStatsAuthors()
+    },
+    setChartTab (tab) {
+      if (this.chartTab === tab) return
+      if (this.chartInstances.trend) {
+        try { this.chartInstances.trend.destroy() } catch (e) { /* noop */ }
+        this.chartInstances.trend = null
+      }
+      if (this.chartInstances.author) {
+        try { this.chartInstances.author.destroy() } catch (e) { /* noop */ }
+        this.chartInstances.author = null
+      }
+      this.chartTab = tab
+      this.$nextTick(() => {
+        setTimeout(() => {
+          if (tab === 'trend') this.renderTrendChart()
+          else this.renderAuthorChart()
+        }, 80)
+      })
     },
     renderTrendChart () {
       this.$nextTick(() => {
@@ -1954,6 +1991,50 @@ export default {
   display: grid;
   grid-template-columns: 1fr;
   gap: 20px;
+}
+
+.chart-section-merged {
+  min-height: 0;
+}
+
+.chart-merge-head {
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chart-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.chart-tab-strip button {
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chart-tab-strip button:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.chart-tab-strip button.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.chart-panel-trend .chart-wrap {
+  margin-top: 0;
 }
 
 .chart-section-full {

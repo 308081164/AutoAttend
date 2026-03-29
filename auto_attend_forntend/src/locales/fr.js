@@ -3,6 +3,7 @@ export default {
     title: '流帮Project',
     slogan: 'Du développement à la livraison, on vous aide.',
     adminLabel: 'Admin',
+    backToHome: 'Accueil',
     logout: 'Déconnexion'
   },
   login: {
