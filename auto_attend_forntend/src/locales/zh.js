@@ -9,18 +9,34 @@ export default {
   login: {
     title: '管理员登录',
     username: '用户名',
+    phone: '手机号',
+    phoneHint: '支持国际区号，如 +8617753158844 或 17753158844',
     password: '密码',
     submit: '登录',
     submitting: '登录中...',
     failed: '登录失败',
     failedBackend: '登录失败，请检查后端服务是否已启动',
-    employeeLoginLink: '员工登录'
+    employeeLoginLink: '员工登录',
+    registerLink: '注册新组织'
+  },
+  register: {
+    title: '注册组织',
+    phone: '手机号',
+    orgName: '组织名称',
+    orgNameHint: '公司名或个体名',
+    slug: '租户标识',
+    slugHint: '小写字母、数字、连字符，2～64 位',
+    password: '密码',
+    submit: '注册并登录',
+    submitting: '提交中...',
+    failed: '注册失败',
+    loginLink: '已有账号，去登录'
   },
   collabLogin: {
     title: '项目协作 / 员工登录',
     desc: '使用 commit 作者邮箱 + 默认密码 123456 登录（可由管理员重置）',
-    adminHint: '管理员可使用后台同一账号（如 admin）登录，获得全部项目与多维表权限。',
-    email: '邮箱',
+    adminHint: '租户管理员可使用与后台相同的手机号与密码登录，获得全部项目与多维表权限。',
+    email: '邮箱或手机号',
     password: '密码',
     placeholderEmail: 'author@example.com',
     placeholderPassword: '默认 123456',

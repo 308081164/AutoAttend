@@ -1,29 +1,182 @@
 package org.example.atuo_attend_backend.admin;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
+import org.example.atuo_attend_backend.admin.dto.AdminAuthOutcome;
+import org.example.atuo_attend_backend.admin.dto.AdminRegisterRequest;
 import org.example.atuo_attend_backend.admin.model.AdminUser;
-import org.springframework.beans.factory.annotation.Value;
+import org.example.atuo_attend_backend.collab.service.CollabAuthService;
+import org.example.atuo_attend_backend.collab.service.CollabPasswordService;
+import org.example.atuo_attend_backend.tenant.domain.AdminSession;
+import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.domain.TenantAdminUser;
+import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
+import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class AdminAuthService {
 
-    @Value("${autoattend.admin.username:admin}")
-    private String adminUsername;
+    private static final long SESSION_SECONDS = 7200L;
 
-    @Value("${autoattend.admin.password:admin123}")
-    private String adminPassword;
+    private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$|^[a-z0-9]{2}$");
 
-    public String login(String username, String password) {
-        if (!adminUsername.equals(username) || !adminPassword.equals(password)) {
+    private final TenantMapper tenantMapper;
+    private final TenantAdminUserMapper tenantAdminUserMapper;
+    private final AdminSessionMapper adminSessionMapper;
+    private final CollabPasswordService passwordService;
+    private final CollabAuthService collabAuthService;
+
+    public AdminAuthService(TenantMapper tenantMapper,
+                            TenantAdminUserMapper tenantAdminUserMapper,
+                            AdminSessionMapper adminSessionMapper,
+                            CollabPasswordService passwordService,
+                            CollabAuthService collabAuthService) {
+        this.tenantMapper = tenantMapper;
+        this.tenantAdminUserMapper = tenantAdminUserMapper;
+        this.adminSessionMapper = adminSessionMapper;
+        this.passwordService = passwordService;
+        this.collabAuthService = collabAuthService;
+    }
+
+    /**
+     * @return 凭证；账号或密码错误时返回 null
+     */
+    public AdminAuthOutcome login(String phoneRaw, String password) {
+        if (password == null || password.isEmpty()) {
             return null;
         }
-        return UUID.randomUUID().toString();
+        if (password.length() > 24) {
+            return null;
+        }
+        String phone = PhoneNormalizer.normalize(phoneRaw);
+        if (phone == null) {
+            return null;
+        }
+        TenantAdminUser user = tenantAdminUserMapper.findByPhone(phone);
+        if (user == null) {
+            return null;
+        }
+        if (!passwordService.verify(password, user.getPasswordHash())) {
+            return null;
+        }
+        collabAuthService.ensureBizUserForTenantAdmin(phone, password);
+        return createSessionOutcome(user);
+    }
+
+    @Transactional
+    public AdminAuthOutcome register(AdminRegisterRequest req) {
+        String pwdErr = validatePasswordForRegister(req.getPassword());
+        if (pwdErr != null) {
+            throw new IllegalArgumentException(pwdErr);
+        }
+        String phone = PhoneNormalizer.normalize(req.getPhone());
+        if (phone == null) {
+            throw new IllegalArgumentException("手机号格式不正确");
+        }
+        if (req.getOrgName() == null || req.getOrgName().isBlank()) {
+            throw new IllegalArgumentException("组织名称不能为空");
+        }
+        String slug = normalizeSlug(req.getSlug());
+        if (!isValidSlug(slug)) {
+            throw new IllegalArgumentException("slug 格式不正确（2～64 位小写字母、数字、连字符，首尾须为字母或数字）");
+        }
+        if (tenantMapper.countBySlug(slug) > 0) {
+            throw new IllegalArgumentException("该 slug 已被占用");
+        }
+        if (tenantAdminUserMapper.countByPhone(phone) > 0) {
+            throw new IllegalArgumentException("该手机号已注册");
+        }
+
+        Tenant tenant = new Tenant();
+        tenant.setName(req.getOrgName().trim());
+        tenant.setSlug(slug);
+        tenantMapper.insert(tenant);
+
+        TenantAdminUser user = new TenantAdminUser();
+        user.setTenantId(tenant.getId());
+        user.setPhone(phone);
+        user.setPasswordHash(passwordService.hash(req.getPassword()));
+        tenantAdminUserMapper.insert(user);
+
+        collabAuthService.ensureBizUserForTenantAdmin(phone, req.getPassword());
+        return createSessionOutcome(user);
     }
 
     public AdminUser currentAdmin() {
-        return new AdminUser(1L, adminUsername, "ADMIN");
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        HttpServletRequest req = attrs.getRequest();
+        Long userId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        Long tenantId = (Long) req.getAttribute(AdminAuthFilter.ATTR_TENANT_ID);
+        String phone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        if (userId == null || tenantId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        Tenant t = tenantMapper.findById(tenantId);
+        AdminUser u = new AdminUser();
+        u.setUserId(userId);
+        u.setPhone(phone);
+        u.setUsername(phone != null ? phone : "");
+        u.setRole("TENANT_ADMIN");
+        u.setTenantId(tenantId);
+        if (t != null) {
+            u.setTenantName(t.getName());
+            u.setSlug(t.getSlug());
+        }
+        return u;
+    }
+
+    private AdminAuthOutcome createSessionOutcome(TenantAdminUser user) {
+        adminSessionMapper.deleteExpired();
+        String token = UUID.randomUUID().toString();
+        AdminSession session = new AdminSession();
+        session.setToken(token);
+        session.setUserId(user.getId());
+        session.setTenantId(user.getTenantId());
+        session.setExpiresAt(LocalDateTime.now().plusSeconds(SESSION_SECONDS));
+        adminSessionMapper.insert(session);
+
+        AdminAuthOutcome o = new AdminAuthOutcome();
+        o.setToken(token);
+        o.setExpiresInSeconds(SESSION_SECONDS);
+        o.setPhone(user.getPhone());
+        o.setUserId(user.getId());
+        o.setTenantId(user.getTenantId());
+        return o;
+    }
+
+    private static String validatePasswordForRegister(String password) {
+        if (password == null || password.isEmpty()) {
+            return "密码不能为空";
+        }
+        if (password.length() > 24) {
+            return "密码长度不能超过 24 个字符";
+        }
+        return null;
+    }
+
+    private static boolean isValidSlug(String slug) {
+        return slug != null && slug.length() >= 2 && slug.length() <= 64 && SLUG_PATTERN.matcher(slug).matches();
+    }
+
+    private static String normalizeSlug(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.trim().toLowerCase(Locale.ROOT);
     }
 }
-

@@ -95,8 +95,8 @@ jobs:
             export IMAGE_BACKEND IMAGE_FRONTEND
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
-            # 数据库迁移：backend entrypoint 在启动时按挂载的 ./atuo_attend_backend/.../db/migrate_manifest.txt 执行 SQL。
-            # 强制重建 backend，确保每次部署都会跑一遍迁移（与仅前端变更导致镜像未变的情况解耦）。
+            # 数据库迁移：无需在服务器单独执行 SQL。backend 容器 entrypoint（docker-entrypoint.sh）会按
+            # 已 scp 的 atuo_attend_backend/.../db/migrate_manifest.txt 执行；强制重建 backend 保证每次部署都跑迁移。
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
             # 等待 backend 健康后再重启 frontend，避免旧 Nginx 长连接指向已销毁的上游导致大量 502
             echo "等待 backend 健康检查通过..."

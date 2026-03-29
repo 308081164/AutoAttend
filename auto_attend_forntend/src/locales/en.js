@@ -9,18 +9,34 @@ export default {
   login: {
     title: 'Admin Login',
     username: 'Username',
+    phone: 'Phone',
+    phoneHint: 'E.164 supported, e.g. +8617753158844 or 17753158844',
     password: 'Password',
     submit: 'Login',
     submitting: 'Logging in...',
     failed: 'Login failed',
     failedBackend: 'Login failed. Please check if the backend is running.',
-    employeeLoginLink: 'Employee Login'
+    employeeLoginLink: 'Employee Login',
+    registerLink: 'Register organization'
+  },
+  register: {
+    title: 'Register organization',
+    phone: 'Phone',
+    orgName: 'Organization name',
+    orgNameHint: 'Company or individual name',
+    slug: 'Tenant slug',
+    slugHint: 'Lowercase letters, digits, hyphens; 2–64 chars',
+    password: 'Password',
+    submit: 'Register and sign in',
+    submitting: 'Submitting...',
+    failed: 'Registration failed',
+    loginLink: 'Have an account? Sign in'
   },
   collabLogin: {
     title: 'Collaboration / Employee Login',
     desc: 'Use commit author email + default password 123456 (can be reset by admin)',
-    adminHint: 'Admins can log in with the same backend account (e.g. admin) for full access to all projects and tables.',
-    email: 'Email',
+    adminHint: 'Tenant admins can use the same phone and password as the admin console for full access to all projects and tables.',
+    email: 'Email or phone',
     password: 'Password',
     placeholderEmail: 'author@example.com',
     placeholderPassword: 'Default 123456',

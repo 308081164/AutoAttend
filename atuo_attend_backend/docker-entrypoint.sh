@@ -1,5 +1,7 @@
 #!/bin/sh
 # 启动 Spring Boot 前：等待 MySQL 就绪并按 migrate_manifest.txt 执行迁移（幂可重复执行）。
+# 生产/CI：勿在服务器上单独执行 mysql 迁移命令；推送代码后由部署流水线重建 backend 容器，本脚本即自动跑完清单。
+# 清单与 SQL 来源：镜像内 /app/db（构建时 COPY）或 Compose 挂载的宿主 ./atuo_attend_backend/.../db（与仓库一致）。
 set -e
 
 if [ "${SKIP_DB_MIGRATE:-}" = "1" ]; then

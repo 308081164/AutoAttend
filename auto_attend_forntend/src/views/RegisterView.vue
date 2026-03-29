@@ -1,33 +1,30 @@
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <h2 class="login-title">{{ $t('login.title') }}</h2>
+  <div class="register-page">
+    <div class="register-card">
+      <h2 class="register-title">{{ $t('register.title') }}</h2>
       <form @submit.prevent="onSubmit">
         <div class="form-item">
-          <label>{{ $t('login.phone') }}</label>
-          <input
-            v-model="form.phone"
-            type="text"
-            autocomplete="username"
-            :placeholder="$t('login.phoneHint')"
-            required
-          >
+          <label>{{ $t('register.phone') }}</label>
+          <input v-model="form.phone" type="text" autocomplete="tel" required>
         </div>
         <div class="form-item">
-          <label>{{ $t('login.password') }}</label>
-          <input
-            v-model="form.password"
-            type="password"
-            autocomplete="current-password"
-            required
-          >
+          <label>{{ $t('register.orgName') }}</label>
+          <input v-model="form.orgName" type="text" :placeholder="$t('register.orgNameHint')" required>
+        </div>
+        <div class="form-item">
+          <label>{{ $t('register.slug') }}</label>
+          <input v-model="form.slug" type="text" :placeholder="$t('register.slugHint')" required>
+        </div>
+        <div class="form-item">
+          <label>{{ $t('register.password') }}</label>
+          <input v-model="form.password" type="password" autocomplete="new-password" maxlength="24" required>
         </div>
         <div v-if="error" class="error-text">{{ error }}</div>
         <button class="primary-button" type="submit" :disabled="loading">
-          {{ loading ? $t('login.submitting') : $t('login.submit') }}
+          {{ loading ? $t('register.submitting') : $t('register.submit') }}
         </button>
-        <p class="register-hint">
-          <router-link to="/register">{{ $t('login.registerLink') }}</router-link>
+        <p class="login-hint">
+          <router-link to="/login">{{ $t('register.loginLink') }}</router-link>
         </p>
       </form>
     </div>
@@ -36,11 +33,13 @@
 
 <script>
 export default {
-  name: 'LoginView',
+  name: 'RegisterView',
   data () {
     return {
       form: {
         phone: '',
+        orgName: '',
+        slug: '',
         password: ''
       },
       loading: false,
@@ -51,38 +50,27 @@ export default {
     async onSubmit () {
       this.error = ''
       this.loading = true
-      const phone = this.form.phone.trim()
       try {
-        const adminResp = await this.$http.post('/admin/auth/login', {
-          phone,
+        const resp = await this.$http.post('/admin/auth/register', {
+          phone: this.form.phone.trim(),
+          orgName: this.form.orgName.trim(),
+          slug: this.form.slug.trim(),
           password: this.form.password
         })
-        if (adminResp.data && adminResp.data.code === 0) {
-          const data = adminResp.data.data
+        if (resp.data && resp.data.code === 0) {
+          const data = resp.data.data
           window.localStorage.setItem('autoattend_token', data.token)
-          window.localStorage.setItem('autoattend_username', phone)
+          window.localStorage.setItem('autoattend_username', this.form.phone.trim())
           if (data.collabToken) {
             window.localStorage.setItem('autoattend_collab_token', data.collabToken)
           }
           this.$router.push({ name: 'dashboard' })
           return
         }
-        const collabResp = await this.$http.post('/collab/auth/login', {
-          email: phone,
-          password: this.form.password
-        })
-        if (collabResp.data && collabResp.data.code === 0) {
-          window.localStorage.setItem('autoattend_collab_token', collabResp.data.data.token)
-          this.$router.push({ name: 'member-home' })
-          return
-        }
-        this.error = (adminResp.data && adminResp.data.message) || this.$t('login.failed')
+        this.error = (resp.data && resp.data.message) || this.$t('register.failed')
       } catch (e) {
-        if (e.response && e.response.status === 401) {
-          this.error = this.$t('login.failed')
-        } else {
-          this.error = this.$t('login.failedBackend')
-        }
+        const msg = e.response && e.response.data && e.response.data.message
+        this.error = msg || this.$t('register.failed')
       } finally {
         this.loading = false
       }
@@ -92,24 +80,25 @@ export default {
 </script>
 
 <style scoped>
-.login-page {
+.register-page {
   width: 100%;
-  height: calc(100vh - 56px);
+  min-height: calc(100vh - 56px);
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: #f3f4f6;
+  padding: 24px 0;
 }
 
-.login-card {
-  width: 320px;
+.register-card {
+  width: 360px;
   padding: 24px;
   border-radius: 8px;
   background-color: #ffffff;
   box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.15);
 }
 
-.login-title {
+.register-title {
   margin: 0 0 16px;
   font-size: 18px;
   text-align: center;
@@ -163,18 +152,18 @@ input:focus {
   color: #dc2626;
 }
 
-.register-hint {
+.login-hint {
   margin-top: 16px;
   font-size: 13px;
   text-align: center;
 }
 
-.register-hint a {
+.login-hint a {
   color: #2563eb;
   text-decoration: none;
 }
 
-.register-hint a:hover {
+.login-hint a:hover {
   text-decoration: underline;
 }
 </style>

@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 import LoginView from '../views/LoginView.vue'
+import RegisterView from '../views/RegisterView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import TestView from '../views/TestView.vue'
 import AiConfigView from '../views/AiConfigView.vue'
@@ -20,6 +21,11 @@ const routes = [
     path: '/login',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: RegisterView
   },
   {
     path: '/',
@@ -98,7 +104,7 @@ router.beforeEach(async (to, from, next) => {
   const adminToken = window.localStorage.getItem('autoattend_token')
   const collabToken = window.localStorage.getItem('autoattend_collab_token')
 
-  if (to.name === 'login') {
+  if (to.name === 'login' || to.name === 'register') {
     if (adminToken) next({ name: 'dashboard' }).catch(() => {})
     else if (collabToken) next({ name: 'member-home' }).catch(() => {})
     else next()
@@ -143,7 +149,7 @@ router.beforeEach(async (to, from, next) => {
       return
     }
   }
-  if (to.name !== 'login' && !adminToken) {
+  if (to.name !== 'login' && to.name !== 'register' && !adminToken) {
     next({ name: 'login' }).catch(() => {})
   } else {
     next()

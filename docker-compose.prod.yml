@@ -3,9 +3,11 @@
 #   export IMAGE_BACKEND=ghcr.io/你的用户名/autoattend-backend:latest
 #   export IMAGE_FRONTEND=ghcr.io/你的用户名/autoattend-frontend:latest
 #
-# 数据库增量迁移：backend 的 docker-entrypoint.sh 在每次容器启动时读取 /app/db/migrate_manifest.txt
-# 并执行清单中的 SQL。下面将宿主机的 db 目录只读挂载到 /app/db，与 CI 推送到仓库的代码一致，
-# 这样即使某次构建缓存导致镜像内 SQL 未更新，部署后仍会执行最新迁移脚本（无需 SSH 手工跑 SQL）。
+# ========== 数据库更新（无需在服务器手工执行 mysql / 迁移命令）==========
+# 1) 你在仓库 atuo_attend_backend/src/main/resources/db/ 新增或修改 SQL，并维护 migrate_manifest.txt
+# 2) push 后 CI：scp 整个 atuo_attend_backend 到服务器，docker compose pull && up，并强制重建 backend
+# 3) backend 容器每次启动：docker-entrypoint.sh 等待 MySQL 后按清单执行 SQL，再启动 Spring Boot
+# 下方挂载 ./atuo_attend_backend/.../db -> /app/db，保证线上执行的是本次部署同步下来的清单（与镜像内 COPY 的 db 双保险）
 
 services:
   mysql:

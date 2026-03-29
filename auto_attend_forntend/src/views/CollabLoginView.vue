@@ -8,8 +8,8 @@
           <label>{{ $t('collabLogin.email') }}</label>
           <input
             v-model="form.email"
-            type="email"
-            autocomplete="email"
+            type="text"
+            autocomplete="username"
             :placeholder="$t('collabLogin.placeholderEmail')"
             required
           >
