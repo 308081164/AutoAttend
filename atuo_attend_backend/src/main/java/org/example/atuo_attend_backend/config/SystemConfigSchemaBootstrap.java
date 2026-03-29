@@ -27,17 +27,67 @@ public class SystemConfigSchemaBootstrap {
     @Bean(name = "systemConfigTableReady")
     public Object ensureSystemConfigTable(DataSource dataSource) {
         try (Connection conn = dataSource.getConnection()) {
-            if (tableExists(conn)) {
+            if (!tableExists(conn)) {
+                log.info("Creating system config table {} ...", TABLE_NAME);
+                runSchema(conn);
+                log.info("System config table created.");
+            } else {
                 log.debug("System config table {} already exists.", TABLE_NAME);
-                return new Object();
             }
-            log.info("Creating system config table {} ...", TABLE_NAME);
-            runSchema(conn);
-            log.info("System config table created.");
+            // 已有库可能仅有 config_key 主键、无 tenant_id；Mapper 依赖 tenant_id，必须在任意依赖配置的 Bean 之前补齐
+            ensureTenantIdColumnAndPk(conn);
         } catch (Exception e) {
-            log.warn("System config schema bootstrap failed: {}", e.getMessage());
+            log.error("System config schema bootstrap failed", e);
+            throw new IllegalStateException("aa_system_config bootstrap failed", e);
         }
         return new Object();
+    }
+
+    private void ensureTenantIdColumnAndPk(Connection conn) throws Exception {
+        if (!tableExists(conn)) {
+            return;
+        }
+        String catalog = conn.getCatalog();
+        boolean hasTenantId = columnExists(conn, catalog, TABLE_NAME, "tenant_id");
+        if (!hasTenantId) {
+            log.info("Migrating {}: adding tenant_id ...", TABLE_NAME);
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE " + TABLE_NAME
+                        + " ADD COLUMN tenant_id BIGINT NOT NULL DEFAULT 1 COMMENT '租户ID' FIRST");
+            }
+        }
+        if (!primaryKeyIncludesColumn(conn, catalog, TABLE_NAME, "tenant_id")) {
+            log.info("Migrating {}: PRIMARY KEY (tenant_id, config_key) ...", TABLE_NAME);
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE " + TABLE_NAME + " DROP PRIMARY KEY, ADD PRIMARY KEY (tenant_id, config_key)");
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String catalog, String table, String column) throws Exception {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ? LIMIT 1")) {
+            ps.setString(1, catalog);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean primaryKeyIncludesColumn(Connection conn, String catalog, String table, String column)
+            throws Exception {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema = ? AND table_name = ? "
+                        + "AND constraint_name = 'PRIMARY' AND column_name = ?")) {
+            ps.setString(1, catalog);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
     }
 
     private boolean tableExists(Connection conn) throws Exception {
