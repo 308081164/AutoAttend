@@ -366,47 +366,59 @@
           <table class="data-table compact-contract acceptance-tc-table">
             <thead>
               <tr>
-                <th>{{ $t('quote.tcCaseName') }}</th>
-                <th>{{ $t('quote.tcModule') }}</th>
-                <th>{{ $t('quote.tcPriority') }}</th>
-                <th>{{ $t('quote.tcPreconditions') }}</th>
-                <th>{{ $t('quote.tcTestRole') }}</th>
-                <th>{{ $t('quote.tcSteps') }}</th>
-                <th>{{ $t('quote.tcExpected') }}</th>
-                <th>{{ $t('quote.tcResult') }}</th>
-                <th>{{ $t('quote.tcRemark') }}</th>
-                <th></th>
+                <th class="atc-th">{{ $t('quote.tcCaseName') }}</th>
+                <th class="atc-th">{{ $t('quote.tcModule') }}</th>
+                <th class="atc-th atc-th-narrow">{{ $t('quote.tcPriority') }}</th>
+                <th class="atc-th">{{ $t('quote.tcPreconditions') }}</th>
+                <th class="atc-th">{{ $t('quote.tcTestRole') }}</th>
+                <th class="atc-th">{{ $t('quote.tcSteps') }}</th>
+                <th class="atc-th">{{ $t('quote.tcExpected') }}</th>
+                <th class="atc-th atc-th-narrow">{{ $t('quote.tcResult') }}</th>
+                <th class="atc-th">{{ $t('quote.tcRemark') }}</th>
+                <th class="atc-th atc-th-action"></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(trow, ti) in contractContext.acceptanceTestCases" :key="'atc-' + ti">
-                <td><input v-model="trow.caseName" class="inp" :placeholder="$t('quote.tcCaseNamePh')" /></td>
-                <td>
-                  <select v-model="trow.module" class="inp">
+              <tr v-for="(trow, ti) in contractContext.acceptanceTestCases" :key="'atc-' + ti" class="acceptance-tc-tr">
+                <td class="atc-td">
+                  <input v-model="trow.caseName" class="atc-cell-input" :title="trow.caseName" :placeholder="$t('quote.tcCaseNamePh')" />
+                </td>
+                <td class="atc-td">
+                  <select v-model="trow.module" class="atc-select" :title="trow.module">
                     <option value="">{{ $t('quote.tcModulePh') }}</option>
                     <option v-for="mn in quoteModuleNameOptions" :key="'mn-' + mn" :value="mn">{{ mn }}</option>
                   </select>
                 </td>
-                <td>
-                  <select v-model="trow.priority" class="inp narrow">
+                <td class="atc-td atc-td-narrow">
+                  <select v-model="trow.priority" class="atc-select">
                     <option value="高">{{ $t('quote.tcPriorityHigh') }}</option>
                     <option value="中">{{ $t('quote.tcPriorityMed') }}</option>
                     <option value="低">{{ $t('quote.tcPriorityLow') }}</option>
                   </select>
                 </td>
-                <td><textarea v-model="trow.preconditions" class="textarea tc-cell" rows="2" :placeholder="$t('quote.tcPreconditionsPh')"></textarea></td>
-                <td><input v-model="trow.testRole" class="inp" :placeholder="$t('quote.tcTestRolePh')" /></td>
-                <td><textarea v-model="trow.steps" class="textarea tc-cell" rows="3" :placeholder="$t('quote.tcStepsPh')"></textarea></td>
-                <td><textarea v-model="trow.expectedResult" class="textarea tc-cell" rows="2" :placeholder="$t('quote.tcExpectedPh')"></textarea></td>
-                <td>
-                  <select v-model="trow.testResult" class="inp narrow">
+                <td class="atc-td">
+                  <input v-model="trow.preconditions" class="atc-cell-input" :title="trow.preconditions" :placeholder="$t('quote.tcPreconditionsPh')" />
+                </td>
+                <td class="atc-td">
+                  <input v-model="trow.testRole" class="atc-cell-input" :title="trow.testRole" :placeholder="$t('quote.tcTestRolePh')" />
+                </td>
+                <td class="atc-td">
+                  <input v-model="trow.steps" class="atc-cell-input" :title="trow.steps" :placeholder="$t('quote.tcStepsPh')" />
+                </td>
+                <td class="atc-td">
+                  <input v-model="trow.expectedResult" class="atc-cell-input" :title="trow.expectedResult" :placeholder="$t('quote.tcExpectedPh')" />
+                </td>
+                <td class="atc-td atc-td-narrow">
+                  <select v-model="trow.testResult" class="atc-select">
                     <option value="待测试">{{ $t('quote.tcResultPending') }}</option>
                     <option value="通过">{{ $t('quote.tcResultPass') }}</option>
                     <option value="驳回">{{ $t('quote.tcResultReject') }}</option>
                   </select>
                 </td>
-                <td><textarea v-model="trow.remark" class="textarea tc-cell" rows="2"></textarea></td>
-                <td><button type="button" class="btn-sm danger" @click="removeAcceptanceTestCase(ti)">×</button></td>
+                <td class="atc-td">
+                  <input v-model="trow.remark" class="atc-cell-input" :title="trow.remark" />
+                </td>
+                <td class="atc-td atc-td-action"><button type="button" class="btn-sm danger" @click="removeAcceptanceTestCase(ti)">×</button></td>
               </tr>
             </tbody>
           </table>
@@ -565,7 +577,21 @@
                 <p><strong>{{ $t('quote.outputRepoStatus') }}</strong>{{ provisionMeta.provisionStatus || '—' }} <span v-if="provisionMeta.provisionLastError" class="err">（{{ provisionMeta.provisionLastError }}）</span></p>
                 <p><strong>{{ $t('quote.outputRepoCollab') }}</strong>{{ provisionMeta.provisionSyncedToCollab ? $t('quote.outputRepoCollabYes') : $t('quote.outputRepoCollabNo') }} <span v-if="provisionMeta.provisionSyncedAt">（{{ provisionMeta.provisionSyncedAt }}）</span></p>
               </div>
-              <button type="button" class="btn primary btn-block-sidebar" :disabled="provisioning" @click="openProvisionModal">
+              <button
+                v-if="provisionMeta.repoFullName && cloneCommandText"
+                type="button"
+                class="btn primary btn-block-sidebar"
+                @click="copyCloneCommand"
+              >
+                {{ provisionCloneCopied ? $t('quote.outputCopyCloneDone') : $t('quote.outputCopyClone') }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="btn primary btn-block-sidebar"
+                :disabled="provisioning"
+                @click="openProvisionModal"
+              >
                 {{ provisioning ? $t('quote.outputRepoProvisioning') : $t('quote.outputRepoOpen') }}
               </button>
               <p v-if="provisionMsg" :class="provisionOk ? 'ok' : 'err'">{{ provisionMsg }}</p>
@@ -886,6 +912,7 @@ export default {
         syncCollabTable: true,
         createWebhook: true
       },
+      provisionCloneCopied: false,
       outputSidebarCollapsed: false,
       artifactReady: {
         quoteHtml: false,
@@ -995,6 +1022,15 @@ export default {
         }
       }
       return names
+    },
+    /** git clone 指令（HTTPS），用于侧栏一键复制 */
+    cloneCommandText () {
+      const name = (this.provisionMeta.repoFullName || '').trim()
+      let u = (this.provisionMeta.repoHtmlUrl || '').trim()
+      if (!u && name) u = 'https://github.com/' + name
+      if (!u) return ''
+      const base = u.endsWith('.git') ? u.replace(/\.git$/i, '') : u.replace(/\/$/, '')
+      return 'git clone ' + base + '.git'
     }
   },
   created () {
@@ -1286,7 +1322,7 @@ export default {
     },
     suggestRepoDesc () {
       const name = (this.form.name || '').trim()
-      return name ? `AutoAttend 报价项目：${name}` : 'AutoAttend 报价项目'
+      return name ? `流帮Project 报价项目：${name}` : '流帮Project 报价项目'
     },
     resetArtifactReady () {
       const keys = Object.keys(this.artifactReady || {})
@@ -1371,6 +1407,30 @@ export default {
     closeProvisionModal () {
       if (this.provisioning) return
       this.showProvisionModal = false
+    },
+    copyCloneCommand () {
+      const t = this.cloneCommandText
+      if (!t) return
+      const done = () => {
+        this.provisionCloneCopied = true
+        setTimeout(() => { this.provisionCloneCopied = false }, 2000)
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(done).catch(() => this.fallbackCopyClone(t, done))
+      } else {
+        this.fallbackCopyClone(t, done)
+      }
+    },
+    fallbackCopyClone (text, done) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+        if (typeof done === 'function') done()
+      } catch (e) { /* ignore */ }
+      document.body.removeChild(ta)
     },
     async runProvision () {
       if (!this.projectId) return
@@ -2615,9 +2675,96 @@ label.block { display: block; margin-top: 10px; }
 .ai-merge-label { font-weight: 600; }
 .acceptance-tc-subh { margin-top: 20px; margin-bottom: 6px; font-size: 15px; font-weight: 600; color: #0f172a; }
 .acceptance-tc-toolbar { flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 8px; }
-.acceptance-tc-wrap { overflow-x: auto; margin: 8px 0 12px; }
-.acceptance-tc-table { min-width: 1280px; font-size: 13px; }
-.acceptance-tc-table th, .acceptance-tc-table td { vertical-align: top; }
-.acceptance-tc-table .tc-cell { min-width: 110px; font-size: 13px; padding: 6px 8px; resize: vertical; }
-.acceptance-tc-table .inp.narrow { min-width: 76px; max-width: 100px; }
+.acceptance-tc-wrap {
+  overflow-x: auto;
+  margin: 8px 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+}
+.acceptance-tc-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+.acceptance-tc-table thead th.atc-th {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 8px 6px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: 15ch;
+  min-width: 15ch;
+  max-width: 15ch;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acceptance-tc-table thead th.atc-th-narrow {
+  width: 6.5rem;
+  min-width: 6.5rem;
+  max-width: 6.5rem;
+}
+.acceptance-tc-table thead th.atc-th-action {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+}
+.acceptance-tc-tr {
+  height: 44px;
+}
+.acceptance-tc-table tbody td.atc-td {
+  vertical-align: middle;
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  width: 15ch;
+  max-width: 15ch;
+  min-width: 15ch;
+  overflow: hidden;
+}
+.acceptance-tc-table tbody td.atc-td-narrow {
+  width: 6.5rem;
+  max-width: 6.5rem;
+  min-width: 6.5rem;
+}
+.acceptance-tc-table tbody td.atc-td-action {
+  width: 40px;
+  max-width: 40px;
+  min-width: 40px;
+  text-align: center;
+}
+.atc-cell-input,
+.acceptance-tc-table .atc-select {
+  display: block;
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1.25;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acceptance-tc-table .atc-select {
+  cursor: pointer;
+  max-width: 100%;
+}
+.atc-cell-input:focus,
+.acceptance-tc-table .atc-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
 </style>

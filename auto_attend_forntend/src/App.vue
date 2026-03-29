@@ -1,7 +1,10 @@
 <template>
   <div id="app">
     <header class="app-header">
-      <div class="app-title">{{ $t('app.title') }}</div>
+      <div class="app-brand">
+        <div class="app-title">{{ $t('app.title') }}</div>
+        <div class="app-slogan">{{ $t('app.slogan') }}</div>
+      </div>
       <div class="app-header-right">
         <select v-model="currentLocale" class="lang-select" @change="onLocaleChange">
           <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -67,18 +70,35 @@ body {
 }
 
 .app-header {
-  height: 56px;
+  min-height: 56px;
   background-color: #1f2937;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 8px 24px;
+  gap: 16px;
+}
+
+.app-brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
 }
 
 .app-title {
   font-size: 16px;
   font-weight: 600;
+  line-height: 1.25;
+}
+
+.app-slogan {
+  font-size: 12px;
+  font-weight: 400;
+  color: #9ca3af;
+  line-height: 1.25;
 }
 
 .app-header-right {

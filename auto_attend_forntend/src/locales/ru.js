@@ -1,6 +1,7 @@
 export default {
   app: {
-    title: 'AutoAttend Админ (MVP)',
+    title: '流帮Project',
+    slogan: 'От процесса до результата — помогаем довести до конца.',
     adminLabel: 'Админ',
     logout: 'Выход'
   },

@@ -1,6 +1,7 @@
 export default {
   app: {
-    title: 'AutoAttend Admin (MVP)',
+    title: '流帮Project',
+    slogan: 'Software workflow—sorted for you.',
     adminLabel: 'Admin',
     logout: 'Logout'
   },
@@ -119,7 +120,7 @@ export default {
     aiRunFailed: 'Run failed. Check config and Diff availability.',
     consoleGuest: 'Administrator',
     consoleTagWorkspace: 'Admin Console',
-    consoleTagProduct: 'AutoAttend MVP',
+    consoleTagProduct: '流帮Project',
     consoleEditSubject: 'Edit company profile',
     consoleCompanyPlaceholder: 'Company name not set',
     consoleEnterpriseVerified: 'Enterprise verified',
@@ -382,6 +383,8 @@ export default {
     outputRepoCollabYes: 'Synced',
     outputRepoCollabNo: 'Not synced',
     outputRepoOpen: 'Open setup',
+    outputCopyClone: 'Copy git clone command',
+    outputCopyCloneDone: 'Copied to clipboard',
     outputRepoProvisioning: 'Working…',
     outputRepoSteps: 'Last run steps',
     provisionModalTitle: 'Create GitHub repository',

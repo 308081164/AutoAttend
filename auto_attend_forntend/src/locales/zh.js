@@ -1,6 +1,7 @@
 export default {
   app: {
-    title: 'AutoAttend 管理后台（MVP）',
+    title: '流帮Project',
+    slogan: '软件流程，帮你搞定！',
     adminLabel: '管理员',
     logout: '退出'
   },
@@ -119,7 +120,7 @@ export default {
     aiRunFailed: '运行失败，请检查配置与 Diff 是否可用。',
     consoleGuest: '管理员',
     consoleTagWorkspace: '管理工作台',
-    consoleTagProduct: 'AutoAttend MVP',
+    consoleTagProduct: '流帮Project',
     consoleEditSubject: '编辑主体信息',
     consoleCompanyPlaceholder: '未设置公司名称',
     consoleEnterpriseVerified: '企业已认证',
@@ -382,6 +383,8 @@ export default {
     outputRepoCollabYes: '已同步',
     outputRepoCollabNo: '未同步',
     outputRepoOpen: '打开创建向导',
+    outputCopyClone: '复制拉取指令',
+    outputCopyCloneDone: '已复制到剪贴板',
     outputRepoProvisioning: '创建中…',
     outputRepoSteps: '最近执行步骤',
     provisionModalTitle: '创建 GitHub 仓库',

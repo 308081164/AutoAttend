@@ -1,6 +1,7 @@
 export default {
   app: {
-    title: 'AutoAttend 管理画面（MVP）',
+    title: '流帮Project',
+    slogan: 'ソフトの工程、まるごとおまかせ。',
     adminLabel: '管理者',
     logout: 'ログアウト'
   },
