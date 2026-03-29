@@ -28,6 +28,7 @@ jobs:
           OWNER_LC=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
           echo "backend=$REGISTRY/$OWNER_LC/autoattend-backend:latest" >> $GITHUB_OUTPUT
           echo "frontend=$REGISTRY/$OWNER_LC/autoattend-frontend:latest" >> $GITHUB_OUTPUT
+          echo "platform_monitor_frontend=$REGISTRY/$OWNER_LC/platform-monitor-frontend:latest" >> $GITHUB_OUTPUT
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -49,6 +50,13 @@ jobs:
           context: ./auto_attend_forntend
           push: true
           tags: ${{ steps.images.outputs.frontend }}
+
+      - name: Build and push platform monitor frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./platform_monitor_frontend
+          push: true
+          tags: ${{ steps.images.outputs.platform_monitor_frontend }}
 
       - name: Deploy to server
         env:
@@ -74,6 +82,7 @@ jobs:
         env:
           IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
           IMAGE_FRONTEND: ${{ steps.images.outputs.frontend }}
+          IMAGE_PLATFORM_MONITOR_FRONTEND: ${{ steps.images.outputs.platform_monitor_frontend }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           GHCR_USER: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
@@ -83,7 +92,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           command_timeout: 3h
-          envs: IMAGE_BACKEND,IMAGE_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN
+          envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN
           script: |
             set -e
             DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
@@ -92,7 +101,7 @@ jobs:
             if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
-            export IMAGE_BACKEND IMAGE_FRONTEND
+            export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
             # 数据库迁移：无需在服务器单独执行 SQL。backend 容器 entrypoint（docker-entrypoint.sh）会按
@@ -109,3 +118,4 @@ jobs:
               sleep 2
             done
             docker compose -f docker-compose.prod.yml restart frontend
+            docker compose -f docker-compose.prod.yml restart platform-monitor-frontend

@@ -2,6 +2,7 @@
 # 使用前在服务器上设置环境变量（或由 deploy workflow 自动设置）：
 #   export IMAGE_BACKEND=ghcr.io/你的用户名/autoattend-backend:latest
 #   export IMAGE_FRONTEND=ghcr.io/你的用户名/autoattend-frontend:latest
+#   export IMAGE_PLATFORM_MONITOR_FRONTEND=ghcr.io/你的用户名/platform-monitor-frontend:latest
 #
 # ========== 数据库更新（无需在服务器手工执行 mysql / 迁移命令）==========
 # 1) 你在仓库 atuo_attend_backend/src/main/resources/db/ 新增或修改 SQL，并维护 migrate_manifest.txt
@@ -98,6 +99,16 @@ services:
         condition: service_healthy
     ports:
       - "8849:80"
+    restart: unless-stopped
+
+  platform-monitor-frontend:
+    image: ${IMAGE_PLATFORM_MONITOR_FRONTEND:-ghcr.io/please-set/platform-monitor-frontend:latest}
+    container_name: autoattend-platform-monitor-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8850:80"
     restart: unless-stopped
 
 volumes:
