@@ -357,6 +357,14 @@ export default {
     filterOpContains: 'Contient',
     filterOpNotContains: 'Ne contient pas',
     filterOpEmpty: 'Est vide',
-    filterOpNotEmpty: 'N’est pas vide'
+    filterOpNotEmpty: 'N’est pas vide',
+    dashboardWordCloud: 'Nuage de mots',
+    dashboardAvgResolveDuration: 'Temps moyen de résolution (par semaine)',
+    dashboardWordCloudEmpty: 'Aucun texte à analyser',
+    dashboardWordCloudFootnote: 'Basé sur les colonnes titre/description ; mots vides filtrés',
+    dashboardAvgResolveEmpty: 'Aucune tâche terminée ou durée indisponible',
+    dashboardAvgResolveSeriesLabel: 'Temps moyen',
+    dashboardAvgResolveYAxis: 'Heures',
+    dashboardAvgResolveTooltip: 'Moy. {hours} h ({count} cette semaine)'
   }
 }

@@ -66,13 +66,23 @@
           <div class="dashboard-card-title">{{ $t('collabTable.dashboardImportantDistribution') }}</div>
           <canvas ref="importanceChart"></canvas>
         </div>
-        <div class="dashboard-card dashboard-card-placeholder">
+        <div class="dashboard-card dashboard-card-wordcloud">
           <div class="dashboard-card-title">{{ $t('collabTable.dashboardWordCloud') }}</div>
-          <div class="dashboard-placeholder">{{ $t('collabTable.dashboardComingSoon') }}</div>
+          <div v-if="!dashboardWordCloudItems.length" class="dashboard-empty-hint">{{ $t('collabTable.dashboardWordCloudEmpty') }}</div>
+          <div v-else class="word-cloud-body">
+            <span
+              v-for="(it, idx) in dashboardWordCloudItems"
+              :key="'wc-' + idx"
+              class="word-cloud-token"
+              :style="wordCloudTokenStyle(it)"
+            >{{ it.text }}</span>
+          </div>
+          <p v-if="dashboardWordCloudItems.length" class="dashboard-word-foot">{{ $t('collabTable.dashboardWordCloudFootnote') }}</p>
         </div>
-        <div class="dashboard-card dashboard-card-placeholder">
+        <div class="dashboard-card">
           <div class="dashboard-card-title">{{ $t('collabTable.dashboardAvgResolveDuration') }}</div>
-          <div class="dashboard-placeholder">{{ $t('collabTable.dashboardComingSoon') }}</div>
+          <div v-if="!dashboardAvgResolveHasData" class="dashboard-empty-hint">{{ $t('collabTable.dashboardAvgResolveEmpty') }}</div>
+          <canvas v-show="dashboardAvgResolveHasData" ref="avgResolveChart"></canvas>
         </div>
       </div>
     </div>
@@ -703,6 +713,7 @@
 <script>
 import { Chart as ChartJS, registerables } from 'chart.js'
 import { compressImageFile, IMAGE_COMPRESS_PRESETS, shouldCompressAsRasterImage } from '@/utils/imageCompress'
+import { buildWordCloudItems } from '@/utils/collabDashboardText'
 
 ChartJS.register(...registerables)
 
@@ -775,15 +786,24 @@ export default {
       batchDeleting: false,
       showDashboard: false,
       dashboardWeeks: 8,
+      dashboardWordCloudItems: [],
+      /** 仪表盘：平均解决时长按周序列（供图与 tooltip） */
+      _avgResolveSeries: null,
       dashboardCharts: {
         taskCompletion: null,
         weeklyCreated: null,
         weeklyResolved: null,
-        importance: null
+        importance: null,
+        avgResolve: null
       }
     }
   },
   computed: {
+    dashboardAvgResolveHasData () {
+      const s = this._avgResolveSeries
+      if (!s || !Array.isArray(s.avgs)) return false
+      return s.avgs.some((v) => Number(v) > 0)
+    },
     pageTableTitle () {
       const base = (this.tableBaseName || '').trim() || this.$t('collabTable.defaultTableName')
       const pn = (this.projectName || '').trim()
@@ -935,15 +955,73 @@ export default {
       const counts = labels.map(k => map[k])
       return { labels, counts }
     },
+    /**
+     * 已完成任务：按「最后更新周」分组，计算创建→更新 时长（小时）的周均值。
+     * 完成态与 isResolvedRecord 一致；时长用 updatedAt - createdAt 近似。
+     */
+    buildAvgResolveWeeklySeries () {
+      const weeks = Number(this.dashboardWeeks) > 0 ? Number(this.dashboardWeeks) : 8
+      const nowWeek = this.weekStartDate(new Date())
+      const labels = []
+      const weekMap = {}
+      for (let i = weeks - 1; i >= 0; i--) {
+        const d = new Date(nowWeek.getTime())
+        d.setDate(d.getDate() - i * 7)
+        const key = this.weekLabel(d)
+        labels.push(key)
+        weekMap[key] = { sum: 0, count: 0 }
+      }
+      const avgs = []
+      const counts = []
+      const rows = Array.isArray(this.records) ? this.records : []
+      rows.forEach((row) => {
+        if (!this.isResolvedRecord(row)) return
+        const end = row.updatedAt ? new Date(row.updatedAt) : null
+        const start = row.createdAt ? new Date(row.createdAt) : null
+        if (!end || !start || Number.isNaN(end.getTime()) || Number.isNaN(start.getTime())) return
+        const ms = end.getTime() - start.getTime()
+        if (ms <= 0 || ms > 366 * 24 * 3600 * 1000) return
+        const hours = ms / 3600000
+        const wk = this.weekLabel(this.weekStartDate(end))
+        if (Object.prototype.hasOwnProperty.call(weekMap, wk)) {
+          weekMap[wk].sum += hours
+          weekMap[wk].count += 1
+        }
+      })
+      labels.forEach((l) => {
+        const x = weekMap[l]
+        counts.push(x.count)
+        avgs.push(x.count > 0 ? x.sum / x.count : 0)
+      })
+      return { labels, avgs, counts }
+    },
+    wordCloudTokenStyle (it) {
+      const minPx = 12
+      const maxPx = 26
+      const max = it && it.max ? it.max : 1
+      const w = it && it.weight != null ? it.weight : 0
+      const r = max > 0 ? w / max : 0
+      const fs = minPx + (maxPx - minPx) * r
+      const palette = ['#1e40af', '#2563eb', '#0d9488', '#d97706', '#b45309', '#7c3aed', '#be185d', '#0f766e']
+      const idx = (it && it.text ? String(it.text).charCodeAt(0) : 0) % palette.length
+      return {
+        fontSize: fs + 'px',
+        color: palette[idx],
+        fontWeight: r >= 0.35 ? 600 : 400
+      }
+    },
     renderDashboardCharts () {
       if (!this.showDashboard) return
       this.destroyDashboardCharts()
+      this.dashboardWordCloudItems = buildWordCloudItems(this.records, this.columns, 48)
+      this._avgResolveSeries = this.buildAvgResolveWeeklySeries()
       const total = (this.records || []).length
       const resolved = (this.records || []).filter(r => this.isResolvedRecord(r)).length
       const unresolved = Math.max(total - resolved, 0)
       const createdSeries = this.buildWeeklySeries(this.records)
       const resolvedSeries = this.buildWeeklySeries(this.records, r => this.isResolvedRecord(r))
       const importance = this.getImportanceDistribution()
+      const avgSer = this._avgResolveSeries
 
       if (this.$refs.taskCompletionChart) {
         this.dashboardCharts.taskCompletion = new ChartJS(this.$refs.taskCompletionChart, {
@@ -983,6 +1061,48 @@ export default {
             datasets: [{ label: this.$t('collabTable.dashboardImportantDistribution'), data: importance.counts, backgroundColor: '#f59e0b' }]
           },
           options: { responsive: true, maintainAspectRatio: false }
+        })
+      }
+      if (this.$refs.avgResolveChart && avgSer && avgSer.avgs && avgSer.avgs.some((v) => Number(v) > 0)) {
+        const self = this
+        this.dashboardCharts.avgResolve = new ChartJS(this.$refs.avgResolveChart, {
+          type: 'bar',
+          data: {
+            labels: avgSer.labels,
+            datasets: [{
+              label: this.$t('collabTable.dashboardAvgResolveSeriesLabel'),
+              data: avgSer.avgs,
+              backgroundColor: '#6366f1'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: this.$t('collabTable.dashboardAvgResolveYAxis')
+                }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label (ctx) {
+                    const i = ctx.dataIndex
+                    const h = ctx.parsed.y
+                    const c = (avgSer.counts && avgSer.counts[i]) != null ? avgSer.counts[i] : 0
+                    return self.$t('collabTable.dashboardAvgResolveTooltip', {
+                      hours: Number(h).toFixed(2),
+                      count: c
+                    })
+                  }
+                }
+              }
+            }
+          }
         })
       }
     },
@@ -2643,6 +2763,50 @@ export default {
 .dashboard-placeholder {
   color: #64748b;
   font-size: 13px;
+}
+
+.dashboard-card-wordcloud {
+  min-height: 280px;
+}
+
+.dashboard-empty-hint {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  min-height: 200px;
+}
+
+.word-cloud-body {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  padding: 8px 4px;
+  min-height: 200px;
+  line-height: 1.35;
+}
+
+.word-cloud-token {
+  display: inline-block;
+  cursor: default;
+  user-select: none;
+  max-width: 100%;
+  word-break: break-all;
+}
+
+.dashboard-word-foot {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 6px 0 0;
+  line-height: 1.4;
 }
 
 .batch-toolbar {

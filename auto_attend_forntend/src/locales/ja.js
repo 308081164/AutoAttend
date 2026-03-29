@@ -359,6 +359,14 @@ export default {
     filterOpContains: '含む',
     filterOpNotContains: '含まない',
     filterOpEmpty: '空',
-    filterOpNotEmpty: '空でない'
+    filterOpNotEmpty: '空でない',
+    dashboardWordCloud: '問題ワードクラウド',
+    dashboardAvgResolveDuration: '平均解決時間（週別）',
+    dashboardWordCloudEmpty: '集計できるテキストがありません',
+    dashboardWordCloudFootnote: '問題/タイトル等から分語。一般的なストップワードを除去',
+    dashboardAvgResolveEmpty: '完了タスクがないか、所要時間を算出できません',
+    dashboardAvgResolveSeriesLabel: '平均解決時間',
+    dashboardAvgResolveYAxis: '時間（時間）',
+    dashboardAvgResolveTooltip: '平均 {hours} 時間（当週 {count} 件）'
   }
 }

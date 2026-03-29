@@ -357,6 +357,14 @@ export default {
     filterOpContains: 'Содержит',
     filterOpNotContains: 'Не содержит',
     filterOpEmpty: 'Пусто',
-    filterOpNotEmpty: 'Не пусто'
+    filterOpNotEmpty: 'Не пусто',
+    dashboardWordCloud: 'Облако слов',
+    dashboardAvgResolveDuration: 'Среднее время решения (по неделям)',
+    dashboardWordCloudEmpty: 'Нет текста для анализа',
+    dashboardWordCloudFootnote: 'По колонкам задачи/заголовка; стоп-слова удалены',
+    dashboardAvgResolveEmpty: 'Нет завершённых задач или нет данных о длительности',
+    dashboardAvgResolveSeriesLabel: 'Среднее время',
+    dashboardAvgResolveYAxis: 'Часы',
+    dashboardAvgResolveTooltip: 'Сред. {hours} ч ({count} за неделю)'
   }
 }
