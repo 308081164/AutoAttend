@@ -702,6 +702,7 @@
 
 <script>
 import { Chart as ChartJS, registerables } from 'chart.js'
+import { compressImageFile, IMAGE_COMPRESS_PRESETS, shouldCompressAsRasterImage } from '@/utils/imageCompress'
 
 ChartJS.register(...registerables)
 
@@ -1363,8 +1364,16 @@ export default {
       const files = Array.from(e.target.files || [])
       if (!files.length) return
       for (const file of files) {
+        let uploadFile = file
+        if (shouldCompressAsRasterImage(file)) {
+          try {
+            uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
+          } catch (_err) {
+            /* 使用原文件 */
+          }
+        }
         const fd = new FormData()
-        fd.append('file', file)
+        fd.append('file', uploadFile)
         try {
           const resp = await this.$http.post(`/collab/projects/${this.projectId}/attachments`, fd, {
             headers: { 'Content-Type': 'multipart/form-data' }
@@ -1376,7 +1385,7 @@ export default {
               fileName: a.fileName,
               fileSize: a.fileSize,
               isImage: a.isImage === true,
-              previewUrl: a.isImage ? URL.createObjectURL(file) : null
+              previewUrl: a.isImage ? URL.createObjectURL(uploadFile) : null
             }
             this.aiSessionAttachments.push(item)
           }
@@ -1852,8 +1861,16 @@ export default {
       if (!file || !this.drawerRecord || this.drawerUploadColId == null) return
       const colId = this.drawerUploadColId
       try {
+        let uploadFile = file
+        if (shouldCompressAsRasterImage(file)) {
+          try {
+            uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
+          } catch (_err) {
+            /* 原图上传 */
+          }
+        }
         const form = new FormData()
-        form.append('file', file)
+        form.append('file', uploadFile)
         const upResp = await this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
@@ -2064,17 +2081,26 @@ export default {
         this.loadComments()
       } catch (e) { /* ignore */ }
     },
-    onFileSelected (e) {
+    async onFileSelected (e) {
       const file = e.target.files && e.target.files[0]
       if (!file || !this.drawerRecord) return
+      let uploadFile = file
+      if (file.type && file.type.startsWith('image/') && shouldCompressAsRasterImage(file)) {
+        try {
+          uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
+        } catch (_err) {
+          /* 原图 */
+        }
+      }
       const form = new FormData()
-      form.append('file', file)
-      this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      }).then(() => {
+      form.append('file', uploadFile)
+      try {
+        await this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
         this.loadAttachments()
-        e.target.value = ''
-      }).catch(() => { /* ignore */ })
+      } catch (_err) { /* ignore */ }
+      e.target.value = ''
     },
     openImagePreview (att, objectUrl) {
       if (!att || !objectUrl) return
@@ -2186,8 +2212,16 @@ export default {
         const resp = await this.$http.post(`/collab/projects/${this.projectId}/records`, { fields })
         const recordId = resp.data && resp.data.data && resp.data.data.id
         if (recordId && this.newRecordImageFile && this.newRecordAttachmentColId) {
+          let uploadFile = this.newRecordImageFile
+          if (shouldCompressAsRasterImage(uploadFile)) {
+            try {
+              uploadFile = await compressImageFile(uploadFile, IMAGE_COMPRESS_PRESETS.attachment)
+            } catch (_err) {
+              /* 原图 */
+            }
+          }
           const form = new FormData()
-          form.append('file', this.newRecordImageFile)
+          form.append('file', uploadFile)
           const upResp = await this.$http.post(`/collab/records/${recordId}/attachments`, form, {
             headers: { 'Content-Type': 'multipart/form-data' }
           })

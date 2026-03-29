@@ -141,6 +141,8 @@
 </template>
 
 <script>
+import { compressImageFile, IMAGE_COMPRESS_PRESETS } from '@/utils/imageCompress'
+
 export default {
   name: 'TeamManageView',
   data () {
@@ -190,8 +192,9 @@ export default {
       }
       this.avatarUploading = true
       try {
+        const uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.avatar)
         const form = new FormData()
-        form.append('file', file)
+        form.append('file', uploadFile)
         const r = await this.$http.post('/admin/team/avatar-upload', form, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
