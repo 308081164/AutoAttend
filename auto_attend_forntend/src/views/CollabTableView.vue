@@ -788,7 +788,7 @@ export default {
       dashboardWeeks: 8,
       dashboardWordCloudItems: [],
       /** 仪表盘：平均解决时长按周序列（供图与 tooltip） */
-      _avgResolveSeries: null,
+      avgResolveSeries: null,
       dashboardCharts: {
         taskCompletion: null,
         weeklyCreated: null,
@@ -800,7 +800,7 @@ export default {
   },
   computed: {
     dashboardAvgResolveHasData () {
-      const s = this._avgResolveSeries
+      const s = this.avgResolveSeries
       if (!s || !Array.isArray(s.avgs)) return false
       return s.avgs.some((v) => Number(v) > 0)
     },
@@ -1014,14 +1014,14 @@ export default {
       if (!this.showDashboard) return
       this.destroyDashboardCharts()
       this.dashboardWordCloudItems = buildWordCloudItems(this.records, this.columns, 48)
-      this._avgResolveSeries = this.buildAvgResolveWeeklySeries()
+      this.avgResolveSeries = this.buildAvgResolveWeeklySeries()
       const total = (this.records || []).length
       const resolved = (this.records || []).filter(r => this.isResolvedRecord(r)).length
       const unresolved = Math.max(total - resolved, 0)
       const createdSeries = this.buildWeeklySeries(this.records)
       const resolvedSeries = this.buildWeeklySeries(this.records, r => this.isResolvedRecord(r))
       const importance = this.getImportanceDistribution()
-      const avgSer = this._avgResolveSeries
+      const avgSer = this.avgResolveSeries
 
       if (this.$refs.taskCompletionChart) {
         this.dashboardCharts.taskCompletion = new ChartJS(this.$refs.taskCompletionChart, {
