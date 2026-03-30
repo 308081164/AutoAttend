@@ -1,19 +1,45 @@
 <template>
   <div class="collab-table-page collab-table-layout">
-    <aside v-if="projectId" class="collab-sidebar" aria-label="多维表切换">
+    <aside v-if="projectId" class="collab-sidebar" :class="{ collapsed: sidebarCollapsed }" aria-label="多维表切换">
+      <button
+        type="button"
+        class="collab-sidebar-collapse"
+        :title="sidebarCollapsed ? $t('collabTable.sidebarExpand') : $t('collabTable.sidebarCollapse')"
+        @click="sidebarCollapsed = !sidebarCollapsed"
+      >{{ sidebarCollapsed ? '▶' : '◀' }}</button>
+
       <nav class="collab-sidebar-nav">
         <router-link
           class="collab-sidebar-link"
-          :class="{ active: tablePurpose === 'issue_tracking' }"
+          :class="{ active: !showHomeDashboard && tablePurpose === 'issue_tracking' }"
           :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'issue_tracking' } }"
-        >{{ $t('collabTable.sidebarIssue') }}</router-link>
+        >
+          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarIssue') }}</span>
+          <span v-else>I</span>
+        </router-link>
         <router-link
           class="collab-sidebar-link"
-          :class="{ active: tablePurpose === 'feature_backlog' }"
+          :class="{ active: !showHomeDashboard && tablePurpose === 'feature_backlog' }"
           :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'feature_backlog' } }"
-        >{{ $t('collabTable.sidebarFeature') }}</router-link>
+        >
+          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarFeature') }}</span>
+          <span v-else>F</span>
+        </router-link>
+
+        <button
+          type="button"
+          class="collab-sidebar-link collab-sidebar-link-btn"
+          :class="{ active: showHomeDashboard }"
+          @click="openHomeDashboard"
+        >
+          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarHomeBoard') }}</span>
+          <span v-else>B</span>
+        </button>
       </nav>
-      <p class="collab-sidebar-hint">{{ tablePurpose === 'feature_backlog' ? $t('collabTable.sidebarHintFeature') : $t('collabTable.sidebarHintIssue') }}</p>
+
+      <p v-if="!sidebarCollapsed" class="collab-sidebar-hint">
+        {{ tablePurpose === 'feature_backlog' ? $t('collabTable.sidebarHintFeature') : $t('collabTable.sidebarHintIssue') }}
+      </p>
     </aside>
     <div class="collab-table-main">
     <div class="table-header">
@@ -22,11 +48,17 @@
         <div class="title-block">
           <div class="title-row">
             <h2 class="table-title">{{ pageTableTitle }}</h2>
-            <button type="button" class="secondary-button filter-title-button" @click="openFilterModal" :title="$t('collabTable.filterHint')">
+            <button
+              v-if="!showHomeDashboard"
+              type="button"
+              class="secondary-button filter-title-button"
+              @click="openFilterModal"
+              :title="$t('collabTable.filterHint')"
+            >
               {{ $t('collabTable.filter') }}<span v-if="activeFilters && activeFilters.length">({{ activeFilters.length }})</span>
             </button>
           </div>
-          <div v-if="activeFilters && activeFilters.length" class="active-filter-chips">
+          <div v-if="!showHomeDashboard && activeFilters && activeFilters.length" class="active-filter-chips">
             <span v-for="(f, idx) in activeFilters" :key="'af-' + idx" class="filter-chip">
               <span class="filter-chip-text">{{ formatActiveFilterLabel(f) }}</span>
               <button
@@ -40,7 +72,7 @@
           </div>
         </div>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" v-if="!showHomeDashboard">
         <button
           v-if="tablePurpose === 'issue_tracking'"
           type="button"
@@ -62,7 +94,10 @@
       </div>
     </div>
 
-    <div v-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
+    <div v-if="showHomeDashboard" class="collab-home-dashboard">
+      <DashboardView :fixedRepoFullName="projectRepoId" :key="'home-board-' + projectId + '-' + projectRepoId" />
+    </div>
+    <div v-else-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
     <div v-else-if="showDashboard" class="dashboard-wrapper">
       <div v-if="recordsLoading" class="loading-tip">{{ $t('collabTable.loadingRecords') }}</div>
       <div v-else-if="!records.length" class="empty-tip">{{ $t('collabTable.dashboardNoData') }}</div>
@@ -732,6 +767,7 @@
 import { Chart as ChartJS, registerables } from 'chart.js'
 import { compressImageFile, IMAGE_COMPRESS_PRESETS, shouldCompressAsRasterImage } from '@/utils/imageCompress'
 import { buildWordCloudItems } from '@/utils/collabDashboardText'
+import DashboardView from './DashboardView.vue'
 
 ChartJS.register(...registerables)
 
@@ -741,6 +777,9 @@ export default {
     return {
       projectId: null,
       projectName: '',
+      projectRepoId: '',
+      showHomeDashboard: false,
+      sidebarCollapsed: false,
       tableBaseName: '',
       columns: [],
       records: [],
@@ -907,11 +946,18 @@ export default {
   methods: {
     syncPurposeFromRoute () {
       const p = this.$route.query.purpose
+      this.showHomeDashboard = false
+      this.showDashboard = false
       if (p === 'feature_backlog' || p === 'issue_tracking') {
         this.tablePurpose = p
       } else {
         this.tablePurpose = 'issue_tracking'
       }
+    },
+    openHomeDashboard () {
+      this.showHomeDashboard = true
+      this.showDashboard = false
+      this.destroyDashboardCharts()
     },
     toggleDashboardView () {
       if (this.tablePurpose !== 'issue_tracking') return
@@ -1569,6 +1615,7 @@ export default {
         const resp = await this.$http.get(`/collab/projects/${this.projectId}`)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.projectName = resp.data.data.name != null ? String(resp.data.data.name) : ''
+          this.projectRepoId = resp.data.data.repoId != null ? String(resp.data.data.repoId) : ''
         }
       } catch (e) {
         if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
@@ -3668,6 +3715,23 @@ export default {
   border-right: 1px solid #e2e8f0;
   background: #f8fafc;
 }
+.collab-sidebar.collapsed {
+  width: 64px;
+  padding: 16px 8px;
+}
+
+.collab-sidebar-collapse {
+  width: 100%;
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
 .collab-sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -3680,11 +3744,14 @@ export default {
   color: #334155;
   text-decoration: none;
   font-size: 14px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 .collab-sidebar-link:hover {
   background: #e2e8f0;
 }
-.collab-sidebar-link.router-link-active {
+.collab-sidebar-link.active {
   background: #dbeafe;
   color: #1d4ed8;
   font-weight: 600;
@@ -3695,8 +3762,28 @@ export default {
   color: #64748b;
   line-height: 1.4;
 }
+.collab-sidebar.collapsed .collab-sidebar-hint {
+  display: none;
+}
+
+.collab-sidebar-link-btn {
+  width: 100%;
+  text-align: left;
+}
+.collab-sidebar.collapsed .collab-sidebar-link {
+  padding: 10px 8px;
+  font-size: 13px;
+  text-align: center;
+}
+.collab-sidebar.collapsed .collab-sidebar-link-btn {
+  text-align: center;
+}
 .collab-table-main {
   flex: 1;
+  min-width: 0;
+}
+.collab-home-dashboard {
+  width: 100%;
   min-width: 0;
 }
 .link-table-list {

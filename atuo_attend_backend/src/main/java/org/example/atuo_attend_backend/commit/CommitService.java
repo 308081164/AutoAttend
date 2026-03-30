@@ -381,5 +381,14 @@ public class CommitService {
         if (authorEmail == null || authorEmail.isBlank() || since == null) return 0;
         return commitMapper.countByAuthorEmailSince(currentTenantId(), authorEmail.trim(), since);
     }
+
+    /**
+     * since 起至今（含当日）有提交行为的去重作者邮箱集合（author_email）。
+     * 用于判断「今日活跃」。
+     */
+    public List<String> listDistinctAuthorEmailsSince(OffsetDateTime since) {
+        if (since == null) return List.of();
+        return commitMapper.listDistinctAuthorEmailsSince(currentTenantId(), since);
+    }
 }
 

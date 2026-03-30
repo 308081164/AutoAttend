@@ -141,6 +141,85 @@
           </div>
         </div>
 
+        <!-- 查看 webhook 链接弹窗（仅用于首页“协作多维表项目”卡片） -->
+        <div v-if="showWebhookModal" class="webhook-modal-mask" @click.self="closeWebhookModal">
+          <div class="webhook-modal-card">
+            <div class="webhook-modal-head">
+              <h2 class="webhook-modal-title">{{ $t('dashboard.webhookModalTitle') }}</h2>
+              <button type="button" class="webhook-modal-close" @click="closeWebhookModal">×</button>
+            </div>
+
+            <p class="webhook-modal-desc">{{ $t('dashboard.webhookModalHint') }}</p>
+
+            <div v-if="webhookModalLoading" class="placeholder">{{ $t('collab.loading') }}</div>
+            <template v-else>
+              <div class="webhook-url-row">
+                <code class="mono webhook-url-code">{{ webhookUrl || '—' }}</code>
+                <button type="button" class="link-button" :disabled="!webhookUrl" @click="copyWebhookUrl">
+                  {{ $t('dashboard.consoleCopyId') }}
+                </button>
+              </div>
+              <span v-if="webhookCopiedMsg" class="webhook-copy-toast">{{ webhookCopiedMsg }}</span>
+            </template>
+          </div>
+        </div>
+
+        <!-- 团队成员展示选择弹窗 -->
+        <div v-if="showTeamPickerModal" class="team-picker-modal-mask" @click.self="closeTeamPickerModal">
+          <div class="team-picker-modal-card">
+            <div class="team-picker-modal-head">
+              <h2 class="team-picker-modal-title">{{ $t('dashboard.teamPickerTitle') }}</h2>
+              <button type="button" class="webhook-modal-close" @click="closeTeamPickerModal">×</button>
+            </div>
+
+            <p class="webhook-modal-desc">{{ $t('dashboard.teamPickerHint') }}</p>
+
+            <div v-if="teamPickerLoading" class="placeholder">{{ $t('collab.loading') }}</div>
+            <template v-else>
+              <div class="team-picker-toolbar">
+                <label class="team-picker-select-all">
+                  <input type="checkbox" :checked="pickerSelectAll" @change="onPickerSelectAllChange">
+                  {{ $t('dashboard.teamPickerSelectAll') }}
+                </label>
+              </div>
+
+              <div class="team-picker-list">
+                <div v-for="m in teamPickerPageMembers" :key="m.id" class="team-picker-row">
+                  <label class="team-picker-check">
+                    <input type="checkbox" :value="m.id" v-model="teamPickerSelectedIds">
+                    <span class="activity-dot"
+                          :class="m.activeToday ? 'dot-active' : 'dot-inactive'"></span>
+                    <img v-if="m.avatar" :src="avatarDisplayUrl(m.avatar)" class="member-avatar member-avatar-xs" alt="">
+                    <span v-else class="member-avatar member-avatar-placeholder member-avatar-xs">{{ memberInitial(m) }}</span>
+                    <span class="team-picker-name">
+                      {{ teamRoleLabel(m.role) }} {{ m.name || m.email || '—' }}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div v-if="teamPickerTotalPages > 1" class="team-hub-pagination">
+                <button type="button" class="link-button page-btn" :disabled="teamPickerPage <= 1" @click="teamPickerPrev">
+                  {{ $t('dashboard.pagePrev') || '上一页' }}
+                </button>
+                <span class="page-info">{{ teamPickerPage }} / {{ teamPickerTotalPages }}</span>
+                <button type="button" class="link-button page-btn" :disabled="teamPickerPage >= teamPickerTotalPages" @click="teamPickerNext">
+                  {{ $t('dashboard.pageNext') || '下一页' }}
+                </button>
+              </div>
+
+              <div class="team-picker-actions">
+                <button type="button" class="primary-button" :disabled="teamPickerSaving" @click="saveTeamPicker">
+                  {{ teamPickerSaving ? '…' : $t('teamManage.save') }}
+                </button>
+                <button type="button" class="secondary-button" @click="closeTeamPickerModal">
+                  {{ $t('teamManage.cancel') }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
         <div class="hub-grid">
           <section class="hub-card console-elevated hub-quote">
             <div class="hub-card-head">
@@ -211,6 +290,48 @@
               </div>
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubTeamDesc') }}</p>
+
+            <div class="team-activity-legend">
+              <span class="legend-item"><span class="activity-dot dot-active"></span>{{ $t('dashboard.todayActive') }}</span>
+              <span class="legend-item"><span class="activity-dot dot-inactive"></span>{{ $t('dashboard.todayInactive') }}</span>
+            </div>
+
+            <div class="team-hub-toolbar">
+              <button type="button" class="link-button" @click="openTeamPickerModal">
+                {{ $t('dashboard.teamPickerTitle') }}
+              </button>
+            </div>
+
+            <div v-if="teamMembersLoading" class="placeholder">{{ $t('collab.loading') }}</div>
+            <div v-else class="team-hub-members">
+              <div v-if="!displayedTeamMembers.length" class="placeholder">{{ $t('dashboard.teamEmpty') }}</div>
+              <div v-else class="team-hub-member-list">
+                <div v-for="m in displayedTeamMembers" :key="m.id" class="team-hub-member">
+                  <span class="activity-dot"
+                        :class="m.activeToday ? 'dot-active' : 'dot-inactive'"></span>
+                  <div class="member-avatar-wrap">
+                    <img v-if="m.avatar" :src="avatarDisplayUrl(m.avatar)" class="member-avatar" alt="">
+                    <span v-else class="member-avatar member-avatar-placeholder">{{ memberInitial(m) }}</span>
+                  </div>
+                  <div class="member-meta">
+                    <div class="member-role-name">
+                      {{ teamRoleLabel(m.role) }} {{ (m.name || m.email || '—') }}
+                    </div>
+                    <div v-if="m.jobTitle" class="member-job-title">{{ m.jobTitle }}</div>
+                  </div>
+                </div>
+              </div>
+              <div v-if="teamMembersTotalPages > 1" class="team-hub-pagination">
+                <button type="button" class="link-button page-btn" :disabled="teamMembersDisplayPage <= 1" @click="teamMembersDisplayPrev">
+                  {{ $t('dashboard.pagePrev') || '上一页' }}
+                </button>
+                <span class="page-info">{{ teamMembersDisplayPage }} / {{ teamMembersTotalPages }}</span>
+                <button type="button" class="link-button page-btn" :disabled="teamMembersDisplayPage >= teamMembersTotalPages" @click="teamMembersDisplayNext">
+                  {{ $t('dashboard.pageNext') || '下一页' }}
+                </button>
+              </div>
+            </div>
+
             <router-link to="/team" class="hub-block-link">{{ $t('dashboard.hubTeamOpen') }}</router-link>
             <router-link to="/tenant-admins" class="hub-block-link hub-block-link-sub">{{ $t('dashboard.hubTenantAdminsLink') }}</router-link>
           </section>
@@ -223,8 +344,16 @@
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubProjectHint') }}</p>
             <div class="repo-filter hub-repo-filter">
-              <label>{{ $t('dashboard.project') }}</label>
-              <select v-model="selectedRepo" @change="onRepoChange">
+              <button
+                type="button"
+                class="link-button"
+                :disabled="webhookModalLoading"
+                @click="openWebhookModal"
+              >
+                {{ webhookModalLoading ? '…' : $t('dashboard.viewWebhookLink') }}
+              </button>
+              <label v-if="!fixedRepoFullName">{{ $t('dashboard.project') }}</label>
+              <select v-if="!fixedRepoFullName" v-model="selectedRepo" @change="onRepoChange">
                 <option value="">{{ $t('dashboard.allProjects') }}</option>
                 <option v-for="repo in repos" :key="repo" :value="repo">{{ repo }}</option>
               </select>
@@ -601,6 +730,16 @@ const dailySummaryMarkdown = new MarkdownIt({
 
 export default {
   name: 'DashboardView',
+  props: {
+    /**
+     * 当从其它页面嵌入“看板”时，固定当前仓库（隐藏仓库下拉框）。
+     * 例如：项目协作页点击“开发与数据看板”时复用首页内容。
+     */
+    fixedRepoFullName: {
+      type: String,
+      default: ''
+    }
+  },
   data () {
     return {
       dashboard: null,
@@ -677,6 +816,28 @@ export default {
       subjectNaturalSaving: false,
       subjectNaturalMsg: '',
       subjectNaturalOk: false,
+
+      // 查看 webhook 链接弹窗：仅用于首页“协作多维表项目”卡片
+      showWebhookModal: false,
+      webhookModalLoading: false,
+      webhookCopiedMsg: '',
+      tenantSlug: '',
+      webhookUrl: '',
+
+      // 团队管理卡片：头像+姓名+活跃状态（今日活跃/不活跃）
+      teamMembersLoading: false,
+      teamMembers: [],
+      teamSelectedMemberIds: null, // null 表示全选展示
+      teamMembersDisplayPage: 1,
+      teamMembersDisplayPageSize: 6,
+
+      showTeamPickerModal: false,
+      teamPickerLoading: false,
+      teamPickerSaving: false,
+      teamPickerPage: 1,
+      teamPickerPageSize: 10,
+      teamPickerSelectedIds: []
+
       /** 当前版本默认视为已认证；后续可对接企业认证接口 */
       enterpriseVerified: true
     }
@@ -793,6 +954,56 @@ export default {
       if (this.teamHubCount == null) return '—'
       return this.teamHubCount
     },
+    teamMembersAllSorted () {
+      const list = Array.isArray(this.teamMembers) ? this.teamMembers.slice() : []
+      list.sort((a, b) => {
+        const aa = !!a.activeToday
+        const bb = !!b.activeToday
+        if (aa !== bb) return aa ? -1 : 1
+        const na = (a.name || a.email || '').toString().toLowerCase()
+        const nb = (b.name || b.email || '').toString().toLowerCase()
+        if (na === nb) return 0
+        return na < nb ? -1 : 1
+      })
+      return list
+    },
+    teamMembersEffective () {
+      const all = this.teamMembersAllSorted
+      if (!Array.isArray(all) || !all.length) return []
+      if (this.teamSelectedMemberIds == null) return all
+      const set = new Set(this.teamSelectedMemberIds)
+      return all.filter(m => set.has(m.id))
+    },
+    teamMembersTotalPages () {
+      const n = this.teamMembersEffective.length
+      const ps = this.teamMembersDisplayPageSize || 6
+      return Math.max(1, Math.ceil(n / ps))
+    },
+    displayedTeamMembers () {
+      const list = this.teamMembersEffective
+      const ps = this.teamMembersDisplayPageSize || 6
+      const totalPages = Math.max(1, Math.ceil((list.length || 0) / ps))
+      const page = Math.min(Math.max(1, this.teamMembersDisplayPage || 1), totalPages)
+      const start = (page - 1) * ps
+      return list.slice(start, start + ps)
+    },
+    pickerSelectAll () {
+      if (!Array.isArray(this.teamMembers) || !this.teamMembers.length) return false
+      return Array.isArray(this.teamPickerSelectedIds) && this.teamPickerSelectedIds.length === this.teamMembers.length
+    },
+    teamPickerPageMembers () {
+      const list = this.teamMembersAllSorted
+      const ps = this.teamPickerPageSize || 10
+      const totalPages = Math.max(1, Math.ceil((list.length || 0) / ps))
+      const page = Math.min(Math.max(1, this.teamPickerPage || 1), totalPages)
+      const start = (page - 1) * ps
+      return list.slice(start, start + ps)
+    },
+    teamPickerTotalPages () {
+      const list = Array.isArray(this.teamMembers) ? this.teamMembers : []
+      const ps = this.teamPickerPageSize || 10
+      return Math.max(1, Math.ceil(list.length / ps))
+    },
     aiHubDeepseekLine () {
       return this.formatAiProviderLine(this.aiHub.deepseek)
     },
@@ -816,6 +1027,9 @@ export default {
     }
   },
   created () {
+    if (this.fixedRepoFullName) {
+      this.selectedRepo = String(this.fixedRepoFullName)
+    }
     this.loadDashboard()
     this.loadCommits().then(() => this.tryOpenCommitFromQuery())
     this.loadStatsOverview()
@@ -892,6 +1106,128 @@ export default {
     closeSubjectModal () {
       this.showSubjectModal = false
       if (!this.selectedCommit) document.body.style.overflow = ''
+    },
+    async openWebhookModal () {
+      this.showWebhookModal = true
+      this.webhookCopiedMsg = ''
+      this.webhookUrl = ''
+      this.webhookModalLoading = true
+      try {
+        const resp = await this.$http.get('/admin/auth/me')
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.slug) {
+          this.tenantSlug = resp.data.data.slug
+        }
+        const slug = this.tenantSlug
+        if (slug) {
+          this.webhookUrl = window.location.origin + '/api/webhooks/github/' + encodeURIComponent(slug)
+        }
+      } catch (e) {
+        this.webhookUrl = ''
+      } finally {
+        this.webhookModalLoading = false
+      }
+    },
+    closeWebhookModal () {
+      this.showWebhookModal = false
+      this.webhookCopiedMsg = ''
+    },
+    openTeamPickerModal () {
+      if (!Array.isArray(this.teamMembers) || !this.teamMembers.length) return
+      this.showTeamPickerModal = true
+      this.teamPickerSaving = false
+      this.teamPickerLoading = false
+      this.teamPickerPage = 1
+      if (this.teamSelectedMemberIds == null) {
+        this.teamPickerSelectedIds = this.teamMembersAllSorted.map(m => m.id)
+      } else {
+        this.teamPickerSelectedIds = this.teamSelectedMemberIds.slice()
+      }
+    },
+    closeTeamPickerModal () {
+      this.showTeamPickerModal = false
+    },
+    onPickerSelectAllChange (e) {
+      const checked = e && e.target ? !!e.target.checked : false
+      if (checked) {
+        this.teamPickerSelectedIds = this.teamMembersAllSorted.map(m => m.id)
+      } else {
+        this.teamPickerSelectedIds = []
+      }
+    },
+    teamPickerPrev () {
+      if (this.teamPickerPage <= 1) return
+      this.teamPickerPage -= 1
+    },
+    teamPickerNext () {
+      if (this.teamPickerPage >= this.teamPickerTotalPages) return
+      this.teamPickerPage += 1
+    },
+    saveTeamPicker () {
+      this.teamPickerSaving = true
+      try {
+        const ids = Array.isArray(this.teamPickerSelectedIds) ? this.teamPickerSelectedIds.slice() : []
+        // 全选：用 null 表示（避免保存一堆 id）
+        if (ids.length === this.teamMembers.length) {
+          this.teamSelectedMemberIds = null
+        } else {
+          this.teamSelectedMemberIds = ids
+        }
+        this.teamMembersDisplayPage = 1
+        this.closeTeamPickerModal()
+      } finally {
+        this.teamPickerSaving = false
+      }
+    },
+    teamMembersDisplayPrev () {
+      if (this.teamMembersDisplayPage <= 1) return
+      this.teamMembersDisplayPage -= 1
+    },
+    teamMembersDisplayNext () {
+      if (this.teamMembersDisplayPage >= this.teamMembersTotalPages) return
+      this.teamMembersDisplayPage += 1
+    },
+    memberInitial (m) {
+      const name = (m && (m.name || m.email)) ? (m.name || m.email) : ''
+      if (!name) return '?'
+      return String(name).charAt(0).toUpperCase()
+    },
+    avatarDisplayUrl (avatarKey) {
+      if (!avatarKey || !String(avatarKey).trim()) return ''
+      const s = String(avatarKey).trim()
+      if (s.startsWith('http://') || s.startsWith('https://')) return s
+      const base = this.$http && this.$http.defaults && this.$http.defaults.baseURL ? this.$http.defaults.baseURL : '/api'
+      return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
+    },
+    teamRoleLabel (role) {
+      if (!role) return '—'
+      const map = {
+        member: this.$t('teamManage.roleMember'),
+        sub_admin: this.$t('teamManage.roleSubAdmin'),
+        super_admin: this.$t('teamManage.roleSuperAdmin')
+      }
+      return map[role] || role
+    },
+    async copyWebhookUrl () {
+      const url = this.webhookUrl
+      if (!url) return
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(url)
+          this.webhookCopiedMsg = this.$t('dashboard.consoleCopied')
+          setTimeout(() => { this.webhookCopiedMsg = '' }, 2000)
+          return
+        } catch (e) { /* fallback */ }
+      }
+      const ta = document.createElement('textarea')
+      ta.value = url
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+        this.webhookCopiedMsg = this.$t('dashboard.consoleCopied')
+        setTimeout(() => { this.webhookCopiedMsg = '' }, 2000)
+      } catch (e) { /* ignore */ }
+      document.body.removeChild(ta)
     },
     syncSubjectEditsFromPartyBProfile () {
       const d = this.partyBProfile || {}
@@ -1046,17 +1382,39 @@ export default {
     },
     async loadTeamHub () {
       this.teamHubLoading = true
+      this.teamMembersLoading = true
       try {
-        const r = await this.$http.get('/admin/team/members')
-        if (r.data && r.data.code === 0 && Array.isArray(r.data.data)) {
-          this.teamHubCount = r.data.data.length
-        } else {
-          this.teamHubCount = 0
+        const [mResp, aResp] = await Promise.all([
+          this.$http.get('/admin/team/members'),
+          this.$http.get('/admin/team/active-authors-today').catch(() => ({ data: null }))
+        ])
+
+        const members = (mResp.data && mResp.data.code === 0 && Array.isArray(mResp.data.data))
+          ? mResp.data.data
+          : []
+
+        const emailsRaw = aResp.data && aResp.data.code === 0 && aResp.data.data ? aResp.data.data.emails : []
+        const activeSet = new Set((emailsRaw || []).map(e => (e || '').toString().trim().toLowerCase()).filter(Boolean))
+
+        this.teamMembers = (members || []).map(m => {
+          const email = (m.email || '').toString().trim().toLowerCase()
+          return Object.assign({}, m, { activeToday: activeSet.has(email) })
+        })
+        this.teamHubCount = this.teamMembers.length
+
+        // 初始化：默认全选（teamSelectedMemberIds=null）
+        if (this.teamSelectedMemberIds != null && Array.isArray(this.teamSelectedMemberIds)) {
+          // 过滤掉已不存在的成员
+          const exist = new Set(this.teamMembers.map(x => x.id))
+          this.teamSelectedMemberIds = this.teamSelectedMemberIds.filter(id => exist.has(id))
+          if (!this.teamSelectedMemberIds.length) this.teamSelectedMemberIds = null
         }
       } catch (e) {
         this.teamHubCount = null
+        this.teamMembers = []
       } finally {
         this.teamHubLoading = false
+        this.teamMembersLoading = false
       }
     },
     async loadAiHub () {
@@ -1832,6 +2190,290 @@ export default {
   font-size: 13px;
 }
 
+/* Webhook URL modal */
+.webhook-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.webhook-modal-card {
+  width: min(860px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px 18px 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+}
+
+.webhook-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.webhook-modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.webhook-modal-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.webhook-modal-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.webhook-url-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.webhook-url-code {
+  flex: 1;
+  min-width: 420px;
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.webhook-copy-toast {
+  display: inline-block;
+  margin-top: 10px;
+  color: #2563eb;
+  font-size: 13px;
+}
+
+/* Team members activity dots */
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.activity-dot.dot-active {
+  background: #22c55e; /* green */
+}
+
+.activity-dot.dot-inactive {
+  background: #9ca3af; /* gray */
+}
+
+/* Team hub members */
+.team-activity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+  margin-top: -4px;
+}
+
+.team-activity-legend .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.team-hub-toolbar {
+  margin-bottom: 10px;
+}
+
+.team-hub-members {
+  margin-top: 6px;
+}
+
+.team-hub-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.team-hub-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-avatar-wrap {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.member-avatar {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  display: block;
+}
+
+.member-avatar-placeholder {
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.member-avatar-xs {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.team-hub-pagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.team-picker-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
+  padding: 20px;
+}
+
+.team-picker-modal-card {
+  width: min(920px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px 18px 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+}
+
+.team-picker-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.team-picker-modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.team-picker-toolbar {
+  margin-bottom: 12px;
+}
+
+.team-picker-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.team-picker-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fafafa;
+}
+
+.team-picker-row {
+  margin-bottom: 10px;
+}
+
+.team-picker-row:last-child {
+  margin-bottom: 0;
+}
+
+.team-picker-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.team-picker-check input[type="checkbox"] {
+  transform: translateY(1px);
+}
+
+.team-picker-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.member-meta {
+  min-width: 0;
+}
+
+.member-role-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.member-job-title {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.team-hub-pagination .page-info {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
 .identity-meta-row {
   display: flex;
   flex-wrap: wrap;
@@ -2180,10 +2822,14 @@ export default {
 
 .hub-repo-filter {
   margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .hub-repo-filter label {
-  margin-right: 8px;
+  margin-right: 0;
 }
 
 .hub-mini-overview {

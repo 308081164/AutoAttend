@@ -152,6 +152,16 @@ public interface CommitMapper {
     long countByAuthorEmailSince(@Param("tenantId") long tenantId, @Param("authorEmail") String authorEmail,
                                 @Param("since") java.time.OffsetDateTime since);
 
+    /** 在 since 起至今（含当日）有提交行为的去重作者邮箱集合（author_email 去重） */
+    @Select("""
+            SELECT DISTINCT author_email
+            FROM aa_commit
+            WHERE tenant_id = #{tenantId} AND committed_at >= #{since}
+              AND author_email IS NOT NULL AND author_email <> ''
+            """)
+    List<String> listDistinctAuthorEmailsSince(@Param("tenantId") long tenantId,
+                                                 @Param("since") java.time.OffsetDateTime since);
+
     @Select("SELECT DISTINCT repo_full_name FROM aa_commit WHERE tenant_id = #{tenantId} ORDER BY repo_full_name")
     List<String> listDistinctRepos(@Param("tenantId") long tenantId);
 

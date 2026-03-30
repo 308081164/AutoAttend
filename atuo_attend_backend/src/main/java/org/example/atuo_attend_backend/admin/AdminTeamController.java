@@ -22,6 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.*;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.stream.Collectors;
 
 @RestController
@@ -94,6 +96,28 @@ public class AdminTeamController {
         List<BizUser> list = teamService.listMembers();
         List<Map<String, Object>> items = list.stream().map(u -> toMemberMap(u)).collect(Collectors.toList());
         return ApiResponse.ok(items);
+    }
+
+    /**
+     * 获取今日活跃作者邮箱集合（author_email 维度，来源 aa_commit）。
+     * 前端用于判断「今日活跃/不活跃」。
+     */
+    @GetMapping("/members/active-authors-today")
+    public ApiResponse<Map<String, Object>> activeAuthorsToday() {
+        // 与 CommitService 的统计口径一致：Asia/Shanghai
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        OffsetDateTime since = OffsetDateTime.now(zone).toLocalDate().atStartOfDay(zone).toOffsetDateTime();
+        List<String> emails = commitService.listDistinctAuthorEmailsSince(since);
+        // 脱敏/规范：统一成小写避免大小写导致匹配失败
+        List<String> normalized = emails == null ? List.of() : emails.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(String::toLowerCase)
+                .collect(Collectors.toList());
+        Map<String, Object> data = new HashMap<>();
+        data.put("emails", normalized);
+        return ApiResponse.ok(data);
     }
 
     @GetMapping("/members/{id}")
