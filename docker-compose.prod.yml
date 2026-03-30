@@ -65,8 +65,8 @@ services:
       DB_NAME: autoattend
       DB_USER: autoattend
       DB_PASSWORD: autoattend_pwd
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: admin123
+      # ADMIN_USERNAME: admin  # 已废弃：旧版环境变量管理员，系统已迁移到多租户手机号认证
+      # ADMIN_PASSWORD: admin123  # 已废弃：旧版环境变量管理员，系统已迁移到多租户手机号认证
       # GitHub Token 仅通过管理后台「AI 配置」页填写并存入数据库，不在此处配置，避免泄露
       # 大陆服务器可设置 HTTP/SOCKS 代理以访问 api.github.com，如 http://127.0.0.1:7890
       GITHUB_API_PROXY: ${GITHUB_API_PROXY:-}
