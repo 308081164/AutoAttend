@@ -36,7 +36,7 @@ public class PlatformAuthService {
         String token = UUID.randomUUID().toString();
         PlatformSession s = new PlatformSession();
         s.setToken(token);
-        s.setExpiresAt(LocalDateTime.now().plusSeconds(SESSION_SECONDS));
+        // expires_at 现在由数据库的 NOW() + INTERVAL 7200 SECOND 计算，确保时区一致
         platformSessionMapper.insert(s);
         return token;
     }

@@ -10,7 +10,7 @@ public interface PlatformSessionMapper {
             + "WHERE token = #{token} AND expires_at > NOW()")
     PlatformSession findValidByToken(@Param("token") String token);
 
-    @Insert("INSERT INTO aa_platform_session (token, expires_at) VALUES (#{token}, #{expiresAt})")
+    @Insert("INSERT INTO aa_platform_session (token, expires_at) VALUES (#{token}, NOW() + INTERVAL 7200 SECOND)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(PlatformSession session);
 
