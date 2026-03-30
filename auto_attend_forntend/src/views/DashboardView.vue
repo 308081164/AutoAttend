@@ -8,7 +8,9 @@
             <div class="identity-text">
               <div class="identity-title-row">
                 <h1 class="identity-name">{{ companyDisplayName }}</h1>
-                <router-link to="/quote/config" class="identity-edit-subject">{{ $t('dashboard.consoleEditSubject') }}</router-link>
+                <button type="button" class="identity-edit-subject" @click="openSubjectModal">
+                  {{ $t('dashboard.consoleEditSubject') }}
+                </button>
               </div>
               <div class="identity-meta-row">
                 <span class="identity-id-label">{{ $t('dashboard.consoleLoginId') }}</span>
@@ -27,6 +29,117 @@
             </div>
           </div>
         </section>
+
+        <!-- 仅编辑「主体信息」：复用报价配置里的 party-b-profile 接口 -->
+        <div v-if="showSubjectModal" class="subject-modal-mask" @click.self="closeSubjectModal">
+          <div class="subject-modal-card">
+            <div class="subject-modal-head">
+              <h2 class="subject-modal-title">{{ $t('dashboard.consoleEditSubject') }}</h2>
+              <button type="button" class="subject-modal-close" @click="closeSubjectModal">×</button>
+            </div>
+
+            <div class="subject-logo-row">
+              <div v-if="subjectEditLegal.enterpriseLogo" class="subject-logo-preview">
+                <img :src="enterpriseLogoPreviewUrl" alt="enterprise logo">
+              </div>
+              <button type="button" class="secondary-button" :disabled="enterpriseLogoUploading" @click="pickEnterpriseLogo">
+                {{ enterpriseLogoUploading ? '上传中…' : '添加企业logo' }}
+              </button>
+              <input ref="enterpriseLogoFileInput" type="file"
+                     accept="image/png,image/jpeg,image/gif,image/webp"
+                     class="subject-hidden-input"
+                     @change="onEnterpriseLogoFileChange">
+            </div>
+
+            <section class="subject-edit-section">
+              <h3 class="subject-section-title">{{ $t('quote.partyBLegalSubtitle') }}</h3>
+              <div class="subject-grid">
+                <label class="subject-label">
+                  {{ $t('quote.partyBLegalName') }}
+                  <input v-model="subjectEditLegal.legalName" type="text" class="subject-input">
+                </label>
+                <label class="subject-label">
+                  {{ $t('quote.partyBCreditCode') }}
+                  <input v-model="subjectEditLegal.creditCode" type="text" class="subject-input">
+                </label>
+                <label class="subject-label subject-full">
+                  {{ $t('quote.partyBAddress') }}
+                  <input v-model="subjectEditLegal.address" type="text" class="subject-input">
+                </label>
+                <label class="subject-label">
+                  {{ $t('quote.partyBContactName') }}
+                  <input v-model="subjectEditLegal.contactName" type="text" class="subject-input">
+                </label>
+                <label class="subject-label">
+                  {{ $t('quote.partyBContactPhone') }}
+                  <input v-model="subjectEditLegal.contactPhone" type="text" class="subject-input">
+                </label>
+                <label class="subject-label">
+                  {{ $t('quote.partyBBankName') }}
+                  <input v-model="subjectEditLegal.bankName" type="text" class="subject-input">
+                </label>
+                <label class="subject-label subject-full">
+                  {{ $t('quote.partyBBankAccount') }}
+                  <input v-model="subjectEditLegal.bankAccount" type="text" class="subject-input">
+                </label>
+              </div>
+
+              <div class="subject-section-actions">
+                <button type="button" class="primary-button" :disabled="subjectLegalSaving" @click="saveSubjectLegal">
+                  {{ subjectLegalSaving ? '…' : $t('quote.partyBSave') }}
+                </button>
+                <span v-if="subjectLegalMsg" :class="subjectLegalOk ? 'subject-msg-ok' : 'subject-msg-err'">
+                  {{ subjectLegalMsg }}
+                </span>
+              </div>
+            </section>
+
+            <section class="subject-edit-section">
+              <h3 class="subject-section-title">{{ $t('quote.partyBNaturalSectionTitle') }}</h3>
+              <p class="subject-section-hint">{{ $t('quote.partyBNaturalSectionHint') }}</p>
+              <div class="subject-grid">
+                <label class="subject-label subject-full">
+                  {{ $t('quote.partyBNaturalFullName') }}
+                  <input v-model="subjectEditNatural.fullName" type="text" class="subject-input">
+                </label>
+                <label class="subject-label subject-full">
+                  {{ $t('quote.partyBNaturalIdNumber') }}
+                  <input v-model="subjectEditNatural.idNumber" type="text" class="subject-input">
+                </label>
+                <label class="subject-label subject-full">
+                  {{ $t('quote.partyBNaturalAddress') }}
+                  <input v-model="subjectEditNatural.address" type="text" class="subject-input">
+                </label>
+                <label class="subject-label">
+                  {{ $t('quote.partyBNaturalContactPhone') }}
+                  <input v-model="subjectEditNatural.contactPhone" type="text" class="subject-input">
+                </label>
+                <label class="subject-label">
+                  {{ $t('quote.partyBNaturalEmail') }}
+                  <input v-model="subjectEditNatural.email" type="email" class="subject-input" autocomplete="off">
+                </label>
+                <label class="subject-label">
+                  {{ $t('quote.partyBBankName') }}
+                  <input v-model="subjectEditNatural.bankName" type="text" class="subject-input">
+                </label>
+                <label class="subject-label subject-full">
+                  {{ $t('quote.partyBBankAccount') }}
+                  <input v-model="subjectEditNatural.bankAccount" type="text" class="subject-input">
+                </label>
+              </div>
+
+              <div class="subject-section-actions">
+                <button type="button" class="primary-button" :disabled="subjectNaturalSaving" @click="saveSubjectNatural">
+                  {{ subjectNaturalSaving ? '…' : $t('quote.partyBNaturalSave') }}
+                </button>
+                <span v-if="subjectNaturalMsg" :class="subjectNaturalOk ? 'subject-msg-ok' : 'subject-msg-err'">
+                  {{ subjectNaturalMsg }}
+                </span>
+              </div>
+            </section>
+
+          </div>
+        </div>
 
         <div class="hub-grid">
           <section class="hub-card console-elevated hub-quote">
@@ -474,6 +587,7 @@
 <script>
 import { Chart as ChartJS, registerables } from 'chart.js'
 import MarkdownIt from 'markdown-it'
+import { compressImageFile, IMAGE_COMPRESS_PRESETS } from '@/utils/imageCompress'
 
 ChartJS.register(...registerables)
 
@@ -535,6 +649,34 @@ export default {
       copyIdentityMsg: '',
       partyBProfile: null,
       partyBProfileLoading: false,
+      // 仅主体信息弹窗：复用 /admin/quote/party-b-profile 的同一套数据源
+      showSubjectModal: false,
+      subjectEditLegal: {
+        legalName: '',
+        creditCode: '',
+        address: '',
+        contactName: '',
+        contactPhone: '',
+        bankName: '',
+        bankAccount: '',
+        enterpriseLogo: ''
+      },
+      subjectEditNatural: {
+        fullName: '',
+        idNumber: '',
+        address: '',
+        contactPhone: '',
+        email: '',
+        bankName: '',
+        bankAccount: ''
+      },
+      enterpriseLogoUploading: false,
+      subjectLegalSaving: false,
+      subjectLegalMsg: '',
+      subjectLegalOk: false,
+      subjectNaturalSaving: false,
+      subjectNaturalMsg: '',
+      subjectNaturalOk: false,
       /** 当前版本默认视为已认证；后续可对接企业认证接口 */
       enterpriseVerified: true
     }
@@ -635,6 +777,14 @@ export default {
       if (!n || n === '…') return '?'
       return String(n).charAt(0).toUpperCase()
     },
+    enterpriseLogoPreviewUrl () {
+      const key = this.subjectEditLegal && this.subjectEditLegal.enterpriseLogo
+      if (!key) return ''
+      const s = String(key).trim()
+      if (!s) return ''
+      const base = this.$http && this.$http.defaults && this.$http.defaults.baseURL ? this.$http.defaults.baseURL : '/api'
+      return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
+    },
     consoleLoginIdDisplay () {
       return this.consoleLoginIdRaw || '—'
     },
@@ -726,6 +876,140 @@ export default {
       this.loadTeamHub()
       this.loadAiHub()
       this.loadPartyBProfileForHeader()
+    },
+    openSubjectModal () {
+      // partyBProfile 由 loadConsoleHub 拉取；若仍在加载，避免覆盖用户编辑
+      if (this.partyBProfileLoading) return
+      this.syncSubjectEditsFromPartyBProfile()
+
+      this.subjectLegalMsg = ''
+      this.subjectNaturalMsg = ''
+      this.subjectLegalOk = false
+      this.subjectNaturalOk = false
+      this.showSubjectModal = true
+      if (!this.selectedCommit) document.body.style.overflow = 'hidden'
+    },
+    closeSubjectModal () {
+      this.showSubjectModal = false
+      if (!this.selectedCommit) document.body.style.overflow = ''
+    },
+    syncSubjectEditsFromPartyBProfile () {
+      const d = this.partyBProfile || {}
+      const np = d.naturalPerson && typeof d.naturalPerson === 'object' ? d.naturalPerson : {}
+      this.subjectEditLegal = {
+        legalName: d.legalName || '',
+        creditCode: d.creditCode || '',
+        address: d.address || '',
+        contactName: d.contactName || '',
+        contactPhone: d.contactPhone || '',
+        bankName: d.bankName || '',
+        bankAccount: d.bankAccount || '',
+        enterpriseLogo: d.enterpriseLogo || ''
+      }
+      this.subjectEditNatural = {
+        fullName: np.fullName || '',
+        idNumber: np.idNumber || '',
+        address: np.address || '',
+        contactPhone: np.contactPhone || '',
+        email: np.email || '',
+        bankName: np.bankName || '',
+        bankAccount: np.bankAccount || ''
+      }
+    },
+    pickEnterpriseLogo () {
+      if (!this.$refs.enterpriseLogoFileInput) return
+      this.$refs.enterpriseLogoFileInput.click()
+    },
+    async onEnterpriseLogoFileChange (e) {
+      const file = e && e.target && e.target.files && e.target.files[0]
+      if (!file) return
+      this.enterpriseLogoUploading = true
+      try {
+        const name = (file.name || '').toLowerCase()
+        if (!name.endsWith('.png') && !name.endsWith('.jpg') && !name.endsWith('.jpeg') && !name.endsWith('.gif') && !name.endsWith('.webp')) {
+          alert('请选择 PNG/JPG/GIF/WEBP 图片')
+          e.target.value = ''
+          return
+        }
+        const uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
+        const form = new FormData()
+        form.append('file', uploadFile)
+        const r = await this.$http.post('/admin/team/avatar-upload', form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (r.data && r.data.code === 0 && r.data.data && r.data.data.key) {
+          // 这里复用 avatar-upload：仅负责把图片存入 MinIO 并返回 key
+          this.subjectEditLegal.enterpriseLogo = r.data.data.key
+          // 不强制立刻保存到 party-b-profile：用户点击保存主体信息才会写入 JSON
+        } else {
+          alert(r.data && r.data.message ? r.data.message : '上传失败')
+        }
+      } catch (err) {
+        alert(err.response && err.response.data && err.response.data.message ? err.response.data.message : '上传失败')
+      } finally {
+        this.enterpriseLogoUploading = false
+        if (e && e.target) e.target.value = ''
+      }
+    },
+    partyBLegalPayloadForModal () {
+      return {
+        legalName: this.subjectEditLegal.legalName,
+        creditCode: this.subjectEditLegal.creditCode,
+        address: this.subjectEditLegal.address,
+        contactName: this.subjectEditLegal.contactName,
+        contactPhone: this.subjectEditLegal.contactPhone,
+        bankName: this.subjectEditLegal.bankName,
+        bankAccount: this.subjectEditLegal.bankAccount,
+        // 预留：仅由弹窗写入；报价配置页仍会通过同一接口读取并保持同步
+        enterpriseLogo: this.subjectEditLegal.enterpriseLogo
+      }
+    },
+    async saveSubjectLegal () {
+      this.subjectLegalSaving = true
+      this.subjectLegalMsg = ''
+      this.subjectLegalOk = false
+      try {
+        const resp = await this.$http.put('/admin/quote/party-b-profile', this.partyBLegalPayloadForModal())
+        if (resp.data && resp.data.code === 0) {
+          this.subjectLegalOk = true
+          this.subjectLegalMsg = this.$t('quote.partyBSaveOk')
+          await this.loadPartyBProfileForHeader()
+          // 保存后重新同步一遍，避免用户上传 logo 但保存失败导致显示偏差
+          this.syncSubjectEditsFromPartyBProfile()
+        } else {
+          this.subjectLegalOk = false
+          this.subjectLegalMsg = (resp.data && resp.data.message) || this.$t('quote.partyBSaveFail')
+        }
+      } catch (e) {
+        this.subjectLegalOk = false
+        this.subjectLegalMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.partyBSaveFail')
+      } finally {
+        this.subjectLegalSaving = false
+      }
+    },
+    async saveSubjectNatural () {
+      this.subjectNaturalSaving = true
+      this.subjectNaturalMsg = ''
+      this.subjectNaturalOk = false
+      try {
+        const resp = await this.$http.put('/admin/quote/party-b-profile', {
+          naturalPerson: { ...this.subjectEditNatural }
+        })
+        if (resp.data && resp.data.code === 0) {
+          this.subjectNaturalOk = true
+          this.subjectNaturalMsg = this.$t('quote.partyBSaveOk')
+          await this.loadPartyBProfileForHeader()
+          this.syncSubjectEditsFromPartyBProfile()
+        } else {
+          this.subjectNaturalOk = false
+          this.subjectNaturalMsg = (resp.data && resp.data.message) || this.$t('quote.partyBSaveFail')
+        }
+      } catch (e) {
+        this.subjectNaturalOk = false
+        this.subjectNaturalMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.partyBSaveFail')
+      } finally {
+        this.subjectNaturalSaving = false
+      }
     },
     async loadPartyBProfileForHeader () {
       this.partyBProfileLoading = true
@@ -1398,10 +1682,154 @@ export default {
   font-weight: 500;
   color: #2563eb;
   text-decoration: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 .identity-edit-subject:hover {
   text-decoration: underline;
+}
+
+/* Subject edit modal (Dashboard only) */
+.subject-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.subject-modal-card {
+  width: min(980px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px 18px 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+}
+
+.subject-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.subject-modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.subject-modal-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.subject-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.subject-logo-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  max-width: 180px;
+}
+
+.subject-logo-preview img {
+  max-height: 56px;
+  max-width: 180px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.subject-hidden-input {
+  display: none;
+}
+
+.subject-edit-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.subject-section-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.subject-section-hint {
+  margin: -6px 0 12px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.subject-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.subject-full {
+  grid-column: 1 / -1;
+}
+
+.subject-label {
+  font-size: 13px;
+  color: #374151;
+  display: block;
+}
+
+.subject-input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.subject-section-actions {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.subject-msg-ok {
+  color: #059669;
+  font-size: 13px;
+}
+
+.subject-msg-err {
+  color: #dc2626;
+  font-size: 13px;
 }
 
 .identity-meta-row {
