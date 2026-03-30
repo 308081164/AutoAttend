@@ -290,13 +290,11 @@
               </div>
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubTeamDesc') }}</p>
-
-            <div class="team-activity-legend">
-              <span class="legend-item"><span class="activity-dot dot-active"></span>{{ $t('dashboard.todayActive') }}</span>
-              <span class="legend-item"><span class="activity-dot dot-inactive"></span>{{ $t('dashboard.todayInactive') }}</span>
-            </div>
-
             <div class="team-hub-toolbar">
+              <div class="team-activity-legend">
+                <span class="legend-item"><span class="activity-dot dot-active"></span>{{ $t('dashboard.todayActive') }}</span>
+                <span class="legend-item"><span class="activity-dot dot-inactive"></span>{{ $t('dashboard.todayInactive') }}</span>
+              </div>
               <button type="button" class="link-button" @click="openTeamPickerModal">
                 {{ $t('dashboard.teamPickerTitle') }}
               </button>
@@ -314,10 +312,13 @@
                     <span v-else class="member-avatar member-avatar-placeholder">{{ memberInitial(m) }}</span>
                   </div>
                   <div class="member-meta">
-                    <div class="member-role-name">
-                      {{ teamRoleLabel(m.role) }} {{ (m.name || m.email || '—') }}
+                    <div class="member-name">
+                      {{ (m.name || m.email || '—') }}
                     </div>
-                    <div v-if="m.jobTitle" class="member-job-title">{{ m.jobTitle }}</div>
+                    <div class="member-subline">
+                      <span class="member-role-tag" :class="teamRoleTagClass(m.role)">{{ teamRoleLabel(m.role) }}</span>
+                      <span v-if="m.jobTitle" class="member-job-title-inline">{{ m.jobTitle }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1206,6 +1207,13 @@ export default {
         super_admin: this.$t('teamManage.roleSuperAdmin')
       }
       return map[role] || role
+    },
+    teamRoleTagClass (role) {
+      const r = (role || '').toString()
+      if (r === 'super_admin') return 'tag-super-admin'
+      if (r === 'sub_admin') return 'tag-sub-admin'
+      if (r === 'member') return 'tag-member'
+      return 'tag-other'
     },
     async copyWebhookUrl () {
       const url = this.webhookUrl
@@ -2314,14 +2322,14 @@ export default {
 }
 
 .team-hub-member-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
 }
 
 .team-hub-member {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 
@@ -2452,7 +2460,7 @@ export default {
   min-width: 0;
 }
 
-.member-role-name {
+.member-name {
   font-size: 13px;
   font-weight: 700;
   color: #0f172a;
@@ -2462,16 +2470,67 @@ export default {
   flex-wrap: wrap;
 }
 
-.member-job-title {
+.member-subline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.member-role-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  line-height: 16px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.member-role-tag.tag-super-admin {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.member-role-tag.tag-sub-admin {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.member-role-tag.tag-member {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.member-role-tag.tag-other {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.member-job-title-inline {
   font-size: 12px;
   color: #64748b;
-  margin-top: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .team-hub-pagination .page-info {
   font-size: 13px;
   color: #334155;
   font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .team-hub-member-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .identity-meta-row {
