@@ -1386,7 +1386,7 @@ export default {
       try {
         const [mResp, aResp] = await Promise.all([
           this.$http.get('/admin/team/members'),
-          this.$http.get('/admin/team/active-authors-today').catch(() => ({ data: null }))
+          this.$http.get('/admin/team/members/active-authors-today').catch(() => ({ data: null }))
         ])
 
         const members = (mResp.data && mResp.data.code === 0 && Array.isArray(mResp.data.data))

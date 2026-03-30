@@ -64,6 +64,13 @@ public class AdminAuthFilter implements Filter {
             return;
         }
 
+        // 头像用于 <img src="...">：浏览器图片请求无法携带 Authorization 头
+        // 因此对 GET /api/admin/team/avatar 做白名单放行；MinIO key 仍在接口内校验 avatars/ 前缀。
+        if ("/api/admin/team/avatar".equals(uri) && "GET".equalsIgnoreCase(req.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         String auth = req.getHeader("Authorization");
         String token = null;
         if (auth != null && auth.startsWith("Bearer ")) {
