@@ -836,7 +836,7 @@ export default {
       teamPickerSaving: false,
       teamPickerPage: 1,
       teamPickerPageSize: 10,
-      teamPickerSelectedIds: []
+      teamPickerSelectedIds: [],
 
       /** 当前版本默认视为已认证；后续可对接企业认证接口 */
       enterpriseVerified: true

@@ -773,6 +773,9 @@ ChartJS.register(...registerables)
 
 export default {
   name: 'CollabTableView',
+  components: {
+    DashboardView
+  },
   data () {
     return {
       projectId: null,
