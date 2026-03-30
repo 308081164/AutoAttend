@@ -149,7 +149,7 @@ public class AdminAuthService {
         session.setToken(token);
         session.setUserId(user.getId());
         session.setTenantId(user.getTenantId());
-        session.setExpiresAt(LocalDateTime.now().plusSeconds(SESSION_SECONDS));
+        // expires_at 现在由数据库的 NOW() + INTERVAL 7200 SECOND 计算，确保时区一致
         adminSessionMapper.insert(session);
 
         AdminAuthOutcome o = new AdminAuthOutcome();

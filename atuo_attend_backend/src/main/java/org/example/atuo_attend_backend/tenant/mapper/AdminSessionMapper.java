@@ -10,7 +10,7 @@ public interface AdminSessionMapper {
             + "FROM aa_admin_session WHERE token = #{token} AND expires_at > NOW()")
     AdminSession findValidByToken(@Param("token") String token);
 
-    @Insert("INSERT INTO aa_admin_session (token, user_id, tenant_id, expires_at) VALUES (#{token}, #{userId}, #{tenantId}, #{expiresAt})")
+    @Insert("INSERT INTO aa_admin_session (token, user_id, tenant_id, expires_at) VALUES (#{token}, #{userId}, #{tenantId}, NOW() + INTERVAL 7200 SECOND)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(AdminSession session);
 
