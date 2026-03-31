@@ -171,6 +171,30 @@ export default {
         this.specParseError = 'spec JSON 解析失败：' + (e && e.message ? e.message : '')
       }
     },
+    sleep (ms) {
+      return new Promise(resolve => setTimeout(resolve, ms))
+    },
+    async pollGenerateJob (jobId) {
+      const max = 120
+      for (let i = 0; i < max; i++) {
+        await this.sleep(1500)
+        const r = await this.$http.get(`/admin/ui-prototype/projects/${this.projectId}/specs/jobs/${jobId}`)
+        if (!r.data || r.data.code !== 0 || !r.data.data) {
+          this.genError = (r.data && r.data.message) || '查询任务失败'
+          return
+        }
+        const st = r.data.data.status
+        if (st === 'success') {
+          await this.load()
+          return
+        }
+        if (st === 'failed') {
+          this.genError = r.data.data.errorMessage || '生成失败'
+          return
+        }
+      }
+      this.genError = '等待超时：生成可能仍在后台进行，请稍后刷新页面查看版本列表。'
+    },
     async generateSpec () {
       this.generating = true
       this.genError = ''
@@ -178,13 +202,18 @@ export default {
       this.exportError = ''
       try {
         const resp = await this.$http.post(`/admin/ui-prototype/projects/${this.projectId}/specs/generate`, { prompt: this.prompt })
-        if (resp.data && resp.data.code === 0 && resp.data.data) {
-          await this.load()
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.jobId != null) {
+          await this.pollGenerateJob(resp.data.data.jobId)
         } else {
           this.genError = (resp.data && resp.data.message) || '生成失败'
         }
       } catch (e) {
-        this.genError = (e.response && e.response.data && e.response.data.message) || '生成失败'
+        const st = e.response && e.response.status
+        if (st === 504) {
+          this.genError = '网关超时：请确认已部署支持异步生成的后端版本；若已部署仍超时，请联系运维调大 nginx 超时或检查网络。'
+        } else {
+          this.genError = (e.response && e.response.data && e.response.data.message) || '生成失败'
+        }
       } finally {
         this.generating = false
       }

@@ -5,12 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
+import org.example.atuo_attend_backend.prototype.domain.UiPrototypeGenerateJob;
 import org.example.atuo_attend_backend.prototype.domain.UiPrototypeProject;
 import org.example.atuo_attend_backend.prototype.domain.UiPrototypeSpec;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectListItem;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectDetail;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSpecItem;
+import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateJobStatus;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSpecGenerateResult;
+import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeGenerateJobMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeProjectMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeSpecMapper;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
@@ -20,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class UiPrototypeService {
@@ -28,6 +32,7 @@ public class UiPrototypeService {
 
     private final UiPrototypeProjectMapper projectMapper;
     private final UiPrototypeSpecMapper specMapper;
+    private final UiPrototypeGenerateJobMapper generateJobMapper;
     private final AiAnalysisConfigService configService;
     private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -35,10 +40,12 @@ public class UiPrototypeService {
 
     public UiPrototypeService(UiPrototypeProjectMapper projectMapper,
                               UiPrototypeSpecMapper specMapper,
+                              UiPrototypeGenerateJobMapper generateJobMapper,
                               AiAnalysisConfigService configService,
                               DeepSeekClient deepSeekClient) {
         this.projectMapper = projectMapper;
         this.specMapper = specMapper;
+        this.generateJobMapper = generateJobMapper;
         this.configService = configService;
         this.deepSeekClient = deepSeekClient;
     }
@@ -115,18 +122,88 @@ public class UiPrototypeService {
         return d;
     }
 
-    public UiPrototypeSpecGenerateResult generateSpec(long projectId, String prompt) {
+    /**
+     * 入队异步生成：HTTP 立即返回 jobId，避免 nginx 同步等待 LLM 超时（504）。
+     */
+    public long enqueueGenerateSpec(long projectId, String prompt) {
+        validateGeneratePreconditions(projectId, prompt);
         long tenantId = tid();
-        if (prompt == null || prompt.trim().isEmpty()) throw new IllegalArgumentException("prompt 不能为空");
+        UiPrototypeGenerateJob row = new UiPrototypeGenerateJob();
+        row.setTenantId(tenantId);
+        row.setProjectId(projectId);
+        row.setStatus("pending");
+        row.setPromptSnapshot(promptSnapshot(prompt));
+        generateJobMapper.insert(row);
+        Long jobId = row.getId();
+        if (jobId == null) {
+            throw new IllegalStateException("创建生成任务失败");
+        }
+        CompletableFuture.runAsync(() -> runGenerateJobSafe(tenantId, jobId, projectId, prompt));
+        return jobId;
+    }
 
+    public UiPrototypeGenerateJobStatus getGenerateJobStatus(long projectId, long jobId) {
+        long tenantId = tid();
+        UiPrototypeGenerateJob j = generateJobMapper.findById(jobId, tenantId, projectId);
+        if (j == null) return null;
+        UiPrototypeGenerateJobStatus s = new UiPrototypeGenerateJobStatus();
+        s.setJobId(j.getId());
+        s.setStatus(j.getStatus());
+        s.setSpecVersion(j.getSpecVersion());
+        s.setErrorMessage(j.getErrorMessage());
+        return s;
+    }
+
+    private void validateGeneratePreconditions(long projectId, String prompt) {
+        if (prompt == null || prompt.trim().isEmpty()) throw new IllegalArgumentException("prompt 不能为空");
+        long tenantId = tid();
         UiPrototypeProject p = projectMapper.findById(tenantId, projectId);
         if (p == null) throw new IllegalArgumentException("项目不存在");
-
-        AiAnalysisConfig cfg = configService.getConfig(); // deepseek config
+        AiAnalysisConfig cfg = configService.getConfig();
         if (cfg == null || !Boolean.TRUE.equals(cfg.getEnabled()) || cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
             throw new IllegalStateException("AI 未启用或未配置 DeepSeek API Key");
         }
+    }
 
+    private static String promptSnapshot(String prompt) {
+        String t = prompt != null ? prompt.trim() : "";
+        if (t.length() > 2000) return t.substring(0, 2000);
+        return t.isEmpty() ? null : t;
+    }
+
+    private void runGenerateJobSafe(long tenantId, long jobId, long projectId, String prompt) {
+        try {
+            TenantContext.runWithTenantId(tenantId, () -> runGenerateJob(jobId, projectId, prompt));
+        } catch (Throwable t) {
+            log.error("ui prototype generate job {} crashed", jobId, t);
+            try {
+                TenantContext.runWithTenantId(tenantId, () -> {
+                    String msg = t.getMessage() != null ? t.getMessage() : "内部错误";
+                    generateJobMapper.updateFailed(jobId, tenantId, projectId, msg);
+                });
+            } catch (Exception e) {
+                log.warn("update job failed status error: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void runGenerateJob(long jobId, long projectId, String prompt) {
+        long tenantId = tid();
+        generateJobMapper.updateStatus(jobId, tenantId, projectId, "running");
+        try {
+            UiPrototypeSpecGenerateResult r = generateSpec(projectId, prompt);
+            generateJobMapper.updateSuccess(jobId, tenantId, projectId, r.getSpecVersion());
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "生成失败";
+            generateJobMapper.updateFailed(jobId, tenantId, projectId, msg);
+        }
+    }
+
+    /** 同步生成并落库（供异步任务调用；请求线程勿直接调用以免 504）。 */
+    public UiPrototypeSpecGenerateResult generateSpec(long projectId, String prompt) {
+        validateGeneratePreconditions(projectId, prompt);
+
+        AiAnalysisConfig cfg = configService.getConfig(); // deepseek config
         String apiKey = cfg.getApiKey();
         String model = cfg.getModel() != null ? cfg.getModel() : "deepseek-chat";
 
@@ -171,6 +248,7 @@ public class UiPrototypeService {
         }
 
         // 存储
+        long tenantId = tid();
         int nextVersion = specMapper.maxVersion(tenantId, projectId) + 1;
         String specJson = validatedSpec.toString();
         specMapper.insert(tenantId, projectId, nextVersion, specJson);

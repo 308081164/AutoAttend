@@ -5,7 +5,7 @@ import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectDetail;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectListItem;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectCreateRequest;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectRenameRequest;
-import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSpecGenerateResult;
+import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateJobStatus;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateSpecRequest;
 import org.example.atuo_attend_backend.prototype.service.UiPrototypeService;
 import org.springframework.web.bind.annotation.*;
@@ -62,12 +62,31 @@ public class AdminUiPrototypeController {
         return ApiResponse.ok(d);
     }
 
+    /**
+     * 异步生成：立即返回 jobId，客户端轮询 {@link #getGenerateJob(long, long)}。
+     * 避免 LLM 耗时超过 nginx 反向代理超时导致 504。
+     */
     @PostMapping("/projects/{id}/specs/generate")
-    public ApiResponse<UiPrototypeSpecGenerateResult> generateSpec(@PathVariable long id,
-                                                                     @RequestBody(required = false) UiPrototypeGenerateSpecRequest body) {
+    public ApiResponse<Map<String, Object>> enqueueGenerateSpec(@PathVariable long id,
+                                                                 @RequestBody(required = false) UiPrototypeGenerateSpecRequest body) {
         String prompt = body != null ? body.getPrompt() : null;
-        UiPrototypeSpecGenerateResult r = uiPrototypeService.generateSpec(id, prompt);
-        return ApiResponse.ok(r);
+        try {
+            long jobId = uiPrototypeService.enqueueGenerateSpec(id, prompt);
+            Map<String, Object> data = new HashMap<>();
+            data.put("jobId", jobId);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
+    }
+
+    @GetMapping("/projects/{id}/specs/jobs/{jobId}")
+    public ApiResponse<UiPrototypeGenerateJobStatus> getGenerateJob(@PathVariable long id, @PathVariable long jobId) {
+        UiPrototypeGenerateJobStatus s = uiPrototypeService.getGenerateJobStatus(id, jobId);
+        if (s == null) return ApiResponse.error(40400, "任务不存在");
+        return ApiResponse.ok(s);
     }
 }
 
