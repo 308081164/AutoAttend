@@ -4,7 +4,10 @@
       <div class="dashboard">
         <section class="identity-card console-elevated">
           <div class="identity-main">
-            <div class="identity-avatar" aria-hidden="true">{{ companyAvatarInitial }}</div>
+            <div class="identity-avatar" aria-hidden="true">
+              <img v-if="companyAvatarLogoUrl" :src="companyAvatarLogoUrl" class="identity-avatar-img" alt="">
+              <template v-else>{{ companyAvatarInitial }}</template>
+            </div>
             <div class="identity-text">
               <div class="identity-title-row">
                 <h1 class="identity-name">{{ companyDisplayName }}</h1>
@@ -340,8 +343,33 @@
               <span class="hub-icon hub-icon-project" aria-hidden="true">◇</span>
               <h2 class="hub-card-title">{{ $t('dashboard.hubProjectTitle') }}</h2>
               <router-link to="/collab/projects" class="hub-card-more">{{ $t('dashboard.hubProjectCollab') }} →</router-link>
+              <button type="button" class="hub-lab-toggle-btn" @click="labExpanded = !labExpanded">
+                抢先实验室
+              </button>
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubProjectHint') }}</p>
+
+            <div v-if="labExpanded" class="hub-lab-panel">
+              <div class="hub-lab-tabs" role="tablist" aria-label="抢先实验室标签页">
+                <button
+                  v-for="t in labTabs"
+                  :key="t.key"
+                  type="button"
+                  role="tab"
+                  :aria-selected="labActiveTab === t.key"
+                  :class="{ active: labActiveTab === t.key }"
+                  class="hub-lab-tab-btn"
+                  @click="labActiveTab = t.key"
+                >
+                  {{ t.label }}
+                </button>
+              </div>
+              <div class="hub-lab-content">
+                <span class="hub-lab-content-label">{{ labActiveTabLabel }}</span>
+                <span class="hub-lab-content-suffix">：尽情期待</span>
+              </div>
+            </div>
+
             <div class="repo-filter hub-repo-filter">
               <button
                 type="button"
@@ -393,6 +421,24 @@
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubMarketPlaceholder') }}</p>
             <span class="hub-soon">{{ $t('dashboard.hubComingSoon') }}</span>
+          </section>
+
+          <section class="hub-card console-elevated hub-prototype hub-card-placeholder">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-prototype" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">快原型</h2>
+            </div>
+            <p class="hub-desc">AI自动生成 可交互的页面原型</p>
+            <span class="hub-soon">尽情期待</span>
+          </section>
+
+          <section class="hub-card console-elevated hub-chance hub-card-placeholder">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-chance" aria-hidden="true">◇</span>
+              <h2 class="hub-card-title">机会角</h2>
+            </div>
+            <p class="hub-desc"></p>
+            <span class="hub-soon">尽情期待</span>
           </section>
         </div>
 
@@ -837,6 +883,16 @@ export default {
       teamPickerPageSize: 10,
       teamPickerSelectedIds: [],
 
+      // 首页：抢先实验室（可展开标签页）
+      labExpanded: false,
+      labActiveTab: 'finance',
+      labTabs: [
+        { key: 'finance', label: '智能财会' },
+        { key: 'geo', label: 'GEO推流' },
+        { key: 'dashboard', label: '客户看板' },
+        { key: 'lobster', label: '龙虾智能体' }
+      ],
+
       /** 当前版本默认视为已认证；后续可对接企业认证接口 */
       enterpriseVerified: true
     }
@@ -936,6 +992,21 @@ export default {
       const n = this.companyDisplayName
       if (!n || n === '…') return '?'
       return String(n).charAt(0).toUpperCase()
+    },
+    companyAvatarLogoUrl () {
+      const p = this.partyBProfile || {}
+      const key = p.enterpriseLogo
+      if (!key) return ''
+      const s = String(key).trim()
+      if (!s) return ''
+      if (s.startsWith('http://') || s.startsWith('https://')) return s
+      const base = this.$http && this.$http.defaults && this.$http.defaults.baseURL ? this.$http.defaults.baseURL : '/api'
+      return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
+    },
+    labActiveTabLabel () {
+      const list = Array.isArray(this.labTabs) ? this.labTabs : []
+      const t = list.find(x => x && x.key === this.labActiveTab)
+      return (t && t.label) ? t.label : '—'
     },
     enterpriseLogoPreviewUrl () {
       const key = this.subjectEditLegal && this.subjectEditLegal.enterpriseLogo
@@ -2025,6 +2096,14 @@ export default {
   flex-shrink: 0;
 }
 
+.identity-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
 .identity-title-row {
   display: flex;
   flex-wrap: wrap;
@@ -2679,6 +2758,8 @@ export default {
 .hub-icon-project { background: linear-gradient(135deg, #7c3aed, #a855f7); }
 .hub-icon-ops { background: linear-gradient(135deg, #475569, #64748b); }
 .hub-icon-market { background: linear-gradient(135deg, #ea580c, #f97316); }
+.hub-icon-prototype { background: linear-gradient(135deg, #2563eb, #22c55e); }
+.hub-icon-chance { background: linear-gradient(135deg, #0ea5e9, #6366f1); }
 
 .hub-card-title {
   margin: 0;
@@ -2697,6 +2778,84 @@ export default {
 
 .hub-card-more:hover {
   text-decoration: underline;
+}
+
+.hub-lab-toggle-btn {
+  font-size: 13px;
+  color: #2563eb;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hub-lab-toggle-btn:hover {
+  text-decoration: underline;
+}
+
+.hub-lab-panel {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 12px 14px 14px;
+  margin: 10px 0 12px;
+}
+
+.hub-lab-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hub-lab-tab-btn {
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  padding: 10px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.hub-lab-tab-btn.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+
+.hub-lab-content {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #475569;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hub-lab-content-label {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.hub-lab-content-suffix {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+@media (max-width: 820px) {
+  .hub-lab-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .hub-lab-tabs {
+    grid-template-columns: 1fr;
+  }
 }
 
 .hub-metric-row {
