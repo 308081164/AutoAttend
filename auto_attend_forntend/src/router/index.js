@@ -14,6 +14,8 @@ import CommitAnalysisView from '../views/CommitAnalysisView.vue'
 import QuoteListView from '../views/QuoteListView.vue'
 import QuoteProjectView from '../views/QuoteProjectView.vue'
 import QuoteConfigView from '../views/QuoteConfigView.vue'
+import PrototypeListView from '../views/PrototypeListView.vue'
+import PrototypeProjectView from '../views/PrototypeProjectView.vue'
 
 Vue.use(VueRouter)
 
@@ -95,6 +97,16 @@ const routes = [
     path: '/collab/projects/:projectId/table',
     name: 'collab-table',
     component: CollabTableView
+  },
+  {
+    path: '/prototype',
+    name: 'prototype-list',
+    component: PrototypeListView
+  },
+  {
+    path: '/prototype/:projectId',
+    name: 'prototype-project',
+    component: PrototypeProjectView
   }
 ]
 

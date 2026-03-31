@@ -22,3 +22,4 @@ schema_tenant_platform_migration.sql
 schema_tenant_id_phase1_columns.sql
 schema_tenant_id_phase1_constraints.sql
 schema_phase2_phase3.sql
+schema_ui_prototype_mysql.sql

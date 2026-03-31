@@ -1,0 +1,36 @@
+{
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "default",
+                "enableSsl": "Disabled"
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "39.102.213.51",
+            "port": 3306,
+            "driver": "MySQL",
+            "name": "流帮project",
+            "group": "guangshatech",
+            "database": "autoattend",
+            "username": "autoattend",
+            "password": "autoattend_pwd"
+        },
+        {
+            "mysqlOptions": {
+                "authProtocol": "default",
+                "enableSsl": "Disabled"
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "39.102.213.51",
+            "port": 3306,
+            "driver": "MySQL",
+            "name": "流帮Project",
+            "group": "guangshatech",
+            "database": "autoattend",
+            "username": "root",
+            "password": "@Group666"
+        }
+    ]
+}

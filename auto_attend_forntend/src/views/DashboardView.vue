@@ -421,6 +421,7 @@
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-prototype" aria-hidden="true">◇</span>
               <h2 class="hub-card-title">快原型</h2>
+              <router-link to="/prototype" class="hub-card-more">进入 →</router-link>
             </div>
             <p class="hub-desc">AI自动生成 可交互的页面原型</p>
             <span class="hub-soon">尽情期待</span>
