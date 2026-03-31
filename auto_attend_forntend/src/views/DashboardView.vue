@@ -311,7 +311,12 @@
                   <span class="activity-dot"
                         :class="m.activeToday ? 'dot-active' : 'dot-inactive'"></span>
                   <div class="member-avatar-wrap">
-                    <img v-if="m.avatar" :src="avatarDisplayUrl(m.avatar)" class="member-avatar" alt="">
+                    <img
+                      v-if="memberAvatarUrl(m)"
+                      :src="memberAvatarUrl(m)"
+                      class="member-avatar"
+                      alt=""
+                    >
                     <span v-else class="member-avatar member-avatar-placeholder">{{ memberInitial(m) }}</span>
                   </div>
                   <div class="member-meta">
@@ -343,32 +348,8 @@
               <span class="hub-icon hub-icon-project" aria-hidden="true">◇</span>
               <h2 class="hub-card-title">{{ $t('dashboard.hubProjectTitle') }}</h2>
               <router-link to="/collab/projects" class="hub-card-more">{{ $t('dashboard.hubProjectCollab') }} →</router-link>
-              <button type="button" class="hub-lab-toggle-btn" @click="labExpanded = !labExpanded">
-                抢先实验室
-              </button>
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubProjectHint') }}</p>
-
-            <div v-if="labExpanded" class="hub-lab-panel">
-              <div class="hub-lab-tabs" role="tablist" aria-label="抢先实验室标签页">
-                <button
-                  v-for="t in labTabs"
-                  :key="t.key"
-                  type="button"
-                  role="tab"
-                  :aria-selected="labActiveTab === t.key"
-                  :class="{ active: labActiveTab === t.key }"
-                  class="hub-lab-tab-btn"
-                  @click="labActiveTab = t.key"
-                >
-                  {{ t.label }}
-                </button>
-              </div>
-              <div class="hub-lab-content">
-                <span class="hub-lab-content-label">{{ labActiveTabLabel }}</span>
-                <span class="hub-lab-content-suffix">：尽情期待</span>
-              </div>
-            </div>
 
             <div class="repo-filter hub-repo-filter">
               <button
@@ -417,10 +398,23 @@
           <section class="hub-card console-elevated hub-market hub-card-placeholder">
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-market" aria-hidden="true">◇</span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubMarketTitle') }}</h2>
+              <h2 class="hub-card-title">增效实验室</h2>
             </div>
-            <p class="hub-desc">{{ $t('dashboard.hubMarketPlaceholder') }}</p>
-            <span class="hub-soon">{{ $t('dashboard.hubComingSoon') }}</span>
+            <p class="hub-desc">探索提升效率的前沿实验项目，帮助团队在真实场景中快速试用与验证。</p>
+            <div class="lab-mini-grid">
+              <div
+                v-for="t in labTabs"
+                :key="t.key"
+                class="lab-mini-card"
+              >
+                <div class="lab-mini-title">
+                  {{ t.label }}
+                </div>
+                <div class="lab-mini-tag">
+                  尽情期待
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="hub-card console-elevated hub-prototype hub-card-placeholder">
@@ -883,9 +877,7 @@ export default {
       teamPickerPageSize: 10,
       teamPickerSelectedIds: [],
 
-      // 首页：抢先实验室（可展开标签页）
-      labExpanded: false,
-      labActiveTab: 'finance',
+      // 首页：增效实验室（小卡片列表）
       labTabs: [
         { key: 'finance', label: '智能财会' },
         { key: 'geo', label: 'GEO推流' },
@@ -1003,11 +995,6 @@ export default {
       const base = this.$http && this.$http.defaults && this.$http.defaults.baseURL ? this.$http.defaults.baseURL : '/api'
       return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
     },
-    labActiveTabLabel () {
-      const list = Array.isArray(this.labTabs) ? this.labTabs : []
-      const t = list.find(x => x && x.key === this.labActiveTab)
-      return (t && t.label) ? t.label : '—'
-    },
     enterpriseLogoPreviewUrl () {
       const key = this.subjectEditLegal && this.subjectEditLegal.enterpriseLogo
       if (!key) return ''
@@ -1100,6 +1087,24 @@ export default {
     if (this.fixedRepoFullName) {
       this.selectedRepo = String(this.fixedRepoFullName)
     }
+    // 团队成员展示设置：从本地持久化中恢复
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const k = 'autoattend_team_display_ids'
+        const raw = localStorage.getItem(k)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed === null) {
+            this.teamSelectedMemberIds = null
+          } else if (Array.isArray(parsed)) {
+            this.teamSelectedMemberIds = parsed
+          }
+        }
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+
     this.loadDashboard()
     this.loadCommits().then(() => this.tryOpenCommitFromQuery())
     this.loadStatsOverview()
@@ -1243,6 +1248,16 @@ export default {
           this.teamSelectedMemberIds = ids
         }
         this.teamMembersDisplayPage = 1
+        // 持久化保存到 localStorage
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const k = 'autoattend_team_display_ids'
+            const v = this.teamSelectedMemberIds == null ? 'null' : JSON.stringify(this.teamSelectedMemberIds)
+            localStorage.setItem(k, v)
+          }
+        } catch (e) {
+          // ignore storage errors
+        }
         this.closeTeamPickerModal()
       } finally {
         this.teamPickerSaving = false
@@ -1267,6 +1282,17 @@ export default {
       if (s.startsWith('http://') || s.startsWith('https://')) return s
       const base = this.$http && this.$http.defaults && this.$http.defaults.baseURL ? this.$http.defaults.baseURL : '/api'
       return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
+    },
+    memberAvatarUrl (m) {
+      const key = m && m.avatar
+      if (key && String(key).trim()) {
+        return this.avatarDisplayUrl(key)
+      }
+      // 管理员账号：若无个人头像，则默认使用企业 logo
+      if (m && m.role === 'super_admin' && this.companyAvatarLogoUrl) {
+        return this.companyAvatarLogoUrl
+      }
+      return ''
     },
     teamRoleLabel (role) {
       if (!role) return '—'
@@ -2780,80 +2806,41 @@ export default {
   text-decoration: underline;
 }
 
-.hub-lab-toggle-btn {
-  font-size: 13px;
-  color: #2563eb;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.hub-lab-toggle-btn:hover {
-  text-decoration: underline;
-}
-
-.hub-lab-panel {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 12px 14px 14px;
-  margin: 10px 0 12px;
-}
-
-.hub-lab-tabs {
+.lab-mini-grid {
+  margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
 }
 
-.hub-lab-tab-btn {
+.lab-mini-card {
   border-radius: 10px;
   border: 1px solid #e5e7eb;
   background: #f8fafc;
-  padding: 10px 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-  cursor: pointer;
-  line-height: 1;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.hub-lab-tab-btn.active {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  color: #3730a3;
-}
-
-.hub-lab-content {
-  margin-top: 12px;
-  font-size: 13px;
-  color: #475569;
+  padding: 10px 12px;
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
   gap: 6px;
 }
 
-.hub-lab-content-label {
-  font-weight: 800;
+.lab-mini-title {
+  font-size: 13px;
+  font-weight: 700;
   color: #0f172a;
 }
 
-.hub-lab-content-suffix {
-  color: #94a3b8;
+.lab-mini-tag {
+  align-self: flex-start;
+  font-size: 11px;
   font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
 }
 
-@media (max-width: 820px) {
-  .hub-lab-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .hub-lab-tabs {
+@media (max-width: 640px) {
+  .lab-mini-grid {
     grid-template-columns: 1fr;
   }
 }
