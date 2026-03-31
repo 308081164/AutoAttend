@@ -291,13 +291,13 @@
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubTeamDesc') }}</p>
             <div class="team-hub-toolbar">
+              <button type="button" class="link-button" @click="openTeamPickerModal">
+                展示设置
+              </button>
               <div class="team-activity-legend">
                 <span class="legend-item"><span class="activity-dot dot-active"></span>{{ $t('dashboard.todayActive') }}</span>
                 <span class="legend-item"><span class="activity-dot dot-inactive"></span>{{ $t('dashboard.todayInactive') }}</span>
               </div>
-              <button type="button" class="link-button" @click="openTeamPickerModal">
-                {{ $t('dashboard.teamPickerTitle') }}
-              </button>
             </div>
 
             <div v-if="teamMembersLoading" class="placeholder">{{ $t('collab.loading') }}</div>
@@ -333,8 +333,6 @@
               </div>
             </div>
 
-            <router-link to="/team" class="hub-block-link">{{ $t('dashboard.hubTeamOpen') }}</router-link>
-            <router-link to="/tenant-admins" class="hub-block-link hub-block-link-sub">{{ $t('dashboard.hubTenantAdminsLink') }}</router-link>
           </section>
 
           <section class="hub-card console-elevated hub-project">
@@ -2300,8 +2298,8 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 16px;
-  margin-bottom: 12px;
-  margin-top: -4px;
+  margin-bottom: 0;
+  margin-top: 0;
 }
 
 .team-activity-legend .legend-item {
@@ -2315,6 +2313,10 @@ export default {
 
 .team-hub-toolbar {
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .team-hub-members {
