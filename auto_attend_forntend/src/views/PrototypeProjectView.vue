@@ -32,6 +32,23 @@
                 </button>
                 <router-link to="/ai-config" class="secondary-button">AI 配置</router-link>
               </div>
+              <div class="actions-row import-row">
+                <select v-model="selectedQuoteProjectId" :disabled="importingQuoteRequirement || quoteLoading">
+                  <option :value="null">{{ quoteLoading ? '报价项目加载中…' : '选择报价项目' }}</option>
+                  <option v-for="qp in quoteProjects" :key="qp.id" :value="qp.id">
+                    {{ qp.name || ('报价项目 #' + qp.id) }}
+                  </option>
+                </select>
+                <button
+                  type="button"
+                  class="secondary-button"
+                  :disabled="importingQuoteRequirement || !selectedQuoteProjectId"
+                  @click="importQuoteRequirement"
+                >
+                  {{ importingQuoteRequirement ? '导入中…' : '导入报价单需求' }}
+                </button>
+              </div>
+              <div v-if="importHint" class="section-hint">{{ importHint }}</div>
               <div v-if="genError" class="error-msg">{{ genError }}</div>
             </div>
           </div>
@@ -86,6 +103,11 @@ export default {
       activeSpecId: null,
       prompt: '',
       generating: false,
+      quoteLoading: false,
+      quoteProjects: [],
+      selectedQuoteProjectId: null,
+      importingQuoteRequirement: false,
+      importHint: '',
       genError: '',
       specParseError: '',
       exportError: ''
@@ -110,6 +132,7 @@ export default {
   created () {
     this.projectId = this.$route && this.$route.params ? this.$route.params.projectId : null
     this.load()
+    this.loadQuoteProjects()
   },
   watch: {
     activeSpecId () {
@@ -213,6 +236,49 @@ export default {
         }
       } finally {
         this.generating = false
+      }
+    },
+    async loadQuoteProjects () {
+      this.quoteLoading = true
+      try {
+        const resp = await this.$http.get('/admin/quote/projects', { params: { page: 1, pageSize: 100 } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.quoteProjects = Array.isArray(resp.data.data.items) ? resp.data.data.items : []
+          if (!this.selectedQuoteProjectId && this.quoteProjects[0]) {
+            this.selectedQuoteProjectId = this.quoteProjects[0].id
+          }
+        } else {
+          this.quoteProjects = []
+        }
+      } catch (e) {
+        this.quoteProjects = []
+      } finally {
+        this.quoteLoading = false
+      }
+    },
+    async importQuoteRequirement () {
+      if (!this.selectedQuoteProjectId) {
+        this.importHint = '请先选择报价项目'
+        return
+      }
+      this.importingQuoteRequirement = true
+      this.importHint = ''
+      this.genError = ''
+      try {
+        const resp = await this.$http.post(
+          `/admin/ui-prototype/projects/${this.projectId}/import-quote-requirement`,
+          { quoteProjectId: this.selectedQuoteProjectId }
+        )
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.requirementText) {
+          this.prompt = String(resp.data.data.requirementText || '').trim()
+          this.importHint = '结构化需求已导入，可继续补充其他要求后再生成'
+        } else {
+          this.genError = (resp.data && resp.data.message) || '导入报价需求失败'
+        }
+      } catch (e) {
+        this.genError = (e.response && e.response.data && e.response.data.message) || '导入报价需求失败'
+      } finally {
+        this.importingQuoteRequirement = false
       }
     },
     renameProject () {
@@ -594,6 +660,14 @@ export default {
 }
 .actions-row {
   margin-top: 10px;
+}
+.import-row {
+  display: flex;
+  gap: 8px;
+}
+.import-row select {
+  flex: 1;
+  min-width: 0;
 }
 .primary-button {
   display: inline-block;

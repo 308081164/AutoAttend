@@ -7,6 +7,8 @@ import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectCreateReq
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectRenameRequest;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateJobStatus;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateSpecRequest;
+import org.example.atuo_attend_backend.prototype.dto.UiPrototypeImportQuoteRequirementRequest;
+import org.example.atuo_attend_backend.quote.service.QuoteService;
 import org.example.atuo_attend_backend.prototype.service.UiPrototypeService;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,9 +21,11 @@ import java.util.Map;
 public class AdminUiPrototypeController {
 
     private final UiPrototypeService uiPrototypeService;
+    private final QuoteService quoteService;
 
-    public AdminUiPrototypeController(UiPrototypeService uiPrototypeService) {
+    public AdminUiPrototypeController(UiPrototypeService uiPrototypeService, QuoteService quoteService) {
         this.uiPrototypeService = uiPrototypeService;
+        this.quoteService = quoteService;
     }
 
     @GetMapping("/projects")
@@ -87,6 +91,28 @@ public class AdminUiPrototypeController {
         UiPrototypeGenerateJobStatus s = uiPrototypeService.getGenerateJobStatus(id, jobId);
         if (s == null) return ApiResponse.error(40400, "任务不存在");
         return ApiResponse.ok(s);
+    }
+
+    /**
+     * 从“报价项目”导入结构化需求，转换为适合“快原型”页面需求框的文本。
+     */
+    @PostMapping("/projects/{id}/import-quote-requirement")
+    public ApiResponse<Map<String, Object>> importQuoteRequirement(@PathVariable long id,
+                                                                   @RequestBody(required = false) UiPrototypeImportQuoteRequirementRequest body) {
+        try {
+            if (uiPrototypeService.getProjectDetail(id) == null) {
+                return ApiResponse.error(40400, "快原型项目不存在");
+            }
+            Long quoteProjectId = body != null ? body.getQuoteProjectId() : null;
+            if (quoteProjectId == null || quoteProjectId <= 0) {
+                return ApiResponse.error(40000, "quoteProjectId 不能为空");
+            }
+            return ApiResponse.ok(quoteService.buildPrototypeRequirementFromQuote(quoteProjectId));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
     }
 }
 

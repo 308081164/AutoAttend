@@ -1569,6 +1569,106 @@ public class QuoteService {
         return out;
     }
 
+    /**
+     * 将报价项目的结构化模块/功能点梳理为“快原型页面需求”文本，用于回填到原型 prompt。
+     */
+    public Map<String, Object> buildPrototypeRequirementFromQuote(long quoteProjectId) {
+        Map<String, Object> detail = getProjectDetail(quoteProjectId);
+        if (detail == null) {
+            throw new IllegalArgumentException("报价项目不存在");
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> modules = (List<Map<String, Object>>) detail.get("modules");
+        if (modules == null || modules.isEmpty()) {
+            throw new IllegalArgumentException("该报价项目暂无模块/功能点，无法导入");
+        }
+
+        String projectName = Objects.toString(detail.get("name"), "").trim();
+        String projectType = labelProjectType(Objects.toString(detail.get("projectType"), ""));
+        String techStack = labelTechStack(Objects.toString(detail.get("techStack"), ""));
+        String designType = labelDesign(Objects.toString(detail.get("designType"), ""));
+
+        StringBuilder userBlock = new StringBuilder();
+        userBlock.append("请将以下报价项目信息整理为适合“UI 原型生成”的页面需求描述。\n");
+        userBlock.append("要求：\n");
+        userBlock.append("1) 输出中文纯文本，不要 JSON，不要 Markdown 标题，不要代码块。\n");
+        userBlock.append("2) 文本结构建议包含：页面目标、模块分区、关键功能点、交互建议。\n");
+        userBlock.append("3) 交互建议仅允许：切换面板（togglePanel）与 Tabs 切换（setTab）。\n");
+        userBlock.append("4) 不要输出任何金额/报价数字。\n");
+        userBlock.append("5) 语气简洁，可直接粘贴到“页面需求”输入框。\n\n");
+        userBlock.append("【项目信息】\n");
+        if (!projectName.isEmpty()) userBlock.append("- 项目名：").append(projectName).append('\n');
+        if (!projectType.isEmpty()) userBlock.append("- 项目类型：").append(projectType).append('\n');
+        if (!techStack.isEmpty()) userBlock.append("- 技术栈：").append(techStack).append('\n');
+        if (!designType.isEmpty()) userBlock.append("- 设计方式：").append(designType).append('\n');
+        userBlock.append("\n【模块与功能点】\n");
+        int mi = 1;
+        for (Map<String, Object> mod : modules) {
+            String modName = Objects.toString(mod.get("name"), "").trim();
+            if (modName.isEmpty()) continue;
+            userBlock.append(mi++).append(". 模块：").append(modName).append('\n');
+            Object itemsObj = mod.get("items");
+            if (itemsObj instanceof List<?> items) {
+                for (Object raw : items) {
+                    if (!(raw instanceof Map<?, ?> rm)) continue;
+                    String itemName = Objects.toString(rm.get("name"), "").trim();
+                    if (itemName.isEmpty()) continue;
+                    String complexity = Objects.toString(rm.get("complexity"), "standard");
+                    int quantity = 1;
+                    Object q = rm.get("quantity");
+                    if (q instanceof Number n) quantity = Math.max(1, n.intValue());
+                    userBlock.append("   - ").append(itemName)
+                            .append("（复杂度: ").append(complexity)
+                            .append("，数量: ").append(quantity).append("）\n");
+                }
+            }
+        }
+
+        AiAnalysisConfig cfg = aiConfigService.getConfig();
+        if (cfg == null || cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
+        }
+        String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
+        String system = """
+你是资深产品经理与交互设计师。
+你的任务是把“报价系统中的结构化模块/功能点”改写成“可用于 UI 原型生成的页面需求文本”。
+必须仅输出中文纯文本，不要输出 JSON、Markdown 标题或代码块。
+内容应包含：
+- 页面目标（1-2 句）
+- 页面结构分区建议（建议用 4-8 条）
+- 关键交互建议（仅限面板展开/收起、Tabs 切换）
+- 可选视觉风格建议（1-2 条）
+禁止输出报价金额、总价、人天成本等财务信息。
+""";
+        List<DeepSeekClient.ChatMessage> messages = List.of(
+                new DeepSeekClient.ChatMessage("system", system),
+                new DeepSeekClient.ChatMessage("user", userBlock.toString())
+        );
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 4096);
+        String content = result != null ? result.getContent() : null;
+        if (content == null || content.isBlank()) {
+            throw new IllegalStateException("AI 未返回有效内容，请稍后重试");
+        }
+
+        String requirementText = stripMarkdownCodeFence(content).trim();
+        if (requirementText.isEmpty()) {
+            throw new IllegalStateException("AI 导入结果为空，请重试");
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("quoteProjectId", quoteProjectId);
+        out.put("requirementText", requirementText);
+        out.put("sourceModuleCount", modules.size());
+        if (result != null) {
+            Map<String, Object> usage = new LinkedHashMap<>();
+            usage.put("inputTokens", result.getInputTokens());
+            usage.put("outputTokens", result.getOutputTokens());
+            usage.put("model", result.getModel() != null ? result.getModel() : model);
+            out.put("usage", usage);
+        }
+        return out;
+    }
+
     private static String stripMarkdownCodeFence(String s) {
         if (s == null) {
             return "";
