@@ -2,6 +2,7 @@ package org.example.atuo_attend_backend.prototype.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.*;
 
@@ -63,8 +64,9 @@ public class UiPrototypeSpecValidator {
             if (!("togglePanel".equals(type) || "setTab".equals(type))) {
                 throw new IllegalArgumentException("不支持的 interaction.type: " + type);
             }
-            String sourceId = text(it, "sourceId", true);
-            String targetId = text(it, "targetId", true);
+            normalizeInteraction((ObjectNode) it);
+            String sourceId = textFromKeys(it, List.of("sourceId", "source"), true);
+            String targetId = textFromKeys(it, List.of("targetId", "target"), true);
             if (!nodeIds.contains(sourceId)) throw new IllegalArgumentException("interaction.sourceId 不存在: " + sourceId);
             if (!nodeIds.contains(targetId)) throw new IllegalArgumentException("interaction.targetId 不存在: " + targetId);
 
@@ -202,6 +204,44 @@ public class UiPrototypeSpecValidator {
         String s = v.asText("");
         if (required && (s == null || s.isBlank())) throw new IllegalArgumentException("字段为空: " + key);
         return s;
+    }
+
+    private static String textFromKeys(JsonNode node, List<String> keys, boolean required) {
+        for (String key : keys) {
+            String v = text(node, key, false);
+            if (v != null && !v.isBlank()) return v;
+        }
+        if (required) throw new IllegalArgumentException("缺少字段: " + keys.get(0));
+        return null;
+    }
+
+    /**
+     * 兼容 LLM 常见输出变体，统一收敛到标准字段：
+     * - source -> sourceId
+     * - target -> targetId
+     * - open/tabKey 若出现在 interaction 顶层，则搬运到 params
+     */
+    private static void normalizeInteraction(ObjectNode it) {
+        if (!it.has("sourceId") && it.has("source")) {
+            it.set("sourceId", it.get("source"));
+        }
+        if (!it.has("targetId") && it.has("target")) {
+            it.set("targetId", it.get("target"));
+        }
+        JsonNode paramsNode = it.get("params");
+        ObjectNode params;
+        if (paramsNode != null && paramsNode.isObject()) {
+            params = (ObjectNode) paramsNode;
+        } else {
+            params = it.objectNode();
+            it.set("params", params);
+        }
+        if (!params.has("open") && it.has("open")) {
+            params.set("open", it.get("open"));
+        }
+        if (!params.has("tabKey") && it.has("tabKey")) {
+            params.set("tabKey", it.get("tabKey"));
+        }
     }
 }
 
