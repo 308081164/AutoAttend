@@ -2,7 +2,7 @@
   <div class="console-shell">
     <div class="console-inner">
       <div class="dashboard">
-        <section class="identity-card console-elevated">
+        <section v-if="!collabDataBoardOnly" class="identity-card console-elevated">
           <div class="identity-main">
             <div class="identity-avatar" aria-hidden="true">
               <img v-if="companyAvatarLogoUrl" :src="companyAvatarLogoUrl" class="identity-avatar-img" alt="">
@@ -223,7 +223,7 @@
           </div>
         </div>
 
-        <div class="hub-grid">
+        <div v-if="!collabDataBoardOnly" class="hub-grid">
           <section class="hub-card console-elevated hub-quote">
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-quote" aria-hidden="true">◇</span>
@@ -778,6 +778,13 @@ export default {
     fixedRepoFullName: {
       type: String,
       default: ''
+    },
+    /**
+     * 多维表「开发与数据看板」嵌入：仅展示下方与当前仓库相关的数据区，隐藏企业信息卡片与运营 hub 卡片（报价/API/团队等）。
+     */
+    collabDataBoardOnly: {
+      type: Boolean,
+      default: false
     }
   },
   data () {

@@ -10,6 +10,14 @@
 
       <nav class="collab-sidebar-nav">
         <router-link
+          class="collab-sidebar-link collab-sidebar-link-btn"
+          :class="{ active: showHomeDashboard }"
+          :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: {} }"
+        >
+          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarHomeBoard') }}</span>
+          <span v-else>B</span>
+        </router-link>
+        <router-link
           class="collab-sidebar-link"
           :class="{ active: !showHomeDashboard && tablePurpose === 'issue_tracking' }"
           :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'issue_tracking' } }"
@@ -25,19 +33,9 @@
           <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarFeature') }}</span>
           <span v-else>F</span>
         </router-link>
-
-        <button
-          type="button"
-          class="collab-sidebar-link collab-sidebar-link-btn"
-          :class="{ active: showHomeDashboard }"
-          @click="openHomeDashboard"
-        >
-          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarHomeBoard') }}</span>
-          <span v-else>B</span>
-        </button>
       </nav>
 
-      <p v-if="!sidebarCollapsed" class="collab-sidebar-hint">
+      <p v-if="!sidebarCollapsed && !showHomeDashboard" class="collab-sidebar-hint">
         {{ tablePurpose === 'feature_backlog' ? $t('collabTable.sidebarHintFeature') : $t('collabTable.sidebarHintIssue') }}
       </p>
     </aside>
@@ -95,7 +93,11 @@
     </div>
 
     <div v-if="showHomeDashboard" class="collab-home-dashboard">
-      <DashboardView :fixedRepoFullName="projectRepoId" :key="'home-board-' + projectId + '-' + projectRepoId" />
+      <DashboardView
+        :fixedRepoFullName="projectRepoId"
+        :collab-data-board-only="true"
+        :key="'home-board-' + projectId + '-' + projectRepoId"
+      />
     </div>
     <div v-else-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
     <div v-else-if="showDashboard" class="dashboard-wrapper">
@@ -879,6 +881,11 @@ export default {
       return s.avgs.some((v) => Number(v) > 0)
     },
     pageTableTitle () {
+      if (this.showHomeDashboard) {
+        const pn = (this.projectName || '').trim()
+        const board = this.$t('collabTable.sidebarHomeBoard')
+        return pn ? `${pn} · ${board}` : board
+      }
       const base = (this.tableBaseName || '').trim() || this.$t('collabTable.defaultTableName')
       const pn = (this.projectName || '').trim()
       if (!pn) return base
@@ -949,18 +956,15 @@ export default {
   methods: {
     syncPurposeFromRoute () {
       const p = this.$route.query.purpose
-      this.showHomeDashboard = false
       this.showDashboard = false
       if (p === 'feature_backlog' || p === 'issue_tracking') {
+        this.showHomeDashboard = false
         this.tablePurpose = p
       } else {
+        // 无 purpose：默认「开发与数据看板」（与侧栏第一项一致）
+        this.showHomeDashboard = true
         this.tablePurpose = 'issue_tracking'
       }
-    },
-    openHomeDashboard () {
-      this.showHomeDashboard = true
-      this.showDashboard = false
-      this.destroyDashboardCharts()
     },
     toggleDashboardView () {
       if (this.tablePurpose !== 'issue_tracking') return
