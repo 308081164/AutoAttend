@@ -65,8 +65,12 @@ public class UiPrototypeSpecValidator {
                 throw new IllegalArgumentException("不支持的 interaction.type: " + type);
             }
             normalizeInteraction((ObjectNode) it);
-            String sourceId = textFromKeys(it, List.of("sourceId", "source"), true);
-            String targetId = textFromKeys(it, List.of("targetId", "target"), true);
+            String sourceId = textFromKeys(it, List.of(
+                    "sourceId", "source", "sourceNodeId", "fromId", "from", "triggerId", "trigger"
+            ), true);
+            String targetId = textFromKeys(it, List.of(
+                    "targetId", "target", "targetNodeId", "toId", "to", "panelId", "tabsId"
+            ), true);
             if (!nodeIds.contains(sourceId)) throw new IllegalArgumentException("interaction.sourceId 不存在: " + sourceId);
             if (!nodeIds.contains(targetId)) throw new IllegalArgumentException("interaction.targetId 不存在: " + targetId);
 
@@ -217,16 +221,16 @@ public class UiPrototypeSpecValidator {
 
     /**
      * 兼容 LLM 常见输出变体，统一收敛到标准字段：
-     * - source -> sourceId
-     * - target -> targetId
+     * - source/sourceNodeId/fromId/from/triggerId/trigger -> sourceId
+     * - target/targetNodeId/toId/to/panelId/tabsId -> targetId
      * - open/tabKey 若出现在 interaction 顶层，则搬运到 params
      */
     private static void normalizeInteraction(ObjectNode it) {
-        if (!it.has("sourceId") && it.has("source")) {
-            it.set("sourceId", it.get("source"));
+        if (!it.has("sourceId")) {
+            copyAliasField(it, "sourceId", List.of("source", "sourceNodeId", "fromId", "from", "triggerId", "trigger"));
         }
-        if (!it.has("targetId") && it.has("target")) {
-            it.set("targetId", it.get("target"));
+        if (!it.has("targetId")) {
+            copyAliasField(it, "targetId", List.of("target", "targetNodeId", "toId", "to", "panelId", "tabsId"));
         }
         JsonNode paramsNode = it.get("params");
         ObjectNode params;
@@ -241,6 +245,15 @@ public class UiPrototypeSpecValidator {
         }
         if (!params.has("tabKey") && it.has("tabKey")) {
             params.set("tabKey", it.get("tabKey"));
+        }
+    }
+
+    private static void copyAliasField(ObjectNode it, String canonical, List<String> aliases) {
+        for (String alias : aliases) {
+            if (it.has(alias)) {
+                it.set(canonical, it.get(alias));
+                return;
+            }
         }
     }
 }

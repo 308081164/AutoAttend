@@ -235,7 +235,14 @@ public class UiPrototypeService {
             } catch (Exception e) {
                 lastErr = e.getMessage() != null ? e.getMessage() : e.toString();
                 // retry：把失败原因回填给模型，要求只修复 JSON
-                String repairUser = userPrompt + "\n\n你需要修复：\n" + lastErr + "\n请仅输出修复后的 JSON object。";
+                String repairUser = userPrompt
+                        + "\n\n上一次输出校验失败，错误：\n" + lastErr
+                        + "\n\n请在不改变需求语义的前提下，仅修复 JSON 结构。"
+                        + "\n严格要求："
+                        + "\n1) 只输出一个 JSON object，不要任何解释文字。"
+                        + "\n2) interaction 必须包含 type/sourceId/targetId/params。"
+                        + "\n3) 禁止使用 source/target/from/to 等别名键名。"
+                        + "\n4) open/tabKey 必须位于 params 内。";
                 messages = List.of(
                         new DeepSeekClient.ChatMessage("system", systemPrompt),
                         new DeepSeekClient.ChatMessage("user", repairUser)
@@ -289,6 +296,16 @@ public class UiPrototypeService {
                 + "interactions 是数组，允许的 interaction.type：togglePanel, setTab。\n"
                 + "togglePanel：target 必须是 Panel，params.open 必须是 boolean。\n"
                 + "setTab：target 必须是 Tabs，params.tabKey 必须是 Tabs.props.tabItems 中存在的 key。\n"
+                + "\n"
+                + "interaction 字段必须使用标准键名，不要使用同义词：\n"
+                + "- 必须使用 sourceId，不要使用 source/sourceNodeId/fromId/from/triggerId/trigger\n"
+                + "- 必须使用 targetId，不要使用 target/targetNodeId/toId/to/panelId/tabsId\n"
+                + "- 参数必须放在 params 内，不要把 open/tabKey 放在 interaction 顶层\n"
+                + "\n"
+                + "输出前请自检（不输出自检过程）：\n"
+                + "1) interactions 中每一项都有 type/sourceId/targetId/params\n"
+                + "2) sourceId、targetId 都是 nodes 中存在的节点 id\n"
+                + "3) togglePanel.params.open 为 boolean，setTab.params.tabKey 为 string\n"
                 + "\n"
                 + "输出示例（不需要完全一致，只要结构正确）：\n"
                 + "{\n"

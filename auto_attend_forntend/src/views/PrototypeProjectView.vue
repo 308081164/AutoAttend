@@ -18,31 +18,6 @@
       <div class="layout">
         <div class="left">
           <div class="section-card">
-            <div class="section-title">项目版本</div>
-            <div class="section-body">
-              <select v-if="specs.length" v-model="activeSpecId" @change="onSelectSpec">
-                <option v-for="s in specs" :key="s.id" :value="s.id">
-                  v{{ s.version }}（{{ formatTime(s.updatedAt) }}）
-                </option>
-              </select>
-              <div v-else class="muted">尚未生成 spec。</div>
-              <div class="section-hint">生成新版本后会自动切换预览。</div>
-            </div>
-          </div>
-
-          <div class="section-card">
-            <div class="section-title">导出</div>
-            <div class="section-body">
-              <button type="button" class="primary-button" :disabled="!activeSpecJson" @click="exportSpecAndPreview">
-                导出 spec + preview
-              </button>
-              <div v-if="exportError" class="error-msg">{{ exportError }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="main">
-          <div class="section-card">
             <div class="section-title">生成 spec</div>
             <div class="section-body">
               <label class="label">页面需求</label>
@@ -62,10 +37,32 @@
           </div>
 
           <div class="section-card">
-            <div class="section-title">预览（MVP：点击态/切换面板/Tabs）</div>
+            <div class="section-title">项目版本</div>
+            <div class="section-body">
+              <select v-if="specs.length" v-model="activeSpecId" @change="onSelectSpec">
+                <option v-for="s in specs" :key="s.id" :value="s.id">
+                  v{{ s.version }}（{{ formatTime(s.updatedAt) }}）
+                </option>
+              </select>
+              <div v-else class="muted">尚未生成 spec。</div>
+              <div class="section-hint">生成新版本后会自动切换预览。</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="main">
+          <div class="section-card">
+            <div class="section-head">
+              <div class="section-title">预览（MVP：点击态/切换面板/Tabs）</div>
+              <button type="button" class="primary-button" :disabled="!activeSpecJson" @click="exportSpecAndPreview">
+                导出 spec + preview
+              </button>
+            </div>
             <div class="section-body">
               <div ref="previewRoot" class="preview-root"></div>
               <div v-if="specParseError" class="error-msg">{{ specParseError }}</div>
+              <div v-if="exportError" class="error-msg">{{ exportError }}</div>
             </div>
           </div>
         </div>
@@ -540,11 +537,14 @@ export default {
 }
 .layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 14px;
 }
 .left .section-card {
   margin-bottom: 14px;
+}
+.main .section-card {
+  min-height: calc(100vh - 170px);
 }
 .section-card {
   background: #ffffff;
@@ -552,11 +552,21 @@ export default {
   border-radius: 12px;
   padding: 12px;
 }
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
 .section-title {
   font-size: 14px;
   font-weight: 900;
   color: #0f172a;
   margin-bottom: 10px;
+}
+.section-head .section-title {
+  margin-bottom: 0;
 }
 .section-body select, .section-body textarea {
   width: 100%;
@@ -612,7 +622,7 @@ export default {
   cursor: not-allowed;
 }
 .preview-root {
-  min-height: 240px;
+  min-height: calc(100vh - 260px);
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: #f8fafc;
