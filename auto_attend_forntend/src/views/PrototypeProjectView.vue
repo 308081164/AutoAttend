@@ -368,7 +368,9 @@ ${html}
             try {
               const arr = JSON.parse(String(d.messagesJson))
               if (Array.isArray(arr) && arr.length) this.mockupMessages = arr
-            } catch (e) {}
+            } catch (e) {
+              // ignore invalid messagesJson
+            }
           }
           if (d.modelUsed) this.selectedModel = String(d.modelUsed)
         }
@@ -501,7 +503,9 @@ ${userInput}`
           `/admin/ui-prototype/projects/${this.projectId}/mockup/messages`,
           { messagesJson: JSON.stringify(this.mockupMessages) }
         )
-      } catch (e) {}
+      } catch (e) {
+        // ignore
+      }
     },
     downloadLatestMockup () {
       if (!this.latestDesign) return
