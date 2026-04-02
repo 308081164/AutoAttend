@@ -37,6 +37,7 @@ public class UiPrototypeService {
     private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final UiPrototypeSpecValidator validator = new UiPrototypeSpecValidator();
+    private final UiPrototypeSemanticValidator semanticValidator = new UiPrototypeSemanticValidator();
 
     public UiPrototypeService(UiPrototypeProjectMapper projectMapper,
                               UiPrototypeSpecMapper specMapper,
@@ -167,7 +168,8 @@ public class UiPrototypeService {
 
     private static String promptSnapshot(String prompt) {
         String t = prompt != null ? prompt.trim() : "";
-        if (t.length() > 2000) return t.substring(0, 2000);
+        // 用于入库展示/回溯；生成仍使用完整 prompt。这里适当放宽，避免模块清单在记录中被裁掉。
+        if (t.length() > 8000) return t.substring(0, 8000);
         return t.isEmpty() ? null : t;
     }
 
@@ -209,6 +211,7 @@ public class UiPrototypeService {
 
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(prompt);
+        int expectedModuleCount = countExpectedModulesFromRequirementText(prompt);
 
         List<DeepSeekClient.ChatMessage> messages = List.of(
                 new DeepSeekClient.ChatMessage("system", systemPrompt),
@@ -230,6 +233,7 @@ public class UiPrototypeService {
                 String jsonText = extractJson(rawContent);
                 JsonNode specNode = objectMapper.readTree(jsonText);
                 validator.validate(specNode);
+                semanticValidator.validate(specNode, expectedModuleCount);
                 validatedSpec = specNode;
                 break;
             } catch (Exception e) {
@@ -242,7 +246,8 @@ public class UiPrototypeService {
                         + "\n1) 只输出一个 JSON object，不要任何解释文字。"
                         + "\n2) interaction 必须包含 type/sourceId/targetId/params。"
                         + "\n3) 禁止使用 source/target/from/to 等别名键名。"
-                        + "\n4) open/tabKey 必须位于 params 内。";
+                        + "\n4) open/tabKey 必须位于 params 内。"
+                        + "\n5) 若失败原因涉及 Tabs/模块映射：允许跳过“不需要在 UI 上体现”的模块，但必须确保 Tabs.tabItems 中出现的每个模块 Tab，对应 contentId 子树包含该模块功能点的 Badge（不允许合并成“其他/汇总”）。";
                 messages = List.of(
                         new DeepSeekClient.ChatMessage("system", systemPrompt),
                         new DeepSeekClient.ChatMessage("user", repairUser)
@@ -302,6 +307,13 @@ public class UiPrototypeService {
                 + "- 必须使用 targetId，不要使用 target/targetNodeId/toId/to/panelId/tabsId\n"
                 + "- 参数必须放在 params 内，不要把 open/tabKey 放在 interaction 顶层\n"
                 + "\n"
+                + "多模块页面（关键要求）：\n"
+                + "1) 必须在 layout.root（或 root 的直接 children）放置一个用于“模块 Tab 分区”的 Tabs 节点（至少满足一个全局 Tabs）。\n"
+                + "2) Tabs.props.tabItems 的数量应不超过用户需求里解析出的“模块数量”；允许跳过“不需要在 UI 上体现”的模块。\n"
+                + "3) 每个 tabItems[i].label 必须包含用户需求里对应模块的模块标记（形如：【模块N】模块名）。\n"
+                + "4) 每个 tabItems[i].contentId 必须指向一个用于该模块的 Panel 或 Card 节点；该内容节点内部必须展示该模块的功能点：用 Badge 节点逐条列出功能点名称；Badge.props.text 必须精确等于“  - 功能点：xxx”里的 xxx（不要包含复杂度/数量/编号）。\n"
+                + "5) 禁止把多个模块合并到同一个 Tab，禁止用“其他/汇总”吸收功能点。\n"
+                + "\n"
                 + "输出前请自检（不输出自检过程）：\n"
                 + "1) interactions 中每一项都有 type/sourceId/targetId/params\n"
                 + "2) sourceId、targetId 都是 nodes 中存在的节点 id\n"
@@ -331,7 +343,21 @@ public class UiPrototypeService {
                 + "- 受控可渲染的结构（必须用你允许的节点类型）\n"
                 + "- MVP 交互：只实现点击态与切换面板/Tabs\n"
                 + "- 不要使用任何图片与外部资源\n"
-                + "- 文案简洁\n";
+                + "- 文案简洁\n"
+                + "\n强制输出规则（务必遵守）：\n"
+                + "1) 从“【模块N】模块名”逐个识别模块；至少生成 1 个 Tabs.tabItems。\n"
+                + "2) 你可以根据模块在 UI 上是否“可展示/可交互”来决定是否跳过某些模块（允许少于模块数量）；但不允许把多个模块合并到同一个 Tab。\n"
+                + "3) 对于每个被选中的模块 Tab：contentId 对应节点内部必须有 Badge 列表；Badge.text 要逐条等于“  - 功能点：xxx”中的 xxx（不要包含复杂度/数量/编号）。\n"
+                + "4) 禁止用“其他/汇总”吸收功能点。\n";
+    }
+
+    private static int countExpectedModulesFromRequirementText(String prompt) {
+        if (prompt == null || prompt.isBlank()) return 0;
+        // 需求模板中的模块标记：形如 【模块1】模块名
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("【模块\\d+】").matcher(prompt);
+        int c = 0;
+        while (m.find()) c++;
+        return c;
     }
 
     private String extractJson(String content) {

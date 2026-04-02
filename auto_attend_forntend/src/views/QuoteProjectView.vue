@@ -988,7 +988,10 @@ export default {
       contractContext: defaultContractContext(),
       /** 功能模块：manual | ai */
       moduleEntryMode: 'manual',
+      // textarea 内显示的“本次要提交给 AI 的输入”（replace 模式下为完整原文；append 模式下仅显示新增部分）
       aiRequirementText: '',
+      // 后端持久化保存的完整 AI 原文（append 模式下会追加到末尾）
+      aiRequirementPersistedText: '',
       aiMergeMode: 'replace',
       aiModuleParsing: false,
       aiModuleMsg: '',
@@ -1111,6 +1114,20 @@ export default {
   watch: {
     '$route.params.id' () {
       this.init()
+    },
+    aiMergeMode (val) {
+      // append 模式下不展示历史原文：只展示新增部分
+      if (val === 'append') {
+        this.aiRequirementText = ''
+      } else {
+        this.aiRequirementText = this.aiRequirementPersistedText || ''
+      }
+    },
+    aiRequirementText (val) {
+      // replace 模式下：textarea 内容即为完整原文，需同步到 persisted，保证后续 append 的“原有文本”准确
+      if (this.aiMergeMode === 'replace') {
+        this.aiRequirementPersistedText = val || ''
+      }
     },
     calcPrefsSnapshot () {
       if (this.pageLoading || this.restoringCalcPrefs) return
@@ -1287,6 +1304,9 @@ export default {
           }
           this.modules = [emptyModule()]
           this.contractContext = normalizeContractContext(null)
+          this.aiRequirementText = ''
+          this.aiRequirementPersistedText = ''
+          this.aiMergeMode = 'replace'
           this.resetCalcPrefsUi()
           this.resetArtifactReady()
         } else {
@@ -1319,6 +1339,8 @@ export default {
             this.form.status = d.status || 'draft'
             this.form.linkTableId = d.linkTableId
             this.form.prdSummary = d.prdSummary || ''
+            this.aiRequirementPersistedText = d.aiRequirementText || ''
+            this.aiRequirementText = this.aiMergeMode === 'append' ? '' : (this.aiRequirementPersistedText || '')
             this.form.quoteSubjectMode = d.quoteSubjectMode || 'legal_entity'
             this.form.quoteVendorName = d.quoteVendorName || ''
             this.form.quoteContactInfo = d.quoteContactInfo || ''
@@ -1643,6 +1665,7 @@ export default {
         status: this.form.status,
         linkTableId: this.form.linkTableId,
         prdSummary: this.form.prdSummary,
+        aiRequirementText: this.aiMergeMode === 'append' ? (this.aiRequirementPersistedText || '') : (this.aiRequirementText || ''),
         quoteSubjectMode: this.form.quoteSubjectMode || 'legal_entity',
         quoteVendorName: this.form.quoteVendorName || '',
         quoteContactInfo: this.form.quoteContactInfo || '',
@@ -1914,9 +1937,16 @@ export default {
             return
           }
           if (this.aiMergeMode === 'append') {
-            const base = this.modules.filter(m => (m.name && String(m.name).trim()) || (m.items || []).some(it => it.name && String(it.name).trim()))
-            this.modules = base.concat(normalized)
+            // append：把“新增输入”追加到已持久化原文后面；并且执行后不展示历史原文（textarea 清空）
+            const base = (this.aiRequirementPersistedText || '').trim()
+            const combined = base ? (base + '\n\n' + text) : text
+            this.aiRequirementPersistedText = combined.trim()
+            this.aiRequirementText = ''
+            const baseModules = this.modules.filter(m => (m.name && String(m.name).trim()) || (m.items || []).some(it => it.name && String(it.name).trim()))
+            this.modules = baseModules.concat(normalized)
           } else {
+            // replace：直接用当前 textarea 作为新的完整原文
+            this.aiRequirementPersistedText = text
             this.modules = normalized
           }
           this.aiModuleOk = true

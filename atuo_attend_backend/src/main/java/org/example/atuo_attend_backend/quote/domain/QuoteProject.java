@@ -16,6 +16,8 @@ public class QuoteProject {
     private String status;
     private Long linkTableId;
     private String prdSummary;
+    /** AI 智能录入原文（用户可回显编辑；也用于快原型信息库补充） */
+    private String aiRequirementText;
     /** JSON：riskKeys、urgencyRush、priceConfigId、auditChecklist */
     private String quoteCalcPrefsJson;
     /** JSON：paymentPlan、质保、验收、交付物、里程碑、争议解决等，供合同 AI 与附件 */
@@ -71,6 +73,8 @@ public class QuoteProject {
     public void setLinkTableId(Long linkTableId) { this.linkTableId = linkTableId; }
     public String getPrdSummary() { return prdSummary; }
     public void setPrdSummary(String prdSummary) { this.prdSummary = prdSummary; }
+    public String getAiRequirementText() { return aiRequirementText; }
+    public void setAiRequirementText(String aiRequirementText) { this.aiRequirementText = aiRequirementText; }
     public String getQuoteCalcPrefsJson() { return quoteCalcPrefsJson; }
     public void setQuoteCalcPrefsJson(String quoteCalcPrefsJson) { this.quoteCalcPrefsJson = quoteCalcPrefsJson; }
     public String getQuoteContractContextJson() { return quoteContractContextJson; }

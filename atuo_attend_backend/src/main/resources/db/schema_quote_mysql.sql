@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS biz_quote_project (
     status VARCHAR(32) NOT NULL DEFAULT 'draft',
     link_table_id BIGINT NULL COMMENT '可选关联多维表项目',
     prd_summary TEXT NULL COMMENT 'PRD/需求摘要，用于置信度',
+    ai_requirement_text MEDIUMTEXT NULL COMMENT 'AI 智能录入原文（用于智能报价回显/快原型信息库）',
     quote_calc_prefs_json TEXT NULL COMMENT '报价计算与审核清单偏好(JSON)',
     quote_contract_context_json TEXT NULL COMMENT '合同补充：付款计划、质保、验收、交付物、里程碑等(JSON)',
     quote_vendor_name VARCHAR(255) NULL COMMENT '报价单位（出具方名称）',
