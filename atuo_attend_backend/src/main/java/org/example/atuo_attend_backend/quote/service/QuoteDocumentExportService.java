@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 将报价单/合同 HTML 转为 PDF（OpenHTMLToPDF）与 Word（POI + Jsoup 结构化转换）。
@@ -45,23 +46,35 @@ public class QuoteDocumentExportService {
     }
 
     public byte[] exportQuotePdf(long projectId, Long quoteResultId) throws Exception {
-        String html = quoteService.buildQuoteDocument(projectId, quoteResultId).get("html").toString();
-        return htmlToPdf(html);
+        Map<String, Object> doc = quoteService.buildQuoteDocument(projectId, quoteResultId);
+        long rid = ((Number) doc.get("quoteResultId")).longValue();
+        String html = doc.get("html").toString();
+        byte[] pdf = htmlToPdf(html);
+        quoteService.persistBinaryDocument(rid, "quote_pdf", pdf);
+        return pdf;
     }
 
     public byte[] exportQuoteDocx(long projectId, Long quoteResultId) throws Exception {
-        String html = quoteService.buildQuoteDocument(projectId, quoteResultId).get("html").toString();
-        return htmlToDocx(html);
+        Map<String, Object> doc = quoteService.buildQuoteDocument(projectId, quoteResultId);
+        long rid = ((Number) doc.get("quoteResultId")).longValue();
+        String html = doc.get("html").toString();
+        byte[] docx = htmlToDocx(html);
+        quoteService.persistBinaryDocument(rid, "quote_docx", docx);
+        return docx;
     }
 
     public byte[] exportContractPdf(long quoteResultId) throws Exception {
         String html = quoteService.exportContractHtml(quoteResultId).get("html").toString();
-        return htmlToPdf(html);
+        byte[] pdf = htmlToPdf(html);
+        quoteService.persistBinaryDocument(quoteResultId, "contract_pdf", pdf);
+        return pdf;
     }
 
     public byte[] exportContractDocx(long quoteResultId) throws Exception {
         String html = quoteService.exportContractHtml(quoteResultId).get("html").toString();
-        return htmlToDocx(html);
+        byte[] docx = htmlToDocx(html);
+        quoteService.persistBinaryDocument(quoteResultId, "contract_docx", docx);
+        return docx;
     }
 
     public byte[] htmlToPdf(String html) throws Exception {

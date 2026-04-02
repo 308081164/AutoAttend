@@ -21,6 +21,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Base64;
 
 @Service
 public class QuoteService {
@@ -499,6 +500,37 @@ public class QuoteService {
         data.put("filename", "quote-" + projectId + "-" + r.getId() + ".html");
         data.put("quoteResultId", r.getId());
         return data;
+    }
+
+    /**
+     * 将二进制产出（PDF/DOCX）落库为 base64 字符串，写入 biz_quote_document.content（MEDIUMTEXT）。
+     * 用于驱动「刷新后仍能判断步骤进度」的绿色状态。
+     */
+    public void persistBinaryDocument(long quoteResultId, String docType, byte[] bytes) {
+        if (bytes == null) return;
+        String b64 = Base64.getEncoder().encodeToString(bytes);
+        documentMapper.insert(tid(), quoteResultId, docType, b64, 1);
+    }
+
+    /**
+     * 返回“哪些产出物已经落库”的布尔状态，供前端驱动 is-ready 绿标。
+     */
+    public Map<String, Object> getQuoteArtifactStatus(long quoteResultId) {
+        List<String> docTypes = documentMapper.listDocTypesByResultId(tid(), quoteResultId);
+        Set<String> set = new HashSet<>(docTypes != null ? docTypes : List.of());
+        Map<String, Object> out = new LinkedHashMap<>();
+        // quote html：历史上落库 doc_type=quote
+        out.put("quoteHtml", set.contains("quote"));
+        // quote pdf/docx：新落库 doc_type=quote_pdf / quote_docx
+        out.put("quotePdf", set.contains("quote_pdf"));
+        out.put("quoteDocx", set.contains("quote_docx"));
+
+        // contract html：历史上落库 doc_type=contract
+        out.put("contractHtml", set.contains("contract"));
+        // contract pdf/docx：新落库 doc_type=contract_pdf / contract_docx
+        out.put("contractPdf", set.contains("contract_pdf"));
+        out.put("contractDocx", set.contains("contract_docx"));
+        return out;
     }
 
     private String renderQuoteHtml(QuoteProject p, QuoteResult r) {

@@ -490,24 +490,30 @@
 
             <div v-if="calcResult && calcResult.id" class="output-sidebar-section">
               <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionQuote') }}</h4>
-              <div class="output-file-row" :class="{ 'is-ready': artifactReady.quoteHtml }">
-                <span class="output-file-label">{{ $t('quote.outputQuoteHtml') }}</span>
+              <div
+                class="output-file-row"
+                :class="{ 'is-ready': artifactReady.quoteHtml || artifactReady.quotePdf || artifactReady.quoteDocx }"
+              >
+                <span class="output-file-label">{{ $t('quote.outputSectionQuote') }} 导出（HTML/PDF/Word）</span>
                 <div class="output-file-actions">
-                  <button type="button" class="btn-tiny secondary" :disabled="!calcResult" @click="previewQuoteHtml">{{ $t('quote.outputPreview') }}</button>
-                  <button type="button" class="btn-tiny primary" :disabled="!calcResult" @click="downloadQuote">{{ $t('quote.outputDownload') }}</button>
-                </div>
-              </div>
-              <div class="output-file-row" :class="{ 'is-ready': artifactReady.quotePdf }">
-                <span class="output-file-label">{{ $t('quote.outputQuotePdf') }}</span>
-                <div class="output-file-actions">
-                  <button type="button" class="btn-tiny secondary" :disabled="!calcResult" @click="previewQuotePdf">{{ $t('quote.outputPreview') }}</button>
-                  <button type="button" class="btn-tiny primary" :disabled="!calcResult" @click="downloadQuotePdf">{{ $t('quote.outputDownload') }}</button>
-                </div>
-              </div>
-              <div class="output-file-row" :class="{ 'is-ready': artifactReady.quoteDocx }">
-                <span class="output-file-label">{{ $t('quote.outputQuoteDocx') }}</span>
-                <div class="output-file-actions">
-                  <button type="button" class="btn-tiny primary" :disabled="!calcResult" @click="downloadQuoteDocx">{{ $t('quote.outputDownload') }}</button>
+                  <select class="output-file-type-select" v-model="quoteDocType" :disabled="!calcResult">
+                    <option value="quoteHtml">{{ $t('quote.outputQuoteHtml') }}</option>
+                    <option value="quotePdf">{{ $t('quote.outputQuotePdf') }}</option>
+                    <option value="quoteDocx">{{ $t('quote.outputQuoteDocx') }}</option>
+                  </select>
+                  <button
+                    v-if="quotePreviewable"
+                    type="button"
+                    class="btn-tiny secondary"
+                    :disabled="!calcResult"
+                    @click="previewSelectedQuoteDoc"
+                  >{{ $t('quote.outputPreview') }}</button>
+                  <button
+                    type="button"
+                    class="btn-tiny primary"
+                    :disabled="!calcResult"
+                    @click="downloadSelectedQuoteDoc"
+                  >{{ $t('quote.outputDownload') }}</button>
                 </div>
               </div>
             </div>
@@ -547,24 +553,30 @@
                 <span class="output-file-label">{{ $t('quote.saveContract') }}</span>
                 <button type="button" class="btn-tiny secondary" @click="saveContractBody">{{ $t('quote.outputRun') }}</button>
               </div>
-              <div class="output-file-row" :class="{ 'is-ready': artifactReady.contractHtml }">
-                <span class="output-file-label">{{ $t('quote.exportContract') }}</span>
+              <div
+                class="output-file-row output-file-row--full"
+                :class="{ 'is-ready': artifactReady.contractHtml || artifactReady.contractPdf || artifactReady.contractDocx }"
+              >
+                <span class="output-file-label">
+                  {{ $t('quote.outputSectionContract') }} 导出（HTML/PDF/Word）
+                </span>
                 <div class="output-file-actions">
-                  <button type="button" class="btn-tiny secondary" @click="previewContractHtml">{{ $t('quote.outputPreview') }}</button>
-                  <button type="button" class="btn-tiny primary" @click="exportContractFile">{{ $t('quote.outputDownload') }}</button>
-                </div>
-              </div>
-              <div class="output-file-row" :class="{ 'is-ready': artifactReady.contractPdf }">
-                <span class="output-file-label">{{ $t('quote.exportContractPdf') }}</span>
-                <div class="output-file-actions">
-                  <button type="button" class="btn-tiny secondary" @click="previewContractPdf">{{ $t('quote.outputPreview') }}</button>
-                  <button type="button" class="btn-tiny primary" @click="exportContractPdf">{{ $t('quote.outputDownload') }}</button>
-                </div>
-              </div>
-              <div class="output-file-row" :class="{ 'is-ready': artifactReady.contractDocx }">
-                <span class="output-file-label">{{ $t('quote.exportContractWord') }}</span>
-                <div class="output-file-actions">
-                  <button type="button" class="btn-tiny primary" @click="exportContractDocx">{{ $t('quote.outputDownload') }}</button>
+                  <select class="output-file-type-select" v-model="contractDocType">
+                    <option value="contractHtml">{{ $t('quote.exportContract') }}</option>
+                    <option value="contractPdf">{{ $t('quote.exportContractPdf') }}</option>
+                    <option value="contractDocx">{{ $t('quote.exportContractWord') }}</option>
+                  </select>
+                  <button
+                    v-if="contractPreviewable"
+                    type="button"
+                    class="btn-tiny secondary"
+                    @click="previewSelectedContractDoc"
+                  >{{ $t('quote.outputPreview') }}</button>
+                  <button
+                    type="button"
+                    class="btn-tiny primary"
+                    @click="downloadSelectedContractDoc"
+                  >{{ $t('quote.outputDownload') }}</button>
                 </div>
               </div>
             </div>
@@ -961,6 +973,8 @@ export default {
         contractPdf: false,
         contractDocx: false
       },
+      quoteDocType: 'quoteHtml',
+      contractDocType: 'contractHtml',
       saveAllLoading: false,
       saveAllMsg: '',
       saveAllOk: false,
@@ -996,6 +1010,12 @@ export default {
     }
   },
   computed: {
+    quotePreviewable () {
+      return this.quoteDocType === 'quoteHtml' || this.quoteDocType === 'quotePdf'
+    },
+    contractPreviewable () {
+      return this.contractDocType === 'contractHtml' || this.contractDocType === 'contractPdf'
+    },
     linkTableSelectedCount () {
       return Array.isArray(this.linkTableSelectedIds) ? this.linkTableSelectedIds.length : 0
     },
@@ -1336,7 +1356,7 @@ export default {
               this.provisionForm.description = this.suggestRepoDesc()
             }
             await this.loadContractIfAny()
-            this.syncArtifactReadyFromServer()
+            await this.syncArtifactReadyFromServer()
           } finally {
             this.$nextTick(() => {
               this.restoringCalcPrefs = false
@@ -1376,11 +1396,31 @@ export default {
       if (!key || this.artifactReady == null || !Object.prototype.hasOwnProperty.call(this.artifactReady, key)) return
       this.$set(this.artifactReady, key, true)
     },
-    syncArtifactReadyFromServer () {
-      if ((this.contract.editedContent || '').trim().length > 0) {
+    async syncArtifactReadyFromServer () {
+      const hasEdited = (this.contract.editedContent || '').trim().length > 0
+      if (hasEdited) {
+        // contractAi / contractBodySaved 来自「合同草稿」而不是文件导出落库
         this.markArtifactReady('contractAi')
         this.markArtifactReady('contractBodySaved')
-        this.markArtifactReady('contractHtml')
+      }
+
+      // quote / contract 的 HTML/PDF/DOCX 落库状态：由服务端基于 biz_quote_document 归档结果驱动
+      if (this.calcResult && this.calcResult.id) {
+        try {
+          const resp = await this.$http.get(`/admin/quote/results/${this.calcResult.id}/artifacts`)
+          if (resp.data && resp.data.code === 0 && resp.data.data) {
+            const d = resp.data.data
+            if (d.quoteHtml) this.markArtifactReady('quoteHtml')
+            if (d.quotePdf) this.markArtifactReady('quotePdf')
+            if (d.quoteDocx) this.markArtifactReady('quoteDocx')
+
+            if (d.contractHtml) this.markArtifactReady('contractHtml')
+            if (d.contractPdf) this.markArtifactReady('contractPdf')
+            if (d.contractDocx) this.markArtifactReady('contractDocx')
+          }
+        } catch (e) {
+          // 失败不阻断页面：最多影响绿色状态判断
+        }
       }
     },
     async openLinkTableModal () {
@@ -1930,7 +1970,7 @@ export default {
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.calcResult = resp.data.data
           await this.loadContractIfAny()
-          this.syncArtifactReadyFromServer()
+          await this.syncArtifactReadyFromServer()
         } else {
           alert((resp.data && resp.data.message) || '计算失败')
         }
@@ -1953,7 +1993,7 @@ export default {
           a.download = resp.data.data.filename || 'quote.html'
           a.click()
           URL.revokeObjectURL(a.href)
-          this.markArtifactReady('quoteHtml')
+          await this.syncArtifactReadyFromServer()
         }
       } catch (e) {
         alert('生成失败')
@@ -1970,7 +2010,7 @@ export default {
           const u = URL.createObjectURL(blob)
           window.open(u, '_blank', 'noopener')
           setTimeout(() => URL.revokeObjectURL(u), 120000)
-          this.markArtifactReady('quoteHtml')
+          await this.syncArtifactReadyFromServer()
         }
       } catch (e) {
         alert('生成失败')
@@ -2003,7 +2043,7 @@ export default {
         const u = URL.createObjectURL(resp.data)
         window.open(u, '_blank', 'noopener')
         setTimeout(() => URL.revokeObjectURL(u), 120000)
-        this.markArtifactReady('quotePdf')
+        await this.syncArtifactReadyFromServer()
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -2013,16 +2053,40 @@ export default {
       await this.downloadBinaryGet(
         '/admin/quote/projects/' + this.projectId + '/quote-doc.pdf',
         'quote-' + this.projectId + '.pdf',
-        'quotePdf'
+        null
       )
+      await this.syncArtifactReadyFromServer()
     },
     async downloadQuoteDocx () {
       if (!this.projectId || !this.calcResult) return
       await this.downloadBinaryGet(
         '/admin/quote/projects/' + this.projectId + '/quote-doc.docx',
         'quote-' + this.projectId + '.docx',
-        'quoteDocx'
+        null
       )
+      await this.syncArtifactReadyFromServer()
+    },
+    previewSelectedQuoteDoc () {
+      if (this.quoteDocType === 'quoteHtml') return this.previewQuoteHtml()
+      if (this.quoteDocType === 'quotePdf') return this.previewQuotePdf()
+      return null
+    },
+    downloadSelectedQuoteDoc () {
+      if (this.quoteDocType === 'quoteHtml') return this.downloadQuote()
+      if (this.quoteDocType === 'quotePdf') return this.downloadQuotePdf()
+      if (this.quoteDocType === 'quoteDocx') return this.downloadQuoteDocx()
+      return null
+    },
+    previewSelectedContractDoc () {
+      if (this.contractDocType === 'contractHtml') return this.previewContractHtml()
+      if (this.contractDocType === 'contractPdf') return this.previewContractPdf()
+      return null
+    },
+    downloadSelectedContractDoc () {
+      if (this.contractDocType === 'contractHtml') return this.exportContractFile()
+      if (this.contractDocType === 'contractPdf') return this.exportContractPdf()
+      if (this.contractDocType === 'contractDocx') return this.exportContractDocx()
+      return null
     },
     addPaymentPhase () {
       this.contractContext.paymentPlan.push({ phaseName: '', percent: 0, triggerNote: '' })
@@ -2116,7 +2180,6 @@ export default {
           this.contractOk = true
           this.contractMsg = '已生成'
           this.markArtifactReady('contractAi')
-          this.markArtifactReady('contractHtml')
         } else {
           this.contractOk = false
           this.contractMsg = (resp.data && resp.data.message) || '失败'
@@ -2157,7 +2220,7 @@ export default {
           const u = URL.createObjectURL(blob)
           window.open(u, '_blank', 'noopener')
           setTimeout(() => URL.revokeObjectURL(u), 120000)
-          this.markArtifactReady('contractHtml')
+          await this.syncArtifactReadyFromServer()
         }
       } catch (e) {
         alert('导出失败')
@@ -2174,7 +2237,7 @@ export default {
           a.download = resp.data.data.filename || 'contract.html'
           a.click()
           URL.revokeObjectURL(a.href)
-          this.markArtifactReady('contractHtml')
+          await this.syncArtifactReadyFromServer()
         }
       } catch (e) {
         alert('导出失败')
@@ -2189,7 +2252,7 @@ export default {
         const u = URL.createObjectURL(resp.data)
         window.open(u, '_blank', 'noopener')
         setTimeout(() => URL.revokeObjectURL(u), 120000)
-        this.markArtifactReady('contractPdf')
+        await this.syncArtifactReadyFromServer()
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -2206,7 +2269,7 @@ export default {
         a.download = 'contract-' + this.calcResult.id + '.pdf'
         a.click()
         URL.revokeObjectURL(a.href)
-        this.markArtifactReady('contractPdf')
+        await this.syncArtifactReadyFromServer()
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -2223,7 +2286,7 @@ export default {
         a.download = 'contract-' + this.calcResult.id + '.docx'
         a.click()
         URL.revokeObjectURL(a.href)
-        this.markArtifactReady('contractDocx')
+        await this.syncArtifactReadyFromServer()
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -2362,6 +2425,17 @@ export default {
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
+}
+.output-file-type-select {
+  height: 26px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
 }
 .btn-tiny {
   padding: 4px 10px;

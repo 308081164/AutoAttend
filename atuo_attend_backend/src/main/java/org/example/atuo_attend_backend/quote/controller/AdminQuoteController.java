@@ -518,4 +518,12 @@ public class AdminQuoteController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    /**
+     * 返回 quoteResultId 维度已落库产出物状态（用于驱动 is-ready 绿色状态，刷新后仍可恢复）。
+     */
+    @GetMapping("/results/{resultId}/artifacts")
+    public ApiResponse<Map<String, Object>> getArtifacts(@PathVariable long resultId) {
+        return ApiResponse.ok(quoteService.getQuoteArtifactStatus(resultId));
+    }
 }
