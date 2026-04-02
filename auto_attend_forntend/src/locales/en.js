@@ -179,7 +179,7 @@ export default {
     webhookModalHint: 'Webhook Payload URL for current tenant:',
     hubProjectMiniOverview: 'Overview (all repos)',
     hubOpsTitle: 'Quick ops',
-    hubOpsPlaceholder: 'Deploy, monitoring, and alerts will live here. Coming soon.',
+    hubOpsPlaceholder: 'Supports Alibaba Cloud ECS: instance sync and CPU metrics display (next: Tencent Cloud & more).',
     hubMarketTitle: 'Creative marketplace',
     hubMarketPlaceholder: 'Templates, plugins, and extensions. Coming soon.',
     hubComingSoon: 'Coming soon',

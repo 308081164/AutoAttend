@@ -179,7 +179,7 @@ export default {
     webhookModalHint: '以下为当前组织的 GitHub Webhook Payload URL：',
     hubProjectMiniOverview: '资源快照（全部仓库）',
     hubOpsTitle: '快捷运维',
-    hubOpsPlaceholder: '部署、监控、告警等运维能力将在此聚合，敬请期待。',
+    hubOpsPlaceholder: '已接入阿里云 ECS：支持实例同步与 CPU 指标展示（后续接入腾讯云与更多能力）。',
     hubMarketTitle: '创意市集',
     hubMarketPlaceholder: '模板、插件与扩展市场预留入口，敬请期待。',
     hubComingSoon: '敬请期待',

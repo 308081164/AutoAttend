@@ -392,7 +392,7 @@
               <h2 class="hub-card-title">{{ $t('dashboard.hubOpsTitle') }}</h2>
             </div>
             <p class="hub-desc">{{ $t('dashboard.hubOpsPlaceholder') }}</p>
-            <span class="hub-soon">{{ $t('dashboard.hubComingSoon') }}</span>
+            <router-link to="/nexus" class="hub-card-more">进入 →</router-link>
           </section>
 
           <section class="hub-card console-elevated hub-market hub-card-placeholder">

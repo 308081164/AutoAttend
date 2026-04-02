@@ -43,6 +43,18 @@
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>4.0.1</version>
         </dependency>
+        <!-- Aliyun ECS (TeaOpenAPI SDK V2)：用于真实拉取实例列表与 DescribeInstanceMonitorData CPU 指标 -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>ecs20140526</artifactId>
+            <version>8.0.10</version>
+        </dependency>
+        <!-- Aliyun CMS (TeaOpenAPI)：用于真实拉取内存利用率 memory_usedutilization 指标 -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>cms20190101</artifactId>
+            <version>8.1.3</version>
+        </dependency>
 
         <dependency>
             <groupId>com.mysql</groupId>

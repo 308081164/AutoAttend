@@ -16,6 +16,7 @@ import QuoteProjectView from '../views/QuoteProjectView.vue'
 import QuoteConfigView from '../views/QuoteConfigView.vue'
 import PrototypeListView from '../views/PrototypeListView.vue'
 import PrototypeProjectView from '../views/PrototypeProjectView.vue'
+import NexusConsoleView from '../views/NexusConsoleView.vue'
 
 Vue.use(VueRouter)
 
@@ -107,6 +108,11 @@ const routes = [
     path: '/prototype/:projectId',
     name: 'prototype-project',
     component: PrototypeProjectView
+  },
+  {
+    path: '/nexus',
+    name: 'nexus-console',
+    component: NexusConsoleView
   }
 ]
 
