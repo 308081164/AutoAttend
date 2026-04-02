@@ -1644,8 +1644,12 @@ public class QuoteService {
                 new DeepSeekClient.ChatMessage("system", system),
                 new DeepSeekClient.ChatMessage("user", userBlock.toString())
         );
-        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 4096);
-        String content = result != null ? result.getContent() : null;
+        // 必须输出中文纯文本；不可 requestJson=true（会强制 response_format=json_object，与提示词冲突且易返回空内容）
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, false, 4096);
+        if (result == null) {
+            throw new IllegalStateException("AI 调用失败，请检查网络或 DeepSeek API 配置后重试");
+        }
+        String content = result.getContent();
         if (content == null || content.isBlank()) {
             throw new IllegalStateException("AI 未返回有效内容，请稍后重试");
         }

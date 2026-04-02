@@ -573,9 +573,10 @@ export default {
 
 <style scoped>
 .prototype-project-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 16px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 16px 24px;
   color: #0f172a;
 }
 .page-head {
