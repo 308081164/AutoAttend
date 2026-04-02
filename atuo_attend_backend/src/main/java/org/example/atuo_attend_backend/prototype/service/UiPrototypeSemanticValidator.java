@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 /**
  * 对 LLM 输出 Spec 做“语义级”的最小校验：
  * - 至少有一个 Tabs
- * - Tabs.tabItems 数量满足期望模块数（若能从入参解析出来）
+ * - Tabs.tabItems 数量满足期望模块数（仅当入参能解析出模块标记时）
  * - 每个 tab 对应的 contentId 子树中至少包含一个 Badge/Text（避免空壳 Tab）
  */
 public class UiPrototypeSemanticValidator {
@@ -25,6 +25,8 @@ public class UiPrototypeSemanticValidator {
         if (!nodes.isObject()) {
             throw new IllegalArgumentException("spec.nodes 必须是 object");
         }
+
+        final boolean hasExplicitModules = expectedModuleCount > 0;
 
         String selectedTabsId = null;
         JsonNode selectedTabsNode = null;
@@ -42,23 +44,30 @@ public class UiPrototypeSemanticValidator {
                 JsonNode tabItems = node.path("props").path("tabItems");
                 if (!tabItems.isArray() || tabItems.isEmpty()) continue;
                 int tabCount = tabItems.size();
-                boolean labelLooksLikeModule = false;
-                for (JsonNode ti : tabItems) {
-                    if (ti == null || !ti.isObject()) continue;
-                    String label = ti.path("label").asText(null);
-                    if (label != null && MODULE_LABEL_MARKER.matcher(label).find()) {
-                        labelLooksLikeModule = true;
-                        break;
+                if (hasExplicitModules) {
+                    boolean labelLooksLikeModule = false;
+                    for (JsonNode ti : tabItems) {
+                        if (ti == null || !ti.isObject()) continue;
+                        String label = ti.path("label").asText(null);
+                        if (label != null && MODULE_LABEL_MARKER.matcher(label).find()) {
+                            labelLooksLikeModule = true;
+                            break;
+                        }
                     }
-                }
-
-                if (labelLooksLikeModule && tabCount >= 1) {
-                    if (expectedModuleCount <= 0 || tabCount <= expectedModuleCount) {
+                    // 有模块标记时，优先选择“像模块 Tabs”的那个（且不要超过期望模块数）
+                    if (labelLooksLikeModule && tabCount >= 1 && tabCount <= expectedModuleCount) {
                         if (tabCount > selectedTabCount) {
                             selectedTabsId = nodeId;
                             selectedTabsNode = node;
                             selectedTabCount = tabCount;
                         }
+                    }
+                } else {
+                    // 没有模块标记时，选择 tabItems 最多的 Tabs 作为“主 Tabs”（更利于预览）
+                    if (tabCount > selectedTabCount) {
+                        selectedTabsId = nodeId;
+                        selectedTabsNode = node;
+                        selectedTabCount = tabCount;
                     }
                 }
             }
@@ -74,11 +83,9 @@ public class UiPrototypeSemanticValidator {
         }
 
         int tabCount = tabItems.size();
-        if (expectedModuleCount > 0 && tabCount > expectedModuleCount) {
+        if (hasExplicitModules && tabCount > expectedModuleCount) {
             throw new IllegalArgumentException("语义校验失败：Tabs.tabItems 数量不能超过期望模块数，expectedMax=" + expectedModuleCount + ", actual=" + tabCount);
         }
-
-        // 若 selectedTabsNode 不是 module-tabs（仅在 expectedModuleCount<=0 时可能发生），这里不额外强校验数量
 
         for (JsonNode ti : tabItems) {
             if (ti == null || !ti.isObject()) continue;
@@ -90,8 +97,8 @@ public class UiPrototypeSemanticValidator {
             if (contentId == null || contentId.isBlank()) {
                 throw new IllegalArgumentException("语义校验失败：Tabs.tabItems.contentId 不能为空");
             }
-            if (!MODULE_LABEL_MARKER.matcher(label).find()) {
-                // 不强制 label 完全一致，但至少包含 【模块N】 形态标记，便于定位模块对应关系
+            if (hasExplicitModules && !MODULE_LABEL_MARKER.matcher(label).find()) {
+                // 仅当需求明确提供模块标记时，才要求 label 带上【模块N】
                 throw new IllegalArgumentException("语义校验失败：Tabs.tabItems.label 未包含模块标记【模块N】；label=" + label);
             }
             if (!subtreeHasBadgeOrText(nodes, contentId, new HashSet<>())) {

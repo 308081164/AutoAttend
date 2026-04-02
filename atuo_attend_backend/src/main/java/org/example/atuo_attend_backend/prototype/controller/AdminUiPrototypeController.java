@@ -7,7 +7,9 @@ import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectCreateReq
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectRenameRequest;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateJobStatus;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateSpecRequest;
+import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateMockupRequest;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeImportQuoteRequirementRequest;
+import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSaveMockupMessagesRequest;
 import org.example.atuo_attend_backend.quote.service.QuoteService;
 import org.example.atuo_attend_backend.prototype.service.UiPrototypeService;
 import org.springframework.web.bind.annotation.*;
@@ -91,6 +93,73 @@ public class AdminUiPrototypeController {
         UiPrototypeGenerateJobStatus s = uiPrototypeService.getGenerateJobStatus(id, jobId);
         if (s == null) return ApiResponse.error(40400, "任务不存在");
         return ApiResponse.ok(s);
+    }
+
+    @GetMapping("/projects/{id}/mockup")
+    public ApiResponse<Map<String, Object>> getMockup(@PathVariable long id) {
+        UiPrototypeProjectDetail d = uiPrototypeService.getProjectDetail(id);
+        if (d == null) return ApiResponse.error(40400, "项目不存在");
+        org.example.atuo_attend_backend.prototype.domain.UiPrototypeMockup m = uiPrototypeService.getMockup(id);
+        Map<String, Object> data = new HashMap<>();
+        if (m != null) {
+            data.put("html", m.getHtml());
+            data.put("css", m.getCss());
+            data.put("rawAiContent", m.getRawAiContent());
+            data.put("messagesJson", m.getMessagesJson());
+            data.put("modelUsed", m.getModelUsed());
+            data.put("repaired", m.isRepaired());
+            data.put("updatedAt", m.getUpdatedAt() != null ? m.getUpdatedAt().toString() : null);
+        } else {
+            data.put("html", "");
+            data.put("css", "");
+        }
+        return ApiResponse.ok(data);
+    }
+
+    @PostMapping("/projects/{id}/mockup/messages")
+    public ApiResponse<Void> saveMockupMessages(@PathVariable long id,
+                                                @RequestBody(required = false) UiPrototypeSaveMockupMessagesRequest body) {
+        if (uiPrototypeService.getProjectDetail(id) == null) {
+            return ApiResponse.error(40400, "项目不存在");
+        }
+        String messagesJson = body != null ? body.getMessagesJson() : null;
+        uiPrototypeService.saveMockupMessages(id, messagesJson);
+        return ApiResponse.ok(null);
+    }
+
+    /**
+     * HTML+CSS mockup：异步生成任务（与 mvp-vue 体验一致，但用 jobId 轮询避免 504）。
+     */
+    @PostMapping("/projects/{id}/mockups/generate")
+    public ApiResponse<Map<String, Object>> enqueueGenerateMockup(@PathVariable long id,
+                                                                  @RequestBody(required = false) UiPrototypeGenerateMockupRequest body) {
+        String prompt = body != null ? body.getPrompt() : null;
+        String model = body != null ? body.getModel() : null;
+        String messagesJson = body != null ? body.getMessagesJson() : null;
+        try {
+            long jobId = uiPrototypeService.enqueueGenerateMockup(id, prompt, model, messagesJson);
+            Map<String, Object> data = new HashMap<>();
+            data.put("jobId", jobId);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
+    }
+
+    @GetMapping("/projects/{id}/mockups/jobs/{jobId}")
+    public ApiResponse<Map<String, Object>> getMockupGenerateJob(@PathVariable long id, @PathVariable long jobId) {
+        org.example.atuo_attend_backend.prototype.domain.UiPrototypeMockupGenerateJob j =
+                uiPrototypeService.getMockupGenerateJobStatus(id, jobId);
+        if (j == null) return ApiResponse.error(40400, "任务不存在");
+        Map<String, Object> data = new HashMap<>();
+        data.put("jobId", j.getId());
+        data.put("status", j.getStatus());
+        data.put("errorMessage", j.getErrorMessage());
+        data.put("createdAt", j.getCreatedAt() != null ? j.getCreatedAt().toString() : null);
+        data.put("updatedAt", j.getUpdatedAt() != null ? j.getUpdatedAt().toString() : null);
+        return ApiResponse.ok(data);
     }
 
     /**

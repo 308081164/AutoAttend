@@ -18,20 +18,60 @@
       <div class="layout">
         <div class="left">
           <div class="section-card">
-            <div class="section-title">生成 spec</div>
+            <div class="section-title">
+              <span>生成</span>
+              <span class="mode-toggle" role="tablist" aria-label="模式切换">
+                <button
+                  type="button"
+                  class="mode-btn"
+                  :class="{ active: mode === 'mockup' }"
+                  @click="switchMode('mockup')"
+                >HTML+CSS</button>
+                <button
+                  type="button"
+                  class="mode-btn"
+                  :class="{ active: mode === 'spec' }"
+                  @click="switchMode('spec')"
+                >Spec（结构化）</button>
+              </span>
+            </div>
             <div class="section-body">
-              <label class="label">页面需求</label>
-              <textarea
-                v-model="prompt"
-                class="prompt-textarea"
-                placeholder="例如：制作一个可切换面板的登录页原型，包含卡片、按钮与 Tabs。"
-              ></textarea>
-              <div class="actions-row">
-                <button type="button" class="primary-button" :disabled="generating" @click="generateSpec">
-                  {{ generating ? '生成中…' : '生成并预览' }}
-                </button>
-                <router-link to="/ai-config" class="secondary-button">AI 配置</router-link>
-              </div>
+              <template v-if="mode === 'spec'">
+                <label class="label">页面需求</label>
+                <textarea
+                  v-model="prompt"
+                  class="prompt-textarea"
+                  placeholder="例如：制作一个可切换面板的登录页原型，包含卡片、按钮与 Tabs。"
+                ></textarea>
+                <div class="actions-row">
+                  <button type="button" class="primary-button" :disabled="generating" @click="generateSpec">
+                    {{ generating ? '生成中…' : '生成并预览' }}
+                  </button>
+                  <router-link to="/ai-config" class="secondary-button">AI 配置</router-link>
+                </div>
+              </template>
+
+              <template v-else>
+                <label class="label">对话输入（中文需求）</label>
+                <textarea
+                  v-model="mockupPrompt"
+                  class="prompt-textarea"
+                  placeholder="输入你的中文需求，比如：生成一个现代登录页（包含按钮、输入框、布局说明）"
+                ></textarea>
+                <div class="actions-row mockup-actions">
+                  <label class="mockup-model">
+                    <span class="mockup-model-label">模型</span>
+                    <input v-model="selectedModel" class="mockup-model-input" placeholder="deepseek-chat" />
+                  </label>
+                  <button type="button" class="primary-button" :disabled="!canSendMockup" @click="sendMockup">
+                    {{ mockupGenerating ? '生成中…' : '发送' }}
+                  </button>
+                  <button type="button" class="secondary-button" :disabled="mockupGenerating || mockupMessages.length <= 1" @click="clearMockup">
+                    清空
+                  </button>
+                  <router-link to="/ai-config" class="secondary-button">AI 配置</router-link>
+                </div>
+              </template>
               <div class="actions-row import-row">
                 <select v-model="selectedQuoteProjectId" :disabled="importingQuoteRequirement || quoteLoading">
                   <option :value="null">{{ quoteLoading ? '报价项目加载中…' : '选择报价项目' }}</option>
@@ -53,7 +93,7 @@
             </div>
           </div>
 
-          <div class="section-card">
+          <div v-if="mode === 'spec'" class="section-card">
             <div class="section-title">项目版本</div>
             <div class="section-body">
               <select v-if="specs.length" v-model="activeSpecId" @change="onSelectSpec">
@@ -66,20 +106,69 @@
             </div>
           </div>
 
+          <div v-else class="section-card">
+            <div class="section-title">对话记录</div>
+            <div class="section-body">
+              <div class="chat-log" role="log" aria-live="polite">
+                <div v-for="(m, idx) in mockupMessages" :key="idx" class="chat-msg" :class="{ user: m.role === 'user' }">
+                  <div class="chat-role">{{ m.role === 'user' ? '你' : 'DeepSeek' }}</div>
+                  <div class="chat-content">{{ m.content }}</div>
+                </div>
+                <div v-if="mockupGenerating" class="chat-msg">
+                  <div class="chat-role">DeepSeek</div>
+                  <div class="chat-content">正在生成中……</div>
+                </div>
+              </div>
+              <div class="section-hint">提示：HTML+CSS 模式不做版本控制，只保留当前产物。</div>
+            </div>
+          </div>
+
         </div>
 
         <div class="main">
           <div class="section-card">
             <div class="section-head">
-              <div class="section-title">预览（MVP：点击态/切换面板/Tabs）</div>
-              <button type="button" class="primary-button" :disabled="!activeSpecJson" @click="exportSpecAndPreview">
-                导出 spec + preview
-              </button>
+              <div class="section-title">
+                {{ mode === 'spec' ? '预览（MVP：点击态/切换面板/Tabs）' : 'Mockup 预览（HTML+CSS）' }}
+              </div>
+              <div class="head-actions">
+                <button
+                  v-if="mode === 'spec'"
+                  type="button"
+                  class="primary-button"
+                  :disabled="!activeSpecJson"
+                  @click="exportSpecAndPreview"
+                >
+                  导出 spec + preview
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="primary-button"
+                  :disabled="!latestDesign"
+                  @click="downloadLatestMockup"
+                >
+                  下载 mockup（HTML+CSS）
+                </button>
+              </div>
             </div>
             <div class="section-body">
-              <div ref="previewRoot" class="preview-root"></div>
-              <div v-if="specParseError" class="error-msg">{{ specParseError }}</div>
-              <div v-if="exportError" class="error-msg">{{ exportError }}</div>
+              <template v-if="mode === 'spec'">
+                <div ref="previewRoot" class="preview-root"></div>
+                <div v-if="specParseError" class="error-msg">{{ specParseError }}</div>
+                <div v-if="exportError" class="error-msg">{{ exportError }}</div>
+              </template>
+              <template v-else>
+                <iframe
+                  v-if="latestDesign"
+                  :srcdoc="iframeSrcdoc"
+                  sandbox=""
+                  class="mockup-iframe"
+                  title="mockup-preview"
+                />
+                <div v-else class="muted">暂无可预览产物</div>
+                <div v-if="mockupError" class="error-msg">{{ mockupError }}</div>
+              </template>
             </div>
           </div>
         </div>
@@ -99,6 +188,7 @@ export default {
       loading: true,
       projectId: null,
       projectName: '',
+      mode: 'mockup',
       specs: [],
       activeSpecId: null,
       prompt: '',
@@ -110,7 +200,22 @@ export default {
       importHint: '',
       genError: '',
       specParseError: '',
-      exportError: ''
+      exportError: '',
+
+      // HTML+CSS mockup mode (mvp-vue style)
+      mockupPrompt: '',
+      selectedModel: 'deepseek-chat',
+      mockupGenerating: false,
+      mockupError: '',
+      mockupHtml: '',
+      mockupCss: '',
+      mockupRawAiContent: '',
+      mockupMessages: [
+        {
+          role: 'assistant',
+          content: '你好！你可以直接输入中文需求（例如：生成一个登录页 mockup）。我会自动解析为 HTML + CSS 并预览。'
+        }
+      ]
     }
   },
   computed: {
@@ -127,12 +232,40 @@ export default {
       } catch (e) {
         return null
       }
+    },
+    canSendMockup () {
+      return !this.mockupGenerating && String(this.mockupPrompt || '').trim().length > 0
+    },
+    latestDesign () {
+      const html = String(this.mockupHtml || '')
+      const css = String(this.mockupCss || '')
+      if (!html && !css) return null
+      return { html, css }
+    },
+    iframeSrcdoc () {
+      if (!this.latestDesign) return ''
+      const css = this.latestDesign.css || ''
+      const html = this.latestDesign.html || ''
+      return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>${css}</style>
+</head>
+<body>
+${html}
+</body>
+</html>`
     }
   },
   created () {
     this.projectId = this.$route && this.$route.params ? this.$route.params.projectId : null
+    // 进入页面默认使用 HTML+CSS 模式
+    this.mode = 'mockup'
     this.load()
     this.loadQuoteProjects()
+    this.loadMockup()
   },
   watch: {
     activeSpecId () {
@@ -140,6 +273,62 @@ export default {
     }
   },
   methods: {
+    async sendMockupText (text) {
+      const content = String(text || '').trim()
+      if (!content) return
+
+      this.mockupMessages.push({ role: 'user', content })
+      this.mockupGenerating = true
+      this.mockupError = ''
+      this.genError = ''
+
+      try {
+        const designPrompt = this.buildDesignPrompt(content)
+        const resp = await this.$http.post(
+          `/admin/ui-prototype/projects/${this.projectId}/mockups/generate`,
+          {
+            prompt: designPrompt,
+            model: this.selectedModel || undefined,
+            messagesJson: JSON.stringify(this.mockupMessages)
+          }
+        )
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.jobId != null) {
+          await this.pollMockupJob(resp.data.data.jobId)
+          // 复刻 mvp-vue 的“节选原始输出”体验（后端已落库 rawAiContent）
+          const raw = String(this.mockupRawAiContent || '(空回复)')
+          const hasDesign = !!this.latestDesign
+          const assistantContent = hasDesign
+            ? `已生成 mockup（HTML/CSS），已尝试解析并在下方预览。\n\n原始输出（节选）：\n${raw.substring(0, 500)}${raw.length > 500 ? '...' : ''}`
+            : raw
+          this.mockupMessages.push({ role: 'assistant', content: assistantContent })
+
+          // 同步保存对话消息（不触发生成）
+          try {
+            await this.$http.post(
+              `/admin/ui-prototype/projects/${this.projectId}/mockup/messages`,
+              { messagesJson: JSON.stringify(this.mockupMessages) }
+            )
+          } catch (e) { /* ignore */ }
+        } else {
+          this.mockupError = (resp.data && resp.data.message) || '生成失败'
+        }
+      } catch (e) {
+        this.mockupError = (e.response && e.response.data && e.response.data.message) || '生成失败'
+      } finally {
+        this.mockupGenerating = false
+      }
+    },
+    switchMode (m) {
+      if (m !== 'spec' && m !== 'mockup') return
+      this.mode = m
+      this.genError = ''
+      this.specParseError = ''
+      this.exportError = ''
+      this.mockupError = ''
+      if (m === 'spec') {
+        this.$nextTick(() => this.renderActiveSpec())
+      }
+    },
     async load () {
       this.loading = true
       this.genError = ''
@@ -163,6 +352,28 @@ export default {
       } finally {
         this.loading = false
         this.$nextTick(() => this.renderActiveSpec())
+      }
+    },
+    async loadMockup () {
+      this.mockupError = ''
+      if (!this.projectId) return
+      try {
+        const resp = await this.$http.get(`/admin/ui-prototype/projects/${this.projectId}/mockup`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.mockupHtml = String(d.html || '')
+          this.mockupCss = String(d.css || '')
+          this.mockupRawAiContent = String(d.rawAiContent || '')
+          if (d.messagesJson) {
+            try {
+              const arr = JSON.parse(String(d.messagesJson))
+              if (Array.isArray(arr) && arr.length) this.mockupMessages = arr
+            } catch (e) {}
+          }
+          if (d.modelUsed) this.selectedModel = String(d.modelUsed)
+        }
+      } catch (e) {
+        // ignore
       }
     },
     onSelectSpec () {
@@ -215,6 +426,27 @@ export default {
       }
       this.genError = '等待超时：生成可能仍在后台进行，请稍后刷新页面查看版本列表。'
     },
+    async pollMockupJob (jobId) {
+      const max = 120
+      for (let i = 0; i < max; i++) {
+        await this.sleep(1500)
+        const r = await this.$http.get(`/admin/ui-prototype/projects/${this.projectId}/mockups/jobs/${jobId}`)
+        if (!r.data || r.data.code !== 0 || !r.data.data) {
+          this.mockupError = (r.data && r.data.message) || '查询任务失败'
+          return
+        }
+        const st = r.data.data.status
+        if (st === 'success') {
+          await this.loadMockup()
+          return
+        }
+        if (st === 'failed') {
+          this.mockupError = r.data.data.errorMessage || '生成失败'
+          return
+        }
+      }
+      this.mockupError = '等待超时：生成可能仍在后台进行，请稍后刷新页面查看预览。'
+    },
     async generateSpec () {
       this.generating = true
       this.genError = ''
@@ -237,6 +469,62 @@ export default {
       } finally {
         this.generating = false
       }
+    },
+    buildDesignPrompt (userInput) {
+      return `你是一名专业前端工程师。请生成一个“可直接在浏览器预览”的前端 mockup，用于本地 MVP 演示。
+
+要求：
+1. 只允许输出一个 JSON 对象，不要输出任何多余文字。
+2. JSON 结构固定：{ "html": "...", "css": "..." }
+3. html：只包含 body 内所需的元素（可以包含 class/id），不要包含 <html>, <head>, <body>，不要包含 <style> 标签。
+4. css：只包含 CSS 内容（不要包含 <style> 标签）。
+5. 需要支持中文显示（使用系统字体栈：sans-serif 即可），不要引用外部图片/外链资源。
+6. 不要包含 <script>，不要包含事件处理属性（如 onclick=...）。
+7. 尽量保证响应式（移动端也要好看）。
+
+用户需求（中文）：
+${userInput}`
+    },
+    async sendMockup () {
+      const content = String(this.mockupPrompt || '').trim()
+      if (!content) return
+      this.mockupPrompt = ''
+      await this.sendMockupText(content)
+    },
+    clearMockup () {
+      this.mockupMessages = [
+        { role: 'assistant', content: '已清空对话。你可以继续输入中文需求，我会继续调用 DeepSeek。' }
+      ]
+      this.mockupError = ''
+      try {
+        this.$http.post(
+          `/admin/ui-prototype/projects/${this.projectId}/mockup/messages`,
+          { messagesJson: JSON.stringify(this.mockupMessages) }
+        )
+      } catch (e) {}
+    },
+    downloadLatestMockup () {
+      if (!this.latestDesign) return
+      const css = this.latestDesign.css || ''
+      const html = this.latestDesign.html || ''
+      const doc = `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>${css}</style>
+</head>
+<body>
+${html}
+</body>
+</html>`
+      const blob = new Blob([doc], { type: 'text/html;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'prototype-mockup.html'
+      a.click()
+      URL.revokeObjectURL(url)
     },
     async loadQuoteProjects () {
       this.quoteLoading = true
@@ -270,8 +558,16 @@ export default {
           { quoteProjectId: this.selectedQuoteProjectId }
         )
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.requirementText) {
-          this.prompt = String(resp.data.data.requirementText || '').trim()
-          this.importHint = '结构化需求已导入，可继续补充其他要求后再生成'
+          const t = String(resp.data.data.requirementText || '').trim()
+          if (this.mode === 'spec') {
+            this.prompt = t
+            this.importHint = '结构化需求已导入，可继续补充其他要求后再生成'
+          } else {
+            // HTML+CSS 模式：导入后自动触发一次生成并预览
+            this.mockupPrompt = t
+            await this.sendMockupText(t)
+            this.importHint = '结构化需求已导入并已自动生成预览；可继续补充其他要求后再次发送'
+          }
         } else {
           this.genError = (resp.data && resp.data.message) || '导入报价需求失败'
         }
@@ -631,9 +927,40 @@ export default {
   font-weight: 900;
   color: #0f172a;
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 .section-head .section-title {
   margin-bottom: 0;
+}
+.head-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.mode-toggle {
+  display: inline-flex;
+  gap: 6px;
+  padding: 2px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.mode-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 900;
+  color: #334155;
+}
+.mode-btn.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
 }
 .section-body select, .section-body textarea {
   width: 100%;
@@ -661,6 +988,32 @@ export default {
 }
 .actions-row {
   margin-top: 10px;
+}
+.mockup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.mockup-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 240px;
+}
+.mockup-model-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: #334155;
+}
+.mockup-model-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 800;
 }
 .import-row {
   display: flex;
@@ -703,6 +1056,45 @@ export default {
   background: #f8fafc;
   padding: 10px;
   overflow: auto;
+}
+.mockup-iframe {
+  width: 100%;
+  height: calc(100vh - 260px);
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+.chat-log {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 10px;
+}
+.chat-msg {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.chat-msg.user {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.chat-role {
+  font-size: 12px;
+  font-weight: 900;
+  color: #475569;
+  margin-bottom: 6px;
+}
+.chat-content {
+  white-space: pre-wrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.55;
 }
 .muted {
   color: #64748b;

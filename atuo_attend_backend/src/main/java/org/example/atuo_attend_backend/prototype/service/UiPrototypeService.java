@@ -2,10 +2,13 @@ package org.example.atuo_attend_backend.prototype.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.prototype.domain.UiPrototypeGenerateJob;
+import org.example.atuo_attend_backend.prototype.domain.UiPrototypeMockup;
+import org.example.atuo_attend_backend.prototype.domain.UiPrototypeMockupGenerateJob;
 import org.example.atuo_attend_backend.prototype.domain.UiPrototypeProject;
 import org.example.atuo_attend_backend.prototype.domain.UiPrototypeSpec;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectListItem;
@@ -14,6 +17,8 @@ import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSpecItem;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateJobStatus;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSpecGenerateResult;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeGenerateJobMapper;
+import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeMockupGenerateJobMapper;
+import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeMockupMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeProjectMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeSpecMapper;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
@@ -24,6 +29,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class UiPrototypeService {
@@ -33,6 +40,8 @@ public class UiPrototypeService {
     private final UiPrototypeProjectMapper projectMapper;
     private final UiPrototypeSpecMapper specMapper;
     private final UiPrototypeGenerateJobMapper generateJobMapper;
+    private final UiPrototypeMockupMapper mockupMapper;
+    private final UiPrototypeMockupGenerateJobMapper mockupGenerateJobMapper;
     private final AiAnalysisConfigService configService;
     private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -42,11 +51,15 @@ public class UiPrototypeService {
     public UiPrototypeService(UiPrototypeProjectMapper projectMapper,
                               UiPrototypeSpecMapper specMapper,
                               UiPrototypeGenerateJobMapper generateJobMapper,
+                              UiPrototypeMockupMapper mockupMapper,
+                              UiPrototypeMockupGenerateJobMapper mockupGenerateJobMapper,
                               AiAnalysisConfigService configService,
                               DeepSeekClient deepSeekClient) {
         this.projectMapper = projectMapper;
         this.specMapper = specMapper;
         this.generateJobMapper = generateJobMapper;
+        this.mockupMapper = mockupMapper;
+        this.mockupGenerateJobMapper = mockupGenerateJobMapper;
         this.configService = configService;
         this.deepSeekClient = deepSeekClient;
     }
@@ -94,6 +107,13 @@ public class UiPrototypeService {
         long tenantId = tid();
         // 删除项目时同步删除该项目下的 spec 版本，避免产生孤儿数据
         specMapper.deleteByProject(tenantId, id);
+        // HTML+CSS mockup：删除当前产物与任务
+        try {
+            mockupMapper.deleteByProjectId(tenantId, id);
+        } catch (Exception ignore) { /* non-fatal */ }
+        try {
+            mockupGenerateJobMapper.deleteByProjectId(tenantId, id);
+        } catch (Exception ignore) { /* non-fatal */ }
         int deleted = projectMapper.deleteById(tenantId, id);
         if (deleted <= 0) throw new IllegalArgumentException("项目不存在");
     }
@@ -121,6 +141,107 @@ public class UiPrototypeService {
         d.setCurrentSpecVersion(p.getCurrentSpecVersion());
         d.setSpecs(specItems);
         return d;
+    }
+
+    // =========================
+    // HTML+CSS Mockup 模式（按 mvp-vue 的解析/修复方式实现；不做版本控制）
+    // =========================
+
+    public UiPrototypeMockup getMockup(long projectId) {
+        long tenantId = tid();
+        return mockupMapper.findByProjectId(tenantId, projectId);
+    }
+
+    public void saveMockupMessages(long projectId, String messagesJson) {
+        long tenantId = tid();
+        UiPrototypeMockup existing = mockupMapper.findByProjectId(tenantId, projectId);
+        if (existing == null) {
+            UiPrototypeMockup row = new UiPrototypeMockup();
+            row.setTenantId(tenantId);
+            row.setProjectId(projectId);
+            row.setHtml("");
+            row.setCss("");
+            row.setMessagesJson(messagesJson);
+            row.setModelUsed(null);
+            row.setRawAiContent(null);
+            row.setRepaired(false);
+            mockupMapper.insert(row);
+        } else {
+            UiPrototypeMockup row = new UiPrototypeMockup();
+            row.setTenantId(tenantId);
+            row.setProjectId(projectId);
+            row.setHtml(existing.getHtml() != null ? existing.getHtml() : "");
+            row.setCss(existing.getCss() != null ? existing.getCss() : "");
+            row.setRawAiContent(existing.getRawAiContent());
+            row.setModelUsed(existing.getModelUsed());
+            row.setRepaired(existing.isRepaired());
+            row.setMessagesJson(messagesJson);
+            mockupMapper.updateByProjectId(row);
+        }
+    }
+
+    public long enqueueGenerateMockup(long projectId, String prompt, String model, String messagesJson) {
+        validateGeneratePreconditions(projectId, prompt);
+        long tenantId = tid();
+        UiPrototypeMockupGenerateJob row = new UiPrototypeMockupGenerateJob();
+        row.setTenantId(tenantId);
+        row.setProjectId(projectId);
+        row.setStatus("pending");
+        row.setPromptSnapshot(promptSnapshot(prompt));
+        row.setModel(model != null && !model.isBlank() ? model.trim() : null);
+        mockupGenerateJobMapper.insert(row);
+        Long jobId = row.getId();
+        if (jobId == null) {
+            throw new IllegalStateException("创建生成任务失败");
+        }
+        CompletableFuture.runAsync(() -> runGenerateMockupJobSafe(tenantId, jobId, projectId, prompt, row.getModel(), messagesJson));
+        return jobId;
+    }
+
+    public UiPrototypeMockupGenerateJob getMockupGenerateJobStatus(long projectId, long jobId) {
+        long tenantId = tid();
+        return mockupGenerateJobMapper.findById(jobId, tenantId, projectId);
+    }
+
+    private void runGenerateMockupJobSafe(long tenantId, long jobId, long projectId, String prompt, String model, String messagesJson) {
+        try {
+            TenantContext.runWithTenantId(tenantId, () -> runGenerateMockupJob(jobId, projectId, prompt, model, messagesJson));
+        } catch (Throwable t) {
+            log.error("ui prototype mockup generate job {} crashed", jobId, t);
+            try {
+                TenantContext.runWithTenantId(tenantId, () -> {
+                    String msg = t.getMessage() != null ? t.getMessage() : "内部错误";
+                    mockupGenerateJobMapper.updateFailed(jobId, tenantId, projectId, msg);
+                });
+            } catch (Exception e) {
+                log.warn("update mockup job failed status error: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void runGenerateMockupJob(long jobId, long projectId, String prompt, String model, String messagesJson) {
+        long tenantId = tid();
+        mockupGenerateJobMapper.updateStatus(jobId, tenantId, projectId, "running");
+        try {
+            MockupGenerateResult r = generateMockupWithRepair(prompt, model);
+            UiPrototypeMockup existing = mockupMapper.findByProjectId(tenantId, projectId);
+            UiPrototypeMockup row = existing != null ? existing : new UiPrototypeMockup();
+            row.setTenantId(tenantId);
+            row.setProjectId(projectId);
+            row.setHtml(r.html != null ? r.html : "");
+            row.setCss(r.css != null ? r.css : "");
+            row.setRawAiContent(r.rawContent);
+            row.setMessagesJson(messagesJson);
+            row.setModelUsed(r.modelUsed);
+            row.setRepaired(r.repaired);
+            if (existing == null) mockupMapper.insert(row);
+            else mockupMapper.updateByProjectId(row);
+
+            mockupGenerateJobMapper.updateSuccess(jobId, tenantId, projectId);
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "生成失败";
+            mockupGenerateJobMapper.updateFailed(jobId, tenantId, projectId, msg);
+        }
     }
 
     /**
@@ -230,24 +351,15 @@ public class UiPrototypeService {
                 continue;
             }
             try {
-                String jsonText = extractJson(rawContent);
-                JsonNode specNode = objectMapper.readTree(jsonText);
+                JsonNode specNode = parseJsonObjectLenient(rawContent);
                 validator.validate(specNode);
                 semanticValidator.validate(specNode, expectedModuleCount);
                 validatedSpec = specNode;
                 break;
             } catch (Exception e) {
                 lastErr = e.getMessage() != null ? e.getMessage() : e.toString();
-                // retry：把失败原因回填给模型，要求只修复 JSON
-                String repairUser = userPrompt
-                        + "\n\n上一次输出校验失败，错误：\n" + lastErr
-                        + "\n\n请在不改变需求语义的前提下，仅修复 JSON 结构。"
-                        + "\n严格要求："
-                        + "\n1) 只输出一个 JSON object，不要任何解释文字。"
-                        + "\n2) interaction 必须包含 type/sourceId/targetId/params。"
-                        + "\n3) 禁止使用 source/target/from/to 等别名键名。"
-                        + "\n4) open/tabKey 必须位于 params 内。"
-                        + "\n5) 若失败原因涉及 Tabs/模块映射：允许跳过“不需要在 UI 上体现”的模块，但必须确保 Tabs.tabItems 中出现的每个模块 Tab，对应 contentId 子树包含该模块功能点的 Badge（不允许合并成“其他/汇总”）。";
+                // retry：按更鲁棒的“修复式”提示词，让模型只输出一个可解析的 JSON object
+                String repairUser = buildRepairPrompt(userPrompt, rawContent, lastErr);
                 messages = List.of(
                         new DeepSeekClient.ChatMessage("system", systemPrompt),
                         new DeepSeekClient.ChatMessage("user", repairUser)
@@ -307,12 +419,9 @@ public class UiPrototypeService {
                 + "- 必须使用 targetId，不要使用 target/targetNodeId/toId/to/panelId/tabsId\n"
                 + "- 参数必须放在 params 内，不要把 open/tabKey 放在 interaction 顶层\n"
                 + "\n"
-                + "多模块页面（关键要求）：\n"
-                + "1) 必须在 layout.root（或 root 的直接 children）放置一个用于“模块 Tab 分区”的 Tabs 节点（至少满足一个全局 Tabs）。\n"
-                + "2) Tabs.props.tabItems 的数量应不超过用户需求里解析出的“模块数量”；允许跳过“不需要在 UI 上体现”的模块。\n"
-                + "3) 每个 tabItems[i].label 必须包含用户需求里对应模块的模块标记（形如：【模块N】模块名）。\n"
-                + "4) 每个 tabItems[i].contentId 必须指向一个用于该模块的 Panel 或 Card 节点；该内容节点内部必须展示该模块的功能点：用 Badge 节点逐条列出功能点名称；Badge.props.text 必须精确等于“  - 功能点：xxx”里的 xxx（不要包含复杂度/数量/编号）。\n"
-                + "5) 禁止把多个模块合并到同一个 Tab，禁止用“其他/汇总”吸收功能点。\n"
+                + "关于“模块/功能点”：\n"
+                + "- 如果用户输入里包含形如【模块1】模块名、以及“  - 功能点：xxx”的结构化清单：优先用 Tabs 做分区，每个 Tab 对应一个模块，模块下用 Badge 列出功能点。\n"
+                + "- 如果用户输入是自由文本：你可以自行决定是否使用 Tabs；但仍要保证页面可预览、信息清晰、组件数量不过载。\n"
                 + "\n"
                 + "输出前请自检（不输出自检过程）：\n"
                 + "1) interactions 中每一项都有 type/sourceId/targetId/params\n"
@@ -344,11 +453,9 @@ public class UiPrototypeService {
                 + "- MVP 交互：只实现点击态与切换面板/Tabs\n"
                 + "- 不要使用任何图片与外部资源\n"
                 + "- 文案简洁\n"
-                + "\n强制输出规则（务必遵守）：\n"
-                + "1) 从“【模块N】模块名”逐个识别模块；至少生成 1 个 Tabs.tabItems。\n"
-                + "2) 你可以根据模块在 UI 上是否“可展示/可交互”来决定是否跳过某些模块（允许少于模块数量）；但不允许把多个模块合并到同一个 Tab。\n"
-                + "3) 对于每个被选中的模块 Tab：contentId 对应节点内部必须有 Badge 列表；Badge.text 要逐条等于“  - 功能点：xxx”中的 xxx（不要包含复杂度/数量/编号）。\n"
-                + "4) 禁止用“其他/汇总”吸收功能点。\n";
+                + "\n输出规则（务必遵守）：\n"
+                + "1) 只输出一个 JSON object，不要任何解释文字/Markdown/代码块。\n"
+                + "2) 若需求中出现【模块N】与功能点清单，请用 Tabs 分区并用 Badge 列出功能点；否则按你的判断组织页面结构。\n";
     }
 
     private static int countExpectedModulesFromRequirementText(String prompt) {
@@ -360,18 +467,206 @@ public class UiPrototypeService {
         return c;
     }
 
-    private String extractJson(String content) {
-        String s = content.trim();
-        if (s.startsWith("```")) {
-            // 去除代码块外层
-            int first = s.indexOf('{');
-            int last = s.lastIndexOf('}');
-            if (first >= 0 && last > first) return s.substring(first, last + 1);
+    private static final Pattern FENCED_JSON = Pattern.compile("```json\\s*([\\s\\S]*?)\\s*```", Pattern.CASE_INSENSITIVE);
+
+    private JsonNode parseJsonObjectLenient(String text) throws Exception {
+        String trimmed = text != null ? text.trim() : "";
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("AI 输出为空，无法解析 JSON");
         }
-        int first = s.indexOf('{');
-        int last = s.lastIndexOf('}');
-        if (first < 0 || last <= first) throw new IllegalArgumentException("无法从 AI 文本中提取 JSON object");
-        return s.substring(first, last + 1);
+
+        // 1) 直接 parse（正常情况下 response_format=json_object 会走这里）
+        try {
+            JsonNode node = objectMapper.readTree(trimmed);
+            if (node != null && node.isObject()) return node;
+        } catch (Exception ignore) {
+            // continue
+        }
+
+        // 2) fenced ```json ... ```
+        Matcher fenced = FENCED_JSON.matcher(trimmed);
+        if (fenced.find()) {
+            String inside = fenced.group(1);
+            if (inside != null && !inside.trim().isEmpty()) {
+                JsonNode node = objectMapper.readTree(inside.trim());
+                if (node != null && node.isObject()) return node;
+            }
+        }
+
+        // 3) first '{' ... last '}' slice（容忍前后多余内容）
+        int firstBrace = trimmed.indexOf('{');
+        int lastBrace = trimmed.lastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            String sliced = trimmed.substring(firstBrace, lastBrace + 1);
+            JsonNode node = objectMapper.readTree(sliced);
+            if (node != null && node.isObject()) return node;
+        }
+
+        throw new IllegalArgumentException("无法从 AI 文本中解析 JSON object");
+    }
+
+    private String buildRepairPrompt(String originalUserPrompt, String previousOutput, String error) {
+        String raw = previousOutput != null ? previousOutput : "";
+        if (raw.length() > 12000) raw = raw.substring(0, 12000);
+        String err = (error != null && !error.isBlank()) ? error : "未知错误";
+
+        return ""
+                + "你上一次的输出无法被解析/校验（常见原因：JSON 不完整、字段缺失、字符串未闭合、包含多余文字）。\n"
+                + "请你【只输出一个 JSON 对象】并确保 100% 可被 JSON.parse 解析。\n"
+                + "不要输出 ``` 代码块标记，不要输出任何解释文字。\n"
+                + "\n"
+                + "必须满足：\n"
+                + "1) 输出是单个 JSON object（以 { 开头，以 } 结束）\n"
+                + "2) layout.root 指向 nodes 中存在的节点 id\n"
+                + "3) interactions 每项都有 type/sourceId/targetId/params\n"
+                + "4) 禁止出现未定义的 interaction 键名别名（必须是 sourceId/targetId/params）\n"
+                + "\n"
+                + "这是用户原始需求（不要原样重复输出，只用于你生成 JSON）：\n"
+                + originalUserPrompt + "\n"
+                + "\n"
+                + "这是你上一次的原始输出（供你修复参考）：\n"
+                + raw + "\n"
+                + "\n"
+                + "上一次失败原因：\n"
+                + err + "\n";
+    }
+
+    // ======== mvp-vue 的 HTML+CSS 解析/修复逻辑（Java 版复刻）========
+
+    private record MockupGenerateResult(String rawContent, String html, String css, boolean repaired, String modelUsed) {}
+    private record Design(String html, String css) {}
+
+    private MockupGenerateResult generateMockupWithRepair(String prompt, String model) {
+        // NOTE: 调用方已验证 projectId 与 prompt；这里仅专注于“调用模型 + 解析/修复”。
+        AiAnalysisConfig cfg = configService.getConfig();
+        String apiKey = cfg.getApiKey();
+        String realModel = (model != null && !model.isBlank())
+                ? model.trim()
+                : (cfg.getModel() != null ? cfg.getModel() : "deepseek-chat");
+
+        DeepSeekClient.ChatResult first = deepSeekClient.chatWithUsage(
+                apiKey,
+                realModel,
+                List.of(new DeepSeekClient.ChatMessage("user", prompt.trim())),
+                false,
+                4096
+        );
+        String firstText = first != null ? Objects.toString(first.getContent(), "") : "";
+        Design d1 = parseDesignFromText(firstText);
+        if (d1 != null && (!d1.html.isBlank() || !d1.css.isBlank())) {
+            return new MockupGenerateResult(firstText, d1.html, d1.css, false, first != null ? first.getModel() : realModel);
+        }
+
+        String repairPrompt = buildMockupRepairPrompt(firstText);
+        DeepSeekClient.ChatResult second = deepSeekClient.chatWithUsage(
+                apiKey,
+                realModel,
+                List.of(new DeepSeekClient.ChatMessage("user", repairPrompt)),
+                false,
+                4096
+        );
+        String secondText = second != null ? Objects.toString(second.getContent(), "") : "";
+        Design d2 = parseDesignFromText(secondText);
+        if (d2 == null) d2 = new Design("", "");
+        return new MockupGenerateResult(secondText, d2.html, d2.css, true, second != null ? second.getModel() : realModel);
+    }
+
+    private static final Pattern FENCED_JSON_GENERIC = Pattern.compile("```json\\s*([\\s\\S]*?)\\s*```", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FENCED_HTML = Pattern.compile("```html\\s*([\\s\\S]*?)\\s*```", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FENCED_CSS = Pattern.compile("```css\\s*([\\s\\S]*?)\\s*```", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STYLE_TAG = Pattern.compile("<style[\\s\\S]*?>([\\s\\S]*?)</style>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SCRIPT_TAG = Pattern.compile("<script[\\s\\S]*?>[\\s\\S]*?</script>", Pattern.CASE_INSENSITIVE);
+
+    private Design parseDesignFromText(String text) {
+        if (text == null) return null;
+        String trimmed = text.trim();
+        if (trimmed.isEmpty()) return null;
+
+        ObjectNode json = safeExtractJsonObject(trimmed);
+        if (json != null) {
+            String html = json.has("html") && json.get("html").isTextual() ? json.get("html").asText("") : "";
+            String css = json.has("css") && json.get("css").isTextual() ? json.get("css").asText("") : "";
+            html = sanitizeHtml(html);
+            if (!html.isBlank() || !css.isBlank()) return new Design(html, css);
+        }
+
+        String htmlFence = extractFence(trimmed, FENCED_HTML);
+        String cssFence = extractFence(trimmed, FENCED_CSS);
+        if (htmlFence != null && cssFence != null) {
+            return new Design(sanitizeHtml(htmlFence), cssFence);
+        }
+
+        if (trimmed.contains("<style")) {
+            Matcher sm = STYLE_TAG.matcher(trimmed);
+            String css = sm.find() ? Objects.toString(sm.group(1), "").trim() : "";
+            String html = trimmed.replaceAll("(?i)<style[\\s\\S]*?>[\\s\\S]*?</style>", "");
+            html = sanitizeHtml(html);
+            if (!html.isBlank() || !css.isBlank()) return new Design(html, css);
+        }
+
+        return null;
+    }
+
+    private ObjectNode safeExtractJsonObject(String text) {
+        String t = text != null ? text.trim() : "";
+        if (t.isEmpty()) return null;
+
+        try {
+            JsonNode node = objectMapper.readTree(t);
+            if (node != null && node.isObject()) return (ObjectNode) node;
+        } catch (Exception ignore) { }
+
+        Matcher fenced = FENCED_JSON_GENERIC.matcher(t);
+        if (fenced.find() && fenced.group(1) != null) {
+            try {
+                JsonNode node = objectMapper.readTree(fenced.group(1).trim());
+                if (node != null && node.isObject()) return (ObjectNode) node;
+            } catch (Exception ignore) { }
+        }
+
+        int firstBrace = t.indexOf('{');
+        int lastBrace = t.lastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            try {
+                JsonNode node = objectMapper.readTree(t.substring(firstBrace, lastBrace + 1));
+                if (node != null && node.isObject()) return (ObjectNode) node;
+            } catch (Exception ignore) { }
+        }
+        return null;
+    }
+
+    private static String extractFence(String text, Pattern p) {
+        Matcher m = p.matcher(text != null ? text : "");
+        if (!m.find()) return null;
+        String inside = m.group(1);
+        return inside != null ? inside.trim() : null;
+    }
+
+    private static String sanitizeHtml(String html) {
+        if (html == null) return "";
+        String out = html;
+        out = SCRIPT_TAG.matcher(out).replaceAll("");
+        out = out.replaceAll("(?i)\\son[a-z]+\\s*=\\s*(['\"]).*?\\1", "");
+        return out.trim();
+    }
+
+    private static String buildMockupRepairPrompt(String firstText) {
+        String raw = firstText != null ? firstText : "";
+        if (raw.length() > 12000) raw = raw.substring(0, 12000);
+        return ""
+                + "你刚才的输出无法被 JSON.parse 解析（通常是因为输出被截断或字符串未闭合）。\n"
+                + "请你【只输出一个 JSON 对象】并确保 100% 可解析，结构固定为：\n"
+                + "{ \"html\": \"...\", \"css\": \"...\" }\n"
+                + "\n"
+                + "约束：\n"
+                + "1) 不要输出 ``` 代码块标记，不要输出任何解释文字\n"
+                + "2) html/css 字符串必须闭合，不能被截断\n"
+                + "3) CSS 要简洁（控制在 120 行以内），避免冗长\n"
+                + "4) html 只包含 body 内元素，不要包含 <html>/<head>/<body>/<style>/<script>\n"
+                + "5) 不要包含 <script> 或 on* 事件属性\n"
+                + "\n"
+                + "这是你上一次的原始输出（请基于它修复并压缩）：\n"
+                + raw;
     }
 }
 

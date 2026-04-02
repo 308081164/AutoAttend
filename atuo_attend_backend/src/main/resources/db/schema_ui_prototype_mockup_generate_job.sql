@@ -1,0 +1,16 @@
+-- 快原型：HTML+CSS mockup 异步生成任务（避免 nginx 同步等待 LLM 导致 504）
+CREATE TABLE IF NOT EXISTS aa_ui_prototype_mockup_generate_job (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    tenant_id BIGINT NOT NULL DEFAULT 1 COMMENT '租户ID',
+    project_id BIGINT NOT NULL COMMENT '原型项目ID',
+    status VARCHAR(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/running/success/failed',
+    error_message TEXT NULL COMMENT '失败原因',
+    prompt_snapshot VARCHAR(2000) NULL COMMENT '请求摘要（审计/排错）',
+    model VARCHAR(64) NULL COMMENT '用户选择的模型（可空）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_tenant_project (tenant_id, project_id),
+    KEY idx_tenant_project_status (tenant_id, project_id, status),
+    KEY idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='快原型 HTML+CSS mockup 异步生成任务';
+
