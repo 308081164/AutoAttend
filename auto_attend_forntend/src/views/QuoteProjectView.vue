@@ -1698,6 +1698,11 @@ export default {
           syncCollabTable: this.provisionForm.syncCollabTable === true,
           createWebhook: this.provisionForm.createWebhook === true
         }
+          // 组件点击埋点：由“报价项目创建/Provision”触发
+          this.$http.post('/admin/ops/events/component-click', {
+            componentKey: 'hub_quote',
+            coreApiKey: 'quote_provision'
+          }).catch(() => {})
         const resp = await this.$http.post(`/admin/quote/projects/${this.projectId}/provision`, body, { timeout: 120000 })
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.provisionOk = true
@@ -2175,6 +2180,11 @@ export default {
           priceConfigId: this.priceConfigId,
           auditChecklist: { ...this.audit }
         }
+        // 组件点击埋点：由“报价计算/Calculate”触发
+        this.$http.post('/admin/ops/events/component-click', {
+          componentKey: 'hub_quote',
+          coreApiKey: 'quote_calculate'
+        }).catch(() => {})
         const resp = await this.$http.post('/admin/quote/projects/' + pid + '/calculate', body)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.calcResult = resp.data.data

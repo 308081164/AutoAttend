@@ -10,6 +10,7 @@ public class PlatformTenantOpsRow {
     private Long tenantId;
     private String tenantName;
     private String slug;
+    private String adminPhone;
     private String planCode;
     private String status;
     private LocalDateTime tenantCreatedAt;
@@ -44,6 +45,14 @@ public class PlatformTenantOpsRow {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public String getAdminPhone() {
+        return adminPhone;
+    }
+
+    public void setAdminPhone(String adminPhone) {
+        this.adminPhone = adminPhone;
     }
 
     public String getPlanCode() {

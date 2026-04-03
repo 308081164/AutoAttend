@@ -12,6 +12,8 @@ import org.example.atuo_attend_backend.quote.service.QuoteProvisionService;
 import org.example.atuo_attend_backend.quote.service.QuoteService;
 import org.example.atuo_attend_backend.quote.service.QuoteAiAcceptanceTestCasesJobService;
 import org.example.atuo_attend_backend.quote.service.QuoteAiContractGenerateJobService;
+import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
+import org.example.atuo_attend_backend.platform.service.PlatformComponentEventService;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.http.ContentDisposition;
@@ -40,6 +42,7 @@ public class AdminQuoteController {
     private final QuotePriceConfigMapper priceConfigMapper;
     private final QuoteProvisionService quoteProvisionService;
     private final QuoteCollabLinkService quoteCollabLinkService;
+    private final PlatformComponentEventService componentEventService;
 
     public AdminQuoteController(QuoteService quoteService, QuoteDocumentExportService quoteDocumentExportService,
                                 QuoteBaselineMapper baselineMapper,
@@ -47,7 +50,8 @@ public class AdminQuoteController {
                                 QuoteProvisionService quoteProvisionService,
                                 QuoteCollabLinkService quoteCollabLinkService,
                                 QuoteAiAcceptanceTestCasesJobService acceptanceJobService,
-                                QuoteAiContractGenerateJobService contractJobService) {
+                                QuoteAiContractGenerateJobService contractJobService,
+                                PlatformComponentEventService componentEventService) {
         this.quoteService = quoteService;
         this.acceptanceJobService = acceptanceJobService;
         this.contractJobService = contractJobService;
@@ -57,6 +61,7 @@ public class AdminQuoteController {
         this.priceConfigMapper = priceConfigMapper;
         this.quoteProvisionService = quoteProvisionService;
         this.quoteCollabLinkService = quoteCollabLinkService;
+        this.componentEventService = componentEventService;
     }
 
     private static long tid() {
@@ -172,7 +177,12 @@ public class AdminQuoteController {
             return ApiResponse.error(50000, "provision 服务未就绪");
         }
         try {
-            return ApiResponse.ok(quoteProvisionService.provision(id, body, req));
+            Map<String, Object> r = quoteProvisionService.provision(id, body, req);
+            // usage：实际调用核心接口（即“报价项目创建/Provision”）
+            Long adminUserId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+            String adminPhone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
+            componentEventService.recordUsage(adminUserId, adminPhone, "hub_quote", "quote_provision");
+            return ApiResponse.ok(r);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());
         } catch (IllegalStateException e) {
@@ -216,10 +226,17 @@ public class AdminQuoteController {
     }
 
     @PostMapping("/projects/{id}/calculate")
-    public ApiResponse<Map<String, Object>> calculate(@PathVariable long id, @RequestBody(required = false) QuoteCalculateRequest req) {
-        if (req == null) req = new QuoteCalculateRequest();
+    public ApiResponse<Map<String, Object>> calculate(@PathVariable long id,
+                                                        @RequestBody(required = false) QuoteCalculateRequest calcReq,
+                                                        HttpServletRequest req) {
+        if (calcReq == null) calcReq = new QuoteCalculateRequest();
         try {
-            return ApiResponse.ok(quoteService.calculate(id, req));
+            Map<String, Object> r = quoteService.calculate(id, calcReq);
+            // usage：实际调用核心接口（即“报价计算/Calculate”）
+            Long adminUserId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+            String adminPhone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
+            componentEventService.recordUsage(adminUserId, adminPhone, "hub_quote", "quote_calculate");
+            return ApiResponse.ok(r);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());
         } catch (IllegalStateException e) {

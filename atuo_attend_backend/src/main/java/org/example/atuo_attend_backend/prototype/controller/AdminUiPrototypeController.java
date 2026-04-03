@@ -1,6 +1,8 @@
 package org.example.atuo_attend_backend.prototype.controller;
 
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
+import org.example.atuo_attend_backend.platform.service.PlatformComponentEventService;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectDetail;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectListItem;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectCreateRequest;
@@ -14,6 +16,8 @@ import org.example.atuo_attend_backend.quote.service.QuoteService;
 import org.example.atuo_attend_backend.prototype.service.UiPrototypeService;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,10 +28,14 @@ public class AdminUiPrototypeController {
 
     private final UiPrototypeService uiPrototypeService;
     private final QuoteService quoteService;
+    private final PlatformComponentEventService componentEventService;
 
-    public AdminUiPrototypeController(UiPrototypeService uiPrototypeService, QuoteService quoteService) {
+    public AdminUiPrototypeController(UiPrototypeService uiPrototypeService,
+                                      QuoteService quoteService,
+                                      PlatformComponentEventService componentEventService) {
         this.uiPrototypeService = uiPrototypeService;
         this.quoteService = quoteService;
+        this.componentEventService = componentEventService;
     }
 
     @GetMapping("/projects")
@@ -74,10 +82,17 @@ public class AdminUiPrototypeController {
      */
     @PostMapping("/projects/{id}/specs/generate")
     public ApiResponse<Map<String, Object>> enqueueGenerateSpec(@PathVariable long id,
-                                                                 @RequestBody(required = false) UiPrototypeGenerateSpecRequest body) {
+                                                                 @RequestBody(required = false) UiPrototypeGenerateSpecRequest body,
+                                                                 HttpServletRequest req) {
         String prompt = body != null ? body.getPrompt() : null;
         try {
             long jobId = uiPrototypeService.enqueueGenerateSpec(id, prompt);
+
+            // usage：实际调用核心接口（即“生成结构化 spec”）
+            Long adminUserId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+            String adminPhone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
+            componentEventService.recordUsage(adminUserId, adminPhone, "hub_prototype", "ui_prototype_generate_spec");
+
             Map<String, Object> data = new HashMap<>();
             data.put("jobId", jobId);
             return ApiResponse.ok(data);
@@ -132,12 +147,19 @@ public class AdminUiPrototypeController {
      */
     @PostMapping("/projects/{id}/mockups/generate")
     public ApiResponse<Map<String, Object>> enqueueGenerateMockup(@PathVariable long id,
-                                                                  @RequestBody(required = false) UiPrototypeGenerateMockupRequest body) {
+                                                                  @RequestBody(required = false) UiPrototypeGenerateMockupRequest body,
+                                                                  HttpServletRequest req) {
         String prompt = body != null ? body.getPrompt() : null;
         String model = body != null ? body.getModel() : null;
         String messagesJson = body != null ? body.getMessagesJson() : null;
         try {
             long jobId = uiPrototypeService.enqueueGenerateMockup(id, prompt, model, messagesJson);
+
+            // usage：实际调用核心接口（即“生成 HTML/CSS mockup”）
+            Long adminUserId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+            String adminPhone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
+            componentEventService.recordUsage(adminUserId, adminPhone, "hub_prototype", "ui_prototype_generate_mockup");
+
             Map<String, Object> data = new HashMap<>();
             data.put("jobId", jobId);
             return ApiResponse.ok(data);

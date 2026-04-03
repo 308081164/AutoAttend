@@ -14,6 +14,7 @@ public interface PlatformOpsReportMapper {
               t.id AS tenantId,
               t.name AS tenantName,
               t.slug AS slug,
+              (SELECT MAX(tau.phone) FROM aa_tenant_admin_user tau WHERE tau.tenant_id = t.id) AS adminPhone,
               t.plan_code AS planCode,
               t.status AS status,
               t.created_at AS tenantCreatedAt,

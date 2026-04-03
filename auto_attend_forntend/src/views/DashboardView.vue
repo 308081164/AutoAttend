@@ -2005,6 +2005,11 @@ export default {
       try {
         const params = {}
         if (this.selectedCommit.repoFullName) params.repoFullName = this.selectedCommit.repoFullName
+        // 组件点击埋点：由“运行 AI 分析”触发
+        this.$http.post('/admin/ops/events/component-click', {
+          componentKey: 'ai_commit_analysis',
+          coreApiKey: 'ai_analysis_run'
+        }).catch(() => {})
         const resp = await this.$http.post(`/admin/ai-analysis/commits/${this.selectedCommit.commitSha}/run`, null, { params })
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.aiAnalysisResult = resp.data.data

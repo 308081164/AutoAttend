@@ -9,15 +9,17 @@
           <th>ID</th>
           <th>名称</th>
           <th>Slug</th>
+          <th>联系方式</th>
           <th>创建时间</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="t in rows" :key="t.id">
-          <td>{{ t.id }}</td>
-          <td>{{ t.name }}</td>
+        <tr v-for="t in rows" :key="t.tenantId">
+          <td>{{ t.tenantId }}</td>
+          <td>{{ t.tenantName }}</td>
           <td><code>{{ t.slug }}</code></td>
-          <td>{{ t.createdAt || '—' }}</td>
+          <td>{{ t.adminPhone || '—' }}</td>
+          <td>{{ t.tenantCreatedAt || '—' }}</td>
         </tr>
       </tbody>
     </table>
@@ -38,7 +40,7 @@ export default {
   },
   async mounted () {
     try {
-      const { data } = await http.get('/platform/tenants')
+      const { data } = await http.get('/platform/ops/reports/tenants')
       if (data.code === 0 && data.data) {
         this.rows = data.data
       } else {

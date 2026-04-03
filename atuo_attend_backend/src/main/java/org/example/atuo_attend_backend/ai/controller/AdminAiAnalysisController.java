@@ -10,10 +10,14 @@ import org.example.atuo_attend_backend.ai.service.AiAnalysisService;
 import org.example.atuo_attend_backend.ai.service.ProjectDailySummaryService;
 import org.example.atuo_attend_backend.commit.CommitRecord;
 import org.example.atuo_attend_backend.commit.CommitService;
+import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.platform.service.PlatformComponentEventService;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,15 +38,18 @@ public class AdminAiAnalysisController {
     private final CommitService commitService;
     private final AiTokenUsageMapper tokenUsageMapper;
     private final ProjectDailySummaryService projectDailySummaryService;
+    private final PlatformComponentEventService componentEventService;
 
     public AdminAiAnalysisController(AiAnalysisConfigService configService, AiAnalysisService analysisService,
                                      CommitService commitService, AiTokenUsageMapper tokenUsageMapper,
-                                     ProjectDailySummaryService projectDailySummaryService) {
+                                     ProjectDailySummaryService projectDailySummaryService,
+                                     PlatformComponentEventService componentEventService) {
         this.configService = configService;
         this.analysisService = analysisService;
         this.commitService = commitService;
         this.tokenUsageMapper = tokenUsageMapper;
         this.projectDailySummaryService = projectDailySummaryService;
+        this.componentEventService = componentEventService;
     }
 
     private static long tid() {
@@ -301,7 +308,8 @@ public class AdminAiAnalysisController {
 
     @PostMapping("/commits/{commitSha}/run")
     public ApiResponse<?> runCommitAnalysis(@PathVariable String commitSha,
-                                            @RequestParam(value = "repoFullName", required = false) String repoFullName) {
+                                            @RequestParam(value = "repoFullName", required = false) String repoFullName,
+                                            HttpServletRequest req) {
         String repo = repoFullName;
         if (repo == null || repo.isBlank()) {
             Optional<CommitRecord> any = commitService.findAnyCommitBySha(commitSha);
@@ -314,6 +322,12 @@ public class AdminAiAnalysisController {
         }
         Map<String, Object> data = new HashMap<>();
         AiAnalysisResult r = opt.get();
+
+        // usage：实际调用核心接口（即“运行 AI 分析”）
+        Long adminUserId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String adminPhone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        componentEventService.recordUsage(adminUserId, adminPhone, "ai_commit_analysis", "ai_analysis_run");
+
         data.put("repoFullName", r.getRepoFullName());
         data.put("commitSha", r.getCommitSha());
         data.put("workSummary", r.getWorkSummary());

@@ -284,6 +284,11 @@ ${html}
 
       try {
         const designPrompt = this.buildDesignPrompt(content)
+        // 组件点击埋点：由“生成 HTML/CSS mockup”触发
+        this.$http.post('/admin/ops/events/component-click', {
+          componentKey: 'hub_prototype',
+          coreApiKey: 'ui_prototype_generate_mockup'
+        }).catch(() => {})
         const resp = await this.$http.post(
           `/admin/ui-prototype/projects/${this.projectId}/mockups/generate`,
           {
@@ -455,6 +460,11 @@ ${html}
       this.specParseError = ''
       this.exportError = ''
       try {
+        // 组件点击埋点：由“生成结构化 spec”触发
+        this.$http.post('/admin/ops/events/component-click', {
+          componentKey: 'hub_prototype',
+          coreApiKey: 'ui_prototype_generate_spec'
+        }).catch(() => {})
         const resp = await this.$http.post(`/admin/ui-prototype/projects/${this.projectId}/specs/generate`, { prompt: this.prompt })
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.jobId != null) {
           await this.pollGenerateJob(resp.data.data.jobId)

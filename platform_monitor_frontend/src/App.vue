@@ -1,7 +1,13 @@
 <template>
   <div id="app" class="root">
     <header class="top">
-      <span class="brand">AutoAttend 监测台</span>
+      <div class="left">
+        <span class="brand">AutoAttend 监测台</span>
+        <nav v-if="hasToken" class="nav">
+          <router-link :to="{ name: 'dashboard' }" class="nav-link" exact-active-class="active">看板</router-link>
+          <router-link :to="{ name: 'tenants' }" class="nav-link" exact-active-class="active">租户</router-link>
+        </nav>
+      </div>
       <button v-if="hasToken" type="button" class="link" @click="logout">退出</button>
     </header>
     <main class="main">
@@ -53,9 +59,29 @@ body {
   background: #1e293b;
   border-bottom: 1px solid #334155;
 }
+.left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
 .brand {
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.nav-link {
+  color: #93c5fd;
+  text-decoration: none;
+  font-size: 14px;
+}
+.nav-link.active {
+  color: #fff;
+  border-bottom: 2px solid #60a5fa;
+  padding-bottom: 2px;
 }
 .link {
   background: transparent;
