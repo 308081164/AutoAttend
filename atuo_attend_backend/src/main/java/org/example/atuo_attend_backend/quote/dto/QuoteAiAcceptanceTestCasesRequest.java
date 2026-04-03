@@ -18,6 +18,8 @@ public class QuoteAiAcceptanceTestCasesRequest {
     private String securityLevel;
     private String deployType;
     private String prdSummary;
+    /** 「AI 录入功能模块」时用户提交的原文（与项目保存字段 aiRequirementText 含义一致） */
+    private String aiRequirementText;
     /** 合同补充中的「验收标准补充说明」，勿与用例矛盾 */
     private String acceptanceCriteriaNote;
     /** 功能模块+功能点（与前端 modules 一致） */
@@ -85,6 +87,14 @@ public class QuoteAiAcceptanceTestCasesRequest {
 
     public void setPrdSummary(String prdSummary) {
         this.prdSummary = prdSummary;
+    }
+
+    public String getAiRequirementText() {
+        return aiRequirementText;
+    }
+
+    public void setAiRequirementText(String aiRequirementText) {
+        this.aiRequirementText = aiRequirementText;
     }
 
     public String getAcceptanceCriteriaNote() {

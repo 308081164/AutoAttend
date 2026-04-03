@@ -101,7 +101,22 @@
           <router-link to="/quote/config" class="link-config">{{ $t('quote.openQuoteConfig') }}</router-link>
         </div>
         <label class="full block-label">{{ $t('quote.quoteValidityNote') }}</label>
-        <input v-model="form.quoteValidityNote" class="inp wide block-inp" :placeholder="$t('quote.quoteValidityNotePh')" />
+        <div class="quote-validity-row">
+          <input
+            v-model.number="quoteValidityDays"
+            type="number"
+            min="1"
+            step="1"
+            class="inp quote-validity-days"
+            :placeholder="$t('quote.quoteValidityDaysPh')"
+          />
+          <select v-model="quoteValidityDayKind" class="inp quote-validity-kind">
+            <option value="natural">{{ $t('quote.quoteValidityNatural') }}</option>
+            <option value="workday">{{ $t('quote.quoteValidityWorkday') }}</option>
+          </select>
+        </div>
+        <p class="hint quote-validity-hint">{{ $t('quote.quoteValidityStructuredHint') }}</p>
+        <p v-if="quoteValidityLegacyNote" class="warn-banner quote-validity-legacy">{{ $t('quote.quoteValidityLegacyHint') }}{{ quoteValidityLegacyNote }}</p>
       </section>
 
       <party-b-profile-edit-modal :visible="showPartyBModal" @close="showPartyBModal = false" @saved="onPartyBProfileSaved" />
@@ -740,6 +755,18 @@ const SLA_PRESET_OPTIONS = [
 
 const DEFAULT_SLA_KEYS = ['workday_4h', 'fix_48h', 'remote_9_18']
 
+/** 工作日 4h / 8h 响应互斥：只保留数组中先出现的那一项 */
+function dedupeMutexWorkdayResponseKeys (keys) {
+  const out = [...keys]
+  const i4 = out.indexOf('workday_4h')
+  const i8 = out.indexOf('workday_8h')
+  if (i4 >= 0 && i8 >= 0) {
+    if (i4 < i8) out.splice(i8, 1)
+    else out.splice(i4, 1)
+  }
+  return out
+}
+
 function normalizeTaxInvoiceFields (raw) {
   if (!raw || typeof raw !== 'object') {
     return { taxInvoicePreset: 'vat_special_13', taxInvoiceCustom: '' }
@@ -768,9 +795,9 @@ function normalizeMaintenanceSlaFields (raw) {
     return { maintenanceSlaKeys: [], maintenanceSlaExtra: legacyNote }
   }
   if (!keys.length) {
-    return { maintenanceSlaKeys: [...DEFAULT_SLA_KEYS], maintenanceSlaExtra: extra }
+    return { maintenanceSlaKeys: dedupeMutexWorkdayResponseKeys([...DEFAULT_SLA_KEYS]), maintenanceSlaExtra: extra }
   }
-  return { maintenanceSlaKeys: keys, maintenanceSlaExtra: extra }
+  return { maintenanceSlaKeys: dedupeMutexWorkdayResponseKeys(keys), maintenanceSlaExtra: extra }
 }
 
 function emptyAcceptanceTestCaseRow () {
@@ -895,9 +922,11 @@ export default {
         prdSummary: '',
         quoteSubjectMode: 'legal_entity',
         quoteVendorName: '',
-        quoteContactInfo: '',
-        quoteValidityNote: ''
+        quoteContactInfo: ''
       },
+      quoteValidityDays: '',
+      quoteValidityDayKind: 'natural',
+      quoteValidityLegacyNote: '',
       partyBProfile: {},
       showPartyBModal: false,
       modules: [emptyModule()],
@@ -1129,6 +1158,10 @@ export default {
         this.aiRequirementPersistedText = val || ''
       }
     },
+    quoteValidityDays (val) {
+      const n = Number(val)
+      if (Number.isFinite(n) && n > 0) this.quoteValidityLegacyNote = ''
+    },
     calcPrefsSnapshot () {
       if (this.pageLoading || this.restoringCalcPrefs) return
       this.scheduleQuoteCalcPrefsSave()
@@ -1299,9 +1332,11 @@ export default {
             prdSummary: '',
             quoteSubjectMode: 'legal_entity',
             quoteVendorName: '',
-            quoteContactInfo: '',
-            quoteValidityNote: ''
+            quoteContactInfo: ''
           }
+          this.quoteValidityDays = ''
+          this.quoteValidityDayKind = 'natural'
+          this.quoteValidityLegacyNote = ''
           this.modules = [emptyModule()]
           this.contractContext = normalizeContractContext(null)
           this.aiRequirementText = ''
@@ -1344,7 +1379,7 @@ export default {
             this.form.quoteSubjectMode = d.quoteSubjectMode || 'legal_entity'
             this.form.quoteVendorName = d.quoteVendorName || ''
             this.form.quoteContactInfo = d.quoteContactInfo || ''
-            this.form.quoteValidityNote = d.quoteValidityNote || ''
+            this.applyQuoteValidityFromServer(d.quoteValidityNote || '')
             this.contractContext = normalizeContractContext(d.quoteContractContext)
             const mods = d.modules || []
             if (!mods.length) this.modules = [emptyModule()]
@@ -1652,6 +1687,38 @@ export default {
         }
       } catch (e) { /* 404 ok */ }
     },
+    applyQuoteValidityFromServer (raw) {
+      const s = (raw || '').trim()
+      this.quoteValidityLegacyNote = ''
+      const zh = s.match(/自本报价单出具之日起\s*(\d+)\s*个\s*(自然日|工作日)/)
+      if (zh) {
+        this.quoteValidityDays = parseInt(zh[1], 10)
+        this.quoteValidityDayKind = zh[2] === '工作日' ? 'workday' : 'natural'
+        return
+      }
+      const en = s.match(/^Valid for\s+(\d+)\s+(calendar days|working days)\s+from the date of this quotation\.?$/i)
+      if (en) {
+        this.quoteValidityDays = parseInt(en[1], 10)
+        this.quoteValidityDayKind = /working/i.test(en[2]) ? 'workday' : 'natural'
+        return
+      }
+      if (s) this.quoteValidityLegacyNote = s
+      this.quoteValidityDays = ''
+      this.quoteValidityDayKind = 'natural'
+    },
+    buildQuoteValidityNoteForPayload () {
+      const n = Number(this.quoteValidityDays)
+      if (Number.isFinite(n) && n > 0) {
+        const isEn = this.$i18n && this.$i18n.locale === 'en'
+        if (isEn) {
+          const unit = this.quoteValidityDayKind === 'workday' ? 'working days' : 'calendar days'
+          return `Valid for ${n} ${unit} from the date of this quotation.`
+        }
+        const unit = this.quoteValidityDayKind === 'workday' ? '工作日' : '自然日'
+        return `自本报价单出具之日起 ${n} 个${unit}`
+      }
+      return (this.quoteValidityLegacyNote || '').trim()
+    },
     payload () {
       return {
         name: this.form.name,
@@ -1669,7 +1736,7 @@ export default {
         quoteSubjectMode: this.form.quoteSubjectMode || 'legal_entity',
         quoteVendorName: this.form.quoteVendorName || '',
         quoteContactInfo: this.form.quoteContactInfo || '',
-        quoteValidityNote: this.form.quoteValidityNote || '',
+        quoteValidityNote: this.buildQuoteValidityNoteForPayload(),
         modules: this.modules.map((m, mi) => ({
           name: m.name,
           sortOrder: m.sortOrder != null ? m.sortOrder : mi,
@@ -1745,6 +1812,11 @@ export default {
     toggleSlaKey (key, ev) {
       const arr = this.contractContext.maintenanceSlaKeys
       if (ev.target.checked) {
+        if (key === 'workday_4h' || key === 'workday_8h') {
+          const other = key === 'workday_4h' ? 'workday_8h' : 'workday_4h'
+          const j = arr.indexOf(other)
+          if (j >= 0) arr.splice(j, 1)
+        }
         if (!arr.includes(key)) arr.push(key)
       } else {
         const i = arr.indexOf(key)
@@ -1842,6 +1914,16 @@ export default {
       if (!Array.isArray(this.contractContext.acceptanceTestCases)) return
       this.contractContext.acceptanceTestCases.splice(ti, 1)
     },
+    /** 与 payload().aiRequirementText 对齐；追加模式下合并已持久化与当前输入框中的未提交片段 */
+    buildAiModuleOriginalTextForAi () {
+      if (this.aiMergeMode === 'append') {
+        const p = (this.aiRequirementPersistedText || '').trim()
+        const t = (this.aiRequirementText || '').trim()
+        if (p && t) return p + '\n\n' + t
+        return p || t
+      }
+      return (this.aiRequirementText || '').trim()
+    },
     modulesPayloadForAi () {
       return this.modules.map((m, mi) => ({
         name: m.name,
@@ -1873,6 +1955,7 @@ export default {
           securityLevel: this.form.securityLevel,
           deployType: this.form.deployType,
           prdSummary: this.form.prdSummary || '',
+          aiRequirementText: this.buildAiModuleOriginalTextForAi(),
           acceptanceCriteriaNote: (this.contractContext.acceptanceCriteriaNote || '').trim(),
           modules
         }
@@ -2975,5 +3058,29 @@ label.block { display: block; margin-top: 10px; }
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 1px #2563eb;
+}
+
+.quote-validity-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.quote-validity-days {
+  width: 7rem;
+  min-width: 6rem;
+}
+.quote-validity-kind {
+  min-width: 8rem;
+}
+.quote-validity-hint {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+.quote-validity-legacy {
+  margin-top: 10px;
+  font-size: 13px;
+  word-break: break-word;
 }
 </style>

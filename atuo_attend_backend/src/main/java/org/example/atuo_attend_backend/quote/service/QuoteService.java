@@ -1852,6 +1852,14 @@ public class QuoteService {
         userBlock.append("并发：").append(labelConcurrency(req.getConcurrency()))
                 .append("；安全：").append(labelSecurity(req.getSecurityLevel()))
                 .append("；部署：").append(labelDeploy(req.getDeployType())).append("\n");
+        if (req.getAiRequirementText() != null && !req.getAiRequirementText().isBlank()) {
+            String air = req.getAiRequirementText().trim();
+            if (air.length() > 12000) {
+                air = air.substring(0, 12000) + "…";
+            }
+            userBlock.append("\n【AI 录入功能模块时的用户原文】（可与 PRD 互补；用例须与下文功能清单一致，不得以原文为由虚构清单外功能）\n")
+                    .append(air).append("\n");
+        }
         if (req.getPrdSummary() != null && !req.getPrdSummary().isBlank()) {
             String prd = req.getPrdSummary().trim();
             if (prd.length() > 6000) {
@@ -1884,7 +1892,7 @@ public class QuoteService {
                 
                 规则：
                 1. 至少覆盖每个模块 1～3 条用例，并与功能点名称呼应；总条数建议不超过 80 条。
-                2. 不得描述功能清单中不存在的模块或功能，不得与 PRD/验收补充说明矛盾。
+                2. 不得描述功能清单中不存在的模块或功能，不得与 PRD/验收补充说明矛盾；若用户提供了「AI 录入功能模块时的用户原文」，可据此细化步骤与预期，但不得以原文为由虚构清单外功能。
                 3. JSON 中不得出现除上述字段以外的顶层键（除 acceptanceTestCases 外仅可省略其它键）。
                 """;
 
