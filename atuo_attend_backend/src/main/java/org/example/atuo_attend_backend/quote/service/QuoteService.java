@@ -1,9 +1,13 @@
 package org.example.atuo_attend_backend.quote.service;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
@@ -26,6 +30,8 @@ import java.util.Base64;
 @Service
 public class QuoteService {
 
+    private static final Logger log = LoggerFactory.getLogger(QuoteService.class);
+
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
     private final QuoteProjectMapper projectMapper;
@@ -42,6 +48,9 @@ public class QuoteService {
     private final DeepSeekClient deepSeekClient;
     private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    /** 模型偶发在字符串内输出未转义控制字符时，尽量放宽解析（仍须为合法 JSON 结构）。 */
+    private final ObjectMapper lenientJsonMapper = new ObjectMapper(
+            JsonFactory.builder().enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS).build());
 
     private static final BigDecimal RISK_PCT_MIN = new BigDecimal("-50");
     private static final BigDecimal RISK_PCT_MAX = new BigDecimal("150");
@@ -1540,13 +1549,7 @@ public class QuoteService {
         if (content == null || content.isBlank()) {
             throw new IllegalStateException("AI 未返回有效内容，请稍后重试或缩短描述");
         }
-        String jsonStr = stripMarkdownCodeFence(content);
-        JsonNode root;
-        try {
-            root = objectMapper.readTree(jsonStr);
-        } catch (Exception e) {
-            throw new IllegalStateException("AI 返回格式无法解析为 JSON，请重试");
-        }
+        JsonNode root = parseAiJsonOrThrow(content, "parseQuoteModules");
         JsonNode modulesNode = root.get("modules");
         if (modulesNode == null || !modulesNode.isArray()) {
             throw new IllegalStateException("AI 返回缺少 modules 数组");
@@ -1689,24 +1692,111 @@ public class QuoteService {
         return out;
     }
 
-    private static String stripMarkdownCodeFence(String s) {
-        if (s == null) {
+    /**
+     * 从模型回复中解析 JSON：去除 BOM、抽取任意位置的 Markdown 代码块、截取首个平衡 {...}。
+     * 解决「前面有说明文字」「JSON 在中间的 ```json 块里」等仅 strip 首尾 fence 无法处理的情况。
+     */
+    private JsonNode parseAiJsonOrThrow(String rawContent, String logContext) {
+        if (rawContent == null || rawContent.isBlank()) {
+            throw new IllegalStateException("AI 未返回有效内容，请稍后重试");
+        }
+        String jsonStr = normalizeAiJsonContent(rawContent);
+        if (jsonStr.isBlank()) {
+            throw new IllegalStateException("AI 返回格式无法解析为 JSON，请重试");
+        }
+        try {
+            return objectMapper.readTree(jsonStr);
+        } catch (Exception e1) {
+            try {
+                return lenientJsonMapper.readTree(jsonStr);
+            } catch (Exception e2) {
+                log.warn("{}: JSON parse failed: {} | snippet: {}", logContext, e1.getMessage(), truncateForLog(jsonStr, 700));
+                throw new IllegalStateException("AI 返回格式无法解析为 JSON，请重试。若多次失败，请减少功能清单条目或缩短补充说明后重试。");
+            }
+        }
+    }
+
+    private static String truncateForLog(String s, int max) {
+        if (s == null) return "";
+        String t = s.replace('\r', ' ').replace('\n', ' ');
+        if (t.length() <= max) return t;
+        return t.substring(0, max) + "…";
+    }
+
+    private static String normalizeAiJsonContent(String raw) {
+        if (raw == null) {
             return "";
         }
-        String t = s.trim();
-        if (t.startsWith("```")) {
-            int nl = t.indexOf('\n');
-            if (nl > 0) {
-                t = t.substring(nl + 1);
-            } else {
-                t = t.substring(3);
+        String t = raw.trim();
+        if (t.startsWith("\uFEFF")) {
+            t = t.substring(1).trim();
+        }
+        t = extractMarkdownFenceContent(t);
+        t = t.trim();
+        int start = t.indexOf('{');
+        if (start < 0) {
+            return t;
+        }
+        int end = findMatchingClosingBrace(t, start);
+        if (end > start) {
+            return t.substring(start, end + 1);
+        }
+        return t.substring(start);
+    }
+
+    /** 取首个 ``` … ``` 代码块内部（支持全文任意位置，不要求以 fence 开头）。 */
+    private static String extractMarkdownFenceContent(String t) {
+        int fence = t.indexOf("```");
+        if (fence < 0) {
+            return t;
+        }
+        int nl = t.indexOf('\n', fence);
+        int contentStart = (nl >= 0) ? nl + 1 : fence + 3;
+        int close = t.indexOf("```", contentStart);
+        if (close > contentStart) {
+            return t.substring(contentStart, close).trim();
+        }
+        return t.substring(contentStart).trim();
+    }
+
+    /**
+     * 从 openIdx 处的 '{' 起，找到与之匹配的 '}'（忽略字符串内的括号）。
+     */
+    private static int findMatchingClosingBrace(String s, int openIdx) {
+        if (openIdx < 0 || openIdx >= s.length() || s.charAt(openIdx) != '{') {
+            return -1;
+        }
+        int depth = 0;
+        boolean inStr = false;
+        boolean escape = false;
+        for (int i = openIdx; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (escape) {
+                escape = false;
+                continue;
             }
-            t = t.trim();
-            if (t.endsWith("```")) {
-                t = t.substring(0, t.length() - 3).trim();
+            if (inStr) {
+                if (c == '\\') {
+                    escape = true;
+                } else if (c == '"') {
+                    inStr = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                inStr = true;
+                continue;
+            }
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
             }
         }
-        return t;
+        return -1;
     }
 
     /** 与前端选项一致：simple / standard / medium / complex / extreme */
@@ -1898,6 +1988,7 @@ public class QuoteService {
                 1. 至少覆盖每个模块 1～2 条用例，并与功能点名称呼应；总条数建议不超过 60 条（必须尽量遵守以避免超时）。
                 2. 不得描述功能清单中不存在的模块或功能，不得与 PRD/验收补充说明矛盾；若用户提供了「AI 录入功能模块时的用户原文」，可据此细化步骤与预期，但不得以原文为由虚构清单外功能。
                 3. JSON 中不得出现除上述字段以外的顶层键（除 acceptanceTestCases 外仅可省略其它键）。
+                4. 必须输出合法 JSON：字符串值内如需换行请使用 \\n 转义，禁止在引号对之间直接插入未转义的换行符（否则会导致解析失败）。
                 """;
 
         List<DeepSeekClient.ChatMessage> messages = List.of(
@@ -1905,18 +1996,13 @@ public class QuoteService {
                 new DeepSeekClient.ChatMessage("user", userBlock.toString())
         );
         // 输出太长会显著增加生成耗时，触发 nginx 504 的概率也更高。
-        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 4096);
+        // 用例较多时 4096 易截断导致 JSON 不完整；与功能模块解析一致放宽到 8192
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
         String content = result != null ? result.getContent() : null;
         if (content == null || content.isBlank()) {
             throw new IllegalStateException("AI 未返回有效内容，请稍后重试");
         }
-        String jsonStr = stripMarkdownCodeFence(content);
-        JsonNode root;
-        try {
-            root = objectMapper.readTree(jsonStr);
-        } catch (Exception e) {
-            throw new IllegalStateException("AI 返回格式无法解析为 JSON，请重试");
-        }
+        JsonNode root = parseAiJsonOrThrow(content, "acceptanceTestCases");
         JsonNode arr = root.get("acceptanceTestCases");
         if (arr == null || !arr.isArray()) {
             throw new IllegalStateException("AI 返回缺少 acceptanceTestCases 数组");
