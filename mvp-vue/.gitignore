@@ -1,4 +1,5 @@
 node_modules/
+# Vite 构建产物（本地生成，不纳入版本库）
 dist/
 .vite/
 *.log
