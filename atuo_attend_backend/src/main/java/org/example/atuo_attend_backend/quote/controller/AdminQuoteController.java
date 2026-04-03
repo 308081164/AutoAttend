@@ -10,6 +10,8 @@ import org.example.atuo_attend_backend.quote.service.QuoteDocumentExportService;
 import org.example.atuo_attend_backend.quote.service.QuoteCollabLinkService;
 import org.example.atuo_attend_backend.quote.service.QuoteProvisionService;
 import org.example.atuo_attend_backend.quote.service.QuoteService;
+import org.example.atuo_attend_backend.quote.service.QuoteAiAcceptanceTestCasesJobService;
+import org.example.atuo_attend_backend.quote.service.QuoteAiContractGenerateJobService;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.http.ContentDisposition;
@@ -30,6 +32,8 @@ import jakarta.servlet.http.HttpServletRequest;
 public class AdminQuoteController {
 
     private final QuoteService quoteService;
+    private final QuoteAiAcceptanceTestCasesJobService acceptanceJobService;
+    private final QuoteAiContractGenerateJobService contractJobService;
     private final QuoteDocumentExportService quoteDocumentExportService;
     private final QuoteBaselineMapper baselineMapper;
     private final QuoteRiskConfigMapper riskConfigMapper;
@@ -41,8 +45,12 @@ public class AdminQuoteController {
                                 QuoteBaselineMapper baselineMapper,
                                 QuoteRiskConfigMapper riskConfigMapper, QuotePriceConfigMapper priceConfigMapper,
                                 QuoteProvisionService quoteProvisionService,
-                                QuoteCollabLinkService quoteCollabLinkService) {
+                                QuoteCollabLinkService quoteCollabLinkService,
+                                QuoteAiAcceptanceTestCasesJobService acceptanceJobService,
+                                QuoteAiContractGenerateJobService contractJobService) {
         this.quoteService = quoteService;
+        this.acceptanceJobService = acceptanceJobService;
+        this.contractJobService = contractJobService;
         this.quoteDocumentExportService = quoteDocumentExportService;
         this.baselineMapper = baselineMapper;
         this.riskConfigMapper = riskConfigMapper;
@@ -103,6 +111,39 @@ public class AdminQuoteController {
             return ApiResponse.error(50000, e.getMessage());
         } catch (Exception e) {
             return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "生成失败");
+        }
+    }
+
+    /**
+     * 异步生成「验收测试用例/测试清单」：入队立即返回 jobId，前端轮询避免 nginx 同步超时。
+     */
+    @PostMapping("/projects/{id}/ai/acceptance-test-cases/jobs")
+    public ApiResponse<Map<String, Object>> enqueueAcceptanceTestCasesJob(@PathVariable long id,
+                                                                               @RequestBody(required = false) QuoteAiAcceptanceTestCasesRequest body) {
+        if (body == null) body = new QuoteAiAcceptanceTestCasesRequest();
+        try {
+            long jobId = acceptanceJobService.enqueue(id, body);
+            Map<String, Object> out = new HashMap<>();
+            out.put("jobId", jobId);
+            return ApiResponse.ok(out);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "入队失败");
+        }
+    }
+
+    @GetMapping("/projects/{id}/ai/acceptance-test-cases/jobs/{jobId}")
+    public ApiResponse<QuoteAiAcceptanceTestCasesJobStatus> getAcceptanceTestCasesJobStatus(@PathVariable long id,
+                                                                                               @PathVariable long jobId) {
+        try {
+            QuoteAiAcceptanceTestCasesJobStatus s = acceptanceJobService.getStatus(id, jobId);
+            if (s == null) return ApiResponse.error(40400, "任务不存在");
+            return ApiResponse.ok(s);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "获取任务状态失败");
         }
     }
 
@@ -455,6 +496,39 @@ public class AdminQuoteController {
             return ApiResponse.error(40000, e.getMessage());
         } catch (Exception e) {
             return ApiResponse.error(50000, e.getMessage());
+        }
+    }
+
+    /**
+     * 异步生成「合同正文」：入队立即返回 jobId，前端轮询避免 nginx 同步超时。
+     */
+    @PostMapping("/results/{resultId}/contract/generate/jobs")
+    public ApiResponse<Map<String, Object>> enqueueContractGenerateJob(@PathVariable long resultId,
+                                                                         @RequestBody(required = false) ContractGenerateRequest req) {
+        if (req == null) req = new ContractGenerateRequest();
+        try {
+            long jobId = contractJobService.enqueue(resultId, req);
+            Map<String, Object> out = new HashMap<>();
+            out.put("jobId", jobId);
+            return ApiResponse.ok(out);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "入队失败");
+        }
+    }
+
+    @GetMapping("/results/{resultId}/contract/generate/jobs/{jobId}")
+    public ApiResponse<QuoteAiContractGenerateJobStatus> getContractGenerateJobStatus(@PathVariable long resultId,
+                                                                                         @PathVariable long jobId) {
+        try {
+            QuoteAiContractGenerateJobStatus s = contractJobService.getStatus(resultId, jobId);
+            if (s == null) return ApiResponse.error(40400, "任务不存在");
+            return ApiResponse.ok(s);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "获取任务状态失败");
         }
     }
 

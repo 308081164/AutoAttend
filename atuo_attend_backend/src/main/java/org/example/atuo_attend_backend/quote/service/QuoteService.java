@@ -687,7 +687,9 @@ public class QuoteService {
                 new DeepSeekClient.ChatMessage("system", "你是资深法务助理，擅长 IT 外包合同起草。必须基于用户提供的结构化事实撰写正文：付款阶段、交付物清单、验收与异议期、免费质保、里程碑、争议解决方式等须与事实一致；事实未提供处用「待双方确认」占位，勿编造与上文金额、人天、风险合计相矛盾的条款。输出可直接给商务使用的合同正文（Markdown）。"),
                 new DeepSeekClient.ChatMessage("user", userPrompt)
         );
-        String content = deepSeekClient.chat(cfg.getApiKey(), model, messages, false);
+        // 合同正文单次生成可能较长：这里显式收紧输出预算，降低 nginx 侧超时概率。
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, false, 2048);
+        String content = result != null ? result.getContent() : null;
         if (content == null || content.isBlank()) throw new IllegalStateException("AI 未返回合同内容");
         QuoteContractDraft d = contractDraftMapper.findByResultId(tid(),quoteResultId);
         if (d == null) {
@@ -1854,16 +1856,18 @@ public class QuoteService {
                 .append("；部署：").append(labelDeploy(req.getDeployType())).append("\n");
         if (req.getAiRequirementText() != null && !req.getAiRequirementText().isBlank()) {
             String air = req.getAiRequirementText().trim();
-            if (air.length() > 12000) {
-                air = air.substring(0, 12000) + "…";
+            // 单次 prompt 过长会导致 LLM 生成耗时过长进而触发 nginx 504：
+            // 这里收紧输入预算；若用户确实需要超大文本，可考虑“分模块/分批生成”。
+            if (air.length() > 6000) {
+                air = air.substring(0, 6000) + "…";
             }
             userBlock.append("\n【AI 录入功能模块时的用户原文】（可与 PRD 互补；用例须与下文功能清单一致，不得以原文为由虚构清单外功能）\n")
                     .append(air).append("\n");
         }
         if (req.getPrdSummary() != null && !req.getPrdSummary().isBlank()) {
             String prd = req.getPrdSummary().trim();
-            if (prd.length() > 6000) {
-                prd = prd.substring(0, 6000) + "…";
+            if (prd.length() > 4000) {
+                prd = prd.substring(0, 4000) + "…";
             }
             userBlock.append("\n【PRD/需求摘要】\n").append(prd).append("\n");
         }
@@ -1891,7 +1895,7 @@ public class QuoteService {
                 - remark：补充说明；可空字符串。
                 
                 规则：
-                1. 至少覆盖每个模块 1～3 条用例，并与功能点名称呼应；总条数建议不超过 80 条。
+                1. 至少覆盖每个模块 1～2 条用例，并与功能点名称呼应；总条数建议不超过 60 条（必须尽量遵守以避免超时）。
                 2. 不得描述功能清单中不存在的模块或功能，不得与 PRD/验收补充说明矛盾；若用户提供了「AI 录入功能模块时的用户原文」，可据此细化步骤与预期，但不得以原文为由虚构清单外功能。
                 3. JSON 中不得出现除上述字段以外的顶层键（除 acceptanceTestCases 外仅可省略其它键）。
                 """;
@@ -1900,7 +1904,8 @@ public class QuoteService {
                 new DeepSeekClient.ChatMessage("system", system),
                 new DeepSeekClient.ChatMessage("user", userBlock.toString())
         );
-        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
+        // 输出太长会显著增加生成耗时，触发 nginx 504 的概率也更高。
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 4096);
         String content = result != null ? result.getContent() : null;
         if (content == null || content.isBlank()) {
             throw new IllegalStateException("AI 未返回有效内容，请稍后重试");
@@ -1939,6 +1944,7 @@ public class QuoteService {
         }
         StringBuilder sb = new StringBuilder();
         sb.append("| 模块 | 功能点 | 复杂度 | 数量 |\n| --- | --- | --- | --- |\n");
+        final int MAX_ITEMS_PER_MODULE = 8; // 控制 prompt 体积，避免单次请求过长触发超时
         for (Map<String, Object> mod : modules) {
             if (mod == null) continue;
             Object mn = mod.get("name");
@@ -1949,6 +1955,7 @@ public class QuoteService {
                 sb.append("| ").append(escMdCell(modName)).append(" | （无功能点） |  |  |\n");
                 continue;
             }
+            int itemCount = 0;
             for (Object io : itemList) {
                 if (!(io instanceof Map)) continue;
                 Map<String, Object> it = (Map<String, Object>) io;
@@ -1962,6 +1969,8 @@ public class QuoteService {
                 }
                 sb.append("| ").append(escMdCell(modName)).append(" | ").append(escMdCell(itemName)).append(" | ")
                         .append(escMdCell(cx)).append(" | ").append(qty).append(" |\n");
+                itemCount++;
+                if (itemCount >= MAX_ITEMS_PER_MODULE) break;
             }
         }
         return sb.toString();

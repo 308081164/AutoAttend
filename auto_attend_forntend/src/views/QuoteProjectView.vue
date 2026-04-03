@@ -1942,6 +1942,12 @@ export default {
         this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceNoModules')
         return
       }
+      if (!this.projectId) {
+        this.aiAcceptanceOk = false
+        this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceFail')
+        return
+      }
+
       this.aiAcceptanceParsing = true
       this.aiAcceptanceMsg = ''
       this.aiAcceptanceOk = false
@@ -1959,29 +1965,57 @@ export default {
           acceptanceCriteriaNote: (this.contractContext.acceptanceCriteriaNote || '').trim(),
           modules
         }
-        const resp = await this.$http.post('/admin/quote/ai/acceptance-test-cases', body)
-        if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.acceptanceTestCases)) {
-          const list = resp.data.data.acceptanceTestCases.map(normalizeAcceptanceTestCaseRow)
-            .filter(r => r.caseName && String(r.caseName).trim())
-          if (!list.length) {
-            this.aiAcceptanceOk = false
-            this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceNoResult')
-            return
-          }
-          if (!Array.isArray(this.contractContext.acceptanceTestCases)) {
-            this.$set(this.contractContext, 'acceptanceTestCases', [])
-          }
-          if (this.aiAcceptanceMergeMode === 'append') {
-            this.contractContext.acceptanceTestCases = this.contractContext.acceptanceTestCases.concat(list)
-          } else {
-            this.contractContext.acceptanceTestCases = list
-          }
-          this.aiAcceptanceOk = true
-          this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceOk', { n: this.contractContext.acceptanceTestCases.length })
-        } else {
+
+        // 1) 入队：返回 jobId（避免 nginx 504）
+        const enqueueResp = await this.$http.post(`/admin/quote/projects/${this.projectId}/ai/acceptance-test-cases/jobs`, body)
+        const jobId = enqueueResp && enqueueResp.data && enqueueResp.data.code === 0 && enqueueResp.data.data
+          ? enqueueResp.data.data.jobId
+          : null
+        if (!jobId) {
           this.aiAcceptanceOk = false
-          this.aiAcceptanceMsg = (resp.data && resp.data.message) || this.$t('quote.aiAcceptanceFail')
+          this.aiAcceptanceMsg = (enqueueResp && enqueueResp.data && enqueueResp.data.message) || this.$t('quote.aiAcceptanceFail')
+          return
         }
+
+        // 2) 轮询：直到成功/失败
+        const jobBase = `/admin/quote/projects/${this.projectId}/ai/acceptance-test-cases/jobs/`
+        const maxAttempts = 180
+        const intervalMs = 1500
+        for (let i = 0; i < maxAttempts; i++) {
+          const sResp = await this.$http.get(jobBase + jobId)
+          const payload = sResp && sResp.data && sResp.data.code === 0 ? sResp.data.data : null
+          if (payload) {
+            if (payload.status === 'success') {
+              const rawList = Array.isArray(payload.acceptanceTestCases) ? payload.acceptanceTestCases : []
+              const list = rawList.map(normalizeAcceptanceTestCaseRow)
+                .filter(r => r.caseName && String(r.caseName).trim())
+              if (!list.length) {
+                this.aiAcceptanceOk = false
+                this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceNoResult')
+                return
+              }
+              if (!Array.isArray(this.contractContext.acceptanceTestCases)) {
+                this.$set(this.contractContext, 'acceptanceTestCases', [])
+              }
+              if (this.aiAcceptanceMergeMode === 'append') {
+                this.contractContext.acceptanceTestCases = this.contractContext.acceptanceTestCases.concat(list)
+              } else {
+                this.contractContext.acceptanceTestCases = list
+              }
+              this.aiAcceptanceOk = true
+              this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceOk', { n: this.contractContext.acceptanceTestCases.length })
+              return
+            }
+            if (payload.status === 'failed') {
+              this.aiAcceptanceOk = false
+              this.aiAcceptanceMsg = payload.errorMessage || this.$t('quote.aiAcceptanceFail')
+              return
+            }
+          }
+          await new Promise(resolve => setTimeout(resolve, intervalMs))
+        }
+        this.aiAcceptanceOk = false
+        this.aiAcceptanceMsg = this.$t('quote.aiAcceptanceFail') + '（轮询超时）'
       } catch (e) {
         this.aiAcceptanceOk = false
         this.aiAcceptanceMsg = (e.response && e.response.data && e.response.data.message) || this.$t('quote.aiAcceptanceFail')
@@ -2283,20 +2317,46 @@ export default {
       this.contractGenLoading = true
       this.contractMsg = ''
       try {
-        const resp = await this.$http.post('/admin/quote/results/' + this.calcResult.id + '/contract/generate', {
+        // 1) 入队：返回 jobId（避免 nginx 504）
+        const enqueueResp = await this.$http.post(`/admin/quote/results/${this.calcResult.id}/contract/generate/jobs`, {
           clientName: this.contract.clientName,
           companyName: this.contract.companyName,
           templateType: this.contract.templateType
         })
-        if (resp.data && resp.data.code === 0 && resp.data.data) {
-          this.contract.editedContent = resp.data.data.editedContent || ''
-          this.contractOk = true
-          this.contractMsg = '已生成'
-          this.markArtifactReady('contractAi')
-        } else {
+        const jobId = enqueueResp && enqueueResp.data && enqueueResp.data.code === 0 && enqueueResp.data.data
+          ? enqueueResp.data.data.jobId
+          : null
+        if (!jobId) {
           this.contractOk = false
-          this.contractMsg = (resp.data && resp.data.message) || '失败'
+          this.contractMsg = (enqueueResp && enqueueResp.data && enqueueResp.data.message) || '失败'
+          return
         }
+
+        // 2) 轮询：直到成功/失败
+        const jobBase = `/admin/quote/results/${this.calcResult.id}/contract/generate/jobs/`
+        const maxAttempts = 180
+        const intervalMs = 1500
+        for (let i = 0; i < maxAttempts; i++) {
+          const sResp = await this.$http.get(jobBase + jobId)
+          const payload = sResp && sResp.data && sResp.data.code === 0 ? sResp.data.data : null
+          if (payload) {
+            if (payload.status === 'success') {
+              this.contract.editedContent = payload.editedContent || ''
+              this.contractOk = true
+              this.contractMsg = '已生成'
+              this.markArtifactReady('contractAi')
+              return
+            }
+            if (payload.status === 'failed') {
+              this.contractOk = false
+              this.contractMsg = payload.errorMessage || '失败'
+              return
+            }
+          }
+          await new Promise(resolve => setTimeout(resolve, intervalMs))
+        }
+        this.contractOk = false
+        this.contractMsg = '失败（轮询超时）'
       } catch (e) {
         this.contractOk = false
         this.contractMsg = (e.response && e.response.data && e.response.data.message) || '失败'
