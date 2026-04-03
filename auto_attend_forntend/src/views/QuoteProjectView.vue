@@ -476,7 +476,10 @@
         <h2>{{ $t('quote.contractTitle') }}</h2>
         <div class="grid">
           <label>{{ $t('quote.clientName') }} <input v-model="contract.clientName" class="inp" /></label>
-          <label>{{ $t('quote.companyName') }} <input v-model="contract.companyName" class="inp" /></label>
+          <label>
+            {{ $t('quote.companyName') }}
+            <input :value="contract.companyName" class="inp" readonly />
+          </label>
           <p class="hint party-b-hint">{{ $t('quote.companyNamePartyBHint') }}</p>
           <label>{{ $t('quote.templateType') }}
             <select v-model="contract.templateType" class="inp">
@@ -538,22 +541,37 @@
               <div class="output-file-row" :class="{ 'is-ready': artifactReady.attFunction }">
                 <span class="output-file-label">{{ $t('quote.attachmentFunctionList') }}</span>
                 <div class="output-file-actions">
-                  <button type="button" class="btn-tiny secondary" @click="previewAttachmentFunctionList">{{ $t('quote.outputPreview') }}</button>
-                  <button type="button" class="btn-tiny primary" @click="downloadAttachmentFunctionList">{{ $t('quote.outputDownload') }}</button>
+                  <select class="output-file-type-select" v-model="attFunctionDocType" :disabled="!projectId">
+                    <option value="html">{{ $t('quote.outputAttachmentHtml') }}</option>
+                    <option value="pdf">{{ $t('quote.outputAttachmentPdf') }}</option>
+                    <option value="docx">{{ $t('quote.outputAttachmentWord') }}</option>
+                  </select>
+                  <button type="button" class="btn-tiny secondary" :disabled="!projectId" @click="previewSelectedAttachmentFunctionDoc">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" :disabled="!projectId" @click="downloadSelectedAttachmentFunctionDoc">{{ $t('quote.outputDownload') }}</button>
                 </div>
               </div>
               <div class="output-file-row" :class="{ 'is-ready': artifactReady.attAcceptance }">
                 <span class="output-file-label">{{ $t('quote.attachmentAcceptance') }}</span>
                 <div class="output-file-actions">
-                  <button type="button" class="btn-tiny secondary" @click="previewAttachmentAcceptance">{{ $t('quote.outputPreview') }}</button>
-                  <button type="button" class="btn-tiny primary" @click="downloadAttachmentAcceptance">{{ $t('quote.outputDownload') }}</button>
+                  <select class="output-file-type-select" v-model="attAcceptanceDocType" :disabled="!projectId">
+                    <option value="html">{{ $t('quote.outputAttachmentHtml') }}</option>
+                    <option value="pdf">{{ $t('quote.outputAttachmentPdf') }}</option>
+                    <option value="docx">{{ $t('quote.outputAttachmentWord') }}</option>
+                  </select>
+                  <button type="button" class="btn-tiny secondary" :disabled="!projectId" @click="previewSelectedAttachmentAcceptanceDoc">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" :disabled="!projectId" @click="downloadSelectedAttachmentAcceptanceDoc">{{ $t('quote.outputDownload') }}</button>
                 </div>
               </div>
               <div class="output-file-row" :class="{ 'is-ready': artifactReady.attMilestones }">
                 <span class="output-file-label">{{ $t('quote.attachmentMilestones') }}</span>
                 <div class="output-file-actions">
-                  <button type="button" class="btn-tiny secondary" @click="previewAttachmentMilestones">{{ $t('quote.outputPreview') }}</button>
-                  <button type="button" class="btn-tiny primary" @click="downloadAttachmentMilestones">{{ $t('quote.outputDownload') }}</button>
+                  <select class="output-file-type-select" v-model="attMilestonesDocType" :disabled="!projectId">
+                    <option value="html">{{ $t('quote.outputAttachmentHtml') }}</option>
+                    <option value="pdf">{{ $t('quote.outputAttachmentPdf') }}</option>
+                    <option value="docx">{{ $t('quote.outputAttachmentWord') }}</option>
+                  </select>
+                  <button type="button" class="btn-tiny secondary" :disabled="!projectId" @click="previewSelectedAttachmentMilestonesDoc">{{ $t('quote.outputPreview') }}</button>
+                  <button type="button" class="btn-tiny primary" :disabled="!projectId" @click="downloadSelectedAttachmentMilestonesDoc">{{ $t('quote.outputDownload') }}</button>
                 </div>
               </div>
             </div>
@@ -1004,6 +1022,9 @@ export default {
       },
       quoteDocType: 'quoteHtml',
       contractDocType: 'contractHtml',
+      attFunctionDocType: 'html',
+      attAcceptanceDocType: 'html',
+      attMilestonesDocType: 'html',
       saveAllLoading: false,
       saveAllMsg: '',
       saveAllOk: false,
@@ -1144,6 +1165,27 @@ export default {
     '$route.params.id' () {
       this.init()
     },
+      // 依据用户在“报价抬头/主体模板”选择的主体名，同步到 AI 合同的“我方公司名”
+      'form.quoteSubjectMode': {
+        immediate: true,
+        handler () {
+          this.syncContractCompanyNameFromSubject()
+        }
+      },
+      'form.quoteVendorName': {
+        immediate: true,
+        handler () {
+          // 仅 manual 模式下 quoteVendorName 才有意义，但同步逻辑统一处理
+          this.syncContractCompanyNameFromSubject()
+        }
+      },
+      partyBProfile: {
+        immediate: true,
+        deep: true,
+        handler () {
+          this.syncContractCompanyNameFromSubject()
+        }
+      },
     aiMergeMode (val) {
       // append 模式下不展示历史原文：只展示新增部分
       if (val === 'append') {
@@ -1684,8 +1726,28 @@ export default {
           this.contract.companyName = c.companyName || ''
           this.contract.templateType = c.templateType || 'software_dev'
           this.contract.editedContent = c.editedContent || c.aiRawResponse || ''
+          // 用“主体模板选择”的确定性信息覆盖，避免用户再次手填造成偏差
+          this.syncContractCompanyNameFromSubject()
         }
       } catch (e) { /* 404 ok */ }
+    },
+    syncContractCompanyNameFromSubject () {
+      const mode = this.form.quoteSubjectMode || 'legal_entity'
+      const prof = this.partyBProfile || {}
+      if (mode === 'manual') {
+        const v = (this.form.quoteVendorName || '').trim()
+        this.contract.companyName = v
+        return
+      }
+      if (mode === 'natural_person') {
+        const np = prof.naturalPerson && typeof prof.naturalPerson === 'object' ? prof.naturalPerson : {}
+        const n = (np.fullName || np.name || '').toString().trim()
+        this.contract.companyName = n
+        return
+      }
+      // legal_entity 默认
+      const ln = (prof.legalName || '').toString().trim()
+      this.contract.companyName = ln
     },
     applyQuoteValidityFromServer (raw) {
       const s = (raw || '').trim()
@@ -2294,6 +2356,34 @@ export default {
         alert(this.$t('quote.attachmentFail'))
       }
     },
+    async previewAttachmentBinary (url, artifactKey) {
+      if (!this.projectId) return
+      try {
+        const resp = await this.$http.get(url, { responseType: 'blob' })
+        const blob = resp.data
+        const u = URL.createObjectURL(blob)
+        window.open(u, '_blank', 'noopener')
+        setTimeout(() => URL.revokeObjectURL(u), 120000)
+        if (artifactKey) this.markArtifactReady(artifactKey)
+      } catch (e) {
+        alert(this.$t('quote.attachmentFail'))
+      }
+    },
+    async downloadAttachmentBinary (url, filename, artifactKey) {
+      if (!this.projectId) return
+      try {
+        const resp = await this.$http.get(url, { responseType: 'blob' })
+        const blob = resp.data
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = filename || 'attachment.bin'
+        a.click()
+        URL.revokeObjectURL(a.href)
+        if (artifactKey) this.markArtifactReady(artifactKey)
+      } catch (e) {
+        alert(this.$t('quote.attachmentFail'))
+      }
+    },
     downloadAttachmentFunctionList () {
       this.downloadAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list', 'attachment-1.html', 'attFunction')
     },
@@ -2311,6 +2401,72 @@ export default {
     },
     previewAttachmentAcceptance () {
       this.previewAttachmentHtml('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance', 'attAcceptance')
+    },
+    previewAttachmentFunctionListPdf () {
+      this.previewAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list.pdf', 'attFunction')
+    },
+    previewAttachmentFunctionListDocx () {
+      this.previewAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list.docx', 'attFunction')
+    },
+    downloadAttachmentFunctionListPdf () {
+      this.downloadAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list.pdf', 'attachment-1-function-list-' + this.projectId + '.pdf', 'attFunction')
+    },
+    downloadAttachmentFunctionListDocx () {
+      this.downloadAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/function-list.docx', 'attachment-1-function-list-' + this.projectId + '.docx', 'attFunction')
+    },
+    previewAttachmentAcceptancePdf () {
+      this.previewAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance.pdf', 'attAcceptance')
+    },
+    previewAttachmentAcceptanceDocx () {
+      this.previewAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance.docx', 'attAcceptance')
+    },
+    downloadAttachmentAcceptancePdf () {
+      this.downloadAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance.pdf', 'attachment-2-acceptance-' + this.projectId + '.pdf', 'attAcceptance')
+    },
+    downloadAttachmentAcceptanceDocx () {
+      this.downloadAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/acceptance.docx', 'attachment-2-acceptance-' + this.projectId + '.docx', 'attAcceptance')
+    },
+    previewAttachmentMilestonesPdf () {
+      this.previewAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones.pdf', 'attMilestones')
+    },
+    previewAttachmentMilestonesDocx () {
+      this.previewAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones.docx', 'attMilestones')
+    },
+    downloadAttachmentMilestonesPdf () {
+      this.downloadAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones.pdf', 'attachment-3-milestones-' + this.projectId + '.pdf', 'attMilestones')
+    },
+    downloadAttachmentMilestonesDocx () {
+      this.downloadAttachmentBinary('/admin/quote/projects/' + this.projectId + '/contract-attachments/milestones.docx', 'attachment-3-milestones-' + this.projectId + '.docx', 'attMilestones')
+    },
+    previewSelectedAttachmentFunctionDoc () {
+      if (this.attFunctionDocType === 'html') return this.previewAttachmentFunctionList()
+      if (this.attFunctionDocType === 'pdf') return this.previewAttachmentFunctionListPdf()
+      if (this.attFunctionDocType === 'docx') return this.previewAttachmentFunctionListDocx()
+    },
+    downloadSelectedAttachmentFunctionDoc () {
+      if (this.attFunctionDocType === 'html') return this.downloadAttachmentFunctionList()
+      if (this.attFunctionDocType === 'pdf') return this.downloadAttachmentFunctionListPdf()
+      if (this.attFunctionDocType === 'docx') return this.downloadAttachmentFunctionListDocx()
+    },
+    previewSelectedAttachmentAcceptanceDoc () {
+      if (this.attAcceptanceDocType === 'html') return this.previewAttachmentAcceptance()
+      if (this.attAcceptanceDocType === 'pdf') return this.previewAttachmentAcceptancePdf()
+      if (this.attAcceptanceDocType === 'docx') return this.previewAttachmentAcceptanceDocx()
+    },
+    downloadSelectedAttachmentAcceptanceDoc () {
+      if (this.attAcceptanceDocType === 'html') return this.downloadAttachmentAcceptance()
+      if (this.attAcceptanceDocType === 'pdf') return this.downloadAttachmentAcceptancePdf()
+      if (this.attAcceptanceDocType === 'docx') return this.downloadAttachmentAcceptanceDocx()
+    },
+    previewSelectedAttachmentMilestonesDoc () {
+      if (this.attMilestonesDocType === 'html') return this.previewAttachmentMilestones()
+      if (this.attMilestonesDocType === 'pdf') return this.previewAttachmentMilestonesPdf()
+      if (this.attMilestonesDocType === 'docx') return this.previewAttachmentMilestonesDocx()
+    },
+    downloadSelectedAttachmentMilestonesDoc () {
+      if (this.attMilestonesDocType === 'html') return this.downloadAttachmentMilestones()
+      if (this.attMilestonesDocType === 'pdf') return this.downloadAttachmentMilestonesPdf()
+      if (this.attMilestonesDocType === 'docx') return this.downloadAttachmentMilestonesDocx()
     },
     async runGenContract () {
       if (!this.calcResult || !this.calcResult.id) return

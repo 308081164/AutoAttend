@@ -487,6 +487,129 @@ public class AdminQuoteController {
         }
     }
 
+    /** 附件一：功能清单 PDF */
+    @GetMapping("/projects/{id}/contract-attachments/function-list.pdf")
+    public ResponseEntity<byte[]> contractAttachmentFunctionListPdf(@PathVariable long id) {
+        try {
+            Map<String, Object> doc = quoteService.buildContractAttachmentFunctionList(id);
+            String html = doc.get("html") != null ? doc.get("html").toString() : "";
+            byte[] pdf = quoteDocumentExportService.htmlToPdf(html);
+            String filename = "attachment-1-function-list-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename(filename, StandardCharsets.UTF_8).build().toString())
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /** 附件一：功能清单 Word（.docx） */
+    @GetMapping("/projects/{id}/contract-attachments/function-list.docx")
+    public ResponseEntity<byte[]> contractAttachmentFunctionListDocx(@PathVariable long id) {
+        try {
+            Map<String, Object> doc = quoteService.buildContractAttachmentFunctionList(id);
+            String html = doc.get("html") != null ? doc.get("html").toString() : "";
+            byte[] docx = quoteDocumentExportService.htmlToDocx(html);
+            String filename = "attachment-1-function-list-" + id + ".docx";
+            MediaType mt = MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename(filename, StandardCharsets.UTF_8).build().toString())
+                    .contentType(mt)
+                    .body(docx);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /** 附件二：验收标准（草案） PDF */
+    @GetMapping("/projects/{id}/contract-attachments/acceptance.pdf")
+    public ResponseEntity<byte[]> contractAttachmentAcceptancePdf(@PathVariable long id) {
+        try {
+            Map<String, Object> doc = quoteService.buildContractAttachmentAcceptanceStandards(id);
+            String html = doc.get("html") != null ? doc.get("html").toString() : "";
+            byte[] pdf = quoteDocumentExportService.htmlToPdf(html);
+            String filename = "attachment-2-acceptance-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename(filename, StandardCharsets.UTF_8).build().toString())
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /** 附件二：验收标准（草案） Word（.docx） */
+    @GetMapping("/projects/{id}/contract-attachments/acceptance.docx")
+    public ResponseEntity<byte[]> contractAttachmentAcceptanceDocx(@PathVariable long id) {
+        try {
+            Map<String, Object> doc = quoteService.buildContractAttachmentAcceptanceStandards(id);
+            String html = doc.get("html") != null ? doc.get("html").toString() : "";
+            byte[] docx = quoteDocumentExportService.htmlToDocx(html);
+            String filename = "attachment-2-acceptance-" + id + ".docx";
+            MediaType mt = MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename(filename, StandardCharsets.UTF_8).build().toString())
+                    .contentType(mt)
+                    .body(docx);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /** 附件三：里程碑计划 PDF */
+    @GetMapping("/projects/{id}/contract-attachments/milestones.pdf")
+    public ResponseEntity<byte[]> contractAttachmentMilestonesPdf(@PathVariable long id) {
+        try {
+            Map<String, Object> doc = quoteService.buildContractAttachmentMilestoneSchedule(id);
+            String html = doc.get("html") != null ? doc.get("html").toString() : "";
+            byte[] pdf = quoteDocumentExportService.htmlToPdf(html);
+            String filename = "attachment-3-milestones-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename(filename, StandardCharsets.UTF_8).build().toString())
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /** 附件三：里程碑计划 Word（.docx） */
+    @GetMapping("/projects/{id}/contract-attachments/milestones.docx")
+    public ResponseEntity<byte[]> contractAttachmentMilestonesDocx(@PathVariable long id) {
+        try {
+            Map<String, Object> doc = quoteService.buildContractAttachmentMilestoneSchedule(id);
+            String html = doc.get("html") != null ? doc.get("html").toString() : "";
+            byte[] docx = quoteDocumentExportService.htmlToDocx(html);
+            String filename = "attachment-3-milestones-" + id + ".docx";
+            MediaType mt = MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename(filename, StandardCharsets.UTF_8).build().toString())
+                    .contentType(mt)
+                    .body(docx);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @PostMapping("/results/{resultId}/contract/generate")
     public ApiResponse<Map<String, Object>> generateContract(@PathVariable long resultId, @RequestBody ContractGenerateRequest req) {
         if (req == null) req = new ContractGenerateRequest();
