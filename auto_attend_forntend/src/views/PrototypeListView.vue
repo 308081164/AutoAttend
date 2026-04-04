@@ -51,8 +51,12 @@ export default {
   data () {
     return { items: [], loading: true, deletingId: null }
   },
-  created () {
-    this.load()
+  async created () {
+    await this.load()
+    if (this.$route.query && String(this.$route.query.create) === '1') {
+      this.$router.replace({ path: '/prototype', query: {} })
+      this.$nextTick(() => this.createProject())
+    }
   },
   methods: {
     async load () {

@@ -417,14 +417,44 @@
             </div>
           </section>
 
-          <section class="hub-card console-elevated hub-prototype hub-card-placeholder">
+          <section class="hub-card console-elevated hub-prototype">
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-prototype" aria-hidden="true">◇</span>
-              <h2 class="hub-card-title">快原型</h2>
-              <router-link to="/prototype" class="hub-card-more">进入 →</router-link>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubPrototypeTitle') }}</h2>
+              <router-link to="/prototype" class="hub-card-more">{{ $t('dashboard.hubPrototypeViewAll') }} →</router-link>
             </div>
-            <p class="hub-desc">AI自动生成 可交互的页面原型</p>
-            <span class="hub-soon">尽情期待</span>
+            <div class="hub-metric-row">
+              <div class="hub-metric">
+                <span class="hub-metric-value">{{ prototypeHub.loading ? '—' : prototypeHub.total }}</span>
+                <span class="hub-metric-label">{{ $t('dashboard.hubPrototypeTotal') }}</span>
+              </div>
+              <div class="hub-quick-actions">
+                <router-link to="/prototype" class="hub-pill hub-pill-primary">{{ $t('dashboard.hubPrototypeOpenList') }}</router-link>
+                <router-link to="/prototype?create=1" class="hub-pill">{{ $t('dashboard.hubPrototypeNew') }}</router-link>
+              </div>
+            </div>
+            <p class="hub-desc">{{ $t('dashboard.hubPrototypeDesc') }}</p>
+            <div class="hub-subhead hub-subhead-filter">
+              <span>{{ $t('dashboard.hubPrototypeRecent') }}</span>
+              <input
+                v-model="prototypeHubFilter"
+                type="search"
+                class="hub-list-filter"
+                :placeholder="$t('dashboard.hubPrototypeFilterPlaceholder')"
+                autocomplete="off"
+              >
+            </div>
+            <div v-if="prototypeHub.loading" class="hub-placeholder">{{ $t('collab.loading') }}</div>
+            <ul v-else-if="prototypeHubListFiltered.length" class="hub-list">
+              <li v-for="row in prototypeHubListFiltered" :key="row.id">
+                <router-link :to="'/prototype/' + row.id" class="hub-list-link">
+                  <span class="hub-list-name">{{ row.name || ('#' + row.id) }}</span>
+                  <span class="hub-list-meta">#{{ row.id }}<template v-if="row.currentSpecVersion != null"> · v{{ row.currentSpecVersion }}</template></span>
+                </router-link>
+              </li>
+            </ul>
+            <p v-else-if="prototypeHub.items.length && prototypeHubFilter.trim()" class="hub-placeholder muted">{{ $t('dashboard.hubPrototypeNoMatch') }}</p>
+            <p v-else class="hub-placeholder muted">{{ $t('dashboard.hubPrototypeEmpty') }}</p>
           </section>
 
           <section class="hub-card console-elevated hub-chance hub-card-placeholder">
@@ -829,6 +859,8 @@ export default {
       dailySummaryDetail: null,
       dailyDetailLoading: false,
       quoteHub: { loading: false, items: [], total: 0 },
+      prototypeHub: { loading: false, items: [], total: 0 },
+      prototypeHubFilter: '',
       teamHubCount: null,
       teamHubLoading: false,
       aiHub: { loading: false, deepseek: null, qwen: null },
@@ -1019,6 +1051,19 @@ export default {
       if (this.teamHubCount == null) return '—'
       return this.teamHubCount
     },
+    /** 无筛选时与报价卡片一致展示最近 5 条；有筛选时在全部项目中匹配，最多 20 条 */
+    prototypeHubListFiltered () {
+      const items = Array.isArray(this.prototypeHub.items) ? this.prototypeHub.items : []
+      const q = (this.prototypeHubFilter || '').trim().toLowerCase()
+      if (!q) {
+        return items.slice(0, 5)
+      }
+      return items.filter((row) => {
+        const name = (row && row.name != null ? String(row.name) : '').toLowerCase()
+        const id = row && row.id != null ? String(row.id) : ''
+        return name.includes(q) || id.includes(q)
+      }).slice(0, 20)
+    },
     teamMembersAllSorted () {
       const list = Array.isArray(this.teamMembers) ? this.teamMembers.slice() : []
       list.sort((a, b) => {
@@ -1170,6 +1215,7 @@ export default {
     },
     loadConsoleHub () {
       this.loadQuoteHub()
+      this.loadPrototypeHub()
       this.loadTeamHub()
       this.loadAiHub()
       this.loadPartyBProfileForHeader()
@@ -1489,6 +1535,25 @@ export default {
         this.quoteHub.total = 0
       } finally {
         this.quoteHub.loading = false
+      }
+    },
+    async loadPrototypeHub () {
+      this.prototypeHub.loading = true
+      try {
+        const resp = await this.$http.get('/admin/ui-prototype/projects')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const items = resp.data.data.items || []
+          this.prototypeHub.items = items
+          this.prototypeHub.total = items.length
+        } else {
+          this.prototypeHub.items = []
+          this.prototypeHub.total = 0
+        }
+      } catch (e) {
+        this.prototypeHub.items = []
+        this.prototypeHub.total = 0
+      } finally {
+        this.prototypeHub.loading = false
       }
     },
     async loadTeamHub () {
@@ -2928,6 +2993,37 @@ export default {
   font-weight: 600;
   color: #64748b;
   margin-bottom: 8px;
+}
+
+.hub-subhead-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  justify-content: space-between;
+}
+
+.hub-list-filter {
+  flex: 1;
+  min-width: 120px;
+  max-width: 220px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+
+.hub-list-filter::placeholder {
+  color: #94a3b8;
+}
+
+.hub-list-filter:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
 .hub-list {
