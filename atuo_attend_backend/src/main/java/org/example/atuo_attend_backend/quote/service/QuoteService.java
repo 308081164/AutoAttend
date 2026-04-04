@@ -1610,8 +1610,11 @@ public class QuoteService {
     }
 
     /**
-     * 将报价项目整理为《页面设计文档》式蓝图文本，供「快原型」智能体按用户自然语言主线绘制页面；
-     * 报价模块/功能点仅作附录覆盖参考，避免机械按模块堆砌页面。
+     * 快原型从报价导入：由后端判别传入 AI 的纯文本内容，两种形态互斥。
+     * <ul>
+     *   <li>存在 PRD 或 AI 录入原文任一非空：<strong>仅输出</strong>用户原始叙述（项目标题 + 分段正文），<strong>不附带</strong>功能清单、附录或附件式说明。</li>
+     *   <li>二者皆空：<strong>仅输出</strong>报价「功能清单」Markdown 表格作为唯一需求替代。</li>
+     * </ul>
      */
     public Map<String, Object> buildPrototypeRequirementFromQuote(long quoteProjectId) {
         Map<String, Object> detail = getProjectDetail(quoteProjectId);
@@ -1620,85 +1623,58 @@ public class QuoteService {
         }
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> modules = (List<Map<String, Object>>) detail.get("modules");
-        if (modules == null || modules.isEmpty()) {
-            throw new IllegalArgumentException("该报价项目暂无模块/功能点，无法导入");
+        if (modules == null) {
+            modules = Collections.emptyList();
         }
 
         String projectName = Objects.toString(detail.get("name"), "").trim();
         String displayName = !projectName.isEmpty() ? projectName : ("报价项目 #" + quoteProjectId);
-        String projectType = labelProjectType(Objects.toString(detail.get("projectType"), ""));
-        String techStack = labelTechStack(Objects.toString(detail.get("techStack"), ""));
-        String designType = labelDesign(Objects.toString(detail.get("designType"), ""));
         String prdSummary = Objects.toString(detail.get("prdSummary"), "").trim();
         String aiRequirementText = Objects.toString(detail.get("aiRequirementText"), "").trim();
 
         String prdBlock = prdSummary.isEmpty() ? "" : (prdSummary.length() > 6000 ? prdSummary.substring(0, 6000) + "…" : prdSummary);
         String aiBlock = aiRequirementText.isEmpty() ? "" : (aiRequirementText.length() > 12000 ? aiRequirementText.substring(0, 12000) + "…" : aiRequirementText);
+        final boolean hasUserNarrative = !prdBlock.isEmpty() || !aiBlock.isEmpty();
+
+        if (!hasUserNarrative && modules.isEmpty()) {
+            throw new IllegalArgumentException("无用户原始需求时需至少有一条报价功能清单，请先填写功能模块与功能点");
+        }
 
         StringBuilder doc = new StringBuilder();
-        doc.append("# 《").append(displayName).append("》页面设计文档（由报价项目同步生成）\n\n");
-        doc.append("> **用途**：本文档是交给「快原型」智能体的**执行蓝图**。请严格以**用户原始自然语言需求**为主线，自行推导信息架构、页面划分与组件布局；文末附录中的报价功能清单**仅用于能力覆盖核对**，不得机械地「一个模块 = 一个 Tab」式堆砌。\n\n");
+        doc.append("# ").append(displayName).append("\n\n");
 
-        doc.append("## 1. 文档元信息\n");
-        doc.append("- **文档版本**：导入稿 ").append(LocalDate.now()).append('\n');
-        doc.append("- **关联报价项目**：#").append(quoteProjectId);
-        if (!projectName.isEmpty()) {
-            doc.append("（").append(projectName).append("）");
-        }
-        doc.append('\n');
-        doc.append("- **项目类型**：").append(projectType.isEmpty() ? "—" : projectType).append('\n');
-        doc.append("- **技术栈（实现参考）**：").append(techStack.isEmpty() ? "—" : techStack).append('\n');
-        doc.append("- **设计方式**：").append(designType.isEmpty() ? "—" : designType).append("\n\n");
-
-        doc.append("## 2. 需求来源（用户原始叙述）——**信息架构与页面划分的主依据**\n\n");
-        if (!prdBlock.isEmpty()) {
-            doc.append("### 2.1 需求摘要 / PRD / 用户填写的说明\n");
-            doc.append(prdBlock).append("\n\n");
-        }
-        if (!aiBlock.isEmpty()) {
-            doc.append("### 2.2 AI 智能录入时的用户原文\n");
-            doc.append(aiBlock).append("\n\n");
-        }
-        if (prdBlock.isEmpty() && aiBlock.isEmpty()) {
-            doc.append("当前报价单中**未保存**独立的自然语言需求描述。请结合**第 7 节附录功能清单**与**第 1 节项目维度**，合理推断典型用户任务与页面结构，并避免生成与清单明显矛盾的能力。\n\n");
+        if (hasUserNarrative) {
+            if (!prdBlock.isEmpty()) {
+                doc.append("## PRD / 需求摘要\n\n").append(prdBlock).append("\n\n");
+            }
+            if (!aiBlock.isEmpty()) {
+                doc.append("## AI 智能录入原文\n\n").append(aiBlock).append("\n\n");
+            }
         } else {
-            doc.append("**编排原则**：\n");
-            doc.append("- 从上述原文中识别**用户角色、核心任务、关键场景**与**业务对象**（如订单、合同、设备等），据此划分页面与导航层级。\n");
-            doc.append("- 若 2.1 与 2.2 内容有重叠，以**更完整、更贴近业务细节**的表述为准；若存在冲突，**优先采信 2.2 用户原文**中的业务描述。\n");
-            doc.append("- 语义相近的能力应**合并到同一页面或同一任务流**中展示，不要为了「对齐附录模块名」而拆成大量并列空壳页。\n\n");
+            doc.append("## 功能清单\n\n");
+            appendQuoteFeatureListMarkdownTable(doc, modules, 200);
         }
 
-        doc.append("## 3. 产品目标与范围（由智能体根据第 2 节归纳，可写入 spec 的顶层描述）\n");
-        doc.append("请用 2～4 句中文概括：产品解决什么问题、主要服务对象、成功使用时用户能完成什么。若原文未写清，可结合附录清单合理推断，并在 spec 中保持表述克制、避免臆造具体品牌或政策。\n\n");
+        String requirementText = doc.toString().trim();
+        if (requirementText.isEmpty()) {
+            throw new IllegalStateException("导入结果为空，请重试");
+        }
 
-        doc.append("## 4. 信息架构与导航\n");
-        doc.append("请从原文中推导并落地到可交互原型中：\n");
-        doc.append("- **主导航形态**：顶部 Tab、侧边分组、或「仪表盘 + 下级入口」等（择一或组合），须与任务流一致。\n");
-        doc.append("- **核心用户路径**：列出 1～3 条高频路径（例如：登录后默认落地页 → 列表 → 详情/编辑）。\n");
-        doc.append("- **页面职责**：每个页面应有清晰边界；列表页负责检索与批量操作，详情/表单页负责单实体编辑，避免单屏堆满无关模块。\n\n");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("quoteProjectId", quoteProjectId);
+        out.put("requirementText", requirementText);
+        out.put("sourceModuleCount", modules.size());
+        return out;
+    }
 
-        doc.append("## 5. 页面蓝图（供 spec / mockup 直接落地）\n");
-        doc.append("对**你判定的每个核心页面**，在输出中应体现（可用标题、区块标题与组件类型描述即可）：\n");
-        doc.append("- **页面名称**及在导航中的位置；\n");
-        doc.append("- **布局分区**：顶栏/页头、筛选区、主内容、侧栏或底部操作区等；\n");
-        doc.append("- **关键组件**：表格/列表、表单字段、卡片、步骤条、空状态、筛选器、主按钮与次要操作等，并简要说明**与原文哪一句需求对应**；\n");
-        doc.append("- **状态与交互**：加载、选中、Tab/面板切换、展开折叠等（仅使用原型渲染器已支持的交互）。\n\n");
-
-        doc.append("## 6. 视觉与交互规范（必须遵守）\n");
-        doc.append("- **风格**：简洁、现代的中后台或工具型产品风；层次清晰，主操作明确。\n");
-        doc.append("- **文案**：使用中文界面文案，与第 2 节业务术语保持一致。\n");
-        doc.append("- **技术约束（与快原型引擎一致）**：\n");
-        doc.append("  - Tab / 面板切换必须可用（`setTab` / `togglePanel`，以点击切换为主）。\n");
-        doc.append("  - **禁止**使用图片、外链资源、内嵌 iframe；仅用布局与样式表达界面。\n\n");
-
-        doc.append("## 7. 附录：报价功能清单（**能力覆盖参考，非页面清单**）\n\n");
-        doc.append("以下行来自报价拆解，用于检查是否遗漏能力；**页面数量与结构不得以本表行数为准**。\n\n");
+    /** 报价功能清单 Markdown 表（仅用于无用户原文时的导入正文）。 */
+    private static void appendQuoteFeatureListMarkdownTable(StringBuilder doc, List<Map<String, Object>> modules, int maxRows) {
         doc.append("| 模块 | 功能点 | 复杂度 | 数量 |\n");
         doc.append("| --- | --- | --- | --- |\n");
-        final int maxRows = 100;
         int rowCount = 0;
         outer:
         for (Map<String, Object> mod : modules) {
+            if (mod == null) continue;
             String modName = escMdTableCell(Objects.toString(mod.get("name"), ""));
             if (modName.isEmpty()) continue;
             Object itemsObj = mod.get("items");
@@ -1710,7 +1686,7 @@ public class QuoteService {
             }
             for (Object io : items) {
                 if (rowCount >= maxRows) {
-                    doc.append("| … | （其余行已省略，请在报价单中查看完整清单） |  |  |\n");
+                    doc.append("| … | （其余行已省略） |  |  |\n");
                     break outer;
                 }
                 if (!(io instanceof Map<?, ?> rm)) continue;
@@ -1723,19 +1699,6 @@ public class QuoteService {
             }
         }
         doc.append('\n');
-        doc.append("---\n");
-        doc.append("**执行摘要（给智能体）**：先读第 2 节用户原文 → 设计导航与页面蓝图（第 4～5 节）→ 生成可点击原型 → 用第 7 节附录做一次**漏项自查**，补缺时仍须服从原文叙事，而非把附录行机械映射为界面区块。\n");
-
-        String requirementText = doc.toString().trim();
-        if (requirementText.isEmpty()) {
-            throw new IllegalStateException("导入结果为空，请重试");
-        }
-
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("quoteProjectId", quoteProjectId);
-        out.put("requirementText", requirementText);
-        out.put("sourceModuleCount", modules.size());
-        return out;
     }
 
     /** Markdown 表格单元格内避免破坏表格结构 */

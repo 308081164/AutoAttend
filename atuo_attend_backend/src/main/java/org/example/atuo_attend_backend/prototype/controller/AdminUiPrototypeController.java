@@ -185,7 +185,7 @@ public class AdminUiPrototypeController {
     }
 
     /**
-     * 从报价项目生成《页面设计文档》式蓝图文本（用户叙述为主、功能清单为附录），供快原型需求框使用。
+     * 从报价项目生成快原型需求正文（后端判别）：有 PRD/AI 原文则仅返回该叙述；无则仅返回功能清单表。供快原型需求框使用。
      */
     @PostMapping("/projects/{id}/import-quote-requirement")
     public ApiResponse<Map<String, Object>> importQuoteRequirement(@PathVariable long id,
