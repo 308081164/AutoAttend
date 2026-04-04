@@ -185,7 +185,7 @@ public class AdminUiPrototypeController {
     }
 
     /**
-     * 从“报价项目”导入结构化需求，转换为适合“快原型”页面需求框的文本。
+     * 从报价项目生成《页面设计文档》式蓝图文本（用户叙述为主、功能清单为附录），供快原型需求框使用。
      */
     @PostMapping("/projects/{id}/import-quote-requirement")
     public ApiResponse<Map<String, Object>> importQuoteRequirement(@PathVariable long id,

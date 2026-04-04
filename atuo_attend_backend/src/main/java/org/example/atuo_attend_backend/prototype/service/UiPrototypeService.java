@@ -419,9 +419,10 @@ public class UiPrototypeService {
                 + "- 必须使用 targetId，不要使用 target/targetNodeId/toId/to/panelId/tabsId\n"
                 + "- 参数必须放在 params 内，不要把 open/tabKey 放在 interaction 顶层\n"
                 + "\n"
-                + "关于“模块/功能点”：\n"
-                + "- 如果用户输入里包含形如【模块1】模块名、以及“  - 功能点：xxx”的结构化清单：优先用 Tabs 做分区，每个 Tab 对应一个模块，模块下用 Badge 列出功能点。\n"
-                + "- 如果用户输入是自由文本：你可以自行决定是否使用 Tabs；但仍要保证页面可预览、信息清晰、组件数量不过载。\n"
+                + "关于需求形态：\n"
+                + "- 若输入为《页面设计文档》结构（含「需求来源」「信息架构与导航」「页面蓝图」等章节）：必须以**用户原始叙述**为主线推导页面与导航；文末「附录」表格仅作能力覆盖参考，**禁止**按表格行数机械生成同等数量的 Tab。\n"
+                + "- 若输入含旧式标记【模块1】模块名与“功能点：”清单：可用 Tabs 分区，每 Tab 对应一模块，模块下用 Badge 列功能点。\n"
+                + "- 其它自由文本：自行组织信息架构；须保证可预览、层次清晰、组件数量合理，且至少有一处可用的 Tabs（用于 MVP 切换）。\n"
                 + "\n"
                 + "输出前请自检（不输出自检过程）：\n"
                 + "1) interactions 中每一项都有 type/sourceId/targetId/params\n"
@@ -455,7 +456,9 @@ public class UiPrototypeService {
                 + "- 文案简洁\n"
                 + "\n输出规则（务必遵守）：\n"
                 + "1) 只输出一个 JSON object，不要任何解释文字/Markdown/代码块。\n"
-                + "2) 若需求中出现【模块N】与功能点清单，请用 Tabs 分区并用 Badge 列出功能点；否则按你的判断组织页面结构。\n";
+                + "2) 若为《页面设计文档》导入稿：按文档中的信息架构与页面蓝图组织 Tabs/面板；Tab 标签用**页面或业务域名称**，不要用「附录表格行」当 Tab 标题。\n"
+                + "3) 若出现旧式【模块N】+ 功能点清单：用 Tabs 分区并用 Badge 列出功能点。\n"
+                + "4) 其它情况：自行组织合理结构，仍须包含可用的 Tabs。\n";
     }
 
     private static int countExpectedModulesFromRequirementText(String prompt) {

@@ -37,11 +37,11 @@
             </div>
             <div class="section-body">
               <template v-if="mode === 'spec'">
-                <label class="label">页面需求</label>
+                <label class="label">页面需求 / 设计文档</label>
                 <textarea
                   v-model="prompt"
                   class="prompt-textarea"
-                  placeholder="例如：制作一个可切换面板的登录页原型，包含卡片、按钮与 Tabs。"
+                  placeholder="可直接写自然语言需求；从报价导入时会生成《页面设计文档》式蓝图（原文为主、清单在附录）。智能体将据此编排页面与组件。"
                 ></textarea>
                 <div class="actions-row">
                   <button type="button" class="primary-button" :disabled="generating" @click="generateSpec">
@@ -85,9 +85,10 @@
                   :disabled="importingQuoteRequirement || !selectedQuoteProjectId"
                   @click="importQuoteRequirement"
                 >
-                  {{ importingQuoteRequirement ? '导入中…' : '导入报价单需求' }}
+                  {{ importingQuoteRequirement ? '导入中…' : '导入为页面设计文档' }}
                 </button>
               </div>
+              <p class="section-hint import-doc-hint">将同步报价中的<strong>需求原文</strong>（PRD / AI 录入）与项目维度，并生成标准结构的《页面设计文档》；报价功能清单仅出现在文末附录，供智能体做漏项核对，不强制「一模块一 Tab」。</p>
               <div v-if="importHint" class="section-hint">{{ importHint }}</div>
               <div v-if="genError" class="error-msg">{{ genError }}</div>
             </div>
@@ -575,12 +576,12 @@ ${html}
           const t = String(resp.data.data.requirementText || '').trim()
           if (this.mode === 'spec') {
             this.prompt = t
-            this.importHint = '结构化需求已导入，可继续补充其他要求后再生成'
+            this.importHint = '《页面设计文档》已写入需求框（用户叙述为主、报价清单在附录），可补充后生成'
           } else {
             // HTML+CSS 模式：导入后自动触发一次生成并预览
             this.mockupPrompt = t
             await this.sendMockupText(t)
-            this.importHint = '结构化需求已导入并已自动生成预览；可继续补充其他要求后再次发送'
+            this.importHint = '《页面设计文档》已导入并已触发生成预览；可补充说明后再次发送'
           }
         } else {
           this.genError = (resp.data && resp.data.message) || '导入报价需求失败'
@@ -984,6 +985,13 @@ ${html}
   color: #64748b;
   font-size: 12px;
   font-weight: 600;
+}
+.import-doc-hint {
+  font-weight: 500;
+  line-height: 1.45;
+}
+.import-doc-hint strong {
+  font-weight: 700;
 }
 .label {
   display: block;
