@@ -613,7 +613,6 @@ export default {
     attachmentAcceptance: '附件二：验收标准与测试用例 HTML',
     attachmentMilestones: '附件三：里程碑 HTML',
     attachmentFail: '附件生成失败',
-    companyNamePartyBHint: '法人签约时建议与「报价配置 → 乙方主体模板」中法定名称一致；自然人签约时请与其中「自然人」姓名一致。合同 AI 会引用对应模板中的住所、证件/信用代码与收款信息。',
     partyBSectionTitle: '合同乙方（我方）主体模板',
     partyBSectionHint: '全系统一份，分为「法人或其他组织」与「自然人」两套，可同时维护；生成合同时按实际签约主体选用对应小节。',
     partyBLegalSubtitle: '法人或其他组织',

@@ -613,7 +613,6 @@ export default {
     attachmentAcceptance: 'Annex 2: Acceptance & test cases (HTML)',
     attachmentMilestones: 'Annex 3: Milestones (HTML)',
     attachmentFail: 'Failed to generate annex',
-    companyNamePartyBHint: 'For a company, align with the legal name in Quote config → Party B profile; for an individual, align with the natural-person name. Contract AI uses the matching template (ID/USCC, address, bank).',
     partyBSectionTitle: 'Party B (our side) profile templates',
     partyBSectionHint: 'One global set: “legal entity / organization” and “natural person”. You can maintain both; pick the matching block when drafting contracts.',
     partyBLegalSubtitle: 'Legal entity or organization',

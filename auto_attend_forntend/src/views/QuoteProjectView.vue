@@ -480,7 +480,6 @@
             {{ $t('quote.companyName') }}
             <input :value="contract.companyName" class="inp" readonly />
           </label>
-          <p class="hint party-b-hint">{{ $t('quote.companyNamePartyBHint') }}</p>
           <label>{{ $t('quote.templateType') }}
             <select v-model="contract.templateType" class="inp">
               <option value="software_dev">软件开发合同</option>
@@ -3148,7 +3147,6 @@ label.block { display: block; margin-top: 10px; }
 .block-full { grid-column: 1 / -1; }
 .block-inp { width: 100%; max-width: 720px; box-sizing: border-box; margin-top: 6px; }
 .compact-contract .inp.wide { min-width: 160px; }
-.party-b-hint { margin: -6px 0 12px; font-size: 13px; max-width: 520px; }
 .module-entry-mode-row {
   display: flex;
   flex-wrap: wrap;
