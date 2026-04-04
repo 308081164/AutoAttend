@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS aa_ui_prototype_mockup_generate_job (
     project_id BIGINT NOT NULL COMMENT '原型项目ID',
     status VARCHAR(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/running/success/failed',
     error_message TEXT NULL COMMENT '失败原因',
-    prompt_snapshot VARCHAR(2000) NULL COMMENT '请求摘要（审计/排错）',
+    prompt_snapshot MEDIUMTEXT NULL COMMENT '请求摘要（审计/排错；长 prompt 截断入库）',
     model VARCHAR(64) NULL COMMENT '用户选择的模型（可空）',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

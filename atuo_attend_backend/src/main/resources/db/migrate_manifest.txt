@@ -30,3 +30,4 @@ schema_ui_prototype_generate_job.sql
 schema_quote_ai_acceptance_test_cases_job.sql
 schema_quote_ai_contract_generate_job.sql
 schema_platform_component_event.sql
+schema_ui_prototype_job_prompt_snapshot_mediumtext_migration.sql

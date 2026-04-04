@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS aa_ui_prototype_generate_job (
     status VARCHAR(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/running/success/failed',
     error_message TEXT NULL COMMENT '失败原因',
     spec_version INT NULL COMMENT '成功时写入的版本号',
-    prompt_snapshot VARCHAR(2000) NULL COMMENT '请求摘要（审计/排错）',
+    prompt_snapshot MEDIUMTEXT NULL COMMENT '请求摘要（审计/排错；长 prompt 截断入库）',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_tenant_project (tenant_id, project_id),

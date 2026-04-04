@@ -287,10 +287,14 @@ public class UiPrototypeService {
         }
     }
 
+    /** 与库列 MEDIUMTEXT 对齐；完整 prompt 仍在内存中用于调用 LLM，入库仅保留摘要避免超大行 */
+    private static final int PROMPT_SNAPSHOT_MAX_CHARS = 60000;
+
     private static String promptSnapshot(String prompt) {
         String t = prompt != null ? prompt.trim() : "";
-        // 用于入库展示/回溯；生成仍使用完整 prompt。这里适当放宽，避免模块清单在记录中被裁掉。
-        if (t.length() > 8000) return t.substring(0, 8000);
+        if (t.length() > PROMPT_SNAPSHOT_MAX_CHARS) {
+            return t.substring(0, PROMPT_SNAPSHOT_MAX_CHARS) + "…";
+        }
         return t.isEmpty() ? null : t;
     }
 
