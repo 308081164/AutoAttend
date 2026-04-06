@@ -1612,7 +1612,8 @@ public class QuoteService {
     /**
      * 快原型从报价导入：由后端判别传入 AI 的纯文本内容，两种形态互斥。
      * <ul>
-     *   <li>存在 PRD 或 AI 录入原文任一非空：<strong>仅输出</strong>用户原始叙述（项目标题 + 分段正文），<strong>不附带</strong>功能清单、附录或附件式说明。</li>
+     *   <li>存在 PRD 或 AI 录入原文任一非空：输出<strong>只基于该叙述推导</strong>的《页面设计文档》导入稿（含信息架构/页面蓝图/布局与字段声明写法要求），
+     *       但<strong>不附带</strong>任何功能清单、附件/附录表格或“按模块对应”的提示词。</li>
      *   <li>二者皆空：<strong>仅输出</strong>报价「功能清单」Markdown 表格作为唯一需求替代。</li>
      * </ul>
      */
@@ -1636,23 +1637,14 @@ public class QuoteService {
         String aiBlock = aiRequirementText.isEmpty() ? "" : (aiRequirementText.length() > 12000 ? aiRequirementText.substring(0, 12000) + "…" : aiRequirementText);
         final boolean hasUserNarrative = !prdBlock.isEmpty() || !aiBlock.isEmpty();
 
-        if (!hasUserNarrative && modules.isEmpty()) {
-            throw new IllegalArgumentException("无用户原始需求时需至少有一条报价功能清单，请先填写功能模块与功能点");
-        }
-
         StringBuilder doc = new StringBuilder();
-        doc.append("# ").append(displayName).append("\n\n");
-
         if (hasUserNarrative) {
-            if (!prdBlock.isEmpty()) {
-                doc.append("## PRD / 需求摘要\n\n").append(prdBlock).append("\n\n");
-            }
-            if (!aiBlock.isEmpty()) {
-                doc.append("## AI 智能录入原文\n\n").append(aiBlock).append("\n\n");
-            }
+            appendNarrativeOnlyPageDesignDoc(doc, displayName, quoteProjectId, prdBlock, aiBlock);
         } else {
-            doc.append("## 功能清单\n\n");
-            appendQuoteFeatureListMarkdownTable(doc, modules, 200);
+            if (modules.isEmpty()) {
+                throw new IllegalArgumentException("无用户原始需求时需至少有一条报价功能清单，请先填写功能模块与功能点");
+            }
+            appendFeatureListBasedPageDesignDoc(doc, displayName, quoteProjectId, modules);
         }
 
         String requirementText = doc.toString().trim();
@@ -1665,6 +1657,128 @@ public class QuoteService {
         out.put("requirementText", requirementText);
         out.put("sourceModuleCount", modules.size());
         return out;
+    }
+
+    /**
+     * 有用户原始叙述时：生成“页面设计文档导入稿”（仅由原文推导），用于提升快原型生成稳定性。
+     *
+     * 注意：此处<strong>不允许</strong>附带功能清单/附录/附件式表格；也<strong>不允许</strong>出现“按模块编写/与模块对应”等指令。
+     */
+    private static void appendNarrativeOnlyPageDesignDoc(StringBuilder doc,
+                                                         String displayName,
+                                                         long quoteProjectId,
+                                                         String prdBlock,
+                                                         String aiBlock) {
+        doc.append("# 《").append(displayName).append("》页面设计文档（导入稿）\n\n");
+        doc.append("> **生成规则（强约束）**：\n");
+        doc.append("> - 本文档的页面划分、导航层级、状态池命名、字段与按钮文案，必须**只依据下方「用户原始需求」**推导；\n");
+        doc.append("> - **禁止**引入任何“附件/附录/功能清单/模块对应关系”来组织页面；\n");
+        doc.append("> - 输出时要**增强**：页面划分、组件内字段声明、页面内组件划分与空间布局（分区比例/顺序）的表述。\n\n");
+
+        doc.append("## 1. 文档元信息\n");
+        doc.append("- **项目名称**：").append(displayName).append("\n");
+        doc.append("- **关联报价项目**：#").append(quoteProjectId).append("\n");
+        doc.append("- **项目类型**：管理后台\n\n");
+
+        doc.append("## 2. 用户原始需求（唯一依据）\n\n");
+        if (prdBlock != null && !prdBlock.isBlank()) {
+            doc.append("### 2.1 PRD / 需求摘要\n");
+            doc.append(prdBlock).append("\n\n");
+        }
+        if (aiBlock != null && !aiBlock.isBlank()) {
+            doc.append("### 2.2 AI 智能录入时的用户原文\n");
+            doc.append(aiBlock).append("\n\n");
+        }
+
+        doc.append("## 3. 产品目标与范围（由原文归纳）\n");
+        doc.append("用 2～4 句概括：系统解决什么问题、主要服务对象、成功使用时用户能完成什么。表述克制，不引入原文未提及的品牌/政策。\n\n");
+
+        doc.append("## 4. 信息架构与导航（由原文推导）\n");
+        doc.append("- **主导航形态**：建议「侧边分组 + 工作台落地页」，并在工作台内用 Tabs 表达状态池（若原文存在“待…”栏目）。\n");
+        doc.append("- **核心用户路径**：列出 1～3 条最高频路径（如：创建订单 → 对接分配 → 设计/建模/评审 → 报价/待生产 → 已完成）。\n");
+        doc.append("- **页面职责**：列表页做检索/筛选/批量；详情/抽屉做单实体编辑；避免单屏堆满无关模块。\n\n");
+
+        doc.append("## 5. 核心页面详细设计（必须写到可直接落地原型）\n");
+        doc.append("请对每个核心页面按以下模板输出（页面数量与命名**由原文自然推导**，不要机械分页）：\n");
+        doc.append("- **页面名称**与在导航中的位置\n");
+        doc.append("- **空间布局**：顶栏/筛选区/主内容/侧栏或抽屉/底部操作区；写清上下/左右分区与大致比例（如 6:4、上列表下详情）。\n");
+        doc.append("- **组件划分**：表格/表单/卡片/步骤条/Tabs/Panel 等，写清摆放顺序。\n");
+        doc.append("- **字段声明**：逐字段列出中文标签、控件类型（文本/多行/下拉/数字/日期/上传）、必填/只读/条件显示。\n");
+        doc.append("- **状态与交互**：Tab 切换（setTab）、抽屉/面板展开（togglePanel）、行内操作、危险操作（取消/驳回）的样式区分。\n\n");
+
+        doc.append("### 5.1 示例（仅示范格式与详略，禁止照抄为真实需求）\n\n");
+        doc.append("""
+                **页面：售前客服 — 新建订单**
+                - **导航位置**：侧栏「订单」→「新建」。
+                - **空间布局**：页头（标题+说明）→ 主区左右 **6:4**（左表单/右侧卡片）→ 底部固定操作栏。
+                - **组件划分**：左侧表单分组「订单信息」「客户需求」；右侧卡片「财务与材质」。
+                - **字段声明**：
+                  - 订单编号（只读 文本）
+                  - 订单来源（下拉；当选“达人推荐”时显示“达人昵称”文本）
+                  - 下单时间（日期时间）
+                  - 定金金额（数字）
+                  - 基础需求（多行）
+                  - 客户联系方式（必填 文本）
+                - **操作**：主按钮【提交创建】；次要【保存草稿】（如原文未提及可不写）。
+
+                **页面：售中客服 — 订单工作台（多状态池）**
+                - **导航位置**：侧栏「工作台」。
+                - **空间布局**：顶部统计卡片区（约 15～20% 高度）+ 下方「Tabs + 表格」；点击行内【去对接】打开右侧抽屉（约 30～40% 屏宽）。
+                - **组件划分**：统计卡片组；状态 Tabs；订单表格；抽屉内分组表单（对接字段+分配人员）。
+                - **字段声明**：表格列（订单编号/状态/更新时间/操作）；抽屉字段（字印/材质/手寸或链长/选择设计师等）。
+                - **交互**：Tabs 用 setTab；抽屉用 togglePanel；危险操作【已取消】红色文字按钮并锁定后续操作。
+                """);
+        doc.append("\n\n");
+
+        doc.append("## 6. 视觉与交互规范（必须遵守）\n");
+        doc.append("- 风格：简洁现代中后台；主操作明确；中文业务术语与原文一致。\n");
+        doc.append("- 约束：仅使用原型引擎支持的交互（setTab/togglePanel）；禁止图片/外链/iframe。\n");
+        doc.append("- 文案：按钮与状态名尽量使用原文用语（如“去对接”“待…栏目”“已取消”等）。\n");
+    }
+
+    /**
+     * 无用户原文时：基于功能清单生成同结构的页面设计文档导入稿。
+     * “用户原始需求”小节由功能清单转述而来，明确说明是唯一依据。
+     */
+    private static void appendFeatureListBasedPageDesignDoc(StringBuilder doc,
+                                                            String displayName,
+                                                            long quoteProjectId,
+                                                            List<Map<String, Object>> modules) {
+        doc.append("# 《").append(displayName).append("》页面设计文档（导入稿）\n\n");
+        doc.append("> **生成规则（强约束）**：\n");
+        doc.append("> - 本文档的页面划分、导航层级、状态池命名、字段与按钮文案，必须**只依据下方「功能清单整理出的需求」**推导；\n");
+        doc.append("> - **禁止**引用其他“模块说明/测试用例/外部附件”来组织页面；\n");
+        doc.append("> - 输出时要**增强**：页面划分、组件内字段声明、页面内组件划分与空间布局（分区比例/顺序）的表述。\n\n");
+
+        doc.append("## 1. 文档元信息\n");
+        doc.append("- **项目名称**：").append(displayName).append("\n");
+        doc.append("- **关联报价项目**：#").append(quoteProjectId).append("\n");
+        doc.append("- **项目类型**：管理后台\n\n");
+
+        doc.append("## 2. 功能清单整理出的需求（唯一依据）\n\n");
+        doc.append("下表为本项目在报价阶段已确认的功能清单（模块/功能点/复杂度/数量），视作本次页面设计的唯一需求来源。\n\n");
+        appendQuoteFeatureListMarkdownTable(doc, modules, 200);
+
+        doc.append("## 3. 产品目标与范围（由功能清单归纳）\n");
+        doc.append("用 2～4 句概括：系统大致解决的问题、主要服务对象、关键能力范围（例如订单全生命周期、权限管理、统计分析等）。不要虚构表中不存在的业务域。\n\n");
+
+        doc.append("## 4. 信息架构与导航（由功能清单推导）\n");
+        doc.append("- **主导航形态**：从功能清单中抽取 3～6 个业务域（如订单管理、流程设计/建模、工艺与报价、用户与权限、统计分析）作为一级菜单；\n");
+        doc.append("- **核心用户路径**：根据“创建/编辑/上传/导出/统计”等功能点，列出 1～3 条代表性路径（如：创建订单 → 分配设计/建模 → 工艺评审 → 报价/待生产 → 导出/统计）；\n");
+        doc.append("- **页面职责**：将“创建/编辑类”能力集中到表单/详情，“查看/导出/批量操作类”集中到列表/工作台，避免为每一条功能点单独做页面。\n\n");
+
+        doc.append("## 5. 核心页面详细设计（必须写到可直接落地原型）\n");
+        doc.append("请基于功能清单自行归纳页面，而非“每行一个页面”。对每个核心页面按以下模板输出：\n");
+        doc.append("- **页面名称**与在导航中的位置\n");
+        doc.append("- **空间布局**：顶栏/筛选区/主内容/侧栏或抽屉/底部操作区；写清上下/左右分区与大致比例（如 6:4、上列表下详情）。\n");
+        doc.append("- **组件划分**：表格/表单/卡片/步骤条/Tabs/Panel 等，写清摆放顺序。\n");
+        doc.append("- **字段声明**：根据表格中的功能点，列出每页涉及的字段标签、控件类型、必填/只读/条件显示等。\n");
+        doc.append("- **状态与交互**：根据“待…/已完成/已取消”等功能语义设计 Tab 与按钮，并说明 setTab/togglePanel 的触发位置。\n\n");
+
+        doc.append("## 6. 视觉与交互规范（必须遵守）\n");
+        doc.append("- 风格：简洁现代中后台；主操作明确；中文业务术语尽量沿用功能点文案。\n");
+        doc.append("- 约束：仅使用原型引擎支持的交互（setTab/togglePanel）；禁止图片/外链/iframe。\n");
+        doc.append("- 文案：按钮与状态名应能在功能清单语义中找到依据，不新增无关业务对象。\n");
     }
 
     /** 报价功能清单 Markdown 表（仅用于无用户原文时的导入正文）。 */
