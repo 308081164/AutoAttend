@@ -718,6 +718,8 @@ export default {
     imagePreviewDownload: 'Save to device',
     imagePreviewClose: 'Close',
     imagePreviewComingSoon: 'Coming in a later version',
+    aiSplitSingle: 'Single task only',
+    aiSplitMulti: 'Smart split into multiple',
     aiTabText: 'Text + Qwen',
     aiTabCsv: 'CSV + DeepSeek',
     csvAiMode: 'CSV smart import',

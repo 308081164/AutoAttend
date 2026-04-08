@@ -539,6 +539,26 @@
               {{ $t('collabTable.aiTabCsv') }}
             </button>
           </div>
+          <div v-show="aiModalMode === 'text'" class="ai-split-mode-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="aiSplitMode === 'single'"
+              :class="{ active: aiSplitMode === 'single' }"
+              @click="aiSplitMode = 'single'"
+            >
+              {{ $t('collabTable.aiSplitSingle') }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="aiSplitMode === 'multi'"
+              :class="{ active: aiSplitMode === 'multi' }"
+              @click="aiSplitMode = 'multi'"
+            >
+              {{ $t('collabTable.aiSplitMulti') }}
+            </button>
+          </div>
           <div v-show="aiModalMode === 'csv'" class="ai-csv-section">
             <div class="csv-import-mode-tabs" role="tablist">
               <button type="button" role="tab" :aria-selected="csvImportMode === 'ai'" :class="{ active: csvImportMode === 'ai' }" @click="csvImportMode = 'ai'">
@@ -866,6 +886,8 @@ export default {
       aiCommitting: false,
       aiSessionAttachments: [],
       aiSelectedAttachmentIds: [],
+      // aiSplitMode: 'single' | 'multi'（单条任务录入 / 智能拆分多条）
+      aiSplitMode: 'multi',
       imagePreviewOpen: false,
       imagePreviewUrl: '',
       imagePreviewTitle: '',
@@ -956,7 +978,7 @@ export default {
         minWidth: panelW + 'px',
         maxWidth: maxW + 'px',
         maxHeight: maxH + 'px',
-        zIndex: '200',
+        zIndex: 200,
         overflow: 'auto'
       }
     }
@@ -1562,7 +1584,7 @@ export default {
           attachmentIds: this.aiSelectedAttachmentIds
         }, { params: { purpose: this.tablePurpose } })
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
-          const items = resp.data.data.items
+          let items = resp.data.data.items || []
           // 同一张图生成多条记录：默认把当前选中的附件复制到每条草稿中
           if (Array.isArray(items) && this.aiSelectedAttachmentIds && this.aiSelectedAttachmentIds.length) {
             const base = Array.from(new Set(this.aiSelectedAttachmentIds.map(Number).filter(n => !Number.isNaN(n))))
@@ -1572,6 +1594,10 @@ export default {
               const merged = Array.from(new Set([...existing, ...base].map(Number).filter(n => !Number.isNaN(n))))
               t.attachmentIds = merged
             })
+          }
+          // 单条任务录入模式：仅保留第一条草稿，避免拆分为多条
+          if (this.aiSplitMode === 'single' && Array.isArray(items) && items.length > 1) {
+            items = [items[0]]
           }
           this.aiTasks = items
         } else {
@@ -3203,6 +3229,9 @@ export default {
 .status-picker-menu {
   /* 具体位置与 max-height 由 statusPickerMenuStyle（fixed）覆盖，避免被 .table-wrapper overflow 裁剪 */
   box-sizing: border-box;
+  position: fixed;
+  z-index: 9999;
+  opacity: 1; /* 防止父级 opacity/stacking context 造成下拉“穿模”/透明盖不住 */
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;

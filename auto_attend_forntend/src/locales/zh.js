@@ -718,6 +718,8 @@ export default {
     imagePreviewDownload: '保存到本地',
     imagePreviewClose: '关闭',
     imagePreviewComingSoon: '后续版本支持',
+    aiSplitSingle: '单条任务录入',
+    aiSplitMulti: '智能拆分为多条任务',
     aiTabText: '描述 + 千问',
     aiTabCsv: 'CSV + DeepSeek',
     csvAiMode: 'CSV 智能导入',
