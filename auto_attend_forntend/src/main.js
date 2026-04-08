@@ -6,6 +6,35 @@ import { i18n } from './locales'
 
 Vue.config.productionTip = false
 
+// VSCode Webview 嵌入模式：允许插件通过 URL 注入 token，实现网页端能力复用
+;(function bootstrapEmbedBridge () {
+  try {
+    const params = new URLSearchParams(window.location.search || '')
+    const embed = params.get('embed')
+    const adminToken = params.get('adminToken')
+    const collabToken = params.get('collabToken')
+    const username = params.get('username')
+    if (embed === '1') {
+      window.__AUTOATTEND_EMBED__ = true
+    }
+    if (adminToken) window.localStorage.setItem('autoattend_token', adminToken)
+    if (collabToken) window.localStorage.setItem('autoattend_collab_token', collabToken)
+    if (username) window.localStorage.setItem('autoattend_username', username)
+
+    // 清理敏感 query 参数，避免地址栏长期暴露 token
+    if (adminToken || collabToken || username) {
+      params.delete('adminToken')
+      params.delete('collabToken')
+      params.delete('username')
+      const qs = params.toString()
+      const nextUrl = window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash
+      window.history.replaceState({}, document.title, nextUrl)
+    }
+  } catch (e) {
+    // ignore
+  }
+})()
+
 // 统一使用相对路径 /api，方便本地 devServer 代理和容器内 Nginx 反代
 axios.defaults.baseURL = '/api'
 

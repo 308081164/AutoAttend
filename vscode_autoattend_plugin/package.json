@@ -1,0 +1,70 @@
+{
+  "name": "autoattend-vscode-plugin",
+  "displayName": "AutoAttend",
+  "description": "在 VSCode 中查看并编辑 AutoAttend 协作多维表格与看板",
+  "version": "0.0.1",
+  "publisher": "autoattend",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:autoAttend.sidebarView",
+    "onCommand:autoAttend.openPanel",
+    "onCommand:autoAttend.logout"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "autoAttend.openPanel",
+        "title": "AutoAttend: 打开工作台"
+      },
+      {
+        "command": "autoAttend.logout",
+        "title": "AutoAttend: 退出登录"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "autoAttend",
+          "title": "AutoAttend",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "autoAttend": [
+        {
+          "type": "webview",
+          "id": "autoAttend.sidebarView",
+          "name": "协作工作台"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AutoAttend",
+      "properties": {
+        "autoAttend.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "AutoAttend 后端服务地址"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "npx tsc -p .",
+    "watch": "npx tsc -watch -p .",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.7.1",
+    "typescript": "^5.5.4"
+  }
+}

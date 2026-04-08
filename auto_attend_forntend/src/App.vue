@@ -1,6 +1,6 @@
 <template>
-  <div id="app">
-    <header class="app-header">
+  <div id="app" :class="{ 'embed-mode': isEmbedMode }">
+    <header v-if="!isEmbedMode" class="app-header">
       <div class="app-brand">
         <div class="app-title">{{ $t('app.title') }}</div>
         <div class="app-slogan">{{ $t('app.slogan') }}</div>
@@ -18,7 +18,7 @@
         <button v-if="username" class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </header>
-    <main class="app-main">
+    <main class="app-main" :class="{ 'app-main-embed': isEmbedMode }">
       <router-view/>
     </main>
   </div>
@@ -36,6 +36,9 @@ export default {
     }
   },
   computed: {
+    isEmbedMode () {
+      return String(this.$route.query.embed || '') === '1' || window.__AUTOATTEND_EMBED__ === true
+    },
     username () {
       return window.localStorage.getItem('autoattend_username') || ''
     },
@@ -184,5 +187,13 @@ body {
 .app-main {
   flex: 1;
   padding: 24px;
+}
+
+.app-main-embed {
+  padding: 0;
+}
+
+.embed-mode {
+  background-color: #fff;
 }
 </style>
