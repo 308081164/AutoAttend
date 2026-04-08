@@ -93,6 +93,24 @@
     </div>
 
     <div v-if="showHomeDashboard" class="collab-home-dashboard">
+      <div class="portal-bar">
+        <div class="portal-items">
+          <a
+            v-for="it in portalLinks"
+            :key="it.id"
+            class="portal-link"
+            :href="it.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            :title="it.url"
+          >
+            <span class="portal-link-icon" aria-hidden="true">🔗</span>
+            <span class="portal-link-label">{{ it.label }}</span>
+          </a>
+          <span v-if="!portalLinks.length" class="text-muted small">暂无传送门链接</span>
+        </div>
+        <button type="button" class="secondary-button small" @click="openPortalModal">配置传送门</button>
+      </div>
       <div class="mail-notify-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">邮件通知</div>
@@ -865,6 +883,47 @@
         <div v-if="imagePreviewTitle" class="image-preview-footer">{{ imagePreviewTitle }}</div>
       </div>
     </div>
+
+    <!-- 传送门配置弹窗 -->
+    <div v-if="portalModalOpen" class="drawer-mask" @click="closePortalModal">
+      <div class="drawer drawer-wide" @click.stop>
+        <div class="drawer-header">
+          <h3>传送门</h3>
+          <button class="close-btn" @click="closePortalModal">×</button>
+        </div>
+        <div class="drawer-body">
+          <div class="portal-modal-actions">
+            <button type="button" class="primary-button small" @click="addPortalLink">添加链接</button>
+            <div style="flex:1"></div>
+            <select v-model.number="portalImportFromProjectId" class="field-input" style="max-width: 260px;">
+              <option :value="0">从其他项目导入…</option>
+              <option v-for="p in portalImportProjectOptions" :key="'pi-' + p.id" :value="p.id">
+                {{ p.name || ('项目#' + p.id) }}
+              </option>
+            </select>
+            <button type="button" class="secondary-button small" :disabled="portalImporting || portalImportFromProjectId<=0" @click="importPortalLinks">
+              {{ portalImporting ? '导入中…' : '导入并覆盖' }}
+            </button>
+          </div>
+          <div v-if="portalLoading" class="text-muted">加载中…</div>
+          <div v-else class="portal-edit-list">
+            <div v-for="(it, idx) in portalEditItems" :key="it._key" class="portal-edit-row">
+              <input v-model="it.label" class="field-input" placeholder="展示文本（如：百度一下）">
+              <input v-model="it.url" class="field-input" placeholder="https://example.com">
+              <input v-model.number="it.sortOrder" type="number" class="field-input" style="max-width: 90px;" placeholder="排序">
+              <button type="button" class="link-button danger" @click="removePortalLink(idx)">删除</button>
+            </div>
+            <div v-if="!portalEditItems.length" class="text-muted small">暂无链接，可点击上方「添加链接」</div>
+          </div>
+          <div class="drawer-actions">
+            <button type="button" class="primary-button" :disabled="portalSaving" @click="savePortalLinks">
+              {{ portalSaving ? '保存中…' : '保存' }}
+            </button>
+            <span v-if="portalMessage" class="save-message" :class="portalMessageOk ? 'success' : 'error'">{{ portalMessage }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -980,8 +1039,20 @@ export default {
         sendToManagers: true,
         sendToDevelopers: true,
         managerEmailsText: ''
+      },
+
+      // ===== 传送门（项目级链接）=====
+      portalLinks: [],
+      portalModalOpen: false,
+      portalLoading: false,
+      portalSaving: false,
+      portalMessage: '',
+      portalMessageOk: false,
+      portalEditItems: [],
+      portalImportFromProjectId: 0,
+      portalImporting: false,
+      portalImportProjectOptions: []
       }
-    }
   },
   watch: {
     '$route.query.purpose' () {
@@ -1066,6 +1137,7 @@ export default {
     this.loadRecords()
     this.loadProjectMembers()
     this.loadMailNotifyConfig()
+    this.loadPortalLinks()
   },
   beforeDestroy () {
     this.detachImagePreviewEscape()
@@ -1896,6 +1968,136 @@ export default {
         }
       } catch (e) {
         if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
+      }
+    },
+    async loadPortalLinks () {
+      if (!this.projectId) return
+      try {
+        const resp = await this.$http.get(`/collab/projects/${this.projectId}/portal-links`)
+        if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.items)) {
+          this.portalLinks = resp.data.data.items
+        } else {
+          this.portalLinks = []
+        }
+      } catch (e) {
+        this.portalLinks = []
+      }
+    },
+    async openPortalModal () {
+      this.portalModalOpen = true
+      this.portalMessage = ''
+      this.portalMessageOk = false
+      this.portalLoading = true
+      try {
+        await this.loadPortalLinks()
+        this.portalEditItems = (this.portalLinks || []).map(it => ({
+          _key: 'pl-' + it.id,
+          id: it.id,
+          label: it.label || '',
+          url: it.url || '',
+          sortOrder: it.sortOrder || 0
+        }))
+        const pr = await this.$http.get('/collab/projects')
+        const items = pr.data && pr.data.data && Array.isArray(pr.data.data.items) ? pr.data.data.items : []
+        this.portalImportProjectOptions = items.filter(p => p && Number(p.id) !== Number(this.projectId))
+      } catch (e) {
+        this.portalEditItems = []
+        this.portalImportProjectOptions = []
+      } finally {
+        this.portalLoading = false
+      }
+    },
+    closePortalModal () {
+      this.portalModalOpen = false
+      this.portalImportFromProjectId = 0
+    },
+    addPortalLink () {
+      const key = 'new-' + Date.now() + '-' + Math.random().toString(16).slice(2)
+      this.portalEditItems.push({ _key: key, id: null, label: '', url: '', sortOrder: this.portalEditItems.length })
+    },
+    removePortalLink (idx) {
+      this.portalEditItems.splice(idx, 1)
+    },
+    async savePortalLinks () {
+      if (!this.projectId) return
+      this.portalSaving = true
+      this.portalMessage = ''
+      try {
+        // 简单校验
+        for (const it of this.portalEditItems) {
+          if (!it.label || !String(it.label).trim()) throw new Error('展示文本不能为空')
+          const url = String(it.url || '').trim()
+          if (!url) throw new Error('URL 不能为空')
+          if (!(url.startsWith('http://') || url.startsWith('https://'))) throw new Error('URL 仅支持 http/https')
+        }
+        // 先拉取当前服务端数据，用于计算删除
+        const current = Array.isArray(this.portalLinks) ? this.portalLinks : []
+        const currentIds = new Set(current.map(x => Number(x.id)).filter(n => !isNaN(n)))
+        const nextIds = new Set(this.portalEditItems.map(x => Number(x.id)).filter(n => !isNaN(n)))
+        // 删除
+        for (const id of currentIds) {
+          if (!nextIds.has(id)) {
+            await this.$http.delete(`/collab/projects/${this.projectId}/portal-links/${id}`)
+          }
+        }
+        // upsert（逐条）
+        for (const it of this.portalEditItems) {
+          const payload = { label: String(it.label).trim(), url: String(it.url).trim(), sortOrder: Number(it.sortOrder) || 0 }
+          if (it.id) {
+            await this.$http.put(`/collab/projects/${this.projectId}/portal-links/${it.id}`, payload)
+          } else {
+            const r = await this.$http.post(`/collab/projects/${this.projectId}/portal-links`, payload)
+            const newId = r.data && r.data.data && r.data.data.id
+            if (newId) it.id = newId
+          }
+        }
+        this.portalMessageOk = true
+        this.portalMessage = '已保存'
+        await this.loadPortalLinks()
+        this.portalEditItems = (this.portalLinks || []).map(it => ({
+          _key: 'pl-' + it.id,
+          id: it.id,
+          label: it.label || '',
+          url: it.url || '',
+          sortOrder: it.sortOrder || 0
+        }))
+      } catch (e) {
+        this.portalMessageOk = false
+        this.portalMessage = (e && e.message) || '保存失败'
+      } finally {
+        this.portalSaving = false
+      }
+    },
+    async importPortalLinks () {
+      if (!this.projectId || !this.portalImportFromProjectId) return
+      if (!window.confirm('导入将覆盖当前项目的全部传送门链接，是否继续？')) return
+      this.portalImporting = true
+      this.portalMessage = ''
+      try {
+        const resp = await this.$http.post(`/collab/projects/${this.projectId}/portal-links/import`, {
+          fromProjectId: this.portalImportFromProjectId
+        })
+        if (resp.data && resp.data.code === 0) {
+          await this.loadPortalLinks()
+          this.portalEditItems = (this.portalLinks || []).map(it => ({
+            _key: 'pl-' + it.id,
+            id: it.id,
+            label: it.label || '',
+            url: it.url || '',
+            sortOrder: it.sortOrder || 0
+          }))
+          this.portalMessageOk = true
+          const n = resp.data.data && resp.data.data.importedCount != null ? resp.data.data.importedCount : 0
+          this.portalMessage = `已导入 ${n} 条`
+        } else {
+          this.portalMessageOk = false
+          this.portalMessage = (resp.data && resp.data.message) || '导入失败'
+        }
+      } catch (e) {
+        this.portalMessageOk = false
+        this.portalMessage = '导入失败'
+      } finally {
+        this.portalImporting = false
       }
     },
     async loadTable () {
@@ -4101,6 +4303,74 @@ export default {
 
 .mail-notify-body {
   margin-top: 10px;
+}
+
+.portal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.portal-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.portal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  text-decoration: none;
+  max-width: 260px;
+}
+
+.portal-link:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.portal-link-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.portal-link-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-modal-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.portal-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.portal-edit-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 90px 64px;
+  gap: 10px;
+  align-items: center;
 }
 .link-table-list {
   max-height: 360px;
