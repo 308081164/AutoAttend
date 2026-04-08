@@ -164,7 +164,7 @@ public class CollabAttachmentController {
         }
         BizAttachment att = attachmentMapper.findById(id);
         if (att == null) return ResponseEntity.notFound().build();
-        long projectId = recordService.getProjectIdByRecordId(att.getRecordId());
+        long projectId = att.getRecordId() != null ? recordService.getProjectIdByRecordId(att.getRecordId()) : (att.getProjectId() != null ? att.getProjectId() : -1);
         if (projectId < 0 || !projectService.canAccessProject(userId, projectId)) {
             return ResponseEntity.status(403).build();
         }
@@ -191,7 +191,7 @@ public class CollabAttachmentController {
         }
         BizAttachment att = attachmentMapper.findById(id);
         if (att == null) return ResponseEntity.notFound().build();
-        long projectId = recordService.getProjectIdByRecordId(att.getRecordId());
+        long projectId = att.getRecordId() != null ? recordService.getProjectIdByRecordId(att.getRecordId()) : (att.getProjectId() != null ? att.getProjectId() : -1);
         if (projectId < 0 || !projectService.canAccessProject(userId, projectId)) {
             return ResponseEntity.status(403).build();
         }
@@ -225,7 +225,7 @@ public class CollabAttachmentController {
         long userId = requireUserId(req);
         BizAttachment att = attachmentMapper.findById(id);
         if (att == null) return ApiResponse.error(40400, "附件不存在");
-        long projectId = recordService.getProjectIdByRecordId(att.getRecordId());
+        long projectId = att.getRecordId() != null ? recordService.getProjectIdByRecordId(att.getRecordId()) : (att.getProjectId() != null ? att.getProjectId() : -1);
         if (!projectService.canAccessProject(userId, projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }

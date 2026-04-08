@@ -181,15 +181,66 @@ public class CollabAiTaskController {
         Map<String, Long> emailToUserId = buildProjectMemberEmailMap(projectId);
 
         int created = 0;
+        // 处理「同一个项目级附件（record_id=null）被多条记录复用」：第一条记录复用原附件，后续记录克隆一份新附件指向各自 recordId
+        Map<Long, Boolean> projectAttachmentBoundOnce = new HashMap<>();
         for (AiTaskDraft t : body.getTasks()) {
             Map<String, Object> fields = draftToRecordFields(t, columnByName, creatorLabel, nowIso, emailToUserId);
             if (!fields.isEmpty()) {
                 try {
+                    // 附件列先不写入，等 recordId 确定且附件绑定/克隆后再回填，避免 attachmentIds 指向错误记录
+                    Long attachmentColId = null;
+                    Object attachmentCol = columnByName.get("图像展示");
+                    if (attachmentCol instanceof Map) {
+                        Object idObj = ((Map<?, ?>) attachmentCol).get("id");
+                        if (idObj != null) {
+                            attachmentColId = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
+                            fields.remove("c" + attachmentColId);
+                        }
+                    }
                     var rec = recordService.createRecord(table.getId(), userId, fields);
-                    if (t.getAttachmentIds() != null) {
+                    if (t.getAttachmentIds() != null && !t.getAttachmentIds().isEmpty()) {
+                        List<Long> finalIds = new ArrayList<>();
                         for (Long aid : t.getAttachmentIds()) {
                             if (aid == null) continue;
-                            attachmentMapper.updateRecordId(aid, rec.getId());
+                            BizAttachment att = attachmentMapper.findById(aid);
+                            if (att == null) continue;
+                            // project 级附件（recordId=null）：第一条记录复用原 id，其余记录克隆
+                            if (att.getRecordId() == null) {
+                                boolean used = Boolean.TRUE.equals(projectAttachmentBoundOnce.get(aid));
+                                if (!used) {
+                                    attachmentMapper.updateRecordId(aid, rec.getId());
+                                    projectAttachmentBoundOnce.put(aid, true);
+                                    finalIds.add(aid);
+                                } else {
+                                    BizAttachment copy = new BizAttachment();
+                                    copy.setProjectId(att.getProjectId());
+                                    copy.setRecordId(rec.getId());
+                                    copy.setFileName(att.getFileName());
+                                    copy.setFileSize(att.getFileSize());
+                                    copy.setStorageKey(att.getStorageKey());
+                                    copy.setUploadedBy(att.getUploadedBy());
+                                    attachmentMapper.insert(copy);
+                                    finalIds.add(copy.getId());
+                                }
+                            } else if (Objects.equals(att.getRecordId(), rec.getId())) {
+                                finalIds.add(aid);
+                            } else {
+                                // 已绑定其他记录的附件：克隆一份给当前记录，避免「移动」导致其他记录丢附件
+                                BizAttachment copy = new BizAttachment();
+                                copy.setProjectId(att.getProjectId());
+                                copy.setRecordId(rec.getId());
+                                copy.setFileName(att.getFileName());
+                                copy.setFileSize(att.getFileSize());
+                                copy.setStorageKey(att.getStorageKey());
+                                copy.setUploadedBy(att.getUploadedBy());
+                                attachmentMapper.insert(copy);
+                                finalIds.add(copy.getId());
+                            }
+                        }
+                        if (attachmentColId != null && !finalIds.isEmpty()) {
+                            Map<String, Object> attFields = new HashMap<>();
+                            attFields.put("c" + attachmentColId, finalIds);
+                            recordService.updateRecord(rec.getId(), attFields);
                         }
                     }
                     created++;

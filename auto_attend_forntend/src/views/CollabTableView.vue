@@ -339,7 +339,13 @@
                       </div>
                     </template>
                   </div>
-                  <input ref="drawerFileInput" type="file" accept="image/*" style="display:none" @change="onDrawerFileSelected">
+                  <input
+                    ref="drawerFileInput"
+                    type="file"
+                    accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                    style="display:none"
+                    @change="onDrawerFileSelected"
+                  >
                   <button type="button" class="primary-button small" @click="triggerDrawerUpload(col.id)">{{ $t('collabTable.uploadImage') }}</button>
                 </div>
                 <input v-else type="text" :placeholder="$t('collabTable.fieldPlaceholder')"
@@ -369,7 +375,14 @@
           </div>
           <div v-if="drawerTab === 'attachments'" class="attachment-panel">
             <div class="upload-area">
-              <input ref="fileInput" type="file" @change="onFileSelected" style="display:none">
+              <input
+                ref="fileInput"
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                @change="onFileSelected"
+                style="display:none"
+              >
               <button class="primary-button small" @click="$refs.fileInput.click()">{{ $t('collabTable.uploadAttachment') }}</button>
             </div>
             <ul class="attachment-list">
@@ -386,11 +399,13 @@
                       <button type="button" class="link-button" @click="openImagePreview(a, attachmentPreviewUrls[a.id])">{{ a.fileName }}</button>
                       <span class="file-size">({{ formatSize(a.fileSize) }})</span>
                     </span>
+                    <button type="button" class="link-button danger" @click="deleteDrawerAttachment(a)">{{ $t('collabTable.delete') }}</button>
                   </div>
                 </template>
                 <template v-else>
                   <button class="link-button" @click="downloadAttachment(a)">{{ a.fileName }}</button>
                   <span class="file-size">({{ formatSize(a.fileSize) }})</span>
+                  <button type="button" class="link-button danger" @click="deleteDrawerAttachment(a)">{{ $t('collabTable.delete') }}</button>
                 </template>
               </li>
             </ul>
@@ -597,6 +612,7 @@
             <label class="field-label">{{ $t('collabTable.aiInputRawText') }}</label>
             <textarea
               v-model="aiInputText"
+              @paste="onAiPaste"
               rows="4"
               class="field-input"
               :placeholder="$t('collabTable.aiInputPlaceholder')"
@@ -605,27 +621,43 @@
           <div v-show="aiModalMode === 'text'" class="ai-attachments-section">
             <label class="field-label">{{ $t('collabTable.aiInputAttachments') }}</label>
             <div class="ai-upload-row">
-              <input ref="aiFileInput" type="file" multiple style="display:none" @change="onAiFilesSelected">
+              <input
+                ref="aiFileInput"
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                style="display:none"
+                @change="onAiFilesSelected"
+              >
               <button type="button" class="secondary-button small" @click="triggerAiUpload">
                 {{ $t('collabTable.uploadAttachment') }}
               </button>
+              <span class="text-muted small ai-paste-hint">{{ $t('collabTable.aiPasteHint') || '支持 Ctrl+V 粘贴图片上传' }}</span>
             </div>
             <div v-if="aiSessionAttachments.length" class="ai-attachment-list">
-              <label v-for="a in aiSessionAttachments" :key="a.id" class="multi-select-item ai-attachment-item">
-                <input
-                  type="checkbox"
-                  :value="a.id"
-                  v-model="aiSelectedAttachmentIds"
-                >
-                <div class="ai-attachment-preview">
-                  <img v-if="a.isImage && a.previewUrl" :src="a.previewUrl" class="ai-thumb-img" alt="">
-                  <span v-else class="ai-file-icon">📎</span>
-                </div>
-                <div class="ai-attachment-meta">
-                  <span class="ai-file-name">{{ a.fileName }}</span>
-                  <span class="ai-file-size">{{ formatSize(a.fileSize) }}</span>
-                </div>
-              </label>
+              <div v-for="a in aiSessionAttachments" :key="a.id" class="ai-attachment-item">
+                <label class="ai-attachment-main">
+                  <input
+                    type="checkbox"
+                    :value="a.id"
+                    v-model="aiSelectedAttachmentIds"
+                  >
+                  <div class="ai-attachment-preview" :title="a.fileName">
+                    <img v-if="a.isImage && a.previewUrl" :src="a.previewUrl" class="ai-thumb-img" alt="">
+                    <span v-else class="ai-file-icon">{{ getAiAttachmentIcon(a.fileName) }}</span>
+                  </div>
+                  <div class="ai-attachment-meta">
+                    <span class="ai-file-name">{{ a.fileName }}</span>
+                    <span class="ai-file-size">{{ formatSize(a.fileSize) }}</span>
+                  </div>
+                </label>
+                <button
+                  type="button"
+                  class="ai-attachment-remove"
+                  :title="$t('collabTable.removeAttachment') || '删除附件'"
+                  @click.stop="removeAiAttachment(a)"
+                >×</button>
+              </div>
             </div>
             <div v-else class="text-muted small">{{ $t('collabTable.noAiAttachments') }}</div>
           </div>
@@ -1530,7 +1562,18 @@ export default {
           attachmentIds: this.aiSelectedAttachmentIds
         }, { params: { purpose: this.tablePurpose } })
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) {
-          this.aiTasks = resp.data.data.items
+          const items = resp.data.data.items
+          // 同一张图生成多条记录：默认把当前选中的附件复制到每条草稿中
+          if (Array.isArray(items) && this.aiSelectedAttachmentIds && this.aiSelectedAttachmentIds.length) {
+            const base = Array.from(new Set(this.aiSelectedAttachmentIds.map(Number).filter(n => !Number.isNaN(n))))
+            items.forEach(t => {
+              if (!t) return
+              const existing = Array.isArray(t.attachmentIds) ? t.attachmentIds : []
+              const merged = Array.from(new Set([...existing, ...base].map(Number).filter(n => !Number.isNaN(n))))
+              t.attachmentIds = merged
+            })
+          }
+          this.aiTasks = items
         } else {
           alert((resp.data && resp.data.message) || this.$t('collabTable.aiPreviewFailed'))
         }
@@ -1568,6 +1611,22 @@ export default {
     triggerAiUpload () {
       if (this.$refs.aiFileInput) this.$refs.aiFileInput.click()
     },
+    onAiPaste (e) {
+      const cd = e && e.clipboardData
+      if (!cd || !cd.items || !cd.items.length) return
+      const imageFiles = []
+      for (const it of Array.from(cd.items)) {
+        if (!it) continue
+        if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+          const f = it.getAsFile()
+          if (f) imageFiles.push(f)
+        }
+      }
+      if (!imageFiles.length) return
+      // 当剪贴板里有图片时，拦截默认粘贴（避免把图片当成文本或污染输入框）
+      e.preventDefault()
+      this.uploadAiFiles(imageFiles)
+    },
     clearAiSessionAttachments () {
       this.aiSessionAttachments.forEach(a => {
         if (a.previewUrl) {
@@ -1582,9 +1641,26 @@ export default {
       this.aiSelectedAttachmentIds = []
     },
     async onAiFilesSelected (e) {
-      const files = Array.from(e.target.files || [])
+      const files = Array.from((e && e.target && e.target.files) || [])
       if (!files.length) return
+      await this.uploadAiFiles(files)
+      if (e && e.target) e.target.value = ''
+    },
+    getAiAttachmentIcon (fileName) {
+      const n = (fileName || '').toLowerCase()
+      if (n.match(/\.(png|jpe?g|gif|webp|svg)$/)) return '🖼️'
+      if (n.match(/\.(mp4|mov|m4v|avi|mkv|webm)$/)) return '🎬'
+      if (n.match(/\.(pdf)$/)) return '📕'
+      if (n.match(/\.(doc|docx)$/)) return '📄'
+      if (n.match(/\.(xls|xlsx)$/)) return '📊'
+      if (n.match(/\.(ppt|pptx)$/)) return '📑'
+      if (n.match(/\.(txt|md)$/)) return '📝'
+      return '📎'
+    },
+    async uploadAiFiles (files) {
+      if (!Array.isArray(files) || !files.length) return
       for (const file of files) {
+        if (!file) continue
         let uploadFile = file
         if (shouldCompressAsRasterImage(file)) {
           try {
@@ -1601,21 +1677,42 @@ export default {
           })
           if (resp.data && resp.data.code === 0 && resp.data.data) {
             const a = resp.data.data
+            const attId = a.id
             const item = {
-              id: a.id,
+              id: attId,
               fileName: a.fileName,
               fileSize: a.fileSize,
               isImage: a.isImage === true,
               previewUrl: a.isImage ? URL.createObjectURL(uploadFile) : null
             }
             this.aiSessionAttachments.push(item)
+            // 上传后默认选中
+            if (attId != null && !this.aiSelectedAttachmentIds.includes(attId)) {
+              this.aiSelectedAttachmentIds.push(attId)
+            }
           }
         } catch (err) {
-          // 简单提示即可
           alert(this.$t('collabTable.aiUploadFailed') || '上传附件失败')
         }
       }
-      e.target.value = ''
+    },
+    async removeAiAttachment (a) {
+      if (!a || a.id == null) return
+      try {
+        await this.$http.delete(`/collab/attachments/${a.id}`)
+      } catch (e) {
+        // 允许本地先移除，避免卡住；后端失败由用户重新上传即可
+      }
+      const idx = this.aiSessionAttachments.findIndex(x => x && x.id === a.id)
+      if (idx >= 0) {
+        const item = this.aiSessionAttachments[idx]
+        if (item && item.previewUrl) {
+          try { URL.revokeObjectURL(item.previewUrl) } catch (e) {}
+        }
+        this.aiSessionAttachments.splice(idx, 1)
+      }
+      const idn = Number(a.id)
+      this.aiSelectedAttachmentIds = this.aiSelectedAttachmentIds.filter(x => Number(x) !== idn)
     },
     async loadProjectSummary () {
       try {
@@ -2319,25 +2416,36 @@ export default {
       } catch (e) { /* ignore */ }
     },
     async onFileSelected (e) {
-      const file = e.target.files && e.target.files[0]
-      if (!file || !this.drawerRecord) return
-      let uploadFile = file
-      if (file.type && file.type.startsWith('image/') && shouldCompressAsRasterImage(file)) {
-        try {
-          uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
-        } catch (_err) {
-          /* 原图 */
+      const files = Array.from((e && e.target && e.target.files) || [])
+      if (!files.length || !this.drawerRecord) return
+      for (const file of files) {
+        if (!file) continue
+        let uploadFile = file
+        if (file.type && file.type.startsWith('image/') && shouldCompressAsRasterImage(file)) {
+          try {
+            uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
+          } catch (_err) {
+            /* 原图 */
+          }
         }
+        const form = new FormData()
+        form.append('file', uploadFile)
+        try {
+          await this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+        } catch (_err) { /* ignore */ }
       }
-      const form = new FormData()
-      form.append('file', uploadFile)
+      this.loadAttachments()
+      if (e && e.target) e.target.value = ''
+    },
+    async deleteDrawerAttachment (a) {
+      if (!a || a.id == null) return
+      if (!window.confirm(this.$t('collabTable.confirmDeleteAttachment') || '确定删除该附件吗？')) return
       try {
-        await this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        this.loadAttachments()
-      } catch (_err) { /* ignore */ }
-      e.target.value = ''
+        await this.$http.delete(`/collab/attachments/${a.id}`)
+      } catch (e) { /* ignore */ }
+      this.loadAttachments()
     },
     openImagePreview (att, objectUrl) {
       if (!att || !objectUrl) return
@@ -3819,4 +3927,97 @@ export default {
 .drawer-wide {
   max-width: 560px;
 }
+.ai-paste-hint {
+  margin-left: 8px;
+}
+
+.ai-attachment-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ai-attachment-main {
+  display: grid;
+  grid-template-columns: 18px 100px 1fr;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  cursor: pointer;
+}
+
+.ai-attachment-preview {
+  width: 100px;
+  height: 100px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ai-thumb-img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+}
+
+.ai-file-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.ai-attachment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-file-name {
+  font-size: 13px;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-file-size {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.ai-attachment-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ai-attachment-remove:hover {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
 </style>
