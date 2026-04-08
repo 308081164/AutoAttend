@@ -372,6 +372,12 @@ public class CommitService {
         return commitMapper.listCommitsByRepoBetween(currentTenantId(), repoFullName.trim(), start, end);
     }
 
+    /** 某仓库在 [start, end) 内出现过的去重作者邮箱列表（仅非空） */
+    public List<String> listDistinctAuthorEmailsByRepoBetween(String repoFullName, OffsetDateTime start, OffsetDateTime end) {
+        if (repoFullName == null || repoFullName.isBlank() || start == null || end == null) return List.of();
+        return commitMapper.listDistinctAuthorEmailsByRepoBetween(currentTenantId(), repoFullName.trim(), start, end);
+    }
+
     public long countByAuthorEmail(String authorEmail) {
         if (authorEmail == null || authorEmail.isBlank()) return 0;
         return commitMapper.countByAuthorEmail(currentTenantId(), authorEmail.trim());

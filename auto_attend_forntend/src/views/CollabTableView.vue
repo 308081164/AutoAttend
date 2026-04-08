@@ -93,6 +93,57 @@
     </div>
 
     <div v-if="showHomeDashboard" class="collab-home-dashboard">
+      <div class="mail-notify-panel">
+        <div class="mail-notify-head">
+          <div class="mail-notify-title">邮件通知</div>
+          <button type="button" class="secondary-button small" @click="toggleMailNotifyOpen">
+            {{ mailNotifyOpen ? '收起' : '配置' }}
+          </button>
+        </div>
+        <div v-if="mailNotifyOpen" class="mail-notify-body">
+          <div v-if="mailNotifyLoading" class="text-muted small">加载中…</div>
+          <template v-else>
+            <div v-if="mailNotifyConfig && mailNotifyConfig.mailConfigured === false" class="text-muted small">
+              当前未配置 SMTP 发信能力，请先到「API 配置与能力测试 → 邮件（SMTP）配置」完成配置。
+            </div>
+            <div class="form-row">
+              <label class="form-label">绑定仓库（owner/repo）</label>
+              <input v-model="mailNotifyForm.repoFullName" type="text" class="form-input" placeholder="owner/repo">
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="mailNotifyForm.enabled">
+                <span>启用本项目日报邮件</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="mailNotifyForm.sendToManagers">
+                <span>向项目负责人发送项目日报</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="mailNotifyForm.sendToDevelopers">
+                <span>向开发者发送个人日报</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="form-label">项目负责人邮箱（逗号/换行分隔）</label>
+              <textarea v-model="mailNotifyForm.managerEmailsText" rows="3" class="form-input" placeholder="pm@example.com"></textarea>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="primary-button" :disabled="mailNotifySaving" @click="saveMailNotifyConfig">
+                {{ mailNotifySaving ? '保存中…' : '保存' }}
+              </button>
+              <button type="button" class="secondary-button" :disabled="mailNotifySendingTest" @click="sendMailNotifyTest">
+                {{ mailNotifySendingTest ? '发送中…' : '发送测试邮件' }}
+              </button>
+              <span v-if="mailNotifyMessage" class="save-message" :class="mailNotifyMessageOk ? 'success' : 'error'">{{ mailNotifyMessage }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
       <DashboardView
         :fixedRepoFullName="projectRepoId"
         :collab-data-board-only="true"
@@ -913,7 +964,23 @@ export default {
         avgResolve: null
       },
       /** issue_tracking=项目调整；feature_backlog=待开发功能清单 */
-      tablePurpose: 'issue_tracking'
+      tablePurpose: 'issue_tracking',
+
+      // ===== 项目级日报邮件通知（开发与数据看板）=====
+      mailNotifyOpen: false,
+      mailNotifyLoading: false,
+      mailNotifySaving: false,
+      mailNotifySendingTest: false,
+      mailNotifyMessage: '',
+      mailNotifyMessageOk: false,
+      mailNotifyConfig: null,
+      mailNotifyForm: {
+        repoFullName: '',
+        enabled: false,
+        sendToManagers: true,
+        sendToDevelopers: true,
+        managerEmailsText: ''
+      }
     }
   },
   watch: {
@@ -998,6 +1065,7 @@ export default {
     this.loadTable()
     this.loadRecords()
     this.loadProjectMembers()
+    this.loadMailNotifyConfig()
   },
   beforeDestroy () {
     this.detachImagePreviewEscape()
@@ -1018,6 +1086,85 @@ export default {
         // 无 purpose：默认「开发与数据看板」（与侧栏第一项一致）
         this.showHomeDashboard = true
         this.tablePurpose = 'issue_tracking'
+      }
+    },
+    toggleMailNotifyOpen () {
+      this.mailNotifyOpen = !this.mailNotifyOpen
+      if (this.mailNotifyOpen && !this.mailNotifyConfig) this.loadMailNotifyConfig()
+    },
+    async loadMailNotifyConfig () {
+      if (!this.projectId) return
+      this.mailNotifyLoading = true
+      try {
+        const resp = await this.$http.get(`/admin/report/projects/${this.projectId}/config`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.mailNotifyConfig = d
+          this.mailNotifyForm.repoFullName = d.repoFullName || ''
+          this.mailNotifyForm.enabled = d.enabled === true
+          this.mailNotifyForm.sendToManagers = d.sendToManagers !== false
+          this.mailNotifyForm.sendToDevelopers = d.sendToDevelopers !== false
+          const emails = Array.isArray(d.managerEmails) ? d.managerEmails : []
+          this.mailNotifyForm.managerEmailsText = emails.join('\n')
+        } else {
+          this.mailNotifyConfig = {}
+        }
+      } catch (e) {
+        this.mailNotifyConfig = {}
+      } finally {
+        this.mailNotifyLoading = false
+      }
+    },
+    async saveMailNotifyConfig () {
+      if (!this.projectId) return
+      this.mailNotifySaving = true
+      this.mailNotifyMessage = ''
+      try {
+        const raw = this.mailNotifyForm.managerEmailsText || ''
+        const list = raw.split(/[\n,\r\t ]+/).map(s => s.trim()).filter(Boolean)
+        const payload = {
+          repoFullName: this.mailNotifyForm.repoFullName || '',
+          enabled: !!this.mailNotifyForm.enabled,
+          sendToManagers: !!this.mailNotifyForm.sendToManagers,
+          sendToDevelopers: !!this.mailNotifyForm.sendToDevelopers,
+          managerEmails: list
+        }
+        const resp = await this.$http.put(`/admin/report/projects/${this.projectId}/config`, payload)
+        if (resp.data && resp.data.code === 0) {
+          this.mailNotifyMessageOk = true
+          this.mailNotifyMessage = '已保存'
+          await this.loadMailNotifyConfig()
+        } else {
+          this.mailNotifyMessageOk = false
+          this.mailNotifyMessage = (resp.data && resp.data.message) || '保存失败'
+        }
+      } catch (e) {
+        this.mailNotifyMessageOk = false
+        this.mailNotifyMessage = '保存失败'
+      } finally {
+        this.mailNotifySaving = false
+      }
+    },
+    async sendMailNotifyTest () {
+      if (!this.projectId) return
+      this.mailNotifySendingTest = true
+      this.mailNotifyMessage = ''
+      try {
+        const resp = await this.$http.post(`/admin/report/projects/${this.projectId}/send-now`, null, {
+          params: { includeDevelopers: false }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.mailNotifyMessageOk = true
+          this.mailNotifyMessage = `已发送 ${resp.data.data.sent || 0} 封`
+        } else {
+          this.mailNotifyMessageOk = false
+          this.mailNotifyMessage = (resp.data && resp.data.message) || '发送失败'
+        }
+      } catch (e) {
+        this.mailNotifyMessageOk = false
+        this.mailNotifyMessage = '发送失败'
+      } finally {
+        this.mailNotifySendingTest = false
       }
     },
     toggleDashboardView () {
@@ -1733,7 +1880,7 @@ export default {
       if (idx >= 0) {
         const item = this.aiSessionAttachments[idx]
         if (item && item.previewUrl) {
-          try { URL.revokeObjectURL(item.previewUrl) } catch (e) {}
+          try { URL.revokeObjectURL(item.previewUrl) } catch (_e) { /* ignore */ }
         }
         this.aiSessionAttachments.splice(idx, 1)
       }
@@ -3929,6 +4076,31 @@ export default {
 .collab-home-dashboard {
   width: 100%;
   min-width: 0;
+}
+
+.mail-notify-panel {
+  margin: 12px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px;
+}
+
+.mail-notify-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mail-notify-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.mail-notify-body {
+  margin-top: 10px;
 }
 .link-table-list {
   max-height: 360px;

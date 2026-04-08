@@ -300,6 +300,28 @@ export default {
     saveFailed: 'Save failed',
     loading: 'Loading...'
   },
+  mailConfig: {
+    title: 'Mail (SMTP) configuration',
+    desc: 'Used for project daily report and developer daily report emails. Stored as system config; project-level settings control recipients and toggles only.',
+    publicBaseUrl: 'Public base URL',
+    publicBaseUrlPh: 'e.g. https://your-domain.com',
+    publicBaseUrlHint: 'Used to build unsubscribe links in emails. Leave empty to use relative URLs.',
+    smtpHost: 'SMTP host',
+    smtpPort: 'SMTP port',
+    smtpUsername: 'SMTP username',
+    smtpPassword: 'SMTP password',
+    passwordSetHint: 'Password is set (masked). Leave blank to keep unchanged.',
+    passwordPh: 'Enter SMTP password',
+    passwordKeepPh: 'Leave blank to keep unchanged',
+    fromAddress: 'From address',
+    fromName: 'From name (optional)',
+    fromNamePh: 'e.g. AutoAttend',
+    save: 'Save',
+    saving: 'Saving...',
+    saveSuccess: 'Saved',
+    saveFailed: 'Save failed',
+    configured: 'Configured'
+  },
   memberHome: {
     title: 'Workbench',
     myStats: 'My Stats',

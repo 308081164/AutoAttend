@@ -300,6 +300,28 @@ export default {
     saveFailed: '保存失败',
     loading: '加载中...'
   },
+  mailConfig: {
+    title: '邮件（SMTP）配置',
+    desc: '用于项目日报/开发者日报邮件推送。配置项保存在系统配置中，项目级仅控制是否发送与收件人范围。',
+    publicBaseUrl: '系统公网地址',
+    publicBaseUrlPh: '例如：https://your-domain.com',
+    publicBaseUrlHint: '用于邮件中的退订链接。若为空则使用相对路径（仅在同域可访问时有效）。',
+    smtpHost: 'SMTP Host',
+    smtpPort: 'SMTP Port',
+    smtpUsername: 'SMTP 用户名',
+    smtpPassword: 'SMTP 密码',
+    passwordSetHint: '已设置密码（出于安全不展示，留空则不修改）',
+    passwordPh: '请输入 SMTP 密码',
+    passwordKeepPh: '留空则保持原值',
+    fromAddress: '发件人邮箱',
+    fromName: '发件人显示名（可选）',
+    fromNamePh: '例如：流帮Project',
+    save: '保存',
+    saving: '保存中...',
+    saveSuccess: '保存成功',
+    saveFailed: '保存失败',
+    configured: '已配置'
+  },
   memberHome: {
     title: '工作台',
     myStats: '我的统计',

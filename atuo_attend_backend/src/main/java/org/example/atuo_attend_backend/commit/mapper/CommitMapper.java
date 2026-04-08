@@ -197,6 +197,21 @@ public interface CommitMapper {
                                                 @Param("start") java.time.OffsetDateTime start,
                                                 @Param("end") java.time.OffsetDateTime end);
 
+    /** 某仓库在 [start, end) 内出现过的去重作者邮箱列表（仅非空） */
+    @Select("""
+            SELECT DISTINCT author_email
+            FROM aa_commit
+            WHERE tenant_id = #{tenantId}
+              AND repo_full_name = #{repoFullName}
+              AND committed_at >= #{start} AND committed_at < #{end}
+              AND author_email IS NOT NULL AND author_email <> ''
+            ORDER BY author_email
+            """)
+    List<String> listDistinctAuthorEmailsByRepoBetween(@Param("tenantId") long tenantId,
+                                                       @Param("repoFullName") String repoFullName,
+                                                       @Param("start") java.time.OffsetDateTime start,
+                                                       @Param("end") java.time.OffsetDateTime end);
+
     /** 按日统计提交数与代码量，since 起至今（含当日） */
     @Select("""
             SELECT DATE(committed_at) AS day, COUNT(*) AS count,

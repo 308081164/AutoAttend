@@ -19,6 +19,15 @@ public class SystemConfigService {
 
     private static final String KEY_GITHUB_TOKEN = "github.token";
     private static final String KEY_GITHUB_API_PROXY = "github.api.proxy";
+    // ===== Mail (SMTP) =====
+    public static final String KEY_MAIL_SMTP_HOST = "mail.smtp.host";
+    public static final String KEY_MAIL_SMTP_PORT = "mail.smtp.port";
+    public static final String KEY_MAIL_SMTP_USERNAME = "mail.smtp.username";
+    public static final String KEY_MAIL_SMTP_PASSWORD = "mail.smtp.password";
+    public static final String KEY_MAIL_FROM_ADDRESS = "mail.from.address";
+    public static final String KEY_MAIL_FROM_NAME = "mail.from.name";
+    /** 公开访问的系统基地址（用于邮件中的退订/预览链接），例如 https://your-domain.com */
+    public static final String KEY_PUBLIC_BASE_URL = "app.public.base_url";
     /** 报价/合同：乙方（受托方）工商与收款信息 JSON，管理后台维护 */
     public static final String KEY_QUOTE_PARTY_B_PROFILE = "quote.party_b_profile_json";
 
@@ -61,6 +70,67 @@ public class SystemConfigService {
     public void setGitHubApiProxy(String proxy) {
         String value = (proxy != null && !proxy.isBlank()) ? proxy.trim() : null;
         mapper.upsert(tenantId(), KEY_GITHUB_API_PROXY, value != null ? value : "");
+    }
+
+    // ===== Mail (SMTP) config stored in aa_system_config =====
+    public String getMailSmtpHost() {
+        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_HOST);
+        return (v != null && !v.isBlank()) ? v.trim() : null;
+    }
+
+    public Integer getMailSmtpPort() {
+        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_PORT);
+        if (v == null || v.isBlank()) return null;
+        try { return Integer.parseInt(v.trim()); } catch (Exception e) { return null; }
+    }
+
+    public String getMailSmtpUsername() {
+        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_USERNAME);
+        return (v != null && !v.isBlank()) ? v.trim() : null;
+    }
+
+    public String getMailSmtpPassword() {
+        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_PASSWORD);
+        return (v != null && !v.isBlank()) ? v : null;
+    }
+
+    public String getMailFromAddress() {
+        String v = mapper.findByKey(tenantId(), KEY_MAIL_FROM_ADDRESS);
+        return (v != null && !v.isBlank()) ? v.trim() : null;
+    }
+
+    public String getMailFromName() {
+        String v = mapper.findByKey(tenantId(), KEY_MAIL_FROM_NAME);
+        return (v != null && !v.isBlank()) ? v.trim() : null;
+    }
+
+    public String getPublicBaseUrl() {
+        String v = mapper.findByKey(tenantId(), KEY_PUBLIC_BASE_URL);
+        if (v == null || v.isBlank()) return null;
+        String s = v.trim();
+        // 去掉尾部 /
+        while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
+        return s.isBlank() ? null : s;
+    }
+
+    /** 写入 SMTP 配置；password 若包含 **** 则视为未修改。 */
+    public void saveMailSmtpConfig(String host, Integer port, String username, String password, String fromAddress, String fromName) {
+        if (host != null) mapper.upsert(tenantId(), KEY_MAIL_SMTP_HOST, host.trim());
+        if (port != null) mapper.upsert(tenantId(), KEY_MAIL_SMTP_PORT, String.valueOf(port));
+        if (username != null) mapper.upsert(tenantId(), KEY_MAIL_SMTP_USERNAME, username.trim());
+        if (password != null && !password.contains("****")) mapper.upsert(tenantId(), KEY_MAIL_SMTP_PASSWORD, password);
+        if (fromAddress != null) mapper.upsert(tenantId(), KEY_MAIL_FROM_ADDRESS, fromAddress.trim());
+        if (fromName != null) mapper.upsert(tenantId(), KEY_MAIL_FROM_NAME, fromName.trim());
+    }
+
+    public void setPublicBaseUrl(String baseUrl) {
+        if (baseUrl == null) return;
+        mapper.upsert(tenantId(), KEY_PUBLIC_BASE_URL, baseUrl.trim());
+    }
+
+    public String getMailSmtpPasswordMasked() {
+        String v = getMailSmtpPassword();
+        return v != null && !v.isBlank() ? "****" : null;
     }
 
     /**
