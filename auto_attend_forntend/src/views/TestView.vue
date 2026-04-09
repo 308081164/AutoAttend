@@ -29,6 +29,43 @@
 
     <section class="test-section">
       <div class="test-header">
+        <h2 class="test-title">会员等级权益配置</h2>
+        <button class="primary-button" :disabled="planSaving || planLoading" @click="savePlanConfig">
+          {{ planSaving ? '保存中...' : '保存配置' }}
+        </button>
+      </div>
+      <p class="test-desc">可配置不同会员等级的功能权益上限（当前支持：协作成员数、可绑定 GitHub 仓库数）。</p>
+      <div v-if="planLoading" class="test-result">加载中...</div>
+      <div v-else class="plan-grid">
+        <div class="plan-col">
+          <div class="plan-name">免费版（free）</div>
+          <label>协作成员上限</label>
+          <input v-model.number="planForm.freeMaxMembers" type="number" min="1">
+          <label>GitHub 仓库上限</label>
+          <input v-model.number="planForm.freeMaxGithubRepos" type="number" min="1">
+        </div>
+        <div class="plan-col">
+          <div class="plan-name">团队版（team）</div>
+          <label>协作成员上限</label>
+          <input v-model.number="planForm.teamMaxMembers" type="number" min="1">
+          <label>GitHub 仓库上限</label>
+          <input v-model.number="planForm.teamMaxGithubRepos" type="number" min="1">
+        </div>
+        <div class="plan-col">
+          <div class="plan-name">专业版（pro）</div>
+          <label>协作成员上限</label>
+          <input v-model.number="planForm.proMaxMembers" type="number" min="1">
+          <label>GitHub 仓库上限</label>
+          <input v-model.number="planForm.proMaxGithubRepos" type="number" min="1">
+        </div>
+      </div>
+      <div v-if="planMessage" class="test-result" :class="planMessageOk ? 'success' : 'fail'">
+        {{ planMessage }}
+      </div>
+    </section>
+
+    <section class="test-section">
+      <div class="test-header">
         <h2 class="test-title">{{ $t('test.aiTitle') }}</h2>
         <button class="primary-button" :disabled="aiLoading" @click="runAiTest">
           {{ aiLoading ? $t('test.testing') : $t('test.runTest') }}
@@ -105,8 +142,23 @@ export default {
       qwenLoading: false,
       qwenResult: null,
       emailLoading: false,
-      emailResult: null
+      emailResult: null,
+      planLoading: false,
+      planSaving: false,
+      planMessage: '',
+      planMessageOk: false,
+      planForm: {
+        freeMaxMembers: 20,
+        freeMaxGithubRepos: 3,
+        teamMaxMembers: 100,
+        teamMaxGithubRepos: 20,
+        proMaxMembers: 10000,
+        proMaxGithubRepos: 500
+      }
     }
+  },
+  created () {
+    this.loadPlanConfig()
   },
   methods: {
     async runDiffTest () {
@@ -187,6 +239,41 @@ export default {
         }
       } finally {
         this.emailLoading = false
+      }
+    },
+    async loadPlanConfig () {
+      this.planLoading = true
+      this.planMessage = ''
+      try {
+        const resp = await this.$http.get('/admin/config/membership-plans')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.planForm.freeMaxMembers = Number(d.freeMaxMembers) || 20
+          this.planForm.freeMaxGithubRepos = Number(d.freeMaxGithubRepos) || 3
+          this.planForm.teamMaxMembers = Number(d.teamMaxMembers) || 100
+          this.planForm.teamMaxGithubRepos = Number(d.teamMaxGithubRepos) || 20
+          this.planForm.proMaxMembers = Number(d.proMaxMembers) || 10000
+          this.planForm.proMaxGithubRepos = Number(d.proMaxGithubRepos) || 500
+        }
+      } catch (e) {
+        this.planMessageOk = false
+        this.planMessage = (e.response && e.response.data && e.response.data.message) || '加载会员权益配置失败'
+      } finally {
+        this.planLoading = false
+      }
+    },
+    async savePlanConfig () {
+      this.planSaving = true
+      this.planMessage = ''
+      try {
+        await this.$http.put('/admin/config/membership-plans', this.planForm)
+        this.planMessageOk = true
+        this.planMessage = '会员等级权益配置已保存'
+      } catch (e) {
+        this.planMessageOk = false
+        this.planMessage = (e.response && e.response.data && e.response.data.message) || '保存会员权益配置失败'
+      } finally {
+        this.planSaving = false
       }
     }
   }
@@ -290,5 +377,38 @@ export default {
 
 .back-link a {
   color: #2563eb;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.plan-col {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f9fafb;
+}
+
+.plan-name {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.plan-col label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin: 8px 0 4px;
+}
+
+.plan-col input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  font-size: 13px;
 }
 </style>

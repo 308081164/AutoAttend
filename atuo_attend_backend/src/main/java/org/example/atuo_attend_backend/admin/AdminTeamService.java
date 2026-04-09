@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class AdminTeamService {
+    public record CreateMemberOutcome(BizUser user, boolean blocked, String message) {}
 
     private final BizUserMapper userMapper;
     private final BizProjectMapper projectMapper;
@@ -57,7 +58,7 @@ public class AdminTeamService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public BizUser createMember(CreateMemberRequest req) {
+    public CreateMemberOutcome createMember(CreateMemberRequest req) {
         if (req.getEmail() == null || req.getEmail().isBlank()) {
             throw new IllegalArgumentException("邮箱不能为空");
         }
@@ -66,7 +67,10 @@ public class AdminTeamService {
         if (userMapper.findByTenantAndEmail(tid, email) != null) {
             throw new IllegalArgumentException("该邮箱已存在");
         }
-        tenantQuotaService.assertCanAddMember(tid);
+        var quota = tenantQuotaService.checkCanAddMember(tid);
+        if (!quota.allowed()) {
+            return new CreateMemberOutcome(null, true, quota.message());
+        }
         String password = req.getPassword() != null && !req.getPassword().isBlank()
                 ? req.getPassword() : "123456";
         BizUser user = new BizUser();
@@ -78,7 +82,7 @@ public class AdminTeamService {
         user.setRemarkName(req.getRemarkName() != null ? req.getRemarkName().trim() : null);
         user.setJobTitle(req.getJobTitle() != null ? req.getJobTitle().trim() : "开发工程师");
         userMapper.insert(user);
-        return user;
+        return new CreateMemberOutcome(user, false, "创建成功");
     }
 
     @Transactional(rollbackFor = Exception.class)

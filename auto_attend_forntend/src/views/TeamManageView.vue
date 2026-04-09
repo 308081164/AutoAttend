@@ -254,6 +254,11 @@ export default {
           jobTitle: this.createForm.jobTitle || '开发工程师'
         })
         if (r.data && r.data.code === 0) {
+          const data = r.data.data || {}
+          if (data.blocked === true) {
+            alert(data.message || '当前套餐上限已达，暂不可新增成员，请及时升级/续费。')
+            return
+          }
           this.showCreateModal = false
           this.loadMembers()
         } else {

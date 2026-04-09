@@ -30,6 +30,13 @@ public class SystemConfigService {
     public static final String KEY_PUBLIC_BASE_URL = "app.public.base_url";
     /** 报价/合同：乙方（受托方）工商与收款信息 JSON，管理后台维护 */
     public static final String KEY_QUOTE_PARTY_B_PROFILE = "quote.party_b_profile_json";
+    // ===== Membership plan quotas =====
+    public static final String KEY_PLAN_FREE_MAX_MEMBERS = "plan.free.max_members";
+    public static final String KEY_PLAN_FREE_MAX_GITHUB_REPOS = "plan.free.max_github_repos";
+    public static final String KEY_PLAN_TEAM_MAX_MEMBERS = "plan.team.max_members";
+    public static final String KEY_PLAN_TEAM_MAX_GITHUB_REPOS = "plan.team.max_github_repos";
+    public static final String KEY_PLAN_PRO_MAX_MEMBERS = "plan.pro.max_members";
+    public static final String KEY_PLAN_PRO_MAX_GITHUB_REPOS = "plan.pro.max_github_repos";
 
     private final SystemConfigMapper mapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -131,6 +138,35 @@ public class SystemConfigService {
     public String getMailSmtpPasswordMasked() {
         String v = getMailSmtpPassword();
         return v != null && !v.isBlank() ? "****" : null;
+    }
+
+    // ===== Membership plan quota config =====
+    public Integer getPlanQuota(String key) {
+        String v = mapper.findByKey(tenantId(), key);
+        if (v == null || v.isBlank()) return null;
+        try { return Integer.parseInt(v.trim()); } catch (Exception e) { return null; }
+    }
+
+    public void saveMembershipPlanConfig(Map<String, Object> body) {
+        if (body == null) return;
+        upsertPlanInt(KEY_PLAN_FREE_MAX_MEMBERS, body.get("freeMaxMembers"));
+        upsertPlanInt(KEY_PLAN_FREE_MAX_GITHUB_REPOS, body.get("freeMaxGithubRepos"));
+        upsertPlanInt(KEY_PLAN_TEAM_MAX_MEMBERS, body.get("teamMaxMembers"));
+        upsertPlanInt(KEY_PLAN_TEAM_MAX_GITHUB_REPOS, body.get("teamMaxGithubRepos"));
+        upsertPlanInt(KEY_PLAN_PRO_MAX_MEMBERS, body.get("proMaxMembers"));
+        upsertPlanInt(KEY_PLAN_PRO_MAX_GITHUB_REPOS, body.get("proMaxGithubRepos"));
+    }
+
+    private void upsertPlanInt(String key, Object raw) {
+        if (raw == null) return;
+        Integer n = null;
+        if (raw instanceof Number num) {
+            n = num.intValue();
+        } else {
+            try { n = Integer.parseInt(String.valueOf(raw)); } catch (Exception ignored) { }
+        }
+        if (n == null || n <= 0) return;
+        mapper.upsert(tenantId(), key, String.valueOf(n));
     }
 
     /**

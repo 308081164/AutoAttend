@@ -74,6 +74,24 @@ public class AdminConfigController {
         return ApiResponse.ok(null);
     }
 
+    @GetMapping("/membership-plans")
+    public ApiResponse<Map<String, Object>> getMembershipPlans() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("freeMaxMembers", nz(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_FREE_MAX_MEMBERS), 20));
+        data.put("freeMaxGithubRepos", nz(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_FREE_MAX_GITHUB_REPOS), 3));
+        data.put("teamMaxMembers", nz(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_TEAM_MAX_MEMBERS), 100));
+        data.put("teamMaxGithubRepos", nz(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_TEAM_MAX_GITHUB_REPOS), 20));
+        data.put("proMaxMembers", nz(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_PRO_MAX_MEMBERS), 10_000));
+        data.put("proMaxGithubRepos", nz(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_PRO_MAX_GITHUB_REPOS), 500));
+        return ApiResponse.ok(data);
+    }
+
+    @PutMapping("/membership-plans")
+    public ApiResponse<Void> updateMembershipPlans(@RequestBody Map<String, Object> body) {
+        systemConfigService.saveMembershipPlanConfig(body);
+        return ApiResponse.ok(null);
+    }
+
     private static String asString(Object v) {
         return v == null ? null : String.valueOf(v);
     }
@@ -82,5 +100,9 @@ public class AdminConfigController {
         if (v == null) return null;
         if (v instanceof Number n) return n.intValue();
         try { return Integer.parseInt(String.valueOf(v)); } catch (Exception e) { return null; }
+    }
+
+    private static int nz(Integer v, int def) {
+        return v != null && v > 0 ? v : def;
     }
 }

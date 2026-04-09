@@ -87,7 +87,15 @@ public class QuoteProvisionService {
         if (qp == null) throw new IllegalArgumentException("报价项目不存在");
         String existingRepo = qp.getGithubRepoFullName();
         if (existingRepo == null || existingRepo.trim().isEmpty()) {
-            tenantQuotaService.assertCanLinkGithubRepo(tid());
+            var quota = tenantQuotaService.checkCanLinkGithubRepo(tid());
+            if (!quota.allowed()) {
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("status", "quota_blocked");
+                out.put("blocked", true);
+                out.put("message", quota.message());
+                out.put("steps", List.of(stepFail("quota", quota.message())));
+                return out;
+            }
         }
         if (req == null) req = new QuoteProvisionRequest();
         String repoName = req.getRepoName() != null ? req.getRepoName().trim() : "";

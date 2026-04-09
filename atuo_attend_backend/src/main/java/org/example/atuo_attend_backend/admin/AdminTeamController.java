@@ -131,7 +131,14 @@ public class AdminTeamController {
     @PostMapping("/members")
     public ApiResponse<Map<String, Object>> createMember(@RequestBody CreateMemberRequest req) {
         try {
-            BizUser u = teamService.createMember(req);
+            AdminTeamService.CreateMemberOutcome out = teamService.createMember(req);
+            if (out.blocked()) {
+                Map<String, Object> blocked = new HashMap<>();
+                blocked.put("blocked", true);
+                blocked.put("message", out.message());
+                return ApiResponse.ok(blocked);
+            }
+            BizUser u = out.user();
             return ApiResponse.ok(toMemberMap(u));
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());

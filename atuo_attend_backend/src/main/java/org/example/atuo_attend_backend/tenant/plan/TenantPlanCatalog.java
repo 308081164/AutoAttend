@@ -8,8 +8,8 @@ public final class TenantPlanCatalog {
     public record TenantPlan(String code, String label, int maxMembers, int maxGithubRepos) {
     }
 
-    public static final TenantPlan FREE = new TenantPlan("free", "免费版", 20, 1);
-    public static final TenantPlan TEAM = new TenantPlan("team", "团队版", 100, 5);
+    public static final TenantPlan FREE = new TenantPlan("free", "免费版", 20, 3);
+    public static final TenantPlan TEAM = new TenantPlan("team", "团队版", 100, 20);
     public static final TenantPlan PRO = new TenantPlan("pro", "专业版", 10_000, 500);
 
     private TenantPlanCatalog() {

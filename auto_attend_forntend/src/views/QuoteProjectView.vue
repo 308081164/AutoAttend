@@ -1704,9 +1704,14 @@ export default {
           }).catch(() => {})
         const resp = await this.$http.post(`/admin/quote/projects/${this.projectId}/provision`, body, { timeout: 120000 })
         if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.provisionResult = resp.data.data
+          if (resp.data.data.blocked === true || resp.data.data.status === 'quota_blocked') {
+            this.provisionOk = false
+            this.provisionMsg = resp.data.data.message || '当前套餐上限已达，暂不可创建新仓库，请及时升级/续费。'
+            return
+          }
           this.provisionOk = true
           this.provisionMsg = '已提交创建'
-          this.provisionResult = resp.data.data
           await this.loadProject(this.projectId)
           this.showProvisionModal = false
         } else {

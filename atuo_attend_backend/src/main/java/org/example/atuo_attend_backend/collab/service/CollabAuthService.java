@@ -160,7 +160,10 @@ public class CollabAuthService {
             return null;
         }
         long tid = inv.getTenantId();
-        tenantQuotaService.assertCanAddMember(tid);
+        var quota = tenantQuotaService.checkCanAddMember(tid);
+        if (!quota.allowed()) {
+            return null;
+        }
         String em = email.trim();
         if (userMapper.findByTenantAndEmail(tid, em) != null) {
             throw new IllegalArgumentException("该邮箱已在组织中注册");
