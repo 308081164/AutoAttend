@@ -162,6 +162,50 @@
           </template>
         </div>
       </div>
+      <div class="mail-notify-panel">
+        <div class="mail-notify-head">
+          <div class="mail-notify-title">提交联动任务状态更新（AI）</div>
+          <button type="button" class="secondary-button small" @click="toggleAiLinkageOpen">
+            {{ aiLinkageOpen ? '收起' : '配置' }}
+          </button>
+        </div>
+        <div v-if="aiLinkageOpen" class="mail-notify-body">
+          <div v-if="aiLinkageLoading" class="text-muted small">加载中…</div>
+          <template v-else>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="aiLinkageForm.enabled">
+                <span>启用提交联动任务状态更新</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="form-label">联动模式</label>
+              <select v-model="aiLinkageForm.mode" class="form-input">
+                <option value="auto">自动更新任务状态</option>
+                <option value="confirm">仅输出建议（待人工确认）</option>
+                <option value="suggest_only">仅分析不更新</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label class="form-label">最小置信度</label>
+              <select v-model="aiLinkageForm.minConfidence" class="form-input">
+                <option value="high">高</option>
+                <option value="medium">中</option>
+                <option value="low">低</option>
+              </select>
+            </div>
+            <div v-if="aiLinkageForm.enabled" class="text-muted small" style="color:#b91c1c;">
+              AI的分析可能不准确，请仔细辨别。
+            </div>
+            <div class="form-actions">
+              <button type="button" class="primary-button" :disabled="aiLinkageSaving" @click="saveAiLinkageConfig">
+                {{ aiLinkageSaving ? '保存中…' : '保存' }}
+              </button>
+              <span v-if="aiLinkageMessage" class="save-message" :class="aiLinkageMessageOk ? 'success' : 'error'">{{ aiLinkageMessage }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
       <DashboardView
         :fixedRepoFullName="projectRepoId"
         :collab-data-board-only="true"
@@ -1040,6 +1084,16 @@ export default {
         sendToDevelopers: true,
         managerEmailsText: ''
       },
+      aiLinkageOpen: false,
+      aiLinkageLoading: false,
+      aiLinkageSaving: false,
+      aiLinkageMessage: '',
+      aiLinkageMessageOk: false,
+      aiLinkageForm: {
+        enabled: false,
+        mode: 'auto',
+        minConfidence: 'medium'
+      },
 
       // ===== 传送门（项目级链接）=====
       portalLinks: [],
@@ -1137,6 +1191,7 @@ export default {
     this.loadRecords()
     this.loadProjectMembers()
     this.loadMailNotifyConfig()
+    this.loadAiLinkageConfig()
     this.loadPortalLinks()
   },
   beforeDestroy () {
@@ -1237,6 +1292,52 @@ export default {
         this.mailNotifyMessage = '发送失败'
       } finally {
         this.mailNotifySendingTest = false
+      }
+    },
+    toggleAiLinkageOpen () {
+      this.aiLinkageOpen = !this.aiLinkageOpen
+      if (this.aiLinkageOpen) this.loadAiLinkageConfig()
+    },
+    async loadAiLinkageConfig () {
+      if (!this.projectId) return
+      this.aiLinkageLoading = true
+      try {
+        const resp = await this.$http.get(`/admin/ai-analysis/projects/${this.projectId}/linkage-config`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.aiLinkageForm.enabled = d.enabled === true
+          this.aiLinkageForm.mode = d.mode || 'auto'
+          this.aiLinkageForm.minConfidence = d.minConfidence || 'medium'
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        this.aiLinkageLoading = false
+      }
+    },
+    async saveAiLinkageConfig () {
+      if (!this.projectId) return
+      this.aiLinkageSaving = true
+      this.aiLinkageMessage = ''
+      try {
+        const payload = {
+          enabled: !!this.aiLinkageForm.enabled,
+          mode: this.aiLinkageForm.mode || 'auto',
+          minConfidence: this.aiLinkageForm.minConfidence || 'medium'
+        }
+        const resp = await this.$http.put(`/admin/ai-analysis/projects/${this.projectId}/linkage-config`, payload)
+        if (resp.data && resp.data.code === 0) {
+          this.aiLinkageMessageOk = true
+          this.aiLinkageMessage = '已保存'
+        } else {
+          this.aiLinkageMessageOk = false
+          this.aiLinkageMessage = (resp.data && resp.data.message) || '保存失败'
+        }
+      } catch (e) {
+        this.aiLinkageMessageOk = false
+        this.aiLinkageMessage = '保存失败'
+      } finally {
+        this.aiLinkageSaving = false
       }
     },
     toggleDashboardView () {

@@ -290,16 +290,26 @@
 
 若 AI 认为本次提交不关联任何需求，则 `related_records` 为空数组。
 
-### 10.5 系统回写与配置
+### 10.5 系统回写与配置（新增项目级开关）
 
 - **回写策略**（可配置）：  
   - **auto**：解析到 `related_records` 后，对每条建议直接更新 `biz_record_field`（需限定仅更新「解决情况」「验收结果」等约定字段）。  
   - **confirm**：将建议写入「待确认表」，在管理员/commit 详情页展示「AI 建议更新：记录 xxx → 解决情况=已解决待审核」，提供「采纳」「忽略」；采纳后再写回多维表。  
   - **suggest_only**：仅落库为「AI 建议」，不写回多维表，仅在 commit 的 AI 分析结果中展示，由人在多维表中手动操作。
+- **开关粒度**：采用 **项目级开关**（而非全局开关）控制「commit AI 分析联动多维表状态回写」。  
+  - 配置入口：`/collab/projects/{id}/table` 的「开发与数据看板」页面（与项目级邮件通知同区域）。  
+  - 典型字段：  
+    - `enabled`：是否启用本项目的「提交联动任务状态更新」。  
+    - `mode`：`confirm` / `auto` / `suggest_only`（MVP 推荐默认 `confirm`）。  
+    - `min_confidence`：最小置信度阈值（可选，默认 `medium`）。  
+  - 生效规则：仅当 `enabled=true` 且仓库可映射到该项目时，才在单次提交 AI 分析中注入多维表候选记录并处理 `related_records`。
+- **用户风险提示（必选）**：在项目级开关开启时，前端固定显示提示文案：  
+  - **“AI 的分析可能不准确，请仔细辨别。”**  
+  - 该提示需在开关附近常驻展示（非一次性 toast），并在 `auto` 模式下追加二次确认弹窗（建议）。
 - **数据落库**：  
   - 可将 `related_records` 存于 `aa_ai_analysis_result` 的扩展字段（如 JSON 列 `collab_suggestions`），或单独表 `aa_ai_collab_update`（job_id、record_id、建议字段、采纳状态、采纳时间等），便于审计与回滚。
 - **配置项**：  
-  - 是否启用「多维表联动」；  
+  - 是否启用「多维表联动」（项目级）；  
   - 回写策略：auto / confirm / suggest_only；  
   - 候选记录筛选条件（如仅未关闭）与条数/摘要长度上限。
 
