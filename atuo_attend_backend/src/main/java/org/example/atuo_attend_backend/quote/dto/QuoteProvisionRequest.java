@@ -8,6 +8,8 @@ public class QuoteProvisionRequest {
     private Boolean syncMd;
     private Boolean syncCollabTable;
     private Boolean createWebhook;
+    /** 是否在仓库根目录创建 AGENTS.md（开放格式，供 AI 编码助手读取） */
+    private Boolean createAgentsMd;
 
     public String getRepoName() { return repoName; }
     public void setRepoName(String repoName) { this.repoName = repoName; }
@@ -23,5 +25,7 @@ public class QuoteProvisionRequest {
     public void setSyncCollabTable(Boolean syncCollabTable) { this.syncCollabTable = syncCollabTable; }
     public Boolean getCreateWebhook() { return createWebhook; }
     public void setCreateWebhook(Boolean createWebhook) { this.createWebhook = createWebhook; }
+    public Boolean getCreateAgentsMd() { return createAgentsMd; }
+    public void setCreateAgentsMd(Boolean createAgentsMd) { this.createAgentsMd = createAgentsMd; }
 }
 

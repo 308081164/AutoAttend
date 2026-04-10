@@ -723,6 +723,7 @@
               <label class="chk"><input type="checkbox" v-model="provisionForm.syncMd" /> {{ $t('quote.provisionOptMd') }}</label>
               <label class="chk"><input type="checkbox" v-model="provisionForm.syncCollabTable" /> {{ $t('quote.provisionOptCollab') }}</label>
               <label class="chk"><input type="checkbox" v-model="provisionForm.createWebhook" /> {{ $t('quote.provisionOptWebhook') }}</label>
+              <label class="chk"><input type="checkbox" v-model="provisionForm.createAgentsMd" /> {{ $t('quote.provisionOptAgentsMd') }}</label>
             </div>
             <div class="btn-row export-row">
               <button type="button" class="btn primary" :disabled="provisioning" @click="runProvision">
@@ -1002,7 +1003,8 @@ export default {
         autoInit: true,
         syncMd: true,
         syncCollabTable: true,
-        createWebhook: true
+        createWebhook: true,
+        createAgentsMd: true
       },
       provisionCloneCopied: false,
       outputSidebarCollapsed: false,
@@ -1695,7 +1697,8 @@ export default {
           autoInit: this.provisionForm.autoInit === true,
           syncMd: this.provisionForm.syncMd === true,
           syncCollabTable: this.provisionForm.syncCollabTable === true,
-          createWebhook: this.provisionForm.createWebhook === true
+          createWebhook: this.provisionForm.createWebhook === true,
+          createAgentsMd: this.provisionForm.createAgentsMd === true
         }
           // 组件点击埋点：由“报价项目创建/Provision”触发
           this.$http.post('/admin/ops/events/component-click', {

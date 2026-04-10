@@ -105,6 +105,7 @@ public class QuoteProvisionService {
         boolean syncMd = req.getSyncMd() == null || req.getSyncMd();
         boolean syncCollab = req.getSyncCollabTable() == null || req.getSyncCollabTable();
         boolean createWebhook = req.getCreateWebhook() == null || req.getCreateWebhook();
+        boolean createAgentsMd = Boolean.TRUE.equals(req.getCreateAgentsMd());
 
         String token = systemConfigService.getGitHubToken();
         if (token == null || token.isBlank()) {
@@ -143,6 +144,16 @@ public class QuoteProvisionService {
                 steps.add(stepOk("writeRequirementMd", "已写入 docs/需求清单.md", null));
             } else {
                 steps.add(stepOk("writeRequirementMd", "已跳过写入需求 MD", null));
+            }
+
+            if (createAgentsMd) {
+                String agents = buildAgentsMd(qp.getName(), repoFullName, quoteProjectId, syncMd);
+                putRepoFile(token, repoFullName, "AGENTS.md",
+                        "chore: add AGENTS.md for coding agents",
+                        agents);
+                steps.add(stepOk("writeAgentsMd", "已写入 AGENTS.md", null));
+            } else {
+                steps.add(stepOk("writeAgentsMd", "已跳过写入 AGENTS.md", null));
             }
 
             BizProject project = collabSyncService.ensureProjectAndTable(repoFullName);
@@ -347,6 +358,49 @@ public class QuoteProvisionService {
         }
         sb.append("## 备注\n\n");
         sb.append("- 本文件由 AutoAttend 报价系统自动生成。\n");
+        return sb.toString();
+    }
+
+    /**
+     * 根目录 AGENTS.md，结构对齐开放格式 https://agents.md/（面向编码助手的 Markdown 说明，无强制字段）。
+     */
+    private String buildAgentsMd(String quoteProjectName, String repoFullName, long quoteProjectId, boolean requirementMdPresent) {
+        String name = quoteProjectName != null ? quoteProjectName.trim() : "";
+        String repo = repoFullName != null ? repoFullName.trim() : "";
+        StringBuilder sb = new StringBuilder();
+        sb.append("# AGENTS.md\n\n");
+        sb.append("Instructions for AI coding agents working in this repository. ");
+        sb.append("This file follows the community AGENTS.md convention (see https://agents.md/).\n\n");
+        sb.append("## Project overview\n\n");
+        sb.append("- **Source**: Repository provisioned from **AutoAttend** (quote → GitHub workflow).\n");
+        if (!name.isBlank()) {
+            sb.append("- **Quote project name**: ").append(name).append("\n");
+        }
+        sb.append("- **Quote project ID** (in AutoAttend): ").append(quoteProjectId).append("\n");
+        if (!repo.isBlank()) {
+            sb.append("- **GitHub**: `").append(repo).append("`\n");
+        }
+        sb.append("\n");
+        if (requirementMdPresent) {
+            sb.append("Primary scope and feature breakdown: **`docs/需求清单.md`** (generated alongside this repo).\n\n");
+        } else {
+            sb.append("Requirements markdown was not written during provisioning; align scope with the product owner or add `docs/需求清单.md` manually.\n\n");
+        }
+        sb.append("## Setup commands\n\n");
+        sb.append("- Clone: `git clone https://github.com/").append(repo.isBlank() ? "<owner>/<repo>" : repo).append(".git`\n");
+        sb.append("- Install dependencies and run dev servers according to the stack you add to this repo.\n\n");
+        sb.append("## Build and test\n\n");
+        sb.append("- After introducing a build system, document the exact commands here (for example `pnpm build`, `mvn verify`, `pytest`).\n");
+        sb.append("- Prefer running the full test/lint suite before opening a PR.\n\n");
+        sb.append("## Code style\n\n");
+        sb.append("- Follow the conventions of the languages and frameworks in this repository once code exists.\n");
+        sb.append("- Keep changes focused; avoid unrelated refactors in the same change as feature work.\n\n");
+        sb.append("## Integrations (AutoAttend)\n\n");
+        sb.append("- **Collaboration**: A linked AutoAttend project / table may receive synced records from the quote; treat tabular data as downstream of this repo unless your team agrees otherwise.\n");
+        sb.append("- **Webhook**: If configured, pushes may trigger AutoAttend; avoid force-pushing shared default branches without team agreement.\n\n");
+        sb.append("## Security\n\n");
+        sb.append("- Never commit secrets, API tokens, or real `.env` files.\n");
+        sb.append("- Do not embed tenant or customer credentials in documentation or sample code.\n");
         return sb.toString();
     }
 

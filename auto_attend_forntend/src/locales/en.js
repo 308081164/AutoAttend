@@ -490,6 +490,7 @@ export default {
     provisionOptMd: 'Write requirements MD',
     provisionOptCollab: 'Sync to collab table',
     provisionOptWebhook: 'Create webhook',
+    provisionOptAgentsMd: 'Create AGENTS.md (agents.md convention for AI assistants)',
     provisionRunning: 'Creating…',
     provisionStart: 'Start',
     provisionCancel: 'Cancel',

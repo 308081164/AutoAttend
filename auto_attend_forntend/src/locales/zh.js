@@ -490,6 +490,7 @@ export default {
     provisionOptMd: '写入需求清单 MD',
     provisionOptCollab: '同步到多维表',
     provisionOptWebhook: '创建 Webhook',
+    provisionOptAgentsMd: '创建 AGENTS.md（AI 助手说明，agents.md 规范）',
     provisionRunning: '创建中…',
     provisionStart: '开始创建',
     provisionCancel: '取消',
