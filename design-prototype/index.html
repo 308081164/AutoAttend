@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>流帮Project — 产品原型（落地页）</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/prototype.css" />
+  </head>
+  <body>
+    <header class="proto-header">
+      <div class="proto-brand">
+        <div class="proto-logo" aria-hidden="true">流</div>
+        <div class="proto-brand-text">
+          <strong>流帮Project</strong>
+          <span>软件流程，帮你搞定！</span>
+        </div>
+      </div>
+      <button type="button" class="menu-toggle" aria-label="打开菜单" id="menuToggle">☰</button>
+      <nav class="proto-nav-desktop proto-nav" aria-label="主导航">
+        <a href="#features">产品能力</a>
+        <a href="#flow">工作流程</a>
+        <a href="#cta">开始使用</a>
+      </nav>
+      <div class="proto-nav-desktop proto-nav-actions">
+        <select class="proto-lang" id="langSelect" aria-label="语言">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+        <a class="btn btn-ghost" href="login.html">登录</a>
+        <a class="btn btn-primary" href="#cta">免费注册</a>
+      </div>
+    </header>
+    <div class="proto-nav-wrap" id="mobileNav" aria-hidden="true">
+      <nav class="proto-nav" aria-label="移动端导航">
+        <a href="#features">产品能力</a>
+        <a href="#flow">工作流程</a>
+        <a href="#cta">开始使用</a>
+      </nav>
+      <div class="proto-nav-actions">
+        <select class="proto-lang" aria-label="语言">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+        <a class="btn btn-ghost" href="login.html">登录</a>
+        <a class="btn btn-primary" href="#cta">免费注册</a>
+      </div>
+    </div>
+
+    <main class="proto-main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="hero-eyebrow">面向软件团队的流程协作</p>
+          <h1 id="hero-title">从需求到交付，流程一站打通</h1>
+          <p class="hero-lead">
+            控制台总览、项目协作与多维表、提交与 AI 分析、报价与原型交付——在统一工作空间里连接开发与商务，减少上下文切换。
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="#cta">开始使用</a>
+            <a class="btn btn-ghost" href="login.html">已有账号登录</a>
+          </div>
+          <p class="hero-trust">多语言界面 · 组织与权限 · 与仓库与提交数据联动（示意文案）</p>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-visual-inner">
+            <div class="flow-row">
+              <span class="flow-node">需求</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-node">开发</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-node">评审</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-node">交付</span>
+            </div>
+            <div class="hero-chart">
+              <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px">提交趋势（示意）</div>
+              <div class="chart-bars" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" aria-labelledby="feat-title">
+        <h2 class="section-title" id="feat-title">核心能力</h2>
+        <p class="section-desc">与主应用模块对齐的六个能力块，便于评审与开发对照。</p>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">◉</div>
+            <h3>控制台与组织身份</h3>
+            <p>组织信息、登录账号与租户能力入口集中展示，便于管理员一眼掌握。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">▦</div>
+            <h3>项目协作与多维表</h3>
+            <p>协作空间与表格视图联动，适合跨角色同步进度与字段信息。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⎔</div>
+            <h3>提交与 AI 分析</h3>
+            <p>围绕 Commit 的可视化与智能摘要，帮助快速理解变更与风险。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">¥</div>
+            <h3>报价与商务流程</h3>
+            <p>报价单、主体信息与配置项结构化沉淀，减少反复沟通成本。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">◇</div>
+            <h3>原型与交付</h3>
+            <p>原型项目与交付物集中管理，方便与研发节奏对齐。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">AI</div>
+            <h3>AI 配置与自动化</h3>
+            <p>模型与定时任务配置入口统一，支持按组织策略启用能力。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="flow" class="steps" aria-label="工作流程">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h4>接入仓库与成员</h4>
+          <p>完成组织注册与权限分配</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h4>配置协作与视图</h4>
+          <p>按项目启用多维表与协作</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h4>跟踪提交与评审</h4>
+          <p>结合趋势与 AI 摘要复盘</p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h4>商务与交付闭环</h4>
+          <p>报价、原型与对外交付一致</p>
+        </div>
+      </section>
+
+      <section id="cta" style="text-align: center; padding: 40px 0 20px">
+        <h2 class="section-title">准备体验？</h2>
+        <p class="section-desc">以下为原型跳转，注册与真实环境以线上系统为准。</p>
+        <div class="hero-cta" style="justify-content: center">
+          <a class="btn btn-primary" href="login.html">前往登录页原型</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="proto-footer">
+      <p>流帮Project — 静态可交互原型 · 仅用于视觉与流程演示</p>
+    </footer>
+
+    <script src="js/prototype.js"></script>
+  </body>
+</html>

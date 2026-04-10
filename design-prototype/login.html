@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>管理员登录 — 流帮Project 原型</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/prototype.css" />
+  </head>
+  <body class="login-body">
+    <header class="proto-header">
+      <div class="proto-brand">
+        <a href="index.html" class="proto-logo" aria-label="返回落地页" style="text-decoration: none; color: inherit">流</a>
+        <div class="proto-brand-text">
+          <strong>流帮Project</strong>
+          <span>软件流程，帮你搞定！</span>
+        </div>
+      </div>
+      <button type="button" class="menu-toggle" aria-label="打开菜单" id="menuToggle">☰</button>
+      <nav class="proto-nav-desktop proto-nav" aria-label="辅助导航">
+        <a href="index.html">首页</a>
+      </nav>
+      <div class="proto-nav-desktop proto-nav-actions">
+        <select class="proto-lang" aria-label="语言">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+    </header>
+    <div class="proto-nav-wrap" id="mobileNav" aria-hidden="true">
+      <nav class="proto-nav">
+        <a href="index.html">首页</a>
+      </nav>
+    </div>
+
+    <div class="login-shell">
+      <aside class="login-brand-panel" aria-labelledby="brand-heading">
+        <div class="proto-logo" aria-hidden="true">流</div>
+        <h2 id="brand-heading">流帮Project</h2>
+        <p class="slogan">软件流程，帮你搞定！<br />统一控制台、协作与交付，让研发与商务在同一套流程里对话。</p>
+        <div class="brand-points">
+          <div class="brand-point">组织级身份与权限，安全可控</div>
+          <div class="brand-point">协作与仓库数据联动，减少信息孤岛</div>
+          <div class="brand-point">报价与原型同屏，方便对外交付</div>
+        </div>
+      </aside>
+      <div class="login-form-panel">
+        <div class="login-card">
+          <h1>管理员登录</h1>
+          <p class="sub">使用手机号与密码登录组织控制台（原型：提交后模拟成功）</p>
+          <form id="loginForm" novalidate>
+            <div class="form-group">
+              <label for="phone">手机号</label>
+              <input id="phone" name="phone" type="text" autocomplete="username" placeholder="支持区号，如 +86…" required />
+            </div>
+            <div class="form-group">
+              <label for="password">密码</label>
+              <input id="password" name="password" type="password" autocomplete="current-password" required />
+            </div>
+            <p class="form-error" id="formError" role="alert"></p>
+            <button type="submit" class="btn btn-primary" id="submitBtn">登录</button>
+          </form>
+          <p class="login-extra">
+            <a href="#">注册新组织</a>（原型占位，不接后端）
+          </p>
+          <p class="login-back">
+            <a href="index.html">← 返回落地页</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <footer class="proto-footer">
+      <p>登录交互为前端模拟 · 不调用真实接口</p>
+    </footer>
+
+    <script src="js/prototype.js"></script>
+  </body>
+</html>
