@@ -2038,7 +2038,7 @@ export default {
       })
     },
     commitAnalysisRoute (item) {
-      if (!item || !item.commitSha) return { path: '/' }
+      if (!item || !item.commitSha) return { path: '/console' }
       return {
         path: `/commit/${item.commitSha}`,
         query: item.repoFullName ? { repoFullName: item.repoFullName } : {}

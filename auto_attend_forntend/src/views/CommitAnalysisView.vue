@@ -1,7 +1,7 @@
 <template>
   <div class="commit-analysis-page">
     <div class="page-header">
-      <router-link to="/" class="back-link">← {{ $t('dashboard.commitAnalysisBoardBack') }}</router-link>
+      <router-link :to="{ name: 'dashboard' }" class="back-link">← {{ $t('dashboard.commitAnalysisBoardBack') }}</router-link>
       <h1 class="page-title">{{ $t('dashboard.commitAnalysisBoardTitle') }}：{{ shortSha(commitSha) }}</h1>
     </div>
 
@@ -39,9 +39,9 @@
           <dd v-if="detail.commit.validReason !== undefined">{{ detail.commit.validCommit ? '有效' : '无效' }} <span v-if="detail.commit.validReason" class="valid-reason">（{{ detail.commit.validReason }}）</span></dd>
         </dl>
         <div class="commit-actions">
-          <router-link :to="{ path: '/', query: {} }" class="link-button">{{ $t('dashboard.collapse') }}</router-link>
+          <router-link :to="{ path: '/console', query: {} }" class="link-button">{{ $t('dashboard.collapse') }}</router-link>
           <a v-if="githubCommitUrl" :href="githubCommitUrl" target="_blank" rel="noopener noreferrer" class="link-button">{{ $t('dashboard.viewOnGitHub') }}</a>
-          <router-link v-if="detail.commit.hasDiff" :to="{ path: '/', query: { commitSha: detail.commit.commitSha, repoFullName: detail.commit.repoFullName } }" class="link-button">{{ $t('dashboard.viewDiff') }}</router-link>
+          <router-link v-if="detail.commit.hasDiff" :to="{ path: '/console', query: { commitSha: detail.commit.commitSha, repoFullName: detail.commit.repoFullName } }" class="link-button">{{ $t('dashboard.viewDiff') }}</router-link>
         </div>
       </section>
 
@@ -107,7 +107,7 @@
         <div v-else class="ai-empty">
           <p>{{ $t('dashboard.commitAnalysisNoResult') }}</p>
           <p class="hint">{{ $t('dashboard.aiAnalysisHint') }}</p>
-          <router-link to="/" class="link-button">{{ $t('dashboard.commitAnalysisBoardBack') }}</router-link>
+          <router-link :to="{ name: 'dashboard' }" class="link-button">{{ $t('dashboard.commitAnalysisBoardBack') }}</router-link>
         </div>
       </section>
     </template>

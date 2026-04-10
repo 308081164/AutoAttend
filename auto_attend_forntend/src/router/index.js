@@ -2,6 +2,7 @@ import Vue from 'vue'
 import VueRouter from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import LandingView from '../views/LandingView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import TestView from '../views/TestView.vue'
 import AiConfigView from '../views/AiConfigView.vue'
@@ -24,15 +25,23 @@ const routes = [
   {
     path: '/login',
     name: 'login',
-    component: LoginView
+    component: LoginView,
+    meta: { bareLayout: true }
   },
   {
     path: '/register',
     name: 'register',
-    component: RegisterView
+    component: RegisterView,
+    meta: { bareLayout: true }
   },
   {
     path: '/',
+    name: 'landing',
+    component: LandingView,
+    meta: { public: true, bareLayout: true }
+  },
+  {
+    path: '/console',
     name: 'dashboard',
     component: DashboardView
   },
@@ -134,6 +143,10 @@ router.beforeEach(async (to, from, next) => {
     else next()
     return
   }
+  if (to.name === 'landing') {
+    next()
+    return
+  }
   if (isCollabLoginPath) {
     if (adminToken) next({ name: 'collab-projects' }).catch(() => {})
     else next()
@@ -163,7 +176,7 @@ router.beforeEach(async (to, from, next) => {
     next()
     return
   }
-  if (to.name === 'dashboard' || to.path === '/') {
+  if (to.name === 'dashboard') {
     if (adminToken) {
       next()
       return
@@ -173,7 +186,7 @@ router.beforeEach(async (to, from, next) => {
       return
     }
   }
-  if (to.name !== 'login' && to.name !== 'register' && !adminToken) {
+  if (to.name !== 'login' && to.name !== 'register' && to.name !== 'landing' && !adminToken) {
     next({ name: 'login' }).catch(() => {})
   } else {
     next()

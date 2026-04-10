@@ -82,20 +82,22 @@ export default {
 <style scoped>
 .register-page {
   width: 100%;
-  min-height: calc(100vh - 56px);
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f3f4f6;
+  background: linear-gradient(165deg, #f0f4ff 0%, #f7f8fa 50%, #fff 100%);
   padding: 24px 0;
 }
 
 .register-card {
-  width: 360px;
-  padding: 24px;
-  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+  padding: 28px;
+  border-radius: 12px;
   background-color: #ffffff;
-  box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.15);
+  border: 1px solid #dee0e3;
+  box-shadow: 0 8px 24px rgba(31, 35, 41, 0.08);
 }
 
 .register-title {

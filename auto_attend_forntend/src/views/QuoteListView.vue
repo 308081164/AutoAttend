@@ -36,7 +36,7 @@
       </tbody>
     </table>
     <div class="back">
-      <router-link to="/">{{ $t('collab.backHome') }}</router-link>
+      <router-link :to="{ name: 'dashboard' }">{{ $t('collab.backHome') }}</router-link>
     </div>
   </div>
 </template>

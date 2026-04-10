@@ -30,7 +30,7 @@
         </button>
       </form>
       <div class="back-link">
-        <router-link to="/">{{ $t('collabLogin.backHome') }}</router-link>
+        <router-link :to="{ name: 'dashboard' }">{{ $t('collabLogin.backHome') }}</router-link>
       </div>
     </div>
   </div>
