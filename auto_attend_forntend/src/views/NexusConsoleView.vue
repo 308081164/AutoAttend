@@ -3,7 +3,7 @@
     <div class="page-head">
       <h1>快捷运维（Nexus）</h1>
       <div class="head-actions">
-        <router-link to="/" class="secondary-button">返回首页</router-link>
+        <router-link :to="{ name: 'dashboard' }" class="secondary-button">返回首页</router-link>
       </div>
     </div>
 

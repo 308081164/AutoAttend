@@ -1,6 +1,6 @@
 <template>
   <div id="app" :class="{ 'embed-mode': isEmbedMode }">
-    <header v-if="!isEmbedMode" class="app-header">
+    <header v-if="!isEmbedMode && !bareLayout" class="app-header">
       <div class="app-brand">
         <div class="app-title">{{ $t('app.title') }}</div>
         <div class="app-slogan">{{ $t('app.slogan') }}</div>
@@ -8,7 +8,7 @@
       <div class="app-header-right">
         <router-link
           v-if="showBackToHome"
-          to="/"
+          :to="{ name: 'dashboard' }"
           class="back-home-link"
         >{{ $t('app.backToHome') }}</router-link>
         <select v-model="currentLocale" class="lang-select" @change="onLocaleChange">
@@ -18,7 +18,7 @@
         <button v-if="username" class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </header>
-    <main class="app-main" :class="{ 'app-main-embed': isEmbedMode }">
+    <main class="app-main" :class="{ 'app-main-embed': isEmbedMode, 'app-main-bare': bareLayout }">
       <router-view/>
     </main>
   </div>
@@ -45,7 +45,10 @@ export default {
     /** 管理员已登录且不在控制台首页时显示「返回首页」 */
     showBackToHome () {
       if (!this.username) return false
-      return this.$route.name !== 'dashboard'
+      return this.$route.name !== 'dashboard' && this.$route.name !== 'landing'
+    },
+    bareLayout () {
+      return !!(this.$route.meta && this.$route.meta.bareLayout)
     }
   },
   methods: {
@@ -190,6 +193,10 @@ body {
 }
 
 .app-main-embed {
+  padding: 0;
+}
+
+.app-main-bare {
   padding: 0;
 }
 

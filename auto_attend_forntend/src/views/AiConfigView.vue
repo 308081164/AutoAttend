@@ -1,7 +1,7 @@
 <template>
   <div class="ai-config-page">
     <div class="page-header">
-      <router-link to="/" class="back-link">← {{ $t('aiConfig.backToHome') }}</router-link>
+      <router-link :to="{ name: 'dashboard' }" class="back-link">← {{ $t('aiConfig.backToHome') }}</router-link>
       <h1 class="page-title">{{ $t('aiConfig.title') }}</h1>
     </div>
     <p class="page-desc">{{ $t('aiConfig.desc') }}</p>
