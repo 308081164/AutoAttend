@@ -3,6 +3,7 @@ package org.example.atuo_attend_backend.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.atuo_attend_backend.collab.service.CollabPasswordService;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.stereotype.Service;
@@ -37,12 +38,16 @@ public class SystemConfigService {
     public static final String KEY_PLAN_TEAM_MAX_GITHUB_REPOS = "plan.team.max_github_repos";
     public static final String KEY_PLAN_PRO_MAX_MEMBERS = "plan.pro.max_members";
     public static final String KEY_PLAN_PRO_MAX_GITHUB_REPOS = "plan.pro.max_github_repos";
+    /** BCrypt 哈希：导出敏感配置前须验证的二级密钥；未设置则禁止导出明文密钥 */
+    public static final String KEY_EXPORT_SECONDARY_PASSWORD_HASH = "security.export_secondary_password.bcrypt";
 
     private final SystemConfigMapper mapper;
+    private final CollabPasswordService passwordHasher;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public SystemConfigService(SystemConfigMapper mapper) {
+    public SystemConfigService(SystemConfigMapper mapper, CollabPasswordService passwordHasher) {
         this.mapper = mapper;
+        this.passwordHasher = passwordHasher;
     }
 
     private static long tenantId() {
@@ -138,6 +143,45 @@ public class SystemConfigService {
     public String getMailSmtpPasswordMasked() {
         String v = getMailSmtpPassword();
         return v != null && !v.isBlank() ? "****" : null;
+    }
+
+    // ===== 二级密钥：敏感配置导出保护 =====
+
+    public boolean isExportSecondaryPasswordConfigured() {
+        String h = mapper.findByKey(tenantId(), KEY_EXPORT_SECONDARY_PASSWORD_HASH);
+        return h != null && !h.isBlank();
+    }
+
+    /**
+     * 设置或更新二级密钥（BCrypt 存储）。至少 8 个字符。
+     */
+    public void setExportSecondaryPassword(String plain) {
+        if (plain == null || plain.length() < 8) {
+            throw new IllegalArgumentException("二级密钥至少 8 个字符");
+        }
+        mapper.upsert(tenantId(), KEY_EXPORT_SECONDARY_PASSWORD_HASH, passwordHasher.hash(plain));
+    }
+
+    public boolean verifyExportSecondaryPassword(String plain) {
+        if (plain == null || plain.isBlank()) {
+            return false;
+        }
+        String h = mapper.findByKey(tenantId(), KEY_EXPORT_SECONDARY_PASSWORD_HASH);
+        if (h == null || h.isBlank()) {
+            return false;
+        }
+        return passwordHasher.verify(plain, h);
+    }
+
+    /** 清除二级密钥前须验证当前密钥 */
+    public void clearExportSecondaryPassword(String currentPlain) {
+        if (!isExportSecondaryPasswordConfigured()) {
+            return;
+        }
+        if (!verifyExportSecondaryPassword(currentPlain)) {
+            throw new IllegalArgumentException("二级密钥不正确");
+        }
+        mapper.upsert(tenantId(), KEY_EXPORT_SECONDARY_PASSWORD_HASH, "");
     }
 
     // ===== Membership plan quota config =====

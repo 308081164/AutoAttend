@@ -22,6 +22,66 @@
       </div>
     </section>
 
+    <section class="ai-section ai-section--guard" aria-labelledby="export-guard-heading">
+      <div class="ai-section-head">
+        <h2 id="export-guard-heading" class="ai-section-title">{{ $t('aiConfig.exportGuardTitle') }}</h2>
+        <p class="ai-section-desc">{{ $t('aiConfig.exportGuardDesc') }}</p>
+      </div>
+      <div class="config-card ai-section-card">
+        <p v-if="exportGuardEnabled" class="export-guard-status export-guard-status--on">{{ $t('aiConfig.exportGuardEnabledHint') }}</p>
+        <p v-else class="export-guard-status">{{ $t('aiConfig.exportGuardDisabledHint') }}</p>
+
+        <template v-if="!exportGuardEnabled">
+          <div class="form-row">
+            <label class="form-label">{{ $t('aiConfig.exportGuardPassword') }}</label>
+            <input v-model="exportGuardNew1" type="password" class="form-input" autocomplete="new-password">
+          </div>
+          <div class="form-row">
+            <label class="form-label">{{ $t('aiConfig.exportGuardPasswordConfirm') }}</label>
+            <input v-model="exportGuardNew2" type="password" class="form-input" autocomplete="new-password">
+          </div>
+          <div class="form-actions form-actions--compact">
+            <button type="button" class="primary-button" :disabled="exportGuardSaving" @click="saveExportGuard">{{ exportGuardSaving ? $t('aiConfig.saving') : $t('aiConfig.exportGuardSave') }}</button>
+            <span v-if="exportGuardMessage" class="save-message" :class="exportGuardMessageOk ? 'success' : 'error'">{{ exportGuardMessage }}</span>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="form-row">
+            <label class="form-label">{{ $t('aiConfig.exportGuardClearHint') }}</label>
+            <input v-model="exportGuardClearPwd" type="password" class="form-input" autocomplete="off">
+          </div>
+          <div class="form-actions form-actions--compact guard-actions-row">
+            <button type="button" class="primary-button" @click="openExportModal">{{ $t('aiConfig.exportOpenModal') }}</button>
+            <button type="button" class="primary-button primary-button-outline" :disabled="exportGuardSaving" @click="clearExportGuard">{{ exportGuardSaving ? $t('aiConfig.saving') : $t('aiConfig.exportGuardClear') }}</button>
+            <span v-if="exportGuardMessage" class="save-message" :class="exportGuardMessageOk ? 'success' : 'error'">{{ exportGuardMessage }}</span>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <div class="usage-detail-modal" v-if="exportModalOpen" @click.self="closeExportModal">
+      <div class="usage-detail-dialog export-modal-dialog">
+        <div class="usage-detail-header">
+          <h3>{{ $t('aiConfig.exportModalTitle') }}</h3>
+          <button type="button" class="usage-detail-close" :aria-label="$t('aiConfig.exportModalClose')" @click="closeExportModal">×</button>
+        </div>
+        <div class="export-modal-body">
+          <p class="ai-section-desc export-modal-lead">{{ $t('aiConfig.exportModalDesc') }}</p>
+          <label class="form-label">{{ $t('aiConfig.exportModalPassword') }}</label>
+          <input v-model="exportModalPwd" type="password" class="form-input" autocomplete="off" @keyup.enter="submitSensitiveExport">
+          <div class="form-actions form-actions--compact">
+            <button type="button" class="primary-button" :disabled="exportSubmitting" @click="submitSensitiveExport">{{ exportSubmitting ? $t('aiConfig.exportVerifying') : $t('aiConfig.exportModalSubmit') }}</button>
+          </div>
+          <p v-if="exportSubmitError" class="save-message error">{{ exportSubmitError }}</p>
+          <template v-if="exportResultJson">
+            <textarea class="export-json-out" readonly rows="10" :value="exportResultJson"></textarea>
+            <button type="button" class="primary-button primary-button-outline export-copy-btn" @click="copyExportJson">{{ exportCopied ? $t('aiConfig.exportCopied') : $t('aiConfig.exportCopyJson') }}</button>
+          </template>
+        </div>
+      </div>
+    </div>
+
     <section class="ai-section" aria-labelledby="ai-models-heading">
       <div class="ai-section-head">
         <h2 id="ai-models-heading" class="ai-section-title">{{ $t('aiConfig.sectionModelsTitle') }}</h2>
@@ -470,7 +530,20 @@ export default {
       usageDetailLoading: false,
       /** 从服务端回填表单时跳过「开关自动保存」 */
       aiConfigHydrating: false,
-      aiConfigAutoSaveTimer: null
+      aiConfigAutoSaveTimer: null,
+      exportGuardEnabled: false,
+      exportGuardNew1: '',
+      exportGuardNew2: '',
+      exportGuardClearPwd: '',
+      exportGuardSaving: false,
+      exportGuardMessage: '',
+      exportGuardMessageOk: false,
+      exportModalOpen: false,
+      exportModalPwd: '',
+      exportSubmitting: false,
+      exportSubmitError: '',
+      exportResultJson: '',
+      exportCopied: false
     }
   },
   created () {
@@ -478,6 +551,7 @@ export default {
     this.loadQwenConfig()
     this.loadGitHubConfig()
     this.loadMailConfig()
+    this.loadExportGuard()
     this.loadUsage()
     this.loadUsageQwen()
     this.loadUsageDaily()
@@ -910,6 +984,124 @@ export default {
     shortSha (sha) {
       if (!sha || sha.length < 8) return sha || '—'
       return sha.substring(0, 7)
+    },
+    async loadExportGuard () {
+      try {
+        const resp = await this.$http.get('/admin/config/export-guard')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.exportGuardEnabled = !!resp.data.data.enabled
+        }
+      } catch (e) {
+        // 静默
+      }
+    },
+    async saveExportGuard () {
+      this.exportGuardMessage = ''
+      this.exportGuardMessageOk = false
+      if (this.exportGuardNew1 !== this.exportGuardNew2) {
+        this.exportGuardMessage = this.$t('aiConfig.exportGuardMismatch')
+        return
+      }
+      if (!this.exportGuardNew1 || String(this.exportGuardNew1).length < 8) {
+        this.exportGuardMessage = this.$t('aiConfig.exportGuardMinLen')
+        return
+      }
+      this.exportGuardSaving = true
+      try {
+        const resp = await this.$http.put('/admin/config/export-guard', {
+          password: this.exportGuardNew1,
+          passwordConfirm: this.exportGuardNew2
+        })
+        if (resp.data && resp.data.code === 0) {
+          this.exportGuardMessageOk = true
+          this.exportGuardMessage = this.$t('aiConfig.exportGuardSaveOk')
+          this.exportGuardNew1 = ''
+          this.exportGuardNew2 = ''
+          await this.loadExportGuard()
+        } else {
+          this.exportGuardMessage = (resp.data && resp.data.message) || this.$t('aiConfig.saveFailed')
+        }
+      } catch (e) {
+        this.exportGuardMessage = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.saveFailed')
+      } finally {
+        this.exportGuardSaving = false
+      }
+    },
+    async clearExportGuard () {
+      this.exportGuardMessage = ''
+      this.exportGuardMessageOk = false
+      if (!this.exportGuardClearPwd) {
+        this.exportGuardMessage = this.$t('aiConfig.exportGuardNeedCurrent')
+        return
+      }
+      this.exportGuardSaving = true
+      try {
+        const resp = await this.$http.put('/admin/config/export-guard', {
+          clear: true,
+          currentPassword: this.exportGuardClearPwd
+        })
+        if (resp.data && resp.data.code === 0) {
+          this.exportGuardMessageOk = true
+          this.exportGuardMessage = this.$t('aiConfig.exportGuardClearOk')
+          this.exportGuardClearPwd = ''
+          await this.loadExportGuard()
+        } else {
+          this.exportGuardMessage = (resp.data && resp.data.message) || this.$t('aiConfig.saveFailed')
+        }
+      } catch (e) {
+        this.exportGuardMessage = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.saveFailed')
+      } finally {
+        this.exportGuardSaving = false
+      }
+    },
+    openExportModal () {
+      if (!this.exportGuardEnabled) return
+      this.exportModalOpen = true
+      this.exportModalPwd = ''
+      this.exportSubmitError = ''
+      this.exportResultJson = ''
+      this.exportCopied = false
+    },
+    closeExportModal () {
+      this.exportModalOpen = false
+      this.exportModalPwd = ''
+      this.exportSubmitError = ''
+      this.exportResultJson = ''
+      this.exportCopied = false
+    },
+    async submitSensitiveExport () {
+      this.exportSubmitError = ''
+      this.exportResultJson = ''
+      this.exportCopied = false
+      if (!this.exportModalPwd) {
+        this.exportSubmitError = this.$t('aiConfig.exportModalNeedPassword')
+        return
+      }
+      this.exportSubmitting = true
+      try {
+        const resp = await this.$http.post('/admin/config/sensitive-export', {
+          secondaryPassword: this.exportModalPwd
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.exportResultJson = JSON.stringify(resp.data.data, null, 2)
+        } else {
+          this.exportSubmitError = (resp.data && resp.data.message) || this.$t('aiConfig.exportLoadFail')
+        }
+      } catch (e) {
+        this.exportSubmitError = (e.response && e.response.data && e.response.data.message) || this.$t('aiConfig.exportLoadFail')
+      } finally {
+        this.exportSubmitting = false
+      }
+    },
+    async copyExportJson () {
+      if (!this.exportResultJson) return
+      try {
+        await navigator.clipboard.writeText(this.exportResultJson)
+        this.exportCopied = true
+        setTimeout(() => { this.exportCopied = false }, 2000)
+      } catch (err) {
+        this.exportSubmitError = this.$t('aiConfig.exportCopyFail')
+      }
     },
     async saveGitHubConfig () {
       this.githubSaving = true
@@ -1417,6 +1609,55 @@ export default {
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-lg);
+}
+.export-modal-dialog {
+  width: min(520px, 92vw);
+  max-height: 90vh;
+}
+.export-modal-body {
+  padding: var(--space-lg) var(--space-xl);
+  overflow: auto;
+}
+.export-modal-lead {
+  margin-top: 0;
+  margin-bottom: var(--space-md);
+}
+.export-json-out {
+  width: 100%;
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-xs);
+  font-family: ui-monospace, monospace;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  resize: vertical;
+  box-sizing: border-box;
+}
+.export-copy-btn {
+  margin-top: var(--space-sm);
+}
+.export-guard-status {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.export-guard-status--on {
+  color: var(--text-primary);
+}
+.ai-section--guard .ai-section-card {
+  margin-top: 0;
+}
+.form-actions--compact {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: none;
+  flex-wrap: wrap;
+}
+.guard-actions-row {
+  align-items: center;
 }
 .usage-detail-header {
   display: flex;

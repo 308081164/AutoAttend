@@ -68,9 +68,13 @@ const routes = [
     component: TenantAdminManageView
   },
   {
-    path: '/ai-config',
-    name: 'ai-config',
+    path: '/api-config',
+    name: 'api-config',
     component: AiConfigView
+  },
+  {
+    path: '/ai-config',
+    redirect: '/api-config'
   },
   {
     path: '/quote',

@@ -123,7 +123,7 @@ export default {
         { icon: '◉', titleKey: 'landing.featConsoleTitle', descKey: 'landing.featConsoleDesc', route: { name: 'dashboard' } },
         { icon: '▦', titleKey: 'landing.featCollabTitle', descKey: 'landing.featCollabDesc', route: { name: 'collab-projects' } },
         { icon: '¥', titleKey: 'landing.featQuoteTitle', descKey: 'landing.featQuoteDesc', route: { name: 'quote-list' } },
-        { icon: 'AI', titleKey: 'landing.featAiTitle', descKey: 'landing.featAiDesc', route: { name: 'ai-config' } },
+        { icon: 'AI', titleKey: 'landing.featAiTitle', descKey: 'landing.featAiDesc', route: { name: 'api-config' } },
         { icon: '◇', titleKey: 'landing.featProtoTitle', descKey: 'landing.featProtoDesc', route: { name: 'prototype-list' } },
         { icon: '◎', titleKey: 'landing.featTeamTitle', descKey: 'landing.featTeamDesc', route: { name: 'team-manage' } }
       ],

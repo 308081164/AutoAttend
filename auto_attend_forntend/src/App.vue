@@ -72,9 +72,9 @@
             <!-- Smart tools -->
             <div class="nav-group">
               <div class="nav-group-label" v-show="!sidebarCollapsed">智能工具</div>
-              <router-link to="/ai-config" class="nav-item" :class="{ 'is-active': isNavActive('/ai-config') }" @click.native="onNavClick">
+              <router-link to="/api-config" class="nav-item" :class="{ 'is-active': isNavActive('/api-config') }" @click.native="onNavClick">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-                <span class="nav-label" v-show="!sidebarCollapsed">AI 配置</span>
+                <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('aiConfig.navTitle') }}</span>
               </router-link>
               <router-link to="/prototype" class="nav-item" :class="{ 'is-active': isNavActive('/prototype') }" @click.native="onNavClick">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
@@ -195,7 +195,7 @@ export default {
         '/collab/projects': '项目管理',
         '/team': '团队管理',
         '/tenant-admins': '租户管理',
-        '/ai-config': 'AI 配置',
+        '/api-config': 'API 配置',
         '/prototype': '快原型',
         '/nexus': '快捷运维',
         '/lab': '增效实验室',

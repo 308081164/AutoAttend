@@ -259,7 +259,7 @@
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-api" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
               <h2 class="hub-card-title">{{ $t('dashboard.hubApiTitle') }}</h2>
-              <router-link to="/ai-config" class="hub-card-more">{{ $t('dashboard.hubApiOpenConfig') }} →</router-link>
+              <router-link to="/api-config" class="hub-card-more">{{ $t('dashboard.hubApiOpenConfig') }} →</router-link>
             </div>
             <div v-if="aiHub.loading" class="hub-placeholder">{{ $t('dashboard.hubApiLoading') }}</div>
             <template v-else>
@@ -275,7 +275,7 @@
               </div>
               <div class="hub-quick-actions hub-quick-actions-foot">
                 <router-link to="/test" class="hub-pill hub-pill-primary">{{ $t('dashboard.hubApiOpenTest') }}</router-link>
-                <router-link to="/ai-config" class="hub-pill">{{ $t('aiConfig.navTitle') }}</router-link>
+                <router-link to="/api-config" class="hub-pill">{{ $t('aiConfig.navTitle') }}</router-link>
               </div>
             </template>
           </section>

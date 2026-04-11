@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.admin;
 
+import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
+import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.springframework.web.bind.annotation.*;
@@ -15,9 +17,12 @@ import java.util.Map;
 public class AdminConfigController {
 
     private final SystemConfigService systemConfigService;
+    private final AiAnalysisConfigService aiAnalysisConfigService;
 
-    public AdminConfigController(SystemConfigService systemConfigService) {
+    public AdminConfigController(SystemConfigService systemConfigService,
+                                 AiAnalysisConfigService aiAnalysisConfigService) {
         this.systemConfigService = systemConfigService;
+        this.aiAnalysisConfigService = aiAnalysisConfigService;
     }
 
     @GetMapping("/github")
@@ -90,6 +95,69 @@ public class AdminConfigController {
     public ApiResponse<Void> updateMembershipPlans(@RequestBody Map<String, Object> body) {
         systemConfigService.saveMembershipPlanConfig(body);
         return ApiResponse.ok(null);
+    }
+
+    /**
+     * 是否已设置「二级密钥」（仅布尔，不返回哈希）。
+     */
+    @GetMapping("/export-guard")
+    public ApiResponse<Map<String, Object>> getExportGuard() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("enabled", systemConfigService.isExportSecondaryPasswordConfigured());
+        return ApiResponse.ok(data);
+    }
+
+    /**
+     * 设置二级密钥，或在校验当前密钥后清除。
+     * body: { password, passwordConfirm } 设置；{ clear: true, currentPassword } 清除。
+     */
+    @PutMapping("/export-guard")
+    public ApiResponse<Void> updateExportGuard(@RequestBody Map<String, Object> body) {
+        if (body == null) {
+            return ApiResponse.error(40000, "请求体不能为空");
+        }
+        if (Boolean.TRUE.equals(body.get("clear"))) {
+            String current = asString(body.get("currentPassword"));
+            try {
+                systemConfigService.clearExportSecondaryPassword(current);
+            } catch (IllegalArgumentException e) {
+                return ApiResponse.error(40000, e.getMessage());
+            }
+            return ApiResponse.ok(null);
+        }
+        String p1 = asString(body.get("password"));
+        String p2 = asString(body.get("passwordConfirm"));
+        if (p1 == null || p2 == null || !p1.equals(p2)) {
+            return ApiResponse.error(40000, "两次输入的二级密钥不一致");
+        }
+        try {
+            systemConfigService.setExportSecondaryPassword(p1);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+        return ApiResponse.ok(null);
+    }
+
+    /**
+     * 验证二级密钥后返回已配置的敏感字段明文（用于迁移/备份）。未设置二级密钥时不可用。
+     */
+    @PostMapping("/sensitive-export")
+    public ApiResponse<Map<String, Object>> sensitiveExport(@RequestBody Map<String, String> body) {
+        if (!systemConfigService.isExportSecondaryPasswordConfigured()) {
+            return ApiResponse.error(40000, "请先在 API 配置页设置二级密钥");
+        }
+        String pwd = body != null ? body.get("secondaryPassword") : null;
+        if (!systemConfigService.verifyExportSecondaryPassword(pwd)) {
+            return ApiResponse.error(40300, "二级密钥错误");
+        }
+        AiAnalysisConfig ds = aiAnalysisConfigService.getConfig();
+        AiAnalysisConfig qw = aiAnalysisConfigService.getQwenConfig();
+        Map<String, Object> data = new HashMap<>();
+        data.put("deepseekApiKey", ds != null ? ds.getApiKey() : null);
+        data.put("qwenApiKey", qw != null ? qw.getApiKey() : null);
+        data.put("githubToken", systemConfigService.getGitHubToken());
+        data.put("smtpPassword", systemConfigService.getMailSmtpPassword());
+        return ApiResponse.ok(data);
     }
 
     private static String asString(Object v) {

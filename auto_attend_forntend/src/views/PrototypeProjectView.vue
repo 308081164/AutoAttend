@@ -46,7 +46,7 @@
                   <button type="button" class="primary-button" :disabled="generating" @click="generateSpec">
                     {{ generating ? '生成中…' : '生成并预览' }}
                   </button>
-                  <router-link to="/ai-config" class="secondary-button">AI 配置</router-link>
+                  <router-link to="/api-config" class="secondary-button">{{ $t('aiConfig.navTitle') }}</router-link>
                 </div>
               </template>
 
@@ -68,7 +68,7 @@
                   <button type="button" class="secondary-button" :disabled="mockupGenerating || mockupMessages.length <= 1" @click="clearMockup">
                     清空
                   </button>
-                  <router-link to="/ai-config" class="secondary-button">AI 配置</router-link>
+                  <router-link to="/api-config" class="secondary-button">{{ $t('aiConfig.navTitle') }}</router-link>
                 </div>
               </template>
               <div class="actions-row import-row">
