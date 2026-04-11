@@ -211,7 +211,9 @@ export default {
     noProjects: 'Нет проектов. Сделайте push в GitHub для создания проектов.',
     repoLabel: 'Репозиторий',
     backHome: 'На главную',
-    loading: 'Загрузка...'
+    loading: 'Загрузка...',
+    searchProjectsPlaceholder: 'Поиск по названию, описанию или репозиторию…',
+    noSearchResults: 'Ничего не найдено. Попробуйте другие слова.'
   },
   test: {
     title: 'Тест возможностей системы',

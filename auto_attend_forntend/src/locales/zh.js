@@ -423,7 +423,9 @@ export default {
     noProjects: '暂无有权限的项目。请先通过 GitHub 推送代码，系统将根据仓库自动创建项目并同步成员。',
     repoLabel: '仓库',
     backHome: '返回首页',
-    loading: '加载中...'
+    loading: '加载中...',
+    searchProjectsPlaceholder: '搜索项目名称、描述或仓库…',
+    noSearchResults: '没有匹配的项目，请尝试其他关键词'
   },
   test: {
     title: '系统能力测试',

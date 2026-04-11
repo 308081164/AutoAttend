@@ -211,7 +211,9 @@ export default {
     noProjects: 'Aucun projet. Poussez du code via GitHub pour créer des projets.',
     repoLabel: 'Dépôt',
     backHome: 'Retour à l\'accueil',
-    loading: 'Chargement...'
+    loading: 'Chargement...',
+    searchProjectsPlaceholder: 'Rechercher par nom, description ou dépôt…',
+    noSearchResults: 'Aucun projet ne correspond. Essayez d\'autres mots-clés.'
   },
   test: {
     title: 'Test des capacités système',

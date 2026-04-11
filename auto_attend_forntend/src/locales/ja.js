@@ -211,7 +211,9 @@ export default {
     noProjects: 'プロジェクトがありません。GitHub にプッシュしてプロジェクトを作成してください。',
     repoLabel: 'リポジトリ',
     backHome: 'ホームに戻る',
-    loading: '読み込み中...'
+    loading: '読み込み中...',
+    searchProjectsPlaceholder: '名前・説明・リポジトリで検索…',
+    noSearchResults: '一致するプロジェクトがありません。別のキーワードを試してください。'
   },
   test: {
     title: 'システム能力テスト',

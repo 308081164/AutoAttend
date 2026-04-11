@@ -12,8 +12,22 @@
     <div v-else-if="!projects.length" class="placeholder">
       {{ $t('collab.noProjects') }}
     </div>
-    <ul v-else class="project-list">
-      <li v-for="p in projects" :key="p.id" class="project-item">
+    <template v-else>
+      <div class="project-search-wrap">
+        <input
+          v-model.trim="projectSearch"
+          type="search"
+          class="project-search-input"
+          :placeholder="$t('collab.searchProjectsPlaceholder')"
+          :aria-label="$t('collab.searchProjectsPlaceholder')"
+          autocomplete="off"
+        >
+      </div>
+      <div v-if="!filteredProjects.length" class="placeholder">
+        {{ $t('collab.noSearchResults') }}
+      </div>
+      <ul v-else class="project-list">
+      <li v-for="p in filteredProjects" :key="p.id" class="project-item">
         <router-link :to="{ name: 'collab-table', params: { projectId: p.id } }" class="project-link">
           <span class="project-name">{{ p.name }}</span>
           <span v-if="p.description" class="project-desc">{{ p.description }}</span>
@@ -21,6 +35,7 @@
         </router-link>
       </li>
     </ul>
+    </template>
     <div class="back-link">
       <router-link :to="{ name: 'dashboard' }">{{ $t('collab.backHome') }}</router-link>
     </div>
@@ -33,8 +48,21 @@ export default {
   data () {
     return {
       projects: [],
+      projectSearch: '',
       loading: true,
       userEmail: ''
+    }
+  },
+  computed: {
+    filteredProjects () {
+      const q = (this.projectSearch || '').trim().toLowerCase()
+      if (!q) return this.projects
+      return this.projects.filter(p => {
+        const name = String(p.name != null ? p.name : '').toLowerCase()
+        const desc = String(p.description != null ? p.description : '').toLowerCase()
+        const repo = String(p.repoId != null ? p.repoId : '').toLowerCase()
+        return name.includes(q) || desc.includes(q) || repo.includes(q)
+      })
     }
   },
   created () {
@@ -76,7 +104,7 @@ export default {
 
 <style scoped>
 .collab-page {
-  max-width: 640px;
+  max-width: 920px;
   margin: 0 auto;
   padding: var(--space-xl);
   background: var(--bg-page);
@@ -115,6 +143,36 @@ export default {
   color: var(--text-secondary);
 }
 
+.project-search-wrap {
+  margin-bottom: var(--space-md);
+}
+
+.project-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px var(--space-md);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.project-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.project-search-input:hover {
+  border-color: var(--text-tertiary);
+}
+
+.project-search-input:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgba(20, 86, 240, 0.12);
+}
+
 .placeholder {
   padding: var(--space-xxl);
   text-align: center;
@@ -128,14 +186,28 @@ export default {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  align-items: stretch;
 }
 
 .project-item {
-  margin-bottom: var(--space-sm);
+  display: flex;
+  margin: 0;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .project-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .project-link {
   display: block;
+  flex: 1;
+  min-width: 0;
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-lg);
   background: var(--bg-card);

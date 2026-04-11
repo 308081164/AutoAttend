@@ -423,7 +423,9 @@ export default {
     noProjects: 'No projects yet. Push code via GitHub to create projects and sync members.',
     repoLabel: 'Repo',
     backHome: 'Back to Home',
-    loading: 'Loading...'
+    loading: 'Loading...',
+    searchProjectsPlaceholder: 'Search by name, description, or repo…',
+    noSearchResults: 'No projects match. Try different keywords.'
   },
   test: {
     title: 'System Capability Test',
