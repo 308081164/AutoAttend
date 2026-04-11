@@ -35,9 +35,6 @@
         </tr>
       </tbody>
     </table>
-    <div class="back">
-      <router-link :to="{ name: 'dashboard' }">{{ $t('collab.backHome') }}</router-link>
-    </div>
   </div>
 </template>
 
@@ -213,18 +210,5 @@ export default {
   color: var(--text-secondary);
   font-weight: var(--font-weight-medium);
   text-align: center;
-}
-.back {
-  margin-top: var(--space-xl);
-  font-size: var(--font-size-sm);
-}
-.back a {
-  color: var(--text-link);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  transition: var(--transition-fast);
-}
-.back a:hover {
-  color: var(--text-link-hover);
 }
 </style>

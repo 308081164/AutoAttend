@@ -2,7 +2,6 @@
   <div class="prototype-project-page">
     <div class="page-head">
       <div class="head-left">
-        <router-link to="/prototype" class="back-link">← 返回</router-link>
         <h1 class="title">{{ projectName || '快原型项目' }}</h1>
       </div>
       <div class="head-right">
@@ -905,16 +904,6 @@ ${html}
   align-items: baseline;
   gap: var(--space-md);
   flex-wrap: wrap;
-}
-.back-link {
-  color: var(--brand-blue);
-  font-weight: 500;
-  text-decoration: none;
-  font-size: 14px;
-  transition: opacity 0.2s;
-}
-.back-link:hover {
-  opacity: 0.75;
 }
 .title {
   margin: 0;

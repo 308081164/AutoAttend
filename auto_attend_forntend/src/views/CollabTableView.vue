@@ -42,7 +42,6 @@
     <div class="collab-table-main">
     <div class="table-header">
       <div class="header-left">
-        <router-link to="/collab/projects" class="back-link">{{ $t('collabTable.backToList') }}</router-link>
         <div class="title-block">
           <div class="title-row">
             <h2 class="table-title">{{ pageTableTitle }}</h2>
@@ -3526,18 +3525,6 @@ export default {
 
 .filter-title-button {
   flex-shrink: 0;
-}
-
-.back-link {
-  font-size: var(--font-size-sm);
-  color: var(--brand-blue);
-  text-decoration: none;
-  transition: var(--transition-fast);
-}
-
-.back-link:hover {
-  color: var(--brand-blue-hover);
-  text-decoration: underline;
 }
 
 .table-title {

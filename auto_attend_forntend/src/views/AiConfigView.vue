@@ -1,7 +1,6 @@
 <template>
   <div class="ai-config-page">
     <div class="page-header">
-      <router-link :to="{ name: 'dashboard' }" class="back-link">← {{ $t('aiConfig.backToHome') }}</router-link>
       <h1 class="page-title">{{ $t('aiConfig.title') }}</h1>
     </div>
     <p class="page-desc">{{ $t('aiConfig.desc') }}</p>
@@ -992,18 +991,9 @@ export default {
 .page-header {
   margin-bottom: var(--space-sm);
 }
-.back-link {
-  font-size: var(--font-size-sm);
-  color: var(--text-link);
-  text-decoration: none;
-  transition: var(--transition-fast);
-}
-.back-link:hover {
-  color: var(--text-link-hover);
-}
 .page-title {
   font-size: var(--font-size-xxl);
-  margin: var(--space-md) 0 0;
+  margin: 0;
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
 }

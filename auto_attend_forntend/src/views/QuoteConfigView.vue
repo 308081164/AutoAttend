@@ -1,7 +1,6 @@
 <template>
   <div class="quote-config-page">
     <div class="page-head">
-      <router-link to="/quote" class="back-link">← {{ $t('quote.backList') }}</router-link>
       <h1>{{ $t('quote.quoteConfigTitle') }}</h1>
       <p class="desc">{{ $t('quote.quoteConfigDesc') }}</p>
     </div>
@@ -709,19 +708,8 @@ export default {
 .page-head {
   margin-bottom: var(--space-xl);
 }
-.back-link {
-  font-size: var(--font-size-md);
-  color: var(--text-link);
-  text-decoration: none;
-  font-weight: var(--font-weight-medium);
-  transition: var(--transition-fast);
-}
-.back-link:hover {
-  color: var(--text-link-hover);
-  text-decoration: underline;
-}
 .page-head h1 {
-  margin: var(--space-sm) 0 var(--space-md);
+  margin: 0 0 var(--space-md);
   font-size: clamp(1.35rem, 2vw, 1.75rem);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);

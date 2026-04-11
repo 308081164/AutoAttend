@@ -123,10 +123,6 @@
         </div>
       </div>
     </section>
-
-    <div class="back-link">
-      <router-link :to="{ name: 'dashboard' }">{{ $t('collab.backHome') }}</router-link>
-    </div>
   </div>
 </template>
 
@@ -368,15 +364,6 @@ export default {
 .primary-button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
-}
-
-.back-link {
-  margin-top: 24px;
-  font-size: 13px;
-}
-
-.back-link a {
-  color: #2563eb;
 }
 
 .plan-grid {

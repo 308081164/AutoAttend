@@ -7,7 +7,6 @@
         <button type="button" class="primary-button" @click="createProject">
           新建项目
         </button>
-        <router-link :to="{ name: 'dashboard' }" class="secondary-button">{{ $t('collab.backHome') || '返回首页' }}</router-link>
       </div>
     </div>
 

@@ -36,9 +36,6 @@
       </li>
     </ul>
     </template>
-    <div class="back-link">
-      <router-link :to="{ name: 'dashboard' }">{{ $t('collab.backHome') }}</router-link>
-    </div>
   </div>
 </template>
 
@@ -236,21 +233,6 @@ export default {
   color: var(--text-tertiary);
   display: block;
   margin-top: 4px;
-}
-
-.back-link {
-  margin-top: var(--space-xxl);
-  font-size: 13px;
-}
-
-.back-link a {
-  color: var(--brand-blue);
-  text-decoration: none;
-  transition: opacity 0.2s;
-}
-
-.back-link a:hover {
-  opacity: 0.75;
 }
 
 .link-button {

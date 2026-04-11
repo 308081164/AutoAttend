@@ -183,10 +183,6 @@ export default {
     isAdmin () {
       return !!window.localStorage.getItem('autoattend_token')
     },
-    showBackToHome () {
-      if (!this.username) return false
-      return this.$route.name !== 'dashboard' && this.$route.name !== 'landing'
-    },
     bareLayout () {
       return !!(this.$route.meta && this.$route.meta.bareLayout)
     },

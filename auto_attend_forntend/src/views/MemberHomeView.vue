@@ -32,10 +32,6 @@
       <p class="section-desc">{{ $t('collab.selectProject') }}</p>
       <router-link to="/collab/projects" class="primary-button">{{ $t('memberHome.goToProjects') }}</router-link>
     </section>
-
-    <div class="back-link">
-      <router-link to="/login">{{ $t('memberHome.backToLogin') }}</router-link>
-    </div>
   </div>
 </template>
 
@@ -209,20 +205,5 @@ export default {
   padding: var(--space-lg);
   color: var(--text-tertiary);
   font-size: 14px;
-}
-
-.back-link {
-  margin-top: var(--space-xxl);
-  font-size: 13px;
-}
-
-.back-link a {
-  color: var(--brand-blue);
-  text-decoration: none;
-  transition: opacity 0.2s;
-}
-
-.back-link a:hover {
-  opacity: 0.75;
 }
 </style>

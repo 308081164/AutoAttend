@@ -2,8 +2,6 @@
   <div class="quote-project-page">
     <div class="page-head">
       <div class="head-links">
-        <router-link to="/quote" class="back-link">← {{ $t('quote.backList') }}</router-link>
-        <span class="head-sep" aria-hidden="true">|</span>
         <router-link to="/quote/config" class="head-link-inline">{{ $t('quote.quoteConfigNav') }}</router-link>
       </div>
       <h1>{{ isNew ? $t('quote.newProject') : $t('quote.editTitle') }}</h1>
@@ -2679,16 +2677,14 @@ export default {
   font-size: var(--font-size-md);
   user-select: none;
 }
-.head-link-inline,
-.back-link {
+.head-link-inline {
   font-size: var(--font-size-md);
   color: var(--text-link);
   text-decoration: none;
   font-weight: var(--font-weight-medium);
   transition: var(--transition-fast);
 }
-.head-link-inline:hover,
-.back-link:hover {
+.head-link-inline:hover {
   text-decoration: underline;
   color: var(--text-link-hover);
 }
