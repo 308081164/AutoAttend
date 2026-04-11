@@ -336,216 +336,370 @@ export default {
 </script>
 
 <style scoped>
+/* ============================================================
+   ClientBoardView - Public-facing client board page styles
+   Uses design tokens from theme.css
+   ============================================================ */
+
+/* --- Root container --- */
 .cb-root {
   min-height: 100vh;
-  background: linear-gradient(180deg, #f0f6ff 0%, #f7f8fa 32%, #f7f8fa 100%);
-  color: #1d2129;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(180deg, var(--brand-blue-light) 0%, var(--bg-page) 32%, var(--bg-page) 100%);
+  color: var(--text-primary);
+  font-family: var(--font-family);
 }
 
+/* --- Loading / Error states --- */
 .cb-state {
-  padding: 48px 24px;
+  padding: var(--space-xxxl) var(--space-xl);
   text-align: center;
-  font-size: 15px;
-  color: #646a73;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
 }
-.cb-err { color: #d0302f; }
 
-.cb-hero {
-  padding: 28px 20px 20px;
-  border-bottom: 1px solid rgba(29, 33, 41, 0.08);
-  background: #fff;
+.cb-err {
+  color: var(--danger);
 }
+
+/* --- Hero header --- */
+.cb-hero {
+  padding: var(--space-xxl) var(--space-xl) var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-card);
+}
+
 .cb-hero-inner {
   max-width: 1120px;
   margin: 0 auto;
 }
+
 .cb-kicker {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #86909c;
-}
-.cb-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.02em;
-}
-.cb-repo {
-  margin: 10px 0 0;
-  font-size: 13px;
-  color: #646a73;
-  font-family: ui-monospace, monospace;
+  color: var(--text-tertiary);
 }
 
+.cb-title {
+  margin: 0;
+  font-size: var(--font-size-xxl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.cb-repo {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* --- Main content area --- */
 .cb-main {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 20px 16px 48px;
+  padding: var(--space-xl) var(--space-lg) var(--space-xxxl);
 }
 
+/* --- Card component --- */
 .cb-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(29, 33, 41, 0.06), 0 4px 16px rgba(51, 112, 255, 0.06);
-  padding: 20px 18px;
-  margin-bottom: 16px;
-  border: 1px solid rgba(29, 33, 41, 0.06);
-}
-.cb-h2 {
-  margin: 0 0 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1d2129;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm), 0 4px 16px rgba(20, 86, 240, 0.06);
+  padding: var(--space-xl) var(--space-lg);
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--border-primary);
+  transition: var(--transition-normal);
 }
 
+.cb-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* --- Section heading --- */
+.cb-h2 {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--line-height-normal);
+}
+
+/* --- Chart grid layout --- */
 .cb-chart-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: var(--space-lg);
 }
+
 @media (min-width: 900px) {
   .cb-chart-grid {
     grid-template-columns: 1fr 1fr;
   }
+
   .cb-chart-wide {
     grid-column: span 2;
   }
 }
 
+/* --- Chart box --- */
 .cb-chart-box {
   min-height: 220px;
   position: relative;
 }
+
 .cb-chart-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #646a73;
-  margin-bottom: 8px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
 }
+
+/* --- Word cloud --- */
 .cb-wc {
   min-height: 160px;
 }
+
 .cb-wc-body {
-  line-height: 1.65;
+  line-height: var(--line-height-relaxed);
   word-break: break-all;
 }
+
 .cb-wc-token {
   display: inline-block;
   margin: 2px 6px 2px 0;
+  transition: var(--transition-fast);
 }
 
+.cb-wc-token:hover {
+  opacity: 0.75;
+}
+
+/* --- Muted text --- */
 .cb-muted {
-  color: #86909c;
-  font-size: 13px;
-}
-.cb-muted-box {
-  font-size: 14px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
+.cb-muted-box {
+  font-size: var(--font-size-base);
+}
+
+/* --- Feature table --- */
 .cb-table-wrap {
   overflow-x: auto;
 }
+
 .cb-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
+
 .cb-table th,
 .cb-table td {
-  border-bottom: 1px solid #eceff3;
-  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-primary);
+  padding: var(--space-sm) var(--space-sm);
   text-align: left;
 }
+
 .cb-table th {
-  color: #646a73;
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
+
+.cb-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+/* --- Progress pill badge --- */
 .cb-pill {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #f2f3f5;
-  font-size: 12px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* --- AI section --- */
+.cb-ai {
+  border-left: 3px solid var(--brand-purple);
 }
 
 .cb-ai-hint {
-  font-size: 12px;
-  color: #86909c;
-  margin: 0 0 10px;
-}
-.cb-textarea {
-  width: 100%;
-  border: 1px solid #e5e6eb;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
-  resize: vertical;
-  box-sizing: border-box;
-}
-.cb-ai-actions {
-  margin-top: 10px;
-}
-.cb-drafts {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f2f3f5;
-}
-.cb-draft {
-  margin-bottom: 12px;
-  padding: 10px;
-  background: #fafbfc;
-  border-radius: 8px;
-}
-.cb-draft-desc {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: #4e5969;
-  white-space: pre-wrap;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin: 0 0 var(--space-sm);
 }
 
+.cb-textarea {
+  width: 100%;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  color: var(--text-primary);
+  background: var(--bg-input);
+  resize: vertical;
+  box-sizing: border-box;
+  transition: var(--transition-fast);
+  outline: none;
+}
+
+.cb-textarea:hover {
+  border-color: var(--border-input-hover);
+}
+
+.cb-textarea:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 2px rgba(20, 86, 240, 0.15);
+}
+
+.cb-ai-actions {
+  margin-top: var(--space-sm);
+}
+
+/* --- AI drafts --- */
+.cb-drafts {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-primary);
+}
+
+.cb-draft {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-page);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  transition: var(--transition-fast);
+}
+
+.cb-draft:hover {
+  border-color: var(--brand-blue);
+  box-shadow: var(--shadow-sm);
+}
+
+.cb-draft strong {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.cb-draft-desc {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  line-height: var(--line-height-relaxed);
+}
+
+/* --- Buttons --- */
 .cb-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  padding: 0 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   border: none;
-}
-.cb-btn-primary {
-  background: #3370ff;
-  color: #fff;
-}
-.cb-btn-primary:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.cb-btn-ghost {
-  background: #f2f3f5;
-  color: #646a73;
+  transition: var(--transition-fast);
+  outline: none;
+  line-height: 1;
 }
 
+.cb-btn:focus-visible {
+  box-shadow: 0 0 0 2px rgba(20, 86, 240, 0.25);
+}
+
+.cb-btn-primary {
+  background: var(--brand-blue);
+  color: #fff;
+  box-shadow: var(--shadow-btn);
+}
+
+.cb-btn-primary:hover {
+  background: var(--brand-blue-hover);
+}
+
+.cb-btn-primary:active {
+  background: var(--brand-blue-active);
+}
+
+.cb-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.cb-btn-ghost {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.cb-btn-ghost:hover {
+  background: var(--border-primary);
+  color: var(--text-primary);
+}
+
+.cb-btn-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* --- APK section --- */
 .cb-apk {
   opacity: 0.95;
 }
 
+/* --- Footer --- */
 .cb-foot {
   text-align: center;
-  padding: 16px;
-  font-size: 12px;
-  color: #c9cdd4;
+  padding: var(--space-lg);
+  font-size: var(--font-size-xs);
+  color: var(--text-disabled);
+  border-top: 1px solid var(--border-primary);
+  margin-top: var(--space-xl);
 }
 
+/* --- Responsive: small screens --- */
 @media (max-width: 600px) {
-  .cb-title { font-size: 18px; }
-  .cb-main { padding: 14px 12px 36px; }
-  .cb-card { padding: 16px 14px; }
+  .cb-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .cb-main {
+    padding: var(--space-md) var(--space-sm) var(--space-xxl);
+  }
+
+  .cb-card {
+    padding: var(--space-lg) var(--space-md);
+  }
+
+  .cb-hero {
+    padding: var(--space-lg) var(--space-md) var(--space-md);
+  }
+
+  .cb-ai-actions {
+    display: flex;
+  }
+
+  .cb-ai-actions .cb-btn {
+    width: 100%;
+  }
 }
 </style>

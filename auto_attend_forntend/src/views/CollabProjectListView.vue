@@ -78,41 +78,50 @@ export default {
 .collab-page {
   max-width: 640px;
   margin: 0 auto;
+  padding: var(--space-xl);
+  background: var(--bg-page);
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-sm);
 }
 
 .page-header h1 {
   margin: 0;
   font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 .user-info {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .page-desc {
-  margin: 0 0 16px;
+  margin: 0 0 var(--space-lg);
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .placeholder {
-  padding: 24px;
+  padding: var(--space-xxl);
   text-align: center;
-  color: #6b7280;
+  color: var(--text-tertiary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
 }
 
 .project-list {
@@ -122,51 +131,67 @@ export default {
 }
 
 .project-item {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-sm);
 }
 
 .project-link {
   display: block;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
   text-decoration: none;
   color: inherit;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
 }
 
 .project-link:hover {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--brand-blue);
+  background: #F0F5FF;
+  box-shadow: var(--shadow-md);
 }
 
 .project-name {
   font-weight: 600;
   display: block;
+  color: var(--text-primary);
 }
 
-.project-desc, .project-repo {
+.project-desc,
+.project-repo {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-tertiary);
   display: block;
   margin-top: 4px;
 }
 
 .back-link {
-  margin-top: 24px;
+  margin-top: var(--space-xxl);
   font-size: 13px;
 }
 
 .back-link a {
-  color: #2563eb;
+  color: var(--brand-blue);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.back-link a:hover {
+  opacity: 0.75;
 }
 
 .link-button {
   border: none;
   background: transparent;
-  color: #2563eb;
+  color: var(--brand-blue);
   cursor: pointer;
   font-size: 13px;
-  padding: 4px 8px;
+  padding: 4px var(--space-sm);
+  transition: opacity 0.2s;
+}
+
+.link-button:hover {
+  opacity: 0.75;
 }
 </style>
