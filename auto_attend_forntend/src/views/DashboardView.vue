@@ -1,5 +1,5 @@
 <template>
-  <div class="console-shell">
+  <div class="console-shell" :class="{ 'dashboard-embedded-compact': embeddedCompact }">
     <div class="console-inner">
       <div class="dashboard">
         <section v-if="!collabDataBoardOnly" class="identity-card console-elevated">
@@ -467,30 +467,32 @@
           </section>
         </div>
 
-        <p class="console-board-hint">{{ $t('dashboard.consoleDataBoardHint') }}</p>
-        <h2 class="console-board-title">{{ $t('dashboard.consoleDataBoardTitle') }}</h2>
+        <template v-if="!suppressBoardHeader">
+          <p class="console-board-hint">{{ $t('dashboard.consoleDataBoardHint') }}</p>
+          <h2 class="console-board-title">{{ $t('dashboard.consoleDataBoardTitle') }}</h2>
+        </template>
 
         <!-- 顶部：选中项目时展示项目基本信息，否则展示资源总览 -->
     <section class="section overview-section">
       <h2 class="section-title">{{ selectedRepo ? $t('dashboard.projectInfoTitle') : $t('dashboard.overviewTitle') }}</h2>
       <!-- 已选项目：项目名称、简介、开发者、技术栈 -->
-      <div v-if="selectedRepo" class="project-info-cards">
+      <div v-if="selectedRepo" class="project-info-cards" :class="{ 'project-info-cards-compact': embeddedCompact }">
         <div v-if="repoInfoLoading" class="placeholder">{{ $t('collab.loading') }}</div>
         <template v-else>
-          <div class="project-info-row">
+          <div class="project-info-row" :class="{ 'project-info-top': embeddedCompact }">
             <span class="project-info-label">{{ $t('dashboard.projectName') }}：</span>
             <a v-if="repoInfo.htmlUrl" :href="repoInfo.htmlUrl" target="_blank" rel="noopener noreferrer" class="project-info-name">{{ repoInfo.name || repoInfo.fullName || selectedRepo }}</a>
             <span v-else class="project-info-name">{{ repoInfo.name || repoInfo.fullName || selectedRepo }}</span>
           </div>
-          <div v-if="repoInfo.description" class="project-info-row">
+          <div v-if="repoInfo.description" class="project-info-row" :class="{ 'project-info-desc': embeddedCompact }">
             <span class="project-info-label">{{ $t('dashboard.about') }}：</span>
             <span class="project-info-desc">{{ repoInfo.description }}</span>
           </div>
-          <div class="project-info-row">
+          <div class="project-info-row" :class="{ 'project-info-dev': embeddedCompact }">
             <span class="project-info-label">{{ $t('dashboard.projectDevelopers') }}：</span>
             <span class="project-info-developers">{{ developerListText }}</span>
           </div>
-          <div v-if="languageList.length" class="project-info-row">
+          <div v-if="languageList.length" class="project-info-row" :class="{ 'project-info-lang': embeddedCompact }">
             <span class="project-info-label">{{ $t('dashboard.techStack') }}：</span>
             <span class="project-info-languages">{{ languageList.join('、') }}</span>
           </div>
@@ -813,6 +815,16 @@ export default {
      * 多维表「开发与数据看板」嵌入：仅展示下方与当前仓库相关的数据区，隐藏企业信息卡片与运营 hub 卡片（报价/API/团队等）。
      */
     collabDataBoardOnly: {
+      type: Boolean,
+      default: false
+    },
+    /** 嵌入协作「开发与数据看板」时收紧间距与版式 */
+    embeddedCompact: {
+      type: Boolean,
+      default: false
+    },
+    /** 隐藏「数据看板」大标题与说明（由外层区块标题承接） */
+    suppressBoardHeader: {
       type: Boolean,
       default: false
     }
@@ -2179,6 +2191,118 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
+}
+
+/* 嵌入协作「开发与数据看板」：飞书式紧凑数据区 */
+.console-shell.dashboard-embedded-compact {
+  padding: 0;
+  background: transparent;
+  min-height: 0;
+}
+
+.dashboard-embedded-compact .console-inner {
+  max-width: none;
+  margin: 0;
+}
+
+.dashboard-embedded-compact .dashboard {
+  gap: var(--space-md);
+}
+
+.dashboard-embedded-compact .section {
+  padding: var(--space-md) var(--space-lg);
+  border-radius: 8px;
+  box-shadow: none;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-card);
+}
+
+.dashboard-embedded-compact .section-header {
+  margin-bottom: var(--space-xs);
+}
+
+.dashboard-embedded-compact .section-header .section-title {
+  margin-bottom: 0;
+}
+
+.dashboard-embedded-compact .overview-section .section-title {
+  margin-bottom: var(--space-sm);
+}
+
+.dashboard-embedded-compact .section-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-sm);
+  padding-left: var(--space-sm);
+}
+
+.dashboard-embedded-compact .section-title::before {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.dashboard-embedded-compact .charts-row {
+  gap: var(--space-md);
+}
+
+.dashboard-embedded-compact .chart-merge-head {
+  padding-bottom: var(--space-sm);
+  margin-bottom: 0;
+}
+
+.dashboard-embedded-compact .chart-tab-strip button {
+  padding: 6px 14px;
+  font-size: var(--font-size-sm);
+  border-radius: 6px;
+}
+
+.dashboard-embedded-compact .chart-wrap {
+  height: 200px;
+}
+
+.dashboard-embedded-compact .chart-wrap-bar {
+  height: 280px;
+}
+
+.dashboard-embedded-compact .author-rank-toolbar {
+  margin-bottom: var(--space-sm);
+}
+
+.project-info-cards.project-info-cards-compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-sm) var(--space-lg);
+  align-items: start;
+}
+
+.project-info-cards.project-info-cards-compact .project-info-top,
+.project-info-cards.project-info-cards-compact .project-info-desc {
+  grid-column: 1 / -1;
+}
+
+.project-info-cards.project-info-cards-compact .project-info-dev {
+  grid-column: 1;
+}
+
+.project-info-cards.project-info-cards-compact .project-info-lang {
+  grid-column: 2;
+}
+
+.project-info-cards.project-info-cards-compact .project-info-label {
+  min-width: 72px;
+  font-size: var(--font-size-sm);
+}
+
+.project-info-cards.project-info-cards-compact .project-info-row {
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 720px) {
+  .project-info-cards.project-info-cards-compact .project-info-dev,
+  .project-info-cards.project-info-cards-compact .project-info-lang {
+    grid-column: 1 / -1;
+  }
 }
 
 /* --- Elevated Card Base --- */

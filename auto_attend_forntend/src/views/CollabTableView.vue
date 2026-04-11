@@ -93,25 +93,35 @@
     </div>
 
     <div v-if="showHomeDashboard" class="collab-home-dashboard">
-      <div class="portal-bar">
-        <div class="portal-items">
-          <a
-            v-for="it in portalLinks"
-            :key="it.id"
-            class="portal-link"
-            :href="it.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            :title="it.url"
-          >
-            <span class="portal-link-icon" aria-hidden="true">🔗</span>
-            <span class="portal-link-label">{{ it.label }}</span>
-          </a>
-          <span v-if="!portalLinks.length" class="text-muted small">暂无传送门链接</span>
-        </div>
-        <button type="button" class="secondary-button small" @click="openPortalModal">配置传送门</button>
-      </div>
-      <div class="mail-notify-panel">
+      <div class="collab-home-stack">
+        <section class="home-surface home-portal-surface" aria-label="portal">
+          <div class="home-surface-toolbar">
+            <span class="home-surface-kicker">{{ $t('collabTable.homeBoardPortalKicker') }}</span>
+            <button type="button" class="secondary-button small home-surface-action" @click="openPortalModal">{{ $t('collabTable.configurePortal') }}</button>
+          </div>
+          <div class="portal-items">
+            <a
+              v-for="it in portalLinks"
+              :key="it.id"
+              class="portal-link"
+              :href="it.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              :title="it.url"
+            >
+              <span class="portal-link-icon" aria-hidden="true">↗</span>
+              <span class="portal-link-label">{{ it.label }}</span>
+            </a>
+            <span v-if="!portalLinks.length" class="home-portal-empty">{{ $t('collabTable.homeBoardPortalEmpty') }}</span>
+          </div>
+        </section>
+
+        <section class="home-surface home-settings-surface" aria-label="settings">
+          <div class="home-settings-bar">
+            <h3 class="home-settings-heading">{{ $t('collabTable.homeBoardSettings') }}</h3>
+          </div>
+          <div class="home-settings-grid">
+      <article class="home-setting-card mail-notify-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">邮件通知</div>
           <button type="button" class="secondary-button small" @click="toggleMailNotifyOpen">
@@ -161,8 +171,8 @@
             </div>
           </template>
         </div>
-      </div>
-      <div class="mail-notify-panel">
+      </article>
+      <article class="home-setting-card mail-notify-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">提交联动任务状态更新（AI）</div>
           <button type="button" class="secondary-button small" @click="toggleAiLinkageOpen">
@@ -205,8 +215,8 @@
             </div>
           </template>
         </div>
-      </div>
-      <div class="mail-notify-panel client-board-panel">
+      </article>
+      <article class="home-setting-card mail-notify-panel client-board-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">客户项目阅览看板</div>
           <button type="button" class="secondary-button small" @click="toggleClientBoardOpen">
@@ -288,12 +298,26 @@
             </div>
           </template>
         </div>
+      </article>
+          </div>
+        </section>
+
+        <section class="home-surface home-data-surface" aria-label="data">
+          <div class="home-data-bar">
+            <h3 class="home-data-heading">{{ $t('dashboard.consoleDataBoardTitle') }}</h3>
+            <p class="home-data-sub">{{ $t('dashboard.consoleDataBoardHint') }}</p>
+          </div>
+          <div class="home-data-embed">
+            <DashboardView
+              :fixedRepoFullName="projectRepoId"
+              :collab-data-board-only="true"
+              :embedded-compact="true"
+              :suppress-board-header="true"
+              :key="'home-board-' + projectId + '-' + projectRepoId"
+            />
+          </div>
+        </section>
       </div>
-      <DashboardView
-        :fixedRepoFullName="projectRepoId"
-        :collab-data-board-only="true"
-        :key="'home-board-' + projectId + '-' + projectRepoId"
-      />
     </div>
     <div v-else-if="tableLoading" class="placeholder">{{ $t('collabTable.loadingTable') }}</div>
     <div v-else-if="showDashboard" class="dashboard-wrapper">
@@ -4700,22 +4724,48 @@ export default {
   line-height: 1.4;
 }
 
-/* ===================== Home Dashboard ===================== */
+/* ===================== Home Dashboard（开发与数据看板 · 飞书式密度） ===================== */
 
 .collab-home-dashboard {
   width: 100%;
   min-width: 0;
 }
 
-.portal-bar {
+.collab-home-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.home-surface {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: var(--space-md) var(--space-lg);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.home-surface-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px var(--space-md);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.home-surface-kicker {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.home-portal-empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
 }
 
 .portal-items {
@@ -4730,31 +4780,108 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  border-radius: var(--radius-full);
+  padding: 6px 12px;
+  border-radius: 6px;
   border: 1px solid var(--border-primary);
   background: var(--bg-page);
   color: var(--text-primary);
   text-decoration: none;
-  max-width: 260px;
+  max-width: 280px;
+  font-size: var(--font-size-sm);
   transition: var(--transition-fast);
 }
 
 .portal-link:hover {
-  border-color: var(--brand-blue-light);
-  background: var(--info-bg);
+  border-color: rgba(20, 86, 240, 0.35);
+  background: rgba(20, 86, 240, 0.06);
   color: var(--brand-blue);
 }
 
 .portal-link-icon {
   flex-shrink: 0;
-  font-size: var(--font-size-base);
+  font-size: 12px;
+  opacity: 0.7;
 }
 
 .portal-link-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.home-settings-bar {
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.home-settings-heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.home-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+  align-items: stretch;
+}
+
+@media (max-width: 1099px) {
+  .home-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .home-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-setting-card.mail-notify-panel {
+  margin: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  padding: var(--space-md);
+  background: var(--bg-page);
+  border: 1px solid var(--border-primary);
+  box-shadow: none;
+}
+
+.home-data-bar {
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.home-data-heading {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.home-data-sub {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+.home-data-embed {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-page);
+  padding: var(--space-sm) var(--space-md) var(--space-md);
 }
 
 /* ===================== Mail Notify / Config Panels ===================== */
