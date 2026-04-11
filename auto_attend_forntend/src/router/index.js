@@ -18,6 +18,7 @@ import QuoteConfigView from '../views/QuoteConfigView.vue'
 import PrototypeListView from '../views/PrototypeListView.vue'
 import PrototypeProjectView from '../views/PrototypeProjectView.vue'
 import NexusConsoleView from '../views/NexusConsoleView.vue'
+import LabView from '../views/LabView.vue'
 import ClientBoardView from '../views/ClientBoardView.vue'
 
 Vue.use(VueRouter)
@@ -123,6 +124,11 @@ const routes = [
     path: '/nexus',
     name: 'nexus-console',
     component: NexusConsoleView
+  },
+  {
+    path: '/lab',
+    name: 'lab',
+    component: LabView
   },
   {
     path: '/client-board/:token',

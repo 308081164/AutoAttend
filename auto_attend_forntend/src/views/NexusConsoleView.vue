@@ -1,174 +1,234 @@
 <template>
-  <div class="nexus-console-page">
-    <div class="page-head">
-      <h1>快捷运维（Nexus）</h1>
-      <div class="head-actions">
-        <router-link :to="{ name: 'dashboard' }" class="secondary-button">返回首页</router-link>
-      </div>
-    </div>
-
-    <section class="block">
-      <h2 class="block-title">云账号接入（阿里云）</h2>
-
-      <div v-if="accountsLoading" class="placeholder">加载中...</div>
-      <div v-else>
-        <div v-if="accounts.length" class="select-row">
-          <label class="select-label">已配置账号：</label>
-          <select v-model="selectedAccountId" @change="onAccountChange" class="select">
+  <div class="nexus-page">
+    <!-- ===== Top Bar: Account Selector + Actions ===== -->
+    <div class="nexus-topbar">
+      <div class="nexus-topbar-left">
+        <h1 class="nexus-title">快捷运维</h1>
+        <div class="nexus-account-selector">
+          <select v-model="selectedAccountId" @change="onAccountChange" class="nx-select" v-if="accounts.length">
             <option v-for="a in accounts" :key="a.id" :value="a.id">
               {{ a.displayName }}（{{ a.regionId }}）
             </option>
           </select>
+          <span v-else class="nx-no-account">暂无云账号</span>
         </div>
-        <div v-else class="placeholder">暂无账号。请先添加一个阿里云 AccessKey。</div>
       </div>
+      <div class="nexus-topbar-right">
+        <button class="nx-btn nx-btn--primary" @click="showAddAccount = !showAddAccount" v-if="!showAddAccount">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+          添加账号
+        </button>
+        <button class="nx-btn nx-btn--secondary" @click="manualSync" :disabled="syncing || !selectedAccountId" v-if="selectedAccountId">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+          {{ syncing ? '同步中...' : '同步' }}
+        </button>
+      </div>
+    </div>
 
-      <div class="form-card">
-        <div class="form-title">添加阿里云账号</div>
-        <form class="form" @submit.prevent="createAccount">
-          <div class="form-row">
+    <!-- ===== Add Account Panel (collapsible) ===== -->
+    <div class="nx-panel nx-panel--add" v-if="showAddAccount">
+      <div class="nx-panel-header">
+        <h3 class="nx-panel-title">添加阿里云账号</h3>
+        <button class="nx-icon-btn" @click="showAddAccount = false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form class="nx-form" @submit.prevent="createAccount">
+        <div class="nx-form-grid">
+          <div class="nx-form-item">
             <label>展示名称</label>
-            <input v-model="form.displayName" placeholder="例如：本公司生产环境" required />
+            <input v-model="form.displayName" placeholder="例如：生产环境" required />
           </div>
-
-          <div class="form-row">
-            <label>地域（regionId）</label>
+          <div class="nx-form-item">
+            <label>地域 (regionId)</label>
             <input v-model="form.regionId" placeholder="例如：cn-hangzhou" required />
           </div>
-
-          <div class="form-row">
+          <div class="nx-form-item">
             <label>AccessKeyId</label>
             <input v-model="form.accessKeyId" placeholder="输入 AccessKeyId" required />
           </div>
-
-          <div class="form-row">
+          <div class="nx-form-item">
             <label>AccessKeySecret</label>
             <input v-model="form.accessKeySecret" type="password" placeholder="输入 AccessKeySecret" required />
           </div>
-
-          <div class="form-row">
-            <label>自动巡检间隔（秒，选填）</label>
-            <input v-model="form.autoSyncIntervalSeconds" type="number" min="10" placeholder="例如：60（留空则用全局默认）" />
+          <div class="nx-form-item">
+            <label>自动巡检间隔（秒）</label>
+            <input v-model="form.autoSyncIntervalSeconds" type="number" min="10" placeholder="默认 60" />
           </div>
-
-          <button class="primary-button" type="submit" :disabled="creatingAccount">
+        </div>
+        <div class="nx-form-actions">
+          <button type="button" class="nx-btn nx-btn--ghost" @click="showAddAccount = false">取消</button>
+          <button type="submit" class="nx-btn nx-btn--primary" :disabled="creatingAccount">
             {{ creatingAccount ? '保存中...' : '保存账号' }}
           </button>
-        </form>
-      </div>
-    </section>
-
-    <section class="block" v-if="selectedAccountId != null">
-      <div class="block-head">
-        <h2 class="block-title">实例列表</h2>
-        <div class="block-actions">
-          <button class="secondary-button" :disabled="syncing" @click="manualSync">同步元数据 + CPU 指标</button>
         </div>
-      </div>
+      </form>
+    </div>
 
-      <div v-if="instancesLoading" class="placeholder">加载中...</div>
-      <div v-else>
-        <div v-if="!instances.length" class="placeholder">暂无实例数据。</div>
-        <table v-else class="data-table">
-          <thead>
-            <tr>
-              <th>实例 ID</th>
-              <th>名称</th>
-              <th>状态</th>
-              <th>规格</th>
-              <th>公网 IP</th>
-              <th>内网 IP</th>
-              <th>内存(MB)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="ins in instances"
-              :key="ins.instanceId"
-              :class="{ active: ins.instanceId === selectedInstanceId }"
-              @click="selectInstance(ins.instanceId)"
-            >
-              <td>{{ ins.instanceId }}</td>
-              <td>{{ ins.instanceName || '-' }}</td>
-              <td>{{ ins.status || '-' }}</td>
-              <td>{{ ins.instanceType || '-' }}</td>
-              <td>{{ ins.publicIp || '-' }}</td>
-              <td>{{ ins.privateIp || '-' }}</td>
-              <td>{{ ins.memoryMb ?? '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- ===== No Account Empty State ===== -->
+    <div class="nx-empty-state" v-if="!accountsLoading && !accounts.length && !showAddAccount">
+      <div class="nx-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </div>
-    </section>
+      <h3 class="nx-empty-title">还没有接入云账号</h3>
+      <p class="nx-empty-desc">添加阿里云 AccessKey 后，即可查看和管理 ECS 实例。</p>
+      <button class="nx-btn nx-btn--primary" @click="showAddAccount = true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+        添加第一个账号
+      </button>
+    </div>
 
-    <section class="block metrics-block" v-if="selectedAccountId != null && selectedInstanceId != null">
-      <div class="block-head">
-        <h2 class="block-title">监控指标（最近 {{ metricLimit }} 点）</h2>
-        <div class="block-actions">
-          <div class="metric-tabs">
-            <button
-              class="tab-button"
-              :class="{ active: metricType === 'cpu' }"
-              :disabled="metricsLoading"
-              @click="metricType = 'cpu'; loadMetricChart()"
-            >CPU 利用率</button>
-            <button
-              class="tab-button"
-              :class="{ active: metricType === 'memory' }"
-              :disabled="metricsLoading"
-              @click="metricType = 'memory'; loadMetricChart()"
-            >内存利用率</button>
+    <!-- ===== Main Content: Master-Detail ===== -->
+    <div class="nexus-master-detail" v-if="accounts.length">
+      <!-- Left: Instance List -->
+      <div class="nexus-master">
+        <div class="nexus-master-header">
+          <span class="nexus-master-title">实例列表</span>
+          <span class="nexus-master-count" v-if="instances.length">{{ instances.length }} 台</span>
+        </div>
+        <div class="nexus-master-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="nx-search-icon"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input v-model="instanceSearch" placeholder="搜索实例 ID 或名称..." class="nx-search-input" />
+        </div>
+        <div class="nexus-master-list" v-if="!instancesLoading && filteredInstances.length">
+          <div
+            v-for="ins in filteredInstances"
+            :key="ins.instanceId"
+            class="nexus-instance-card"
+            :class="{ 'is-active': ins.instanceId === selectedInstanceId }"
+            @click="selectInstance(ins.instanceId)"
+          >
+            <div class="nx-inst-header">
+              <span class="nx-inst-name">{{ ins.instanceName || ins.instanceId }}</span>
+              <span class="nx-inst-status" :class="'nx-inst-status--' + (ins.status || 'unknown')">
+                {{ statusLabel(ins.status) }}
+              </span>
+            </div>
+            <div class="nx-inst-meta">
+              <span class="nx-inst-id">{{ ins.instanceId }}</span>
+              <span class="nx-inst-type" v-if="ins.instanceType">{{ ins.instanceType }}</span>
+            </div>
+            <div class="nx-inst-ips">
+              <span class="nx-inst-ip" v-if="ins.publicIp" :title="'公网: ' + ins.publicIp">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
+                {{ ins.publicIp }}
+              </span>
+              <span class="nx-inst-ip nx-inst-ip--private" v-if="ins.privateIp" :title="'内网: ' + ins.privateIp">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+                {{ ins.privateIp }}
+              </span>
+            </div>
           </div>
-          <button class="secondary-button" @click="loadMetricChart" :disabled="metricsLoading">刷新图表</button>
         </div>
-      </div>
-      <div v-if="metricsLoading" class="placeholder">加载中...</div>
-      <div v-else class="chart-wrap">
-        <canvas ref="cpuChart"></canvas>
-      </div>
-    </section>
-
-    <section class="block ssh-block" v-if="selectedAccountId != null && selectedInstanceId != null">
-      <div class="block-head">
-        <h2 class="block-title">本地 SSH 快捷入口（复制 / 唤起）</h2>
-        <div class="block-actions">
-          <button class="secondary-button" @click="copySshCommand" :disabled="sshCopying || !sshHost">
-            {{ sshCopying ? '复制中...' : '复制 SSH 命令' }}
-          </button>
-          <button class="secondary-button" @click="openSshUri" :disabled="sshOpening || !sshHost">
-            {{ sshOpening ? '唤起中...' : '唤起（ssh://）' }}
-          </button>
+        <div class="nexus-master-empty" v-else-if="!instancesLoading">
+          <p v-if="instanceSearch">没有匹配的实例</p>
+          <p v-else>暂无实例数据，点击「同步」获取</p>
+        </div>
+        <div class="nexus-master-loading" v-if="instancesLoading">
+          <div class="nx-spinner"></div>
+          <span>加载实例中...</span>
         </div>
       </div>
 
-      <div class="ssh-hint">
-        说明：平台不会保存或代管私钥。所谓“免密”取决于你本机是否已配置好 key-based 登录（`~/.ssh/config` 或本机 key）。
+      <!-- Right: Detail Panel -->
+      <div class="nexus-detail" v-if="selectedInstance">
+        <!-- Instance Info Bar -->
+        <div class="nx-detail-header">
+          <div class="nx-detail-info">
+            <h2 class="nx-detail-name">{{ selectedInstance.instanceName || selectedInstance.instanceId }}</h2>
+            <div class="nx-detail-tags">
+              <span class="nx-tag">{{ selectedInstance.instanceType || '-' }}</span>
+              <span class="nx-tag nx-tag--mem" v-if="selectedInstance.memoryMb">{{ selectedInstance.memoryMb }} MB</span>
+              <span class="nx-tag nx-tag--status" :class="'nx-tag--status-' + (selectedInstance.status || 'unknown')">{{ statusLabel(selectedInstance.status) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metrics Section -->
+        <div class="nx-section">
+          <div class="nx-section-header">
+            <h3 class="nx-section-title">监控指标</h3>
+            <div class="nx-section-actions">
+              <div class="nx-tabs">
+                <button
+                  class="nx-tab"
+                  :class="{ 'is-active': metricType === 'cpu' }"
+                  :disabled="metricsLoading"
+                  @click="metricType = 'cpu'; loadMetricChart()"
+                >CPU</button>
+                <button
+                  class="nx-tab"
+                  :class="{ 'is-active': metricType === 'memory' }"
+                  :disabled="metricsLoading"
+                  @click="metricType = 'memory'; loadMetricChart()"
+                >内存</button>
+              </div>
+              <button class="nx-btn nx-btn--ghost nx-btn--sm" @click="loadMetricChart" :disabled="metricsLoading">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+                刷新
+              </button>
+            </div>
+          </div>
+          <div class="nx-chart-area" v-if="!metricsLoading">
+            <canvas ref="cpuChart"></canvas>
+          </div>
+          <div class="nx-chart-loading" v-else>
+            <div class="nx-spinner"></div>
+          </div>
+        </div>
+
+        <!-- SSH Section -->
+        <div class="nx-section">
+          <div class="nx-section-header">
+            <h3 class="nx-section-title">SSH 快捷入口</h3>
+            <div class="nx-section-actions">
+              <button class="nx-btn nx-btn--secondary nx-btn--sm" @click="copySshCommand" :disabled="sshCopying || !sshHost">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                {{ sshCopying ? '复制中...' : '复制命令' }}
+              </button>
+              <button class="nx-btn nx-btn--secondary nx-btn--sm" @click="openSshUri" :disabled="sshOpening || !sshHost">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+                {{ sshOpening ? '唤起中...' : 'SSH 客户端' }}
+              </button>
+            </div>
+          </div>
+          <div class="nx-ssh-config">
+            <div class="nx-ssh-row">
+              <label>主机</label>
+              <span class="nx-ssh-value">{{ sshHost || '-' }}</span>
+            </div>
+            <div class="nx-ssh-row">
+              <label>用户</label>
+              <input v-model="sshUser" class="nx-ssh-input" />
+            </div>
+            <div class="nx-ssh-row">
+              <label>端口</label>
+              <input v-model.number="sshPort" type="number" min="1" class="nx-ssh-input nx-ssh-input--sm" />
+            </div>
+            <div class="nx-ssh-row">
+              <label>密钥路径</label>
+              <input v-model="sshKeyPath" placeholder="可选，默认使用本机 key" class="nx-ssh-input" />
+            </div>
+          </div>
+          <div class="nx-command-preview">
+            <div class="nx-command-label">命令预览</div>
+            <pre class="nx-command-code"><code>{{ sshCommand }}</code></pre>
+          </div>
+          <div class="nx-ssh-hint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            平台不保存私钥，依赖本机 key-based 登录。
+          </div>
+        </div>
       </div>
 
-      <div class="ssh-grid">
-        <div class="ssh-row">
-          <label>目标主机</label>
-          <div class="ssh-host">{{ sshHost || '-' }}</div>
+      <!-- No Instance Selected -->
+      <div class="nexus-detail-empty" v-else-if="!instancesLoading && accounts.length">
+        <div class="nx-detail-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         </div>
-        <div class="ssh-row">
-          <label>用户名</label>
-          <input v-model="sshUser" />
-        </div>
-        <div class="ssh-row">
-          <label>端口</label>
-          <input v-model.number="sshPort" type="number" min="1" />
-        </div>
-        <div class="ssh-row">
-          <label>本地私钥路径（可选）</label>
-          <input v-model="sshKeyPath" placeholder="/path/to/id_rsa（不填则依赖本机默认 key）" />
-        </div>
+        <p>从左侧选择一台实例查看详情</p>
       </div>
-
-      <div class="command-box">
-        <div class="command-label">生成命令预览</div>
-        <pre class="command-pre"><code>{{ sshCommand }}</code></pre>
-      </div>
-    </section>
+    </div>
   </div>
 </template>
 
@@ -180,6 +240,7 @@ export default {
   name: 'NexusConsoleView',
   data () {
     return {
+      showAddAccount: false,
       accountsLoading: false,
       accounts: [],
       selectedAccountId: null,
@@ -194,6 +255,7 @@ export default {
         autoSyncIntervalSeconds: null
       },
 
+      instanceSearch: '',
       instancesLoading: false,
       instances: [],
       selectedInstanceId: null,
@@ -218,6 +280,14 @@ export default {
       if (!this.instances || !this.selectedInstanceId) return null
       return this.instances.find(i => i.instanceId === this.selectedInstanceId) || null
     },
+    filteredInstances () {
+      if (!this.instanceSearch) return this.instances
+      const q = this.instanceSearch.toLowerCase()
+      return this.instances.filter(ins =>
+        (ins.instanceId && ins.instanceId.toLowerCase().includes(q)) ||
+        (ins.instanceName && ins.instanceName.toLowerCase().includes(q))
+      )
+    },
     sshHost () {
       if (!this.selectedInstance) return null
       return this.selectedInstance.publicIp || this.selectedInstance.privateIp || null
@@ -232,6 +302,10 @@ export default {
     }
   },
   methods: {
+    statusLabel (status) {
+      const map = { Running: '运行中', Stopped: '已停止', Starting: '启动中', Stopping: '停止中' }
+      return map[status] || status || '未知'
+    },
     async loadAccounts () {
       this.accountsLoading = true
       try {
@@ -266,8 +340,8 @@ export default {
         }
         const resp = await this.$http.post('/admin/nexus/accounts', payload)
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.id) {
-          // 清空敏感字段
           this.form.accessKeySecret = ''
+          this.showAddAccount = false
           await this.loadAccounts()
           this.selectedAccountId = resp.data.data.id
           await this.loadInstances()
@@ -304,7 +378,7 @@ export default {
         const resp = await this.$http.post(`/admin/nexus/accounts/${this.selectedAccountId}/sync`)
         if (resp.data && resp.data.code === 0) {
           await this.loadInstances()
-          await this.loadMetricChart()
+          if (this.selectedInstanceId) await this.loadMetricChart()
         } else {
           alert((resp.data && resp.data.message) || '同步失败')
         }
@@ -327,58 +401,53 @@ export default {
             ? `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/cpu-metrics`
             : `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/memory-metrics`
 
-        const resp = await this.$http.get(apiPath, {
-          params: { limit: this.metricLimit }
-        })
+        const resp = await this.$http.get(apiPath, { params: { limit: this.metricLimit } })
         if (resp.data && resp.data.code === 0) {
           const points = resp.data.data || []
           const labels = points.map(p => (p.ts ? p.ts.toString().slice(5, 16).replace('T', ' ') : ''))
           const values = points.map(p => Number(p.value || 0))
           const title = this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)'
-          this.renderCpuChart(labels, values, title)
+          this.renderChart(labels, values, title)
         } else {
-          this.renderCpuChart([], [], this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)')
+          this.renderChart([], [], this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)')
         }
       } catch (e) {
-        this.renderCpuChart([], [], this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)')
+        this.renderChart([], [], this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)')
       } finally {
         this.metricsLoading = false
       }
     },
-    renderCpuChart (labels, values, label) {
-      if (this.chart) {
-        this.chart.destroy()
-        this.chart = null
-      }
+    renderChart (labels, values, label) {
+      if (this.chart) { this.chart.destroy(); this.chart = null }
       if (!this.$refs.cpuChart) return
       const ctx = this.$refs.cpuChart
       this.chart = new ChartJS(ctx, {
         type: 'line',
         data: {
           labels,
-          datasets: [
-            {
-              label: label || 'CPU(%)',
-              data: values,
-              borderColor: '#2563eb',
-              backgroundColor: 'rgba(37, 99, 235, 0.1)',
-              pointRadius: 2,
-              tension: 0.3
-            }
-          ]
+          datasets: [{
+            label: label || 'CPU(%)',
+            data: values,
+            borderColor: '#1456F0',
+            backgroundColor: 'rgba(20, 86, 240, 0.08)',
+            pointRadius: 1.5,
+            pointHoverRadius: 4,
+            tension: 0.35,
+            borderWidth: 2,
+            fill: true
+          }]
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: {
-            legend: { display: true }
+            legend: { display: false }
           },
           scales: {
-            y: {
-              min: 0,
-              max: 100,
-              title: { display: true, text: 'Percent' }
-            }
-          }
+            y: { min: 0, max: 100, grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+            x: { grid: { display: false }, ticks: { font: { size: 11 }, maxRotation: 0, maxTicksLimit: 8 } }
+          },
+          interaction: { intersect: false, mode: 'index' }
         }
       })
     },
@@ -394,18 +463,9 @@ export default {
       try {
         await this.$http.post(
           `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/ssh/action`,
-          {
-            type,
-            sshUser: this.sshUser,
-            sshPort: this.sshPort,
-            keyPath: this.sshKeyPath || null,
-            host: this.sshHost,
-            command: this.sshCommand
-          }
+          { type, sshUser: this.sshUser, sshPort: this.sshPort, keyPath: this.sshKeyPath || null, host: this.sshHost, command: this.sshCommand }
         )
-      } catch (e) {
-        // 审计失败不阻断用户操作
-      }
+      } catch (e) { /* audit failure does not block user */ }
     },
     async copyToClipboard (text) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -425,9 +485,9 @@ export default {
         this.sshCopying = true
         await this.copyToClipboard(this.sshCommand)
         await this.auditSshAction('copy')
-        alert('已复制到剪贴板：SSH 命令')
+        alert('已复制到剪贴板')
       } catch (e) {
-        alert((e && e.message) ? e.message : '复制失败，请手动复制命令预览')
+        alert('复制失败，请手动复制命令预览')
       } finally {
         this.sshCopying = false
       }
@@ -440,7 +500,7 @@ export default {
         const uri = `ssh://${encodeURIComponent(this.sshUser || 'root')}@${this.sshHost}${this.sshPort ? ':' + this.sshPort : ''}`
         window.location.href = uri
       } catch (e) {
-        alert('唤起失败（可能浏览器不支持 ssh:// 协议处理器）。你仍可复制命令手动登录。')
+        alert('唤起失败，请复制命令手动登录。')
       } finally {
         this.sshOpening = false
       }
@@ -450,299 +510,484 @@ export default {
 </script>
 
 <style scoped>
-.nexus-console-page {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: var(--space-xl);
-  color: var(--text-primary);
-  background: var(--bg-page);
-  min-height: 100vh;
-  box-sizing: border-box;
-}
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-xl);
-}
-.page-head h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.secondary-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-sm) var(--space-lg);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border-radius: var(--radius-md);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  border: 1px solid var(--border-primary);
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-.secondary-button:hover {
-  border-color: var(--brand-blue);
-  color: var(--brand-blue);
-}
-.primary-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-sm) var(--space-lg);
-  background: var(--brand-blue);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: opacity 0.2s;
-  box-shadow: var(--shadow-sm);
-}
-.primary-button:hover {
-  opacity: 0.85;
-}
-.primary-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.block {
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: var(--space-xl);
-  margin-bottom: var(--space-xl);
-  box-shadow: var(--shadow-sm);
-}
-.block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  margin-bottom: var(--space-sm);
-}
-.block-title {
-  margin: 0 0 var(--space-sm);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.block-actions {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-}
-.placeholder {
-  padding: var(--space-xl);
-  color: var(--text-tertiary);
-  font-weight: 400;
-}
-.select-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-lg);
-}
-.select-label {
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-.select {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-primary);
-  background: var(--bg-card);
-  font-size: 14px;
-  min-width: 320px;
-  color: var(--text-primary);
-  transition: border-color 0.2s;
-}
-.select:focus {
-  border-color: var(--brand-blue);
-  outline: none;
-}
-
-.form-card {
-  border-top: 1px solid var(--border-primary);
-  padding-top: var(--space-lg);
-}
-.form-title {
-  font-weight: 600;
-  margin-bottom: var(--space-sm);
-  color: var(--text-primary);
-}
-.form .form-row {
+.nexus-page {
   display: flex;
   flex-direction: column;
-  margin-bottom: var(--space-sm);
-}
-.form .form-row label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  margin-bottom: 6px;
-}
-.form input {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-primary);
-  font-size: 14px;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-.form input:focus {
-  border-color: var(--brand-blue);
-  outline: none;
-}
-.data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 14px;
-}
-.data-table th,
-.data-table td {
-  border-bottom: 1px solid var(--border-primary);
-  padding: var(--space-sm) var(--space-md);
-  text-align: left;
-  color: var(--text-primary);
-}
-.data-table th {
-  background: var(--bg-page);
-  font-weight: 600;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-.data-table tr:last-child td {
-  border-bottom: none;
-}
-.data-table tr {
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.data-table tr:hover td {
-  background: var(--bg-page);
-}
-.data-table tr.active td {
-  background: #F0F5FF;
+  gap: 16px;
+  height: calc(100vh - 56px - 48px);
+  overflow: hidden;
 }
 
-.metrics-block .chart-wrap {
-  padding: var(--space-sm) 4px 0;
-}
-
-.metric-tabs {
+/* ===== Top Bar ===== */
+.nexus-topbar {
   display: flex;
-  gap: var(--space-sm);
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 16px;
+}
+.nexus-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.nexus-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary, #1F2329);
+  white-space: nowrap;
+}
+.nexus-account-selector {
+  display: flex;
   align-items: center;
 }
+.nexus-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-.tab-button {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-primary);
-  background: var(--bg-card);
-  cursor: pointer;
+/* ===== Buttons ===== */
+.nx-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  white-space: nowrap;
+}
+.nx-btn--primary {
+  background: var(--brand-blue, #1456F0);
+  color: #fff;
+}
+.nx-btn--primary:hover { opacity: 0.85; }
+.nx-btn--primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.nx-btn--secondary {
+  background: #fff;
+  color: var(--text-primary, #1F2329);
+  border: 1px solid var(--border-primary, #dee0e3);
+}
+.nx-btn--secondary:hover { border-color: var(--brand-blue, #1456F0); color: var(--brand-blue, #1456F0); }
+.nx-btn--secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+.nx-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary, #646A73);
+}
+.nx-btn--ghost:hover { background: var(--bg-hover, #f5f6f7); color: var(--text-primary, #1F2329); }
+.nx-btn--sm { padding: 4px 10px; font-size: 12px; }
+.nx-icon-btn {
+  width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary, #646A73); transition: background 0.2s;
+}
+.nx-icon-btn:hover { background: var(--bg-hover, #f5f6f7); }
+
+/* ===== Select ===== */
+.nx-select {
+  padding: 6px 32px 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary, #dee0e3);
+  background: #fff;
+  font-size: 13px;
+  color: var(--text-primary, #1F2329);
+  cursor: pointer;
+  appearance: auto;
+  max-width: 280px;
+}
+.nx-select:focus { border-color: var(--brand-blue, #1456F0); outline: none; }
+.nx-no-account { font-size: 13px; color: var(--text-disabled, #8F959E); }
+
+/* ===== Add Account Panel ===== */
+.nx-panel {
+  background: #fff;
+  border: 1px solid var(--border-primary, #dee0e3);
+  border-radius: 12px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.nx-panel--add { padding: 20px; }
+.nx-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.nx-panel-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #1F2329);
+}
+.nx-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px 20px;
+}
+.nx-form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nx-form-item label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #646A73);
+}
+.nx-form-item input {
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary, #dee0e3);
+  font-size: 13px;
+  color: var(--text-primary, #1F2329);
+  transition: border-color 0.2s;
+}
+.nx-form-item input:focus { border-color: var(--brand-blue, #1456F0); outline: none; }
+.nx-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ===== Empty State ===== */
+.nx-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+.nx-empty-icon {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: var(--bg-hover, #f5f6f7);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-disabled, #8F959E);
+}
+.nx-empty-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary, #1F2329); }
+.nx-empty-desc { margin: 0; font-size: 13px; color: var(--text-secondary, #646A73); }
+
+/* ===== Master-Detail Layout ===== */
+.nexus-master-detail {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ===== Master (Left) ===== */
+.nexus-master {
+  width: 340px;
+  min-width: 280px;
+  background: #fff;
+  border: 1px solid var(--border-primary, #dee0e3);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.nexus-master-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 0;
+  flex-shrink: 0;
+}
+.nexus-master-title { font-size: 14px; font-weight: 600; color: var(--text-primary, #1F2329); }
+.nexus-master-count { font-size: 12px; color: var(--text-disabled, #8F959E); }
+.nexus-master-search {
+  padding: 10px 12px;
+  flex-shrink: 0;
+  position: relative;
+}
+.nx-search-icon {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-disabled, #8F959E);
+  pointer-events: none;
+}
+.nx-search-input {
+  width: 100%;
+  padding: 6px 10px 6px 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary, #dee0e3);
+  font-size: 13px;
+  color: var(--text-primary, #1F2329);
+  background: var(--bg-page, #f0f2f5);
+  transition: border-color 0.2s;
+}
+.nx-search-input:focus { border-color: var(--brand-blue, #1456F0); outline: none; background: #fff; }
+.nexus-master-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.nexus-master-list::-webkit-scrollbar { width: 4px; }
+.nexus-master-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+/* ===== Instance Card ===== */
+.nexus-instance-card {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+.nexus-instance-card:hover { background: var(--bg-hover, #f5f6f7); }
+.nexus-instance-card.is-active {
+  background: #F0F5FF;
+  border-color: var(--brand-blue, #1456F0);
+}
+.nx-inst-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.nx-inst-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #1F2329);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nx-inst-status {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.nx-inst-status--Running { background: #ECFDF5; color: #059669; }
+.nx-inst-status--Stopped { background: #FEF2F2; color: #DC2626; }
+.nx-inst-status--Starting, .nx-inst-status--Stopping { background: #FFF7ED; color: #D97706; }
+.nx-inst-status--unknown { background: #f5f6f7; color: #8F959E; }
+.nx-inst-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.nx-inst-id { font-size: 11px; color: var(--text-disabled, #8F959E); font-family: monospace; }
+.nx-inst-type { font-size: 11px; color: var(--text-secondary, #646A73); }
+.nx-inst-ips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.nx-inst-ip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary, #646A73);
+  font-family: monospace;
+}
+.nx-inst-ip--private { color: var(--text-disabled, #8F959E); }
+
+.nexus-master-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-disabled, #8F959E);
+  font-size: 13px;
+}
+.nexus-master-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-disabled, #8F959E);
+  font-size: 13px;
+}
+
+/* ===== Detail (Right) ===== */
+.nexus-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  min-width: 0;
+}
+.nexus-detail::-webkit-scrollbar { width: 4px; }
+.nexus-detail::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+.nx-detail-header {
+  background: #fff;
+  border: 1px solid var(--border-primary, #dee0e3);
+  border-radius: 12px;
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+.nx-detail-name { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--text-primary, #1F2329); }
+.nx-detail-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.nx-tag {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-hover, #f5f6f7);
+  color: var(--text-secondary, #646A73);
+}
+.nx-tag--mem { background: #F0F5FF; color: var(--brand-blue, #1456F0); }
+.nx-tag--status-Running { background: #ECFDF5; color: #059669; }
+.nx-tag--status-Stopped { background: #FEF2F2; color: #DC2626; }
+
+/* ===== Section ===== */
+.nx-section {
+  background: #fff;
+  border: 1px solid var(--border-primary, #dee0e3);
+  border-radius: 12px;
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+.nx-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.nx-section-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary, #1F2329); }
+.nx-section-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ===== Tabs ===== */
+.nx-tabs {
+  display: flex;
+  background: var(--bg-page, #f0f2f5);
+  border-radius: 6px;
+  padding: 2px;
+}
+.nx-tab {
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #646A73);
+  cursor: pointer;
   transition: all 0.2s;
 }
+.nx-tab.is-active { background: #fff; color: var(--brand-blue, #1456F0); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+.nx-tab:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.tab-button.active {
-  background: #F0F5FF;
-  border-color: var(--brand-blue);
-  color: var(--brand-blue);
-}
-.tab-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* ===== Chart ===== */
+.nx-chart-area { height: 200px; position: relative; }
+.nx-chart-loading { height: 200px; display: flex; align-items: center; justify-content: center; }
 
-.ssh-block { margin-top: var(--space-xl); }
-.ssh-hint {
-  color: var(--text-tertiary);
-  font-size: 13px;
-  margin-bottom: var(--space-md);
-  font-weight: 400;
-  line-height: 1.6;
-}
-.ssh-grid {
+/* ===== SSH ===== */
+.nx-ssh-config {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-md) var(--space-lg);
-  margin-bottom: var(--space-md);
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
 }
-.ssh-row {
-  display: flex;
-  flex-direction: column;
-}
-.ssh-row label {
+.nx-ssh-row { display: flex; flex-direction: column; gap: 3px; }
+.nx-ssh-row label { font-size: 11px; font-weight: 500; color: var(--text-secondary, #646A73); }
+.nx-ssh-value {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--bg-page, #f0f2f5);
   font-size: 13px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  margin-bottom: 6px;
-}
-.ssh-row input {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-primary);
-  font-size: 14px;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-.ssh-row input:focus {
-  border-color: var(--brand-blue);
-  outline: none;
-}
-.ssh-host {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-primary);
-  background: var(--bg-page);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  min-height: 40px;
+  font-family: monospace;
+  color: var(--text-primary, #1F2329);
+  min-height: 32px;
   display: flex;
   align-items: center;
 }
-.command-box {
-  border: 1px dashed var(--border-primary);
-  border-radius: var(--radius-md);
-  padding: var(--space-md);
-  background: var(--bg-card);
-  margin-top: var(--space-md);
-}
-.command-label {
+.nx-ssh-input {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary, #dee0e3);
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-sm);
+  color: var(--text-primary, #1F2329);
+  transition: border-color 0.2s;
 }
-.command-pre {
+.nx-ssh-input:focus { border-color: var(--brand-blue, #1456F0); outline: none; }
+.nx-ssh-input--sm { max-width: 100px; }
+
+.nx-command-preview {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-primary, #dee0e3);
+}
+.nx-command-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #646A73);
+  padding: 6px 10px;
+  background: var(--bg-page, #f0f2f5);
+  border-bottom: 1px solid var(--border-primary, #dee0e3);
+}
+.nx-command-code {
   margin: 0;
-  padding: var(--space-md);
+  padding: 10px 12px;
   background: #1F2329;
   color: #E8E8E8;
-  border-radius: var(--radius-md);
-  overflow: auto;
   font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', ui-monospace, monospace;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
+  overflow-x: auto;
 }
-.command-pre code { white-space: pre; }
-</style>
+.nx-command-code code { white-space: pre; }
 
+.nx-ssh-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-disabled, #8F959E);
+  margin-top: 8px;
+}
+
+/* ===== Detail Empty ===== */
+.nexus-detail-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-disabled, #8F959E);
+  font-size: 14px;
+}
+.nx-detail-empty-icon {
+  color: var(--text-disabled, #8F959E);
+  opacity: 0.5;
+}
+
+/* ===== Spinner ===== */
+.nx-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid #e5e7eb;
+  border-top-color: var(--brand-blue, #1456F0);
+  border-radius: 50%;
+  animation: nx-spin 0.6s linear infinite;
+}
+@keyframes nx-spin { to { transform: rotate(360deg); } }
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .nexus-master-detail { flex-direction: column; overflow-y: auto; }
+  .nexus-master { width: 100%; min-width: 0; max-height: 300px; }
+  .nexus-detail { overflow-y: visible; }
+  .nexus-page { height: auto; overflow-y: auto; }
+}
+</style>
