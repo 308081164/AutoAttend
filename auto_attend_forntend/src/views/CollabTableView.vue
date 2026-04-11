@@ -367,7 +367,13 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, idx) in records" :key="row.id" @click="openRecord(row)">
+          <tr
+            v-for="(row, idx) in records"
+            :key="row.id"
+            class="data-table-row"
+            :class="{ 'status-picker-row-elevated': statusPickerRecordId != null && Number(statusPickerRecordId) === Number(row.id) }"
+            @click="openRecord(row)"
+          >
             <td class="cell col-check" @click.stop>
               <input
                 type="checkbox"
@@ -855,20 +861,20 @@
             <div v-if="aiSessionAttachments.length" class="ai-attachment-list">
               <div v-for="a in aiSessionAttachments" :key="a.id" class="ai-attachment-item">
                 <label class="ai-attachment-main">
-                  <input
-                    type="checkbox"
-                    :value="a.id"
-                    v-model="aiSelectedAttachmentIds"
-                  >
+                <input
+                  type="checkbox"
+                  :value="a.id"
+                  v-model="aiSelectedAttachmentIds"
+                >
                   <div class="ai-attachment-preview" :title="a.fileName">
-                    <img v-if="a.isImage && a.previewUrl" :src="a.previewUrl" class="ai-thumb-img" alt="">
+                  <img v-if="a.isImage && a.previewUrl" :src="a.previewUrl" class="ai-thumb-img" alt="">
                     <span v-else class="ai-file-icon">{{ getAiAttachmentIcon(a.fileName) }}</span>
-                  </div>
-                  <div class="ai-attachment-meta">
-                    <span class="ai-file-name">{{ a.fileName }}</span>
-                    <span class="ai-file-size">{{ formatSize(a.fileSize) }}</span>
-                  </div>
-                </label>
+                </div>
+                <div class="ai-attachment-meta">
+                  <span class="ai-file-name">{{ a.fileName }}</span>
+                  <span class="ai-file-size">{{ formatSize(a.fileSize) }}</span>
+                </div>
+              </label>
                 <button
                   type="button"
                   class="ai-attachment-remove"
@@ -1134,6 +1140,8 @@ export default {
       imagePreviewEscapeHandler: null,
       statusUpdatingMap: {},
       statusPickerOpenKey: '',
+      /** 打开下拉的行 id，用于提升整行层叠顺序，避免被下方行的状态标签盖住 */
+      statusPickerRecordId: null,
       /** 下拉锚点（viewport），用于 fixed 定位，避免被表格 overflow 裁剪 */
       statusPickerAnchor: null,
       /** 批量选择：recordId -> true */
@@ -1206,7 +1214,7 @@ export default {
         showAiTableEntry: false,
         aiPurpose: 'issue_tracking'
       }
-      }
+    }
   },
   watch: {
     '$route.query.purpose' () {
@@ -1274,7 +1282,7 @@ export default {
         minWidth: panelW + 'px',
         maxWidth: maxW + 'px',
         maxHeight: maxH + 'px',
-        zIndex: 9999,
+        zIndex: 20050,
         overflow: 'auto'
       }
     }
@@ -2799,6 +2807,7 @@ export default {
       const key = this.statusPickerKey(recordId, colId)
       const opening = this.statusPickerOpenKey !== key
       this.statusPickerOpenKey = opening ? key : ''
+      this.statusPickerRecordId = opening ? recordId : null
       if (opening && evt && evt.currentTarget && typeof evt.currentTarget.getBoundingClientRect === 'function') {
         const r = evt.currentTarget.getBoundingClientRect()
         this.statusPickerAnchor = {
@@ -2819,6 +2828,7 @@ export default {
     },
     closeStatusPicker () {
       this.statusPickerOpenKey = ''
+      this.statusPickerRecordId = null
       this.statusPickerAnchor = null
       this.detachStatusPickerOutside()
       this.detachStatusPickerScrollClose()
@@ -3167,21 +3177,21 @@ export default {
       if (!files.length || !this.drawerRecord) return
       for (const file of files) {
         if (!file) continue
-        let uploadFile = file
-        if (file.type && file.type.startsWith('image/') && shouldCompressAsRasterImage(file)) {
-          try {
-            uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
-          } catch (_err) {
-            /* 原图 */
-          }
-        }
-        const form = new FormData()
-        form.append('file', uploadFile)
+      let uploadFile = file
+      if (file.type && file.type.startsWith('image/') && shouldCompressAsRasterImage(file)) {
         try {
-          await this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          })
-        } catch (_err) { /* ignore */ }
+          uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
+        } catch (_err) {
+          /* 原图 */
+        }
+      }
+      const form = new FormData()
+      form.append('file', uploadFile)
+      try {
+        await this.$http.post(`/collab/records/${this.drawerRecord.id}/attachments`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+      } catch (_err) { /* ignore */ }
       }
       this.loadAttachments()
       if (e && e.target) e.target.value = ''
@@ -3822,13 +3832,19 @@ export default {
   accent-color: var(--brand-blue);
 }
 
-.data-table tbody tr {
+.data-table tbody tr.data-table-row {
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }
 
-.data-table tbody tr:hover {
+.data-table tbody tr.data-table-row:hover {
   background: var(--bg-hover);
+}
+
+/* 下拉打开时抬高整行，避免同列 z-index 与层叠顺序导致下方行的状态标签盖住 fixed 菜单 */
+.data-table tbody tr.status-picker-row-elevated {
+  position: relative;
+  z-index: 20040;
 }
 
 /* ===================== Cell Types ===================== */
@@ -3894,11 +3910,11 @@ export default {
 
 /* ===================== Status Inline Editor / Picker ===================== */
 
+/* 勿对容器设 z-index，否则会新建层叠上下文，fixed 下拉无法压过下方表格行内的状态标签 */
 .status-inline-editor {
   display: inline-flex;
   position: relative;
   max-width: 100%;
-  z-index: 30;
   overflow: visible;
 }
 
@@ -3952,7 +3968,7 @@ export default {
 .status-picker-menu {
   box-sizing: border-box;
   position: fixed;
-  z-index: 9999;
+  z-index: 20050;
   opacity: 1;
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
