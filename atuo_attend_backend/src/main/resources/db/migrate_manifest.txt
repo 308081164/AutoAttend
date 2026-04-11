@@ -1,5 +1,6 @@
 # 后端容器启动时按顺序执行（相对本目录的文件名）。请保持依赖顺序：增量迁移在后。
 # 以 # 开头或空行忽略。单条失败会记录警告并继续（适用于「列已存在」等幂等场景）。
+# 新增 schema_*migration*.sql 时必须追加本文件，否则推送 main 后 Docker 不会执行；CI 脚本 scripts/check-migrate-manifest.sh 会校验。
 schema_quote_mysql.sql
 schema_ai_token_usage.sql
 schema_collab_team_migration.sql
@@ -20,6 +21,7 @@ schema_quote_subject_mode_migration.sql
 schema_collab_record_history_migration.sql
 schema_collab_multi_table_migration.sql
 schema_collab_portal_links_migration.sql
+schema_client_board_migration.sql
 schema_project_ai_linkage_config_migration.sql
 schema_quote_github_provision_migration.sql
 schema_tenant_platform_migration.sql

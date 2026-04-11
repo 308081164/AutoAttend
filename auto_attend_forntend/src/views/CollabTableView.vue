@@ -206,6 +206,69 @@
           </template>
         </div>
       </div>
+      <div class="mail-notify-panel client-board-panel">
+        <div class="mail-notify-head">
+          <div class="mail-notify-title">客户项目阅览看板</div>
+          <button type="button" class="secondary-button small" @click="toggleClientBoardOpen">
+            {{ clientBoardOpen ? '收起' : '配置' }}
+          </button>
+        </div>
+        <div v-if="clientBoardOpen" class="mail-notify-body">
+          <div v-if="clientBoardLoading" class="text-muted small">加载中…</div>
+          <template v-else>
+            <p class="text-muted small" style="margin-bottom:10px">
+              开启后生成独立网页链接，客户无需登录即可查看（内容由下方选项控制）。AI 录入使用企业「API 配置」中的通义 Key，费用由配置方承担。
+            </p>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="clientBoardForm.enabled">
+                <span>启用客户阅览看板</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="clientBoardForm.showProgressDashboard">
+                <span>向客户展示功能进度仪表盘</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="clientBoardForm.showFeatureBacklog">
+                <span>向客户展示待开发功能摘要</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="clientBoardForm.showAiTableEntry">
+                <span>开放多维表 AI 录入（项目调整表）</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="form-label">AI 目标表</label>
+              <select v-model="clientBoardForm.aiPurpose" class="form-input">
+                <option value="issue_tracking">项目调整（issue_tracking）</option>
+              </select>
+            </div>
+            <div v-if="clientBoardToken" class="form-row client-board-token-row">
+              <span class="text-muted small">浏览 ID：</span>
+              <code class="client-board-code">{{ clientBoardToken }}</code>
+              <button type="button" class="secondary-button small" @click="copyClientBoardId">复制 ID</button>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="primary-button" :disabled="clientBoardSaving" @click="saveClientBoard">
+                {{ clientBoardSaving ? '保存中…' : '保存配置' }}
+              </button>
+              <button type="button" class="secondary-button" :disabled="clientBoardSaving || !clientBoardToken" @click="copyClientBoardLink">
+                {{ clientBoardCopied ? '已复制链接' : '复制阅览链接' }}
+              </button>
+              <button type="button" class="secondary-button" :disabled="clientBoardSaving" @click="regenerateClientBoardToken">
+                重新生成令牌
+              </button>
+              <span v-if="clientBoardMessage" class="save-message" :class="clientBoardMessageOk ? 'success' : 'error'">{{ clientBoardMessage }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
       <DashboardView
         :fixedRepoFullName="projectRepoId"
         :collab-data-board-only="true"
@@ -1105,7 +1168,22 @@ export default {
       portalEditItems: [],
       portalImportFromProjectId: 0,
       portalImporting: false,
-      portalImportProjectOptions: []
+      portalImportProjectOptions: [],
+
+      clientBoardOpen: false,
+      clientBoardLoading: false,
+      clientBoardSaving: false,
+      clientBoardMessage: '',
+      clientBoardMessageOk: false,
+      clientBoardCopied: false,
+      clientBoardToken: '',
+      clientBoardForm: {
+        enabled: false,
+        showProgressDashboard: true,
+        showFeatureBacklog: false,
+        showAiTableEntry: false,
+        aiPurpose: 'issue_tracking'
+      }
       }
   },
   watch: {
@@ -1193,6 +1271,7 @@ export default {
     this.loadMailNotifyConfig()
     this.loadAiLinkageConfig()
     this.loadPortalLinks()
+    this.loadClientBoard()
   },
   beforeDestroy () {
     this.detachImagePreviewEscape()
@@ -1338,6 +1417,110 @@ export default {
         this.aiLinkageMessage = '保存失败'
       } finally {
         this.aiLinkageSaving = false
+      }
+    },
+    toggleClientBoardOpen () {
+      this.clientBoardOpen = !this.clientBoardOpen
+    },
+    async loadClientBoard () {
+      if (!this.projectId) return
+      this.clientBoardLoading = true
+      this.clientBoardMessage = ''
+      try {
+        const resp = await this.$http.get(`/collab/projects/${this.projectId}/client-board`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.clientBoardForm.enabled = !!d.enabled
+          this.clientBoardForm.showProgressDashboard = d.showProgressDashboard !== false
+          this.clientBoardForm.showFeatureBacklog = !!d.showFeatureBacklog
+          this.clientBoardForm.showAiTableEntry = !!d.showAiTableEntry
+          this.clientBoardForm.aiPurpose = d.aiPurpose || 'issue_tracking'
+          this.clientBoardToken = d.publicToken || ''
+        }
+      } catch (e) {
+        this.clientBoardMessage = '加载客户阅览看板配置失败（需协作登录且后端已升级）'
+        this.clientBoardMessageOk = false
+      } finally {
+        this.clientBoardLoading = false
+      }
+    },
+    async saveClientBoard () {
+      if (!this.projectId) return
+      this.clientBoardSaving = true
+      this.clientBoardMessage = ''
+      try {
+        const resp = await this.$http.put(`/collab/projects/${this.projectId}/client-board`, {
+          enabled: !!this.clientBoardForm.enabled,
+          showProgressDashboard: !!this.clientBoardForm.showProgressDashboard,
+          showFeatureBacklog: !!this.clientBoardForm.showFeatureBacklog,
+          showAiTableEntry: !!this.clientBoardForm.showAiTableEntry,
+          aiPurpose: this.clientBoardForm.aiPurpose || 'issue_tracking',
+          regenerateToken: false
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.clientBoardToken = d.publicToken || ''
+          this.clientBoardMessageOk = true
+          this.clientBoardMessage = '已保存'
+        } else {
+          this.clientBoardMessageOk = false
+          this.clientBoardMessage = (resp.data && resp.data.message) || '保存失败'
+        }
+      } catch (e) {
+        this.clientBoardMessageOk = false
+        this.clientBoardMessage = '保存失败'
+      } finally {
+        this.clientBoardSaving = false
+      }
+    },
+    async regenerateClientBoardToken () {
+      if (!this.projectId) return
+      if (!window.confirm('重新生成后旧链接将失效，确定继续？')) return
+      this.clientBoardSaving = true
+      this.clientBoardMessage = ''
+      try {
+        const resp = await this.$http.put(`/collab/projects/${this.projectId}/client-board`, {
+          enabled: !!this.clientBoardForm.enabled,
+          showProgressDashboard: !!this.clientBoardForm.showProgressDashboard,
+          showFeatureBacklog: !!this.clientBoardForm.showFeatureBacklog,
+          showAiTableEntry: !!this.clientBoardForm.showAiTableEntry,
+          aiPurpose: this.clientBoardForm.aiPurpose || 'issue_tracking',
+          regenerateToken: true
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.clientBoardToken = resp.data.data.publicToken || ''
+          this.clientBoardMessageOk = true
+          this.clientBoardMessage = '已重新生成令牌'
+        } else {
+          this.clientBoardMessageOk = false
+          this.clientBoardMessage = (resp.data && resp.data.message) || '操作失败'
+        }
+      } catch (e) {
+        this.clientBoardMessageOk = false
+        this.clientBoardMessage = '操作失败'
+      } finally {
+        this.clientBoardSaving = false
+      }
+    },
+    copyClientBoardLink () {
+      const token = (this.clientBoardToken || '').trim()
+      if (!token) return
+      const url = `${window.location.origin}/client-board/${token}`
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          this.clientBoardCopied = true
+          setTimeout(() => { this.clientBoardCopied = false }, 2000)
+        }).catch(() => {})
+      }
+    },
+    copyClientBoardId () {
+      const token = (this.clientBoardToken || '').trim()
+      if (!token) return
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(token).then(() => {
+          this.clientBoardCopied = true
+          setTimeout(() => { this.clientBoardCopied = false }, 2000)
+        }).catch(() => {})
       }
     },
     toggleDashboardView () {
@@ -4404,6 +4587,22 @@ export default {
 
 .mail-notify-body {
   margin-top: 10px;
+}
+
+.client-board-token-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.client-board-code {
+  font-size: 12px;
+  background: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 6px;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
 }
 
 .portal-bar {

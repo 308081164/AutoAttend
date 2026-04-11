@@ -18,6 +18,7 @@ import QuoteConfigView from '../views/QuoteConfigView.vue'
 import PrototypeListView from '../views/PrototypeListView.vue'
 import PrototypeProjectView from '../views/PrototypeProjectView.vue'
 import NexusConsoleView from '../views/NexusConsoleView.vue'
+import ClientBoardView from '../views/ClientBoardView.vue'
 
 Vue.use(VueRouter)
 
@@ -122,6 +123,12 @@ const routes = [
     path: '/nexus',
     name: 'nexus-console',
     component: NexusConsoleView
+  },
+  {
+    path: '/client-board/:token',
+    name: 'client-board',
+    component: ClientBoardView,
+    meta: { public: true, bareLayout: true }
   }
 ]
 
@@ -131,6 +138,10 @@ const router = new VueRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
+  if (to.meta && to.meta.public) {
+    next()
+    return
+  }
   const isCollabPath = to.path.indexOf('/collab') === 0
   const isMemberHome = to.name === 'member-home'
   const isCollabLoginPath = to.path === '/collab-login'

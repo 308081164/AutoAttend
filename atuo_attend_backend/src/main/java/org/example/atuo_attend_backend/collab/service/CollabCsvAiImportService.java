@@ -8,7 +8,7 @@ import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.collab.ai.CollabAiTaskResponseParser;
-import org.example.atuo_attend_backend.collab.controller.CollabAiTaskController;
+import org.example.atuo_attend_backend.collab.dto.CollabAiTaskModels;
 import org.example.atuo_attend_backend.collab.dto.CollabCsvQuickImportRequest;
 import org.example.atuo_attend_backend.collab.domain.BizProjectMember;
 import org.example.atuo_attend_backend.collab.domain.BizTableColumn;
@@ -181,7 +181,7 @@ public class CollabCsvAiImportService {
         DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 4096);
 
         List<String> warnings = new ArrayList<>();
-        List<CollabAiTaskController.AiTaskDraft> items = new ArrayList<>();
+        List<CollabAiTaskModels.AiTaskDraft> items = new ArrayList<>();
 
         if (result == null || result.getContent() == null || result.getContent().isBlank()) {
             warnings.add("第 " + (chunkIndex + 1) + "/" + totalChunks + " 批：AI 无返回");

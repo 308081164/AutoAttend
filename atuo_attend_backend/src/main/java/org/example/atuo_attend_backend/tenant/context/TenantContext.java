@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.tenant.context;
 
+import java.util.function.Supplier;
+
 /**
  * 当前请求/线程绑定的租户 ID，由 Filter 在业务处理前设置，请求结束由 {@link org.example.atuo_attend_backend.tenant.web.TenantClearFilter} 清理。
  */
@@ -44,6 +46,20 @@ public final class TenantContext {
         try {
             CURRENT.set(tenantId);
             runnable.run();
+        } finally {
+            if (prev == null) {
+                CURRENT.remove();
+            } else {
+                CURRENT.set(prev);
+            }
+        }
+    }
+
+    public static <T> T runWithTenantId(long tenantId, Supplier<T> supplier) {
+        Long prev = CURRENT.get();
+        try {
+            CURRENT.set(tenantId);
+            return supplier.get();
         } finally {
             if (prev == null) {
                 CURRENT.remove();

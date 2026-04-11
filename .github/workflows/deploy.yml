@@ -21,6 +21,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 防止新增 schema_*migration*.sql 却未写入 migrate_manifest.txt，导致推送 main 后线上库未升级
+      - name: Verify DB migrate manifest
+        run: bash atuo_attend_backend/scripts/check-migrate-manifest.sh
+
       - name: Set image names
         id: images
         run: |
@@ -104,8 +108,7 @@ jobs:
             export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
-            # 数据库迁移：无需在服务器单独执行 SQL。backend 容器 entrypoint（docker-entrypoint.sh）会按
-            # 已 scp 的 atuo_attend_backend/.../db/migrate_manifest.txt 执行；强制重建 backend 保证每次部署都跑迁移。
+            # 数据库迁移：镜像内 /app/db/migrate_manifest.txt，由 docker-entrypoint.sh 在启动 Spring 前执行；此处强制重建 backend 保证每次部署跑迁移。清单须与仓库同步（CI 已校验 schema_*migration*.sql）。
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
             # 等待 backend 健康后再重启 frontend，避免旧 Nginx 长连接指向已销毁的上游导致大量 502
             echo "等待 backend 健康检查通过..."

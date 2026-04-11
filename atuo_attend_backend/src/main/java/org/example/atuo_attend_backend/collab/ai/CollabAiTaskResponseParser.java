@@ -3,7 +3,7 @@ package org.example.atuo_attend_backend.collab.ai;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.atuo_attend_backend.collab.controller.CollabAiTaskController;
+import org.example.atuo_attend_backend.collab.dto.CollabAiTaskModels;
 
 import java.util.List;
 
@@ -17,7 +17,7 @@ public final class CollabAiTaskResponseParser {
     private CollabAiTaskResponseParser() {
     }
 
-    public static List<CollabAiTaskController.AiTaskDraft> parseDrafts(String content) throws Exception {
+    public static List<CollabAiTaskModels.AiTaskDraft> parseDrafts(String content) throws Exception {
         if (content == null || content.isBlank()) {
             return List.of();
         }
@@ -26,14 +26,14 @@ public final class CollabAiTaskResponseParser {
         try {
             JsonNode root = MAPPER.readTree(json);
             if (root.isArray()) {
-                return MAPPER.convertValue(root, new TypeReference<List<CollabAiTaskController.AiTaskDraft>>() {});
+                return MAPPER.convertValue(root, new TypeReference<List<CollabAiTaskModels.AiTaskDraft>>() {});
             }
             if (root.isObject()) {
                 if (root.has("items") && root.get("items").isArray()) {
-                    return MAPPER.convertValue(root.get("items"), new TypeReference<List<CollabAiTaskController.AiTaskDraft>>() {});
+                    return MAPPER.convertValue(root.get("items"), new TypeReference<List<CollabAiTaskModels.AiTaskDraft>>() {});
                 }
                 if (root.has("tasks") && root.get("tasks").isArray()) {
-                    return MAPPER.convertValue(root.get("tasks"), new TypeReference<List<CollabAiTaskController.AiTaskDraft>>() {});
+                    return MAPPER.convertValue(root.get("tasks"), new TypeReference<List<CollabAiTaskModels.AiTaskDraft>>() {});
                 }
             }
         } catch (Exception ignored) {
@@ -45,7 +45,7 @@ public final class CollabAiTaskResponseParser {
             String slice = json.substring(arrStart, arrEnd + 1).replaceAll(",\\s*]", "]");
             JsonNode root = MAPPER.readTree(slice);
             if (root.isArray()) {
-                return MAPPER.convertValue(root, new TypeReference<List<CollabAiTaskController.AiTaskDraft>>() {});
+                return MAPPER.convertValue(root, new TypeReference<List<CollabAiTaskModels.AiTaskDraft>>() {});
             }
         }
         throw new IllegalArgumentException("AI 返回中未找到 JSON 数组（需为 [...] 或 { items/tasks: [...] }）");
