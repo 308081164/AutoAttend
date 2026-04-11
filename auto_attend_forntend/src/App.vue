@@ -55,48 +55,50 @@
 
           <!-- Navigation groups -->
           <nav class="sidebar-nav">
+            <!-- Core features -->
             <div class="nav-group">
               <div class="nav-group-label" v-show="!sidebarCollapsed">核心功能</div>
-              <router-link
-                v-for="item in navGroups.core"
-                :key="item.route"
-                :to="item.route"
-                class="nav-item"
-                :class="{ 'is-active': isNavActive(item.route) }"
-                @click.native="onNavClick"
-              >
-                <span class="nav-icon">{{ item.icon }}</span>
-                <span class="nav-label" v-show="!sidebarCollapsed">{{ item.label }}</span>
+              <router-link to="/console" class="nav-item" :class="{ 'is-active': isNavActive('/console') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">工作台</span>
+              </router-link>
+              <router-link to="/quote" class="nav-item" :class="{ 'is-active': isNavActive('/quote') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">报价系统</span>
+              </router-link>
+              <router-link to="/collab/projects" class="nav-item" :class="{ 'is-active': isNavActive('/collab/projects') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">项目管理</span>
+              </router-link>
+              <router-link to="/team" class="nav-item" :class="{ 'is-active': isNavActive('/team') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">团队管理</span>
               </router-link>
             </div>
 
+            <!-- Smart tools -->
             <div class="nav-group">
               <div class="nav-group-label" v-show="!sidebarCollapsed">智能工具</div>
-              <router-link
-                v-for="item in navGroups.smart"
-                :key="item.route"
-                :to="item.route"
-                class="nav-item"
-                :class="{ 'is-active': isNavActive(item.route) }"
-                @click.native="onNavClick"
-              >
-                <span class="nav-icon">{{ item.icon }}</span>
-                <span class="nav-label" v-show="!sidebarCollapsed">{{ item.label }}</span>
+              <router-link to="/ai-config" class="nav-item" :class="{ 'is-active': isNavActive('/ai-config') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">AI 配置</span>
+              </router-link>
+              <router-link to="/prototype" class="nav-item" :class="{ 'is-active': isNavActive('/prototype') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">快原型</span>
               </router-link>
             </div>
 
+            <!-- Ops & Efficiency -->
             <div class="nav-group">
               <div class="nav-group-label" v-show="!sidebarCollapsed">运维与效率</div>
-              <router-link
-                v-for="item in navGroups.ops"
-                :key="item.route"
-                :to="item.route"
-                class="nav-item"
-                :class="{ 'is-active': isNavActive(item.route) }"
-                @click.native="onNavClick"
-              >
-                <span class="nav-icon">{{ item.icon }}</span>
-                <span class="nav-label" v-show="!sidebarCollapsed">{{ item.label }}</span>
+              <router-link to="/nexus" class="nav-item" :class="{ 'is-active': isNavActive('/nexus') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">快捷运维</span>
+              </router-link>
+              <router-link to="/console" class="nav-item" :class="{ 'is-active': isNavActive('/console#lab') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">增效实验室</span>
               </router-link>
             </div>
           </nav>
@@ -126,11 +128,11 @@
             </div>
             <div class="topbar-right">
               <div class="topbar-search">
-                <span class="search-icon">&#128269;</span>
+                <svg class="search-icon-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="9" cy="9" r="6"/><path d="M13.5 13.5L18 18" stroke-linecap="round"/></svg>
                 <span class="search-placeholder">{{ $t('app.search') || '搜索...' }}</span>
               </div>
               <button class="topbar-icon-btn" aria-label="Notifications">
-                <span>&#128276;</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
               </button>
               <select v-model="currentLocale" class="topbar-lang-select" @change="onLocaleChange">
                 <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -160,23 +162,7 @@ export default {
       localeOptions,
       currentLocale: this.$i18n.locale,
       sidebarOpen: false,
-      sidebarCollapsed: false,
-      navGroups: {
-        core: [
-          { icon: '\u{1F3E0}', label: '工作台', route: '/console' },
-          { icon: '\u{1F4CB}', label: '报价系统', route: '/quote' },
-          { icon: '\u{1F4C1}', label: '项目管理', route: '/console#projects' },
-          { icon: '\u{1F465}', label: '团队管理', route: '/team' }
-        ],
-        smart: [
-          { icon: '\u{1F916}', label: 'AI 配置', route: '/ai-config' },
-          { icon: '\u{1F3A8}', label: '快原型', route: '/prototype' }
-        ],
-        ops: [
-          { icon: '\u{1F527}', label: '快捷运维', route: '/nexus' },
-          { icon: '\u{1F9EA}', label: '增效实验室', route: '/console#lab' }
-        ]
-      }
+      sidebarCollapsed: false
     }
   },
   computed: {
@@ -186,7 +172,6 @@ export default {
     username () {
       return window.localStorage.getItem('autoattend_username') || ''
     },
-    /** 管理员已登录且不在控制台首页时显示「返回首页」 */
     showBackToHome () {
       if (!this.username) return false
       return this.$route.name !== 'dashboard' && this.$route.name !== 'landing'
@@ -196,20 +181,22 @@ export default {
     },
     currentPageName () {
       const path = this.$route.path
-      const hash = this.$route.hash
-      const full = path + hash
-      const allNav = [
-        ...this.navGroups.core,
-        ...this.navGroups.smart,
-        ...this.navGroups.ops
-      ]
-      const match = allNav.find(item => {
-        if (item.route.includes('#')) {
-          return full === item.route
-        }
-        return path === item.route
-      })
-      return match ? match.label : this.$t('app.title')
+      const map = {
+        '/console': '工作台',
+        '/quote': '报价系统',
+        '/quote/config': '报价配置',
+        '/collab/projects': '项目管理',
+        '/team': '团队管理',
+        '/tenant-admins': '租户管理',
+        '/ai-config': 'AI 配置',
+        '/prototype': '快原型',
+        '/nexus': '快捷运维',
+        '/member': '成员首页'
+      }
+      for (const [prefix, name] of Object.entries(map)) {
+        if (path === prefix || path.startsWith(prefix + '/')) return name
+      }
+      return this.$t('app.title')
     }
   },
   mounted () {
@@ -262,9 +249,8 @@ export default {
     },
     isNavActive (route) {
       const path = this.$route.path
-      const hash = this.$route.hash
       if (route.includes('#')) {
-        return (path + hash) === route
+        return (path + this.$route.hash) === route
       }
       return path === route
     }
@@ -374,13 +360,11 @@ body {
               transform var(--transition-slow, all 0.3s ease);
 }
 
-/* --- Collapsed sidebar state (desktop) --- */
 .app-sidebar.is-collapsed {
   width: var(--sidebar-collapsed-width, 64px);
   min-width: var(--sidebar-collapsed-width, 64px);
 }
 
-/* Sidebar scrollbar */
 .app-sidebar::-webkit-scrollbar {
   width: 4px;
 }
@@ -411,7 +395,7 @@ body {
   width: 36px;
   height: 36px;
   min-width: 36px;
-  background: var(--brand-blue, #3b82f6);
+  background: var(--brand-blue, #1456F0);
   color: #fff;
   font-size: 18px;
   font-weight: 700;
@@ -427,7 +411,6 @@ body {
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
-  transition: opacity var(--transition-slow, all 0.3s ease);
 }
 
 .logo-brand {
@@ -500,7 +483,6 @@ body {
   user-select: none;
   white-space: nowrap;
   overflow: hidden;
-  transition: opacity var(--transition-slow, all 0.3s ease);
 }
 
 .app-sidebar.is-collapsed .nav-group-label {
@@ -517,14 +499,9 @@ body {
   text-decoration: none;
   font-size: 14px;
   font-weight: 400;
-  transition: background 0.2s, color 0.2s, padding 0.3s ease;
+  transition: background 0.2s, color 0.2s;
   position: relative;
   cursor: pointer;
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-  white-space: nowrap;
 }
 
 .app-sidebar.is-collapsed .nav-item {
@@ -539,7 +516,7 @@ body {
   top: 4px;
   bottom: 4px;
   width: 3px;
-  background: var(--brand-blue, #3b82f6);
+  background: var(--brand-blue, #1456F0);
   border-radius: 0 2px 2px 0;
   transform: scaleY(0);
   transition: transform 0.2s ease;
@@ -552,7 +529,7 @@ body {
 }
 
 .nav-item.is-active {
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(20, 86, 240, 0.15);
   color: #fff;
   font-weight: 500;
 }
@@ -562,18 +539,30 @@ body {
 }
 
 .nav-icon {
-  font-size: 18px;
   width: 24px;
   min-width: 24px;
-  text-align: center;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.nav-icon svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.75;
+}
+
+.nav-item:hover .nav-icon svg,
+.nav-item.is-active .nav-icon svg {
+  opacity: 1;
 }
 
 .nav-label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: opacity var(--transition-slow, all 0.3s ease);
 }
 
 /* ========== Sidebar Footer ========== */
@@ -584,7 +573,6 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  transition: padding var(--transition-slow, all 0.3s ease);
 }
 
 .app-sidebar.is-collapsed .sidebar-footer {
@@ -609,7 +597,7 @@ body {
   height: 30px;
   min-width: 30px;
   border-radius: 50%;
-  background: var(--brand-blue, #3b82f6);
+  background: var(--brand-blue, #1456F0);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -624,7 +612,6 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: opacity var(--transition-slow, all 0.3s ease);
 }
 
 .sidebar-logout {
@@ -651,7 +638,6 @@ body {
   flex-direction: column;
   min-width: 0;
   min-height: 100vh;
-  transition: margin-left var(--transition-slow, all 0.3s ease);
 }
 
 /* ========== TOP HEADER BAR ========== */
@@ -719,9 +705,9 @@ body {
   background: #e5e7eb;
 }
 
-.search-icon {
-  font-size: 14px;
+.search-icon-svg {
   color: var(--text-disabled, #9ca3af);
+  flex-shrink: 0;
 }
 
 .search-placeholder {
@@ -739,13 +725,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
   transition: background 0.2s;
   position: relative;
+  color: var(--text-secondary, #6b7280);
 }
 
 .topbar-icon-btn:hover {
   background: var(--bg-page, #f0f2f5);
+  color: var(--text-primary, #1f2937);
 }
 
 .topbar-lang-select {
@@ -767,7 +754,7 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--brand-blue, #3b82f6);
+  background: var(--brand-blue, #1456F0);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -789,11 +776,7 @@ body {
   padding: 0;
 }
 
-.app-main-bare {
-  padding: 0;
-}
-
-/* ========== Responsive: Desktop (>=1024px) - show collapse button ========== */
+/* ========== Responsive: Desktop (>=1024px) ========== */
 @media (min-width: 1024px) {
   .sidebar-collapse-btn {
     display: flex;
@@ -822,7 +805,6 @@ body {
     min-width: var(--sidebar-width, 240px);
   }
 
-  /* In tablet overlay mode, never use collapsed state */
   .app-sidebar.is-collapsed {
     width: var(--sidebar-width, 240px);
     min-width: var(--sidebar-width, 240px);
@@ -864,7 +846,6 @@ body {
     min-width: var(--sidebar-width, 240px);
   }
 
-  /* In mobile overlay mode, never use collapsed state */
   .app-sidebar.is-collapsed {
     width: var(--sidebar-width, 240px);
     min-width: var(--sidebar-width, 240px);

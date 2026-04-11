@@ -137,6 +137,7 @@ const router = new VueRouter({
   routes
 })
 
+// Vue Router 3: next() returns undefined, never call .catch() on it
 router.beforeEach(async (to, from, next) => {
   if (to.meta && to.meta.public) {
     next()
@@ -149,9 +150,9 @@ router.beforeEach(async (to, from, next) => {
   const collabToken = window.localStorage.getItem('autoattend_collab_token')
 
   if (to.name === 'login' || to.name === 'register') {
-    if (adminToken) next({ name: 'dashboard' }).catch(() => {})
-    else if (collabToken) next({ name: 'member-home' }).catch(() => {})
-    else next()
+    if (adminToken) { next({ name: 'dashboard' }); return }
+    if (collabToken) { next({ name: 'member-home' }); return }
+    next()
     return
   }
   if (to.name === 'landing') {
@@ -159,29 +160,27 @@ router.beforeEach(async (to, from, next) => {
     return
   }
   if (isCollabLoginPath) {
-    if (adminToken) next({ name: 'collab-projects' }).catch(() => {})
-    else next()
+    if (adminToken) { next({ name: 'collab-projects' }); return }
+    next()
     return
   }
   if (isCollabPath || isMemberHome) {
-    // 有管理员 token 时始终拉取并覆盖协作 token，避免使用过期的 collab token 导致 401
     if (adminToken) {
+      // Admin user: try to get collab token, but always allow access
       try {
         const r = await fetch('/api/admin/auth/collab-token', { headers: { Authorization: 'Bearer ' + adminToken } })
         const data = await r.json()
         if (data.data && data.data.collabToken) {
           window.localStorage.setItem('autoattend_collab_token', data.data.collabToken)
-          next()
-        } else {
-          next({ name: 'login' }).catch(() => {})
         }
       } catch (e) {
-        next({ name: 'login' }).catch(() => {})
+        // Ignore API errors, admin is still authenticated
       }
+      next()
       return
     }
     if (!collabToken) {
-      next({ name: 'login' }).catch(() => {})
+      next({ name: 'login' })
       return
     }
     next()
@@ -193,12 +192,12 @@ router.beforeEach(async (to, from, next) => {
       return
     }
     if (collabToken && !adminToken) {
-      next({ name: 'member-home' }).catch(() => {})
+      next({ name: 'member-home' })
       return
     }
   }
   if (to.name !== 'login' && to.name !== 'register' && to.name !== 'landing' && !adminToken) {
-    next({ name: 'login' }).catch(() => {})
+    next({ name: 'login' })
   } else {
     next()
   }
