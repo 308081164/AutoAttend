@@ -30,6 +30,7 @@ schema_tenant_id_phase1_constraints.sql
 schema_phase2_phase3.sql
 schema_nexus_migration.sql
 schema_nexus_memory_metric_migration.sql
+schema_nexus_phase2_migration.sql
 schema_ui_prototype_mysql.sql
 schema_ui_prototype_generate_job.sql
 schema_quote_ai_acceptance_test_cases_job.sql

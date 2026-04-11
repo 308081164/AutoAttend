@@ -14,6 +14,8 @@ public class NexusCloudInstance {
     private String privateIp;
     private String osName;
     private Long memoryMb;
+    /** 宝塔面板地址（https://...），仅平台侧配置，云同步不覆盖 */
+    private String btPanelUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -103,6 +105,14 @@ public class NexusCloudInstance {
 
     public void setMemoryMb(Long memoryMb) {
         this.memoryMb = memoryMb;
+    }
+
+    public String getBtPanelUrl() {
+        return btPanelUrl;
+    }
+
+    public void setBtPanelUrl(String btPanelUrl) {
+        this.btPanelUrl = btPanelUrl;
     }
 
     public LocalDateTime getCreatedAt() {

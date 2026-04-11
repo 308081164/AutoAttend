@@ -1,9 +1,15 @@
-# push 到 main 分支时：在 GitHub 云端构建 backend/frontend 镜像 → 推送到 ghcr.io → SSH 到服务器拉取并重启
+# push 到 main（或 master）时：校验迁移清单与前端构建 → 构建并推送镜像 → SSH 部署 → 强制重建 backend 执行 migrate_manifest.txt 中的 SQL → 等待健康后重启前端
+# 数据库迁移：由 backend 容器 docker-entrypoint.sh 在启动 Spring 前执行，无需在服务器手工 mysql。
 name: Build and Deploy
 
 on:
   push:
     branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -24,6 +30,20 @@ jobs:
       # 防止新增 schema_*migration*.sql 却未写入 migrate_manifest.txt，导致推送 main 后线上库未升级
       - name: Verify DB migrate manifest
         run: bash atuo_attend_backend/scripts/check-migrate-manifest.sh
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: auto_attend_forntend/package-lock.json
+
+      # 在推镜像前先本地构建主前端，避免仅 Docker 内失败才发现问题
+      - name: Build main frontend (sanity)
+        working-directory: auto_attend_forntend
+        run: |
+          npm ci
+          npm run build
 
       - name: Set image names
         id: images

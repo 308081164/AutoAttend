@@ -4,11 +4,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.nexus.crypto.NexusCryptoService;
+import org.example.atuo_attend_backend.nexus.adapter.aliyun.AliyunBssAdapter;
+import org.example.atuo_attend_backend.nexus.domain.NexusAlertRule;
+import org.example.atuo_attend_backend.nexus.domain.NexusAutoSyncConfig;
 import org.example.atuo_attend_backend.nexus.domain.NexusCloudAccount;
 import org.example.atuo_attend_backend.nexus.domain.NexusCloudInstance;
-import org.example.atuo_attend_backend.nexus.dto.NexusCreateAliyunAccountRequest;
-import org.example.atuo_attend_backend.nexus.dto.NexusSshActionRequest;
+import org.example.atuo_attend_backend.nexus.dto.*;
 import org.example.atuo_attend_backend.nexus.mapper.*;
+import org.example.atuo_attend_backend.nexus.service.NexusBssCostService;
+import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
@@ -16,7 +20,8 @@ import org.springframework.web.bind.annotation.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +38,9 @@ public class NexusAdminController {
     private final NexusCryptoService cryptoService;
     private final NexusSyncService syncService;
     private final NexusAuditLogMapper auditLogMapper;
+    private final NexusEcsOpsService ecsOpsService;
+    private final NexusBssCostService bssCostService;
+    private final NexusAlertRuleMapper alertRuleMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public NexusAdminController(
@@ -43,7 +51,10 @@ public class NexusAdminController {
             NexusAutoSyncConfigMapper autoSyncConfigMapper,
             NexusCryptoService cryptoService,
             NexusSyncService syncService,
-            NexusAuditLogMapper auditLogMapper
+            NexusAuditLogMapper auditLogMapper,
+            NexusEcsOpsService ecsOpsService,
+            NexusBssCostService bssCostService,
+            NexusAlertRuleMapper alertRuleMapper
     ) {
         this.accountMapper = accountMapper;
         this.instanceMapper = instanceMapper;
@@ -53,6 +64,9 @@ public class NexusAdminController {
         this.cryptoService = cryptoService;
         this.syncService = syncService;
         this.auditLogMapper = auditLogMapper;
+        this.ecsOpsService = ecsOpsService;
+        this.bssCostService = bssCostService;
+        this.alertRuleMapper = alertRuleMapper;
     }
 
     @GetMapping("/accounts")
@@ -205,6 +219,270 @@ public class NexusAdminController {
                 metaJson
         );
         return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/sync-config")
+    public ApiResponse<NexusAutoSyncConfig> getSyncConfig() {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        autoSyncConfigMapper.ensureDefault(tenantId);
+        NexusAutoSyncConfig cfg = autoSyncConfigMapper.findByTenant(tenantId);
+        return ApiResponse.ok(cfg);
+    }
+
+    @PutMapping("/sync-config")
+    public ApiResponse<Void> updateSyncConfig(
+            @RequestBody NexusSyncConfigUpdateRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        autoSyncConfigMapper.ensureDefault(tenantId);
+        NexusAutoSyncConfig cur = autoSyncConfigMapper.findByTenant(tenantId);
+        if (cur == null) return ApiResponse.error(50000, "config missing");
+        boolean en = req.getEnabled() != null ? req.getEnabled() : cur.isEnabled();
+        int g = req.getGlobalIntervalSeconds() != null ? req.getGlobalIntervalSeconds() : cur.getGlobalIntervalSeconds();
+        int p = req.getCpuPeriodSeconds() != null ? req.getCpuPeriodSeconds() : cur.getCpuPeriodSeconds();
+        int w = req.getCpuWindowMinutes() != null ? req.getCpuWindowMinutes() : cur.getCpuWindowMinutes();
+        if (g < 10 || p < 15 || w < 1) {
+            return ApiResponse.error(40000, "invalid interval/window (min global 10s, period 15s, window 1m)");
+        }
+        autoSyncConfigMapper.updateConfig(tenantId, en, g, p, w);
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sync_config.update", "tenant", String.valueOf(tenantId), "success", null);
+        return ApiResponse.ok(null);
+    }
+
+    @PutMapping("/accounts/{accountId}/settings")
+    public ApiResponse<Void> updateAccountSettings(
+            @PathVariable long accountId,
+            @RequestBody NexusAccountSettingsRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (req.getDisplayName() != null && !req.getDisplayName().isBlank()) {
+            accountMapper.updateDisplayName(tenantId, accountId, req.getDisplayName().trim());
+        }
+        if (req.getAutoSyncIntervalSeconds() != null) {
+            Integer v = req.getAutoSyncIntervalSeconds();
+            if (v < 10) return ApiResponse.error(40000, "autoSyncIntervalSeconds must be >= 10 or use null for global default");
+            accountMapper.updateAutoSyncInterval(tenantId, accountId, v);
+        }
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.account.settings", "cloud_account", String.valueOf(accountId), "success", null);
+        return ApiResponse.ok(null);
+    }
+
+    /**
+     * 将本云账号的巡检间隔恢复为「跟随全局」：auto_sync_interval_seconds = NULL
+     */
+    @PostMapping("/accounts/{accountId}/settings/clear-interval-override")
+    public ApiResponse<Void> clearAccountIntervalOverride(
+            @PathVariable long accountId,
+            HttpServletRequest request
+    ) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        accountMapper.updateAutoSyncInterval(tenantId, accountId, null);
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.account.clear_interval", "cloud_account", String.valueOf(accountId), "success", null);
+        return ApiResponse.ok(null);
+    }
+
+    @PatchMapping("/accounts/{accountId}/instances/{instanceId}/ops")
+    public ApiResponse<Void> patchInstanceOps(
+            @PathVariable long accountId,
+            @PathVariable String instanceId,
+            @RequestBody NexusInstanceOpsRequest req
+    ) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        String url = req != null && req.getBtPanelUrl() != null ? req.getBtPanelUrl().trim() : null;
+        if (url != null && url.isEmpty()) url = null;
+        if (url != null && !url.startsWith("https://") && !url.startsWith("http://")) {
+            return ApiResponse.error(40000, "btPanelUrl must be http(s) URL");
+        }
+        int n = instanceMapper.updateBtPanelUrl(tenantId, accountId, instanceId, url);
+        if (n <= 0) return ApiResponse.error(40400, "instance not found");
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/accounts/{accountId}/instances/{instanceId}/lifecycle")
+    public ApiResponse<Map<String, Object>> instanceLifecycle(
+            @PathVariable long accountId,
+            @PathVariable String instanceId,
+            @RequestBody NexusLifecycleRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        if (req == null || req.getAction() == null) return ApiResponse.error(40000, "action required");
+        boolean force = Boolean.TRUE.equals(req.getForceStop());
+        String action = req.getAction().trim().toLowerCase();
+        try {
+            ecsOpsService.runLifecycle(tenantId, accountId, instanceId, action, force);
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.ecs." + action, "instance", instanceId, "success", null);
+            return ApiResponse.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.ecs." + action, "instance", instanceId, "fail",
+                    msg.length() > 500 ? msg.substring(0, 500) : msg);
+            return ApiResponse.error(50000, msg);
+        }
+    }
+
+    @PostMapping("/accounts/{accountId}/instances/{instanceId}/bt-panel/action")
+    public ApiResponse<Void> btPanelAction(
+            @PathVariable long accountId,
+            @PathVariable String instanceId,
+            @RequestBody NexusBtPanelActionRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        String type = req != null ? req.getType() : null;
+        if (!"open".equals(type)) return ApiResponse.error(40000, "type must be open");
+        String metaJson;
+        try {
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("url", req.getUrl());
+            metaJson = objectMapper.writeValueAsString(meta);
+        } catch (Exception e) {
+            metaJson = null;
+        }
+        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.bt_panel.open", "instance", instanceId, "success", metaJson);
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/accounts/{accountId}/cost/summary")
+    public ApiResponse<Map<String, Object>> costSummary(
+            @PathVariable long accountId,
+            @RequestParam(required = false) String billingCycle,
+            @RequestParam(defaultValue = "15") int topN
+    ) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        String cycle = billingCycle;
+        if (cycle == null || cycle.isBlank()) {
+            cycle = YearMonth.now().minusMonths(1).toString();
+        }
+        try {
+            AliyunBssAdapter.CostSummary s = bssCostService.summarizeForAccount(tenantId, accountId, cycle, topN);
+            List<Map<String, Object>> top = new ArrayList<>();
+            for (AliyunBssAdapter.InstanceCostRow r : s.topByInstance) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("instanceId", r.instanceId);
+                m.put("instanceName", r.instanceName);
+                m.put("amount", r.amount);
+                top.add(m);
+            }
+            return ApiResponse.ok(Map.of(
+                    "billingCycle", cycle,
+                    "totalPretaxEcs", s.totalPretax,
+                    "topByInstance", top
+            ));
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "cost query failed");
+        }
+    }
+
+    @GetMapping("/alert-rules")
+    public ApiResponse<List<NexusAlertRule>> listAlertRules() {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        return ApiResponse.ok(alertRuleMapper.listByTenant(tenantId));
+    }
+
+    @PostMapping("/alert-rules")
+    public ApiResponse<Map<String, Object>> createAlertRule(@RequestBody NexusAlertRuleWriteRequest req) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        ApiResponse<Map<String, Object>> err = validateAlertWrite(tenantId, req, true);
+        if (err != null) return err;
+        NexusAlertRule r = toRule(tenantId, req, null);
+        alertRuleMapper.insert(r);
+        return ApiResponse.ok(Map.of("id", r.getId()));
+    }
+
+    @PutMapping("/alert-rules/{ruleId}")
+    public ApiResponse<Void> updateAlertRule(@PathVariable long ruleId, @RequestBody NexusAlertRuleWriteRequest req) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        NexusAlertRule existing = alertRuleMapper.findById(tenantId, ruleId);
+        if (existing == null) return ApiResponse.error(40400, "rule not found");
+        ApiResponse<Map<String, Object>> err = validateAlertWrite(tenantId, req, false);
+        if (err != null) {
+            return ApiResponse.error(err.getCode(), err.getMessage());
+        }
+        NexusAlertRule r = toRule(tenantId, req, existing);
+        r.setId(ruleId);
+        r.setLastTriggeredAt(existing.getLastTriggeredAt());
+        alertRuleMapper.update(r);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/alert-rules/{ruleId}")
+    public ApiResponse<Void> deleteAlertRule(@PathVariable long ruleId) {
+        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        int n = alertRuleMapper.delete(tenantId, ruleId);
+        if (n <= 0) return ApiResponse.error(40400, "rule not found");
+        return ApiResponse.ok(null);
+    }
+
+    private ApiResponse<Map<String, Object>> validateAlertWrite(long tenantId, NexusAlertRuleWriteRequest req, boolean creating) {
+        if (req == null) return ApiResponse.error(40000, "body required");
+        if (creating && (req.getAccountId() == null)) {
+            return ApiResponse.error(40000, "accountId required");
+        }
+        if (req.getAccountId() != null && accountMapper.findForSync(tenantId, req.getAccountId()) == null) {
+            return ApiResponse.error(40000, "account not found");
+        }
+        String mt = req.getMetricType() != null ? req.getMetricType().trim().toLowerCase() : "";
+        if (!mt.equals("cpu") && !mt.equals("memory")) {
+            return ApiResponse.error(40000, "metricType must be cpu or memory");
+        }
+        String op = req.getOp() != null ? req.getOp().trim().toLowerCase() : "";
+        if (!op.equals("gt") && !op.equals("gte") && !op.equals("lt") && !op.equals("lte")) {
+            return ApiResponse.error(40000, "op must be gt|gte|lt|lte");
+        }
+        if (req.getThreshold() == null) return ApiResponse.error(40000, "threshold required");
+        boolean hasChannel = (req.getWebhookUrl() != null && !req.getWebhookUrl().isBlank())
+                || (req.getNotifyEmail() != null && !req.getNotifyEmail().isBlank());
+        if (!hasChannel) return ApiResponse.error(40000, "webhookUrl or notifyEmail required");
+        return null;
+    }
+
+    private static NexusAlertRule toRule(long tenantId, NexusAlertRuleWriteRequest req, NexusAlertRule existing) {
+        NexusAlertRule r = new NexusAlertRule();
+        r.setTenantId(tenantId);
+        Long acc = req.getAccountId() != null ? req.getAccountId() : (existing != null ? existing.getAccountId() : null);
+        r.setAccountId(acc);
+        String inst = req.getInstanceId();
+        if (inst != null) {
+            inst = inst.trim();
+            r.setInstanceId(inst.isEmpty() ? null : inst);
+        } else {
+            r.setInstanceId(existing != null ? existing.getInstanceId() : null);
+        }
+        String name = req.getName() != null ? req.getName().trim() : null;
+        r.setName(name != null && !name.isEmpty() ? name : (existing != null ? existing.getName() : "rule"));
+        r.setMetricType(req.getMetricType().trim().toLowerCase());
+        r.setOp(req.getOp().trim().toLowerCase());
+        r.setThreshold(req.getThreshold());
+        r.setDurationMinutes(req.getDurationMinutes() != null ? req.getDurationMinutes()
+                : (existing != null ? existing.getDurationMinutes() : 5));
+        String wh = req.getWebhookUrl() != null ? req.getWebhookUrl().trim() : null;
+        r.setWebhookUrl(wh != null && !wh.isEmpty() ? wh : (existing != null ? existing.getWebhookUrl() : null));
+        String em = req.getNotifyEmail() != null ? req.getNotifyEmail().trim() : null;
+        r.setNotifyEmail(em != null && !em.isEmpty() ? em : (existing != null ? existing.getNotifyEmail() : null));
+        r.setSilenceSeconds(req.getSilenceSeconds() != null ? req.getSilenceSeconds()
+                : (existing != null ? existing.getSilenceSeconds() : 900));
+        if (req.getEnabled() != null) {
+            r.setEnabled(Boolean.TRUE.equals(req.getEnabled()));
+        } else {
+            r.setEnabled(existing == null || existing.isEnabled());
+        }
+        return r;
     }
 }
 

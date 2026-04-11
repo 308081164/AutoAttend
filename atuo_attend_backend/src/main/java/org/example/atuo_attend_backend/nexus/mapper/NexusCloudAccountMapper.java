@@ -64,6 +64,26 @@ public interface NexusCloudAccountMapper {
                               @Param("id") long id,
                               @Param("lastAutoSyncAt") java.time.LocalDateTime lastAutoSyncAt);
 
+    @Update("""
+            UPDATE aa_nexus_cloud_account
+            SET display_name = #{displayName},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = #{tenantId} AND id = #{id}
+            """)
+    int updateDisplayName(@Param("tenantId") long tenantId,
+                          @Param("id") long id,
+                          @Param("displayName") String displayName);
+
+    @Update("""
+            UPDATE aa_nexus_cloud_account
+            SET auto_sync_interval_seconds = #{autoSyncIntervalSeconds},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = #{tenantId} AND id = #{id}
+            """)
+    int updateAutoSyncInterval(@Param("tenantId") long tenantId,
+                               @Param("id") long id,
+                               @Param("autoSyncIntervalSeconds") Integer autoSyncIntervalSeconds);
+
     @Select("""
             SELECT DISTINCT tenant_id AS tenantId
             FROM aa_nexus_cloud_account

@@ -54,6 +54,8 @@
 
 ### 4.2 GitHub Actions（`.github/workflows/deploy.yml`）
 
+- **触发**：`push` 到 `main` / `master`，或 Actions 页 **手动运行 workflow**（`workflow_dispatch`）。同一分支多次推送时启用 **concurrency**，新运行会取消尚未结束的旧部署，避免乱序覆盖。
+- **校验**：`check-migrate-manifest.sh` 确保所有 `schema_*migration*.sql` 已写入 `migrate_manifest.txt`；并在构建镜像前对 **主前端** 执行 `npm ci && npm run build`，尽早发现前端构建错误。
 - SCP `atuo_attend_backend` 到服务器后，`docker compose pull && up -d`，再执行 **`docker compose up -d --no-deps --force-recreate backend`**，保证每次部署 backend 都会启动一次并跑迁移。
 - **不再**在 SSH 里单独循环执行 `*migration*.sql`；迁移统一由 **backend 容器 entrypoint** 完成。
 - SCP 目录同时用于：**MySQL initdb 挂载**（新卷）与 **backend `/app/db` 挂载**（增量迁移）。

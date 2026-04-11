@@ -24,5 +24,20 @@ public interface NexusAutoSyncConfigMapper {
             VALUES (#{tenantId}, 1, 60, 60, 60)
             """)
     int ensureDefault(@Param("tenantId") long tenantId);
+
+    @Update("""
+            UPDATE aa_nexus_auto_sync_config
+            SET enabled = #{enabled},
+                global_interval_seconds = #{globalIntervalSeconds},
+                cpu_period_seconds = #{cpuPeriodSeconds},
+                cpu_window_minutes = #{cpuWindowMinutes},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = #{tenantId}
+            """)
+    int updateConfig(@Param("tenantId") long tenantId,
+                     @Param("enabled") boolean enabled,
+                     @Param("globalIntervalSeconds") int globalIntervalSeconds,
+                     @Param("cpuPeriodSeconds") int cpuPeriodSeconds,
+                     @Param("cpuWindowMinutes") int cpuWindowMinutes);
 }
 

@@ -5,6 +5,9 @@ import com.aliyun.ecs20140526.models.DescribeInstanceMonitorDataRequest;
 import com.aliyun.ecs20140526.models.DescribeInstanceMonitorDataResponse;
 import com.aliyun.ecs20140526.models.DescribeInstancesRequest;
 import com.aliyun.ecs20140526.models.DescribeInstancesResponse;
+import com.aliyun.ecs20140526.models.RebootInstanceRequest;
+import com.aliyun.ecs20140526.models.StartInstanceRequest;
+import com.aliyun.ecs20140526.models.StopInstanceRequest;
 import com.aliyun.teaopenapi.models.Config;
 import com.aliyun.teautil.models.RuntimeOptions;
 import java.time.Instant;
@@ -113,6 +116,32 @@ public class AliyunEcsAdapter {
             points.add(p);
         }
         return points;
+    }
+
+    public void startInstance(String accessKeyId, String accessKeySecret, String regionId, String instanceId) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        StartInstanceRequest req = new StartInstanceRequest()
+                .setInstanceId(instanceId);
+        client.startInstanceWithOptions(req, runtime);
+    }
+
+    public void stopInstance(String accessKeyId, String accessKeySecret, String regionId, String instanceId, boolean forceStop) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        StopInstanceRequest req = new StopInstanceRequest()
+                .setInstanceId(instanceId)
+                .setForceStop(forceStop);
+        client.stopInstanceWithOptions(req, runtime);
+    }
+
+    public void rebootInstance(String accessKeyId, String accessKeySecret, String regionId, String instanceId, boolean forceStop) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        RebootInstanceRequest req = new RebootInstanceRequest()
+                .setInstanceId(instanceId)
+                .setForceStop(forceStop);
+        client.rebootInstanceWithOptions(req, runtime);
     }
 
     private static String formatUtc(Instant t) {

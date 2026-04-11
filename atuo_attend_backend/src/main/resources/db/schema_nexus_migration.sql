@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS aa_nexus_cloud_instance (
     private_ip VARCHAR(64) NULL COMMENT '内网IP（可选）',
     os_name VARCHAR(128) NULL COMMENT '镜像/系统名称（可选）',
     memory_mb BIGINT NULL COMMENT '内存容量（MB，来自 DescribeInstances：Memory）',
+    bt_panel_url VARCHAR(512) NULL COMMENT '宝塔面板 URL，同步时不覆盖',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (tenant_id, account_id, instance_id),

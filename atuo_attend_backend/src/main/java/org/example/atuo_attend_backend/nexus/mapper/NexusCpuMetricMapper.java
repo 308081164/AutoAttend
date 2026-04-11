@@ -35,6 +35,21 @@ public interface NexusCpuMetricMapper {
                                    @Param("instanceId") String instanceId,
                                    @Param("limit") int limit);
 
+    @Select("""
+            SELECT ts, value
+            FROM aa_nexus_instance_cpu_metric
+            WHERE tenant_id = #{tenantId}
+              AND account_id = #{accountId}
+              AND instance_id = #{instanceId}
+              AND ts >= #{since}
+            ORDER BY ts ASC
+            LIMIT 2000
+            """)
+    List<MetricRow> listCpuPointsSince(@Param("tenantId") long tenantId,
+                                       @Param("accountId") long accountId,
+                                       @Param("instanceId") String instanceId,
+                                       @Param("since") LocalDateTime since);
+
     class MetricRow {
         private LocalDateTime ts;
         private Double value;
