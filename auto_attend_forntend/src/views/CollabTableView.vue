@@ -317,7 +317,8 @@
       </div>
     </div>
     <div v-else-if="!columns.length" class="placeholder">{{ $t('collabTable.noColumns') }}</div>
-    <div v-else class="table-wrapper">
+    <div v-else class="table-scroll-outer">
+    <div class="table-wrapper">
       <div v-if="selectedCount > 0" class="batch-toolbar">
         <span class="batch-toolbar-text">{{ $t('collabTable.batchSelected', { n: selectedCount }) }}</span>
         <button type="button" class="secondary-button small" :disabled="batchDeleting" @click="clearRowSelection">
@@ -435,6 +436,7 @@
       </table>
       <div v-if="!records.length && !recordsLoading" class="empty-tip">{{ $t('collabTable.noRecords') }}</div>
       <div v-if="recordsLoading" class="loading-tip">{{ $t('collabTable.loadingRecords') }}</div>
+    </div>
     </div>
 
     <!-- 记录详情抽屉 -->
@@ -1248,7 +1250,7 @@ export default {
         minWidth: panelW + 'px',
         maxWidth: maxW + 'px',
         maxHeight: maxH + 'px',
-        zIndex: 200,
+        zIndex: 9999,
         overflow: 'auto'
       }
     }
@@ -3656,12 +3658,18 @@ export default {
 
 /* ===================== Table Wrapper & Data Table ===================== */
 
-.table-wrapper {
+.table-scroll-outer {
   overflow-x: auto;
-  overflow-y: visible;
   background: var(--bg-card);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-primary);
+  width: 100%;
+}
+
+.table-wrapper {
+  overflow: visible;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
   width: 100%;
 }
 
@@ -3805,6 +3813,7 @@ export default {
   position: relative;
   max-width: 100%;
   z-index: 30;
+  overflow: visible;
 }
 
 .status-select {

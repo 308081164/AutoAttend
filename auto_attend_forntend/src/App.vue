@@ -35,23 +35,16 @@
         ></div>
 
         <!-- LEFT SIDEBAR -->
-        <aside class="app-sidebar" :class="{ 'is-open': sidebarOpen, 'is-collapsed': sidebarCollapsed }">
-          <!-- Logo area -->
-          <div class="sidebar-logo">
-            <div class="logo-icon">流</div>
-            <div class="logo-text" v-show="!sidebarCollapsed">
-              <span class="logo-brand">流帮</span>
-              <span class="logo-project">Project</span>
+        <div class="sidebar-wrapper">
+          <aside class="app-sidebar" :class="{ 'is-open': sidebarOpen, 'is-collapsed': sidebarCollapsed }">
+            <!-- Logo area -->
+            <div class="sidebar-logo">
+              <div class="logo-icon">流</div>
+              <div class="logo-text" v-show="!sidebarCollapsed">
+                <span class="logo-brand">流帮</span>
+                <span class="logo-project">Project</span>
+              </div>
             </div>
-            <!-- Collapse toggle button (desktop only) -->
-            <button
-              class="sidebar-collapse-btn"
-              :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-              @click="toggleSidebar"
-            >
-              <span class="collapse-icon" :class="{ 'is-flipped': sidebarCollapsed }">&#9654;</span>
-            </button>
-          </div>
 
           <!-- Navigation groups -->
           <nav class="sidebar-nav">
@@ -106,14 +99,26 @@
           <!-- Sidebar footer -->
           <div class="sidebar-footer">
             <div class="sidebar-user">
-              <div class="user-avatar">{{ (username || '?').charAt(0).toUpperCase() }}</div>
-              <span class="user-name" v-show="!sidebarCollapsed">{{ username || $t('app.adminLabel') }}</span>
+              <div class="user-avatar" :class="{ 'user-avatar--logo': isAdmin }">
+                <template v-if="isAdmin">流</template>
+                <template v-else>{{ (username || '?').charAt(0).toUpperCase() }}</template>
+              </div>
+              <span class="user-name" v-show="!sidebarCollapsed">{{ isAdmin ? ($t('app.adminLabel') || '管理员') : (username || '') }}</span>
             </div>
             <button v-if="username && !sidebarCollapsed" class="sidebar-logout" @click="logout">
               {{ $t('app.logout') }}
             </button>
           </div>
         </aside>
+        <!-- Collapse toggle button (desktop only) -->
+        <button
+          class="sidebar-collapse-btn"
+          :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+          @click="toggleSidebar"
+        >
+          <span class="collapse-icon" :class="{ 'is-flipped': sidebarCollapsed }">&#9654;</span>
+        </button>
+        </div>
 
         <!-- RIGHT AREA: header + content -->
         <div class="app-right">
@@ -137,7 +142,10 @@
               <select v-model="currentLocale" class="topbar-lang-select" @change="onLocaleChange">
                 <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
-              <div class="topbar-avatar">{{ (username || '?').charAt(0).toUpperCase() }}</div>
+              <div class="topbar-avatar" :class="{ 'topbar-avatar--logo': isAdmin }">
+                <template v-if="isAdmin">流</template>
+                <template v-else>{{ (username || '?').charAt(0).toUpperCase() }}</template>
+              </div>
             </div>
           </header>
 
@@ -171,6 +179,9 @@ export default {
     },
     username () {
       return window.localStorage.getItem('autoattend_username') || ''
+    },
+    isAdmin () {
+      return !!window.localStorage.getItem('autoattend_token')
     },
     showBackToHome () {
       if (!this.username) return false
@@ -344,6 +355,11 @@ body {
 }
 
 /* ========== LEFT SIDEBAR ========== */
+.sidebar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .app-sidebar {
   width: var(--sidebar-width, 240px);
   min-width: var(--sidebar-width, 240px);
@@ -430,9 +446,8 @@ body {
 .sidebar-collapse-btn {
   display: none;
   position: absolute;
-  right: -12px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: -14px;
+  top: 28px;
   width: 24px;
   height: 24px;
   background: var(--bg-sidebar, #1F2329);
@@ -444,6 +459,7 @@ body {
   padding: 0;
   z-index: 1000;
   transition: background 0.2s, border-color 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .sidebar-collapse-btn:hover {
@@ -607,6 +623,12 @@ body {
   justify-content: center;
 }
 
+.user-avatar--logo {
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .user-name {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.8);
@@ -763,6 +785,12 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.topbar-avatar--logo {
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 /* ========== MAIN CONTENT ========== */
