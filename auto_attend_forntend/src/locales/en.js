@@ -776,6 +776,7 @@ export default {
     fields: 'Fields',
     discussion: 'Discussion',
     attachments: 'Attachments',
+    history: 'History',
     editHistory: 'Edit History',
     historyEmpty: 'No edit history yet',
     historyActionCreate: 'Create',

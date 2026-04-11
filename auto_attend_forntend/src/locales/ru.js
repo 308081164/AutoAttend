@@ -331,6 +331,7 @@ export default {
     fields: 'Поля',
     discussion: 'Обсуждение',
     attachments: 'Вложения',
+    history: 'История',
     editHistory: 'История изменений',
     historyEmpty: 'История изменений пуста',
     historyActionCreate: 'Создание',

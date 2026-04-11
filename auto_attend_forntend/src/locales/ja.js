@@ -333,6 +333,7 @@ export default {
     fields: 'フィールド',
     discussion: '議論',
     attachments: '添付',
+    history: '履歴',
     editHistory: '編集履歴',
     historyEmpty: '編集履歴はまだありません',
     historyActionCreate: '作成',

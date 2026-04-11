@@ -331,6 +331,7 @@ export default {
     fields: 'Champs',
     discussion: 'Discussion',
     attachments: 'Pièces jointes',
+    history: 'Historique',
     editHistory: 'Historique des modifications',
     historyEmpty: 'Aucun historique pour le moment',
     historyActionCreate: 'Création',

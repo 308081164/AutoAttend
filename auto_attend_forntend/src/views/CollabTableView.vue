@@ -455,6 +455,7 @@
             </td>
             <td class="ops-cell">
               <button class="link-button" @click.stop="openRecord(row)">{{ $t('collabTable.detail') }}</button>
+              <button class="link-button" @click.stop="openRecord(row, 'history')">{{ $t('collabTable.history') }}</button>
               <button class="link-button danger" @click.stop="confirmDeleteRow(row)" :title="$t('collabTable.deleteRecord')">{{ $t('collabTable.delete') }}</button>
             </td>
           </tr>
@@ -2700,17 +2701,19 @@ export default {
       this.drawerRecord = fresh
       this.syncDrawerEditValuesFromRow(fresh)
     },
-    async openRecord (row) {
+    async openRecord (row, initialTab = 'fields') {
       this.drawerRecord = row
       this.drawerEditValues = {}
       this.syncDrawerEditValuesFromRow(row)
-      this.drawerTab = 'fields'
+      this.drawerTab = ['fields', 'comments', 'attachments', 'history'].includes(initialTab) ? initialTab : 'fields'
       this.comments = []
       this.attachments = []
       this.historyItems = []
       this.newComment = ''
       await this.loadAttachments()
       this.loadProjectMembersForDrawer()
+      if (this.drawerTab === 'history') await this.loadHistory()
+      else if (this.drawerTab === 'comments') await this.loadComments()
     },
     closeDrawer () {
       this.closeImagePreview()
@@ -4137,6 +4140,8 @@ export default {
 
 .drawer-tabs {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: var(--space-xs);
   padding: 0 var(--space-lg);
   gap: var(--space-sm);
   border-bottom: 1px solid var(--border-primary);
