@@ -1,34 +1,94 @@
 <template>
   <div class="console-shell" :class="{ 'dashboard-embedded-compact': embeddedCompact }">
     <div class="console-inner">
-      <div class="dashboard">
-        <section v-if="!collabDataBoardOnly" class="identity-card console-elevated">
-          <div class="identity-main">
-            <div class="identity-avatar" aria-hidden="true">
-              <img v-if="companyAvatarLogoUrl" :src="companyAvatarLogoUrl" class="identity-avatar-img" alt="">
-              <template v-else>{{ companyAvatarInitial }}</template>
+      <div class="dashboard" :class="{ 'dash-modern': !collabDataBoardOnly }">
+        <!-- 指挥中心：统筹监测类 KPI + 状态条 + 主体信息 -->
+        <section v-if="!collabDataBoardOnly" class="dash-command console-elevated">
+          <div class="dash-command-bg" aria-hidden="true"></div>
+          <div class="dash-command-top">
+            <div class="dash-command-intro">
+              <p class="dash-eyebrow">{{ $t('dashboard.workbenchEyebrow') }}</p>
+              <h1 class="dash-title">{{ $t('dashboard.workbenchTitle') }}</h1>
+              <p class="dash-mission">{{ $t('dashboard.workbenchMission') }}</p>
+              <div class="dash-status-strip" role="status">
+                <router-link to="/api-config" class="dash-chip dash-chip--link">{{ $t('dashboard.statusStripApi') }}</router-link>
+                <span class="dash-chip" :class="{ 'dash-chip--ok': aiHubDeepseekOk, 'dash-chip--warn': !aiHub.loading && !aiHubDeepseekOk }">
+                  <span class="dash-chip-glow" aria-hidden="true"></span>
+                  {{ $t('dashboard.hubApiDeepSeek') }} · {{ aiHub.loading ? '…' : (aiHubDeepseekOk ? $t('dashboard.statusOk') : $t('dashboard.statusCheck')) }}
+                </span>
+                <span class="dash-chip" :class="{ 'dash-chip--ok': aiHubQwenOk, 'dash-chip--warn': !aiHub.loading && !aiHubQwenOk }">
+                  <span class="dash-chip-glow" aria-hidden="true"></span>
+                  {{ $t('dashboard.hubApiQwen') }} · {{ aiHub.loading ? '…' : (aiHubQwenOk ? $t('dashboard.statusOk') : $t('dashboard.statusCheck')) }}
+                </span>
+                <span class="dash-chip dash-chip--neutral">
+                  {{ $t('dashboard.statusStripTeam', { active: teamActiveTodayCount, total: teamTotalLabel }) }}
+                </span>
+                <router-link to="/nexus" class="dash-chip dash-chip--link dash-chip--neutral">
+                  {{ nexusHub.loading ? '…' : $t('dashboard.statusStripNexus', { n: nexusHub.accountCount }) }}
+                </router-link>
+                <router-link to="/cloud-dev" class="dash-chip dash-chip--link dash-chip--neutral">{{ $t('dashboard.statusStripCloudDev') }}</router-link>
+              </div>
             </div>
-            <div class="identity-text">
-              <div class="identity-title-row">
-                <h1 class="identity-name">{{ companyDisplayName }}</h1>
-                <button type="button" class="identity-edit-subject" @click="openSubjectModal">
-                  {{ $t('dashboard.consoleEditSubject') }}
-                </button>
+            <div class="dash-command-identity">
+              <div class="dash-identity-avatar" aria-hidden="true">
+                <img v-if="companyAvatarLogoUrl" :src="companyAvatarLogoUrl" class="identity-avatar-img" alt="">
+                <template v-else>{{ companyAvatarInitial }}</template>
               </div>
-              <div class="identity-meta-row">
-                <span class="identity-id-label">{{ $t('dashboard.consoleLoginId') }}</span>
-                <code class="identity-id-value">{{ consoleLoginIdDisplay }}</code>
-                <button type="button" class="icon-text-btn" :disabled="!consoleLoginIdRaw" @click="copyConsoleIdentity" :title="$t('dashboard.consoleCopyId')">
-                  {{ $t('dashboard.consoleCopyId') }}
-                </button>
-                <span v-if="copyIdentityMsg" class="copy-toast">{{ copyIdentityMsg }}</span>
+              <div class="dash-identity-body">
+                <div class="dash-identity-title-row">
+                  <span class="dash-identity-name">{{ companyDisplayName }}</span>
+                  <button type="button" class="identity-edit-subject dash-identity-edit" @click="openSubjectModal">
+                    {{ $t('dashboard.consoleEditSubject') }}
+                  </button>
+                </div>
+                <div class="identity-meta-row dash-identity-meta">
+                  <span class="identity-id-label">{{ $t('dashboard.consoleLoginId') }}</span>
+                  <code class="identity-id-value">{{ consoleLoginIdDisplay }}</code>
+                  <button type="button" class="icon-text-btn" :disabled="!consoleLoginIdRaw" @click="copyConsoleIdentity" :title="$t('dashboard.consoleCopyId')">
+                    {{ $t('dashboard.consoleCopyId') }}
+                  </button>
+                  <span v-if="copyIdentityMsg" class="copy-toast">{{ copyIdentityMsg }}</span>
+                </div>
+                <div class="identity-tags dash-identity-tags">
+                  <span class="identity-tag">{{ $t('dashboard.consoleTagWorkspace') }}</span>
+                  <span v-if="enterpriseVerified" class="identity-tag identity-tag-success">{{ $t('dashboard.consoleEnterpriseVerified') }}</span>
+                  <span v-else class="identity-tag identity-tag-warn">{{ $t('dashboard.consoleEnterprisePending') }}</span>
+                  <span class="identity-tag identity-tag-muted">{{ $t('dashboard.consoleTagProduct') }}</span>
+                </div>
               </div>
-              <div class="identity-tags">
-                <span class="identity-tag">{{ $t('dashboard.consoleTagWorkspace') }}</span>
-                <span v-if="enterpriseVerified" class="identity-tag identity-tag-success">{{ $t('dashboard.consoleEnterpriseVerified') }}</span>
-                <span v-else class="identity-tag identity-tag-warn">{{ $t('dashboard.consoleEnterprisePending') }}</span>
-                <span class="identity-tag identity-tag-muted">{{ $t('dashboard.consoleTagProduct') }}</span>
-              </div>
+            </div>
+          </div>
+
+          <div class="dash-kpi-grid" role="list">
+            <div class="dash-kpi" role="listitem">
+              <span class="dash-kpi-value">{{ kpiRepoCount }}</span>
+              <span class="dash-kpi-label">{{ $t('dashboard.repoCount') }}</span>
+              <span class="dash-kpi-hint">{{ $t('dashboard.kpiHintCode') }}</span>
+            </div>
+            <div class="dash-kpi" role="listitem">
+              <span class="dash-kpi-value">{{ kpiCommitCount }}</span>
+              <span class="dash-kpi-label">{{ $t('dashboard.totalCommits') }}</span>
+              <span class="dash-kpi-hint">{{ $t('dashboard.kpiHintWebhook') }}</span>
+            </div>
+            <div class="dash-kpi" role="listitem">
+              <span class="dash-kpi-value">{{ kpiAuthorCount }}</span>
+              <span class="dash-kpi-label">{{ $t('dashboard.authorCount') }}</span>
+              <span class="dash-kpi-hint">{{ $t('dashboard.kpiHintPeople') }}</span>
+            </div>
+            <div class="dash-kpi" role="listitem">
+              <span class="dash-kpi-value">{{ quoteHub.loading ? '—' : quoteHub.total }}</span>
+              <span class="dash-kpi-label">{{ $t('dashboard.hubQuoteTotal') }}</span>
+              <router-link to="/quote" class="dash-kpi-link">{{ $t('dashboard.hubQuoteViewAll') }} →</router-link>
+            </div>
+            <div class="dash-kpi" role="listitem">
+              <span class="dash-kpi-value">{{ prototypeHub.loading ? '—' : prototypeHub.total }}</span>
+              <span class="dash-kpi-label">{{ $t('dashboard.hubPrototypeTotal') }}</span>
+              <router-link to="/prototype" class="dash-kpi-link">{{ $t('dashboard.hubPrototypeViewAll') }} →</router-link>
+            </div>
+            <div class="dash-kpi dash-kpi--accent" role="listitem">
+              <span class="dash-kpi-value">{{ nexusHub.loading ? '—' : nexusHub.accountCount }}</span>
+              <span class="dash-kpi-label">{{ $t('dashboard.kpiNexusAccounts') }}</span>
+              <router-link to="/nexus" class="dash-kpi-link">{{ $t('dashboard.kpiNexusLink') }} →</router-link>
             </div>
           </div>
         </section>
@@ -223,7 +283,11 @@
           </div>
         </div>
 
-        <div v-if="!collabDataBoardOnly" class="hub-grid">
+        <div v-if="!collabDataBoardOnly" class="hub-modules-head">
+          <h2 class="hub-modules-title">{{ $t('dashboard.workbenchModulesTitle') }}</h2>
+          <p class="hub-modules-lead">{{ $t('dashboard.workbenchModulesLead') }}</p>
+        </div>
+        <div v-if="!collabDataBoardOnly" class="hub-grid dash-module-grid">
           <section class="hub-card console-elevated hub-quote">
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-quote" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
@@ -477,14 +541,15 @@
         </div>
 
         <template v-if="!suppressBoardHeader">
-          <p class="console-board-hint">{{ $t('dashboard.consoleDataBoardHint') }}</p>
-          <h2 class="console-board-title">{{ $t('dashboard.consoleDataBoardTitle') }}</h2>
+          <header class="dash-board-header">
+            <p class="dash-board-eyebrow">{{ $t('dashboard.consoleDataBoardHint') }}</p>
+            <h2 class="dash-board-title">{{ $t('dashboard.consoleDataBoardTitle') }}</h2>
+          </header>
         </template>
 
-        <!-- 顶部：选中项目时展示项目基本信息，否则展示资源总览 -->
-    <section class="section overview-section">
-      <h2 class="section-title">{{ selectedRepo ? $t('dashboard.projectInfoTitle') : $t('dashboard.overviewTitle') }}</h2>
-      <!-- 已选项目：项目名称、简介、开发者、技术栈 -->
+        <!-- 研发遥测：选中仓库时展示项目档案；全局指标已在指挥中心 KPI 呈现 -->
+    <section class="section overview-section dash-glass-panel">
+      <h2 class="section-title dash-section-title">{{ selectedRepo ? $t('dashboard.projectInfoTitle') : $t('dashboard.telemetrySectionTitle') }}</h2>
       <div v-if="selectedRepo" class="project-info-cards" :class="{ 'project-info-cards-compact': embeddedCompact }">
         <div v-if="repoInfoLoading" class="placeholder">{{ $t('collab.loading') }}</div>
         <template v-else>
@@ -507,29 +572,15 @@
           </div>
         </template>
       </div>
-      <!-- 未选项目：资源总览三卡片或加载占位 -->
       <template v-else>
-        <div v-if="statsOverview" class="overview-cards">
-          <div class="overview-card">
-            <div class="overview-value">{{ statsOverview.repoCount ?? 0 }}</div>
-            <div class="overview-label">{{ $t('dashboard.repoCount') }}</div>
-          </div>
-          <div class="overview-card">
-            <div class="overview-value">{{ statsOverview.totalCommits ?? 0 }}</div>
-            <div class="overview-label">{{ $t('dashboard.totalCommits') }}</div>
-          </div>
-          <div class="overview-card">
-            <div class="overview-value">{{ statsOverview.authorCount ?? 0 }}</div>
-            <div class="overview-label">{{ $t('dashboard.authorCount') }}</div>
-          </div>
-        </div>
+        <p v-if="statsOverview" class="dash-telemetry-hint">{{ $t('dashboard.telemetryAggregateHint') }}</p>
         <div v-else class="placeholder">{{ $t('collab.loading') }}</div>
       </template>
     </section>
 
     <!-- 图表区：提交趋势 + 开发者排名（合并为单卡片，Tab 切换） -->
     <div class="charts-row">
-      <section class="section chart-section chart-section-merged">
+      <section class="section chart-section chart-section-merged dash-glass-panel">
         <div class="chart-merge-head">
           <div class="chart-tab-strip" role="tablist">
             <button
@@ -582,9 +633,9 @@
     </div>
 
     <!-- 项目每日进展总结（按仓库） -->
-    <section class="section" v-if="selectedRepo">
+    <section class="section dash-glass-panel" v-if="selectedRepo">
       <div class="section-header">
-        <h2 class="section-title">{{ $t('dashboard.dailySummaryTitle') }}</h2>
+        <h2 class="section-title dash-section-title">{{ $t('dashboard.dailySummaryTitle') }}</h2>
         <div class="daily-summary-toolbar">
           <button type="button" class="link-button primary-action" @click="runDailySummaryForRepo" :disabled="dailySummaryRunLoading || dailySummaryLoading">
             {{ dailySummaryRunLoading ? '…' : $t('dashboard.dailySummaryGenerateYesterday') }}
@@ -624,9 +675,9 @@
     </section>
 
     <!-- 最近提交表格（分页） -->
-    <section class="section commits-section">
+    <section class="section commits-section dash-glass-panel">
       <div class="section-header">
-        <h2 class="section-title">{{ $t('dashboard.recentCommits') }}</h2>
+        <h2 class="section-title dash-section-title">{{ $t('dashboard.recentCommits') }}</h2>
         <div class="commits-toolbar">
           <label class="page-size-label">
             {{ $t('dashboard.commitsPerPage') }}
@@ -685,8 +736,8 @@
       </template>
     </section>
 
-    <section class="section" v-if="authors.length">
-      <h2 class="section-title">{{ $t('dashboard.developers') }}</h2>
+    <section class="section dash-glass-panel" v-if="authors.length">
+      <h2 class="section-title dash-section-title">{{ $t('dashboard.developers') }}</h2>
       <div class="table-wrapper">
         <table class="table">
           <thead>
@@ -880,6 +931,7 @@ export default {
       dailySummaryDetail: null,
       dailyDetailLoading: false,
       quoteHub: { loading: false, items: [], total: 0 },
+      nexusHub: { loading: false, accountCount: 0 },
       prototypeHub: { loading: false, items: [], total: 0 },
       prototypeHubFilter: '',
       teamHubCount: null,
@@ -1072,6 +1124,28 @@ export default {
       if (this.teamHubCount == null) return '—'
       return this.teamHubCount
     },
+    teamActiveTodayCount () {
+      const list = this.teamMembers || []
+      return list.filter(m => m.activeToday).length
+    },
+    teamTotalLabel () {
+      return String(this.teamHubDisplay)
+    },
+    kpiRepoCount () {
+      if (!this.statsOverview) return '—'
+      const n = this.statsOverview.repoCount
+      return n != null ? n : '—'
+    },
+    kpiCommitCount () {
+      if (!this.statsOverview) return '—'
+      const n = this.statsOverview.totalCommits
+      return n != null ? n : '—'
+    },
+    kpiAuthorCount () {
+      if (!this.statsOverview) return '—'
+      const n = this.statsOverview.authorCount
+      return n != null ? n : '—'
+    },
     /** 无筛选时与报价卡片一致展示最近 5 条；有筛选时在全部项目中匹配，最多 20 条 */
     prototypeHubListFiltered () {
       const items = Array.isArray(this.prototypeHub.items) ? this.prototypeHub.items : []
@@ -1239,7 +1313,20 @@ export default {
       this.loadPrototypeHub()
       this.loadTeamHub()
       this.loadAiHub()
+      this.loadNexusHub()
       this.loadPartyBProfileForHeader()
+    },
+    async loadNexusHub () {
+      this.nexusHub.loading = true
+      try {
+        const resp = await this.$http.get('/admin/nexus/accounts')
+        const items = (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.items) ? resp.data.data.items : []
+        this.nexusHub.accountCount = Array.isArray(items) ? items.length : 0
+      } catch (e) {
+        this.nexusHub.accountCount = 0
+      } finally {
+        this.nexusHub.loading = false
+      }
     },
     openSubjectModal () {
       // partyBProfile 由 loadConsoleHub 拉取；若仍在加载，避免覆盖用户编辑
@@ -1792,7 +1879,7 @@ export default {
           data: {
             labels,
             datasets: [
-              { label: this.$t('dashboard.recentCommits'), data: counts, backgroundColor: 'rgba(37, 99, 235, 0.7)', borderColor: 'rgb(37, 99, 235)', borderWidth: 1 }
+              { label: this.$t('dashboard.recentCommits'), data: counts, backgroundColor: 'rgba(6, 182, 212, 0.55)', borderColor: 'rgb(34, 211, 238)', borderWidth: 1 }
             ]
           },
           options: {
@@ -1819,7 +1906,7 @@ export default {
           type: 'bar',
           data: {
             labels,
-            datasets: [{ label: this.$t('dashboard.commits'), data: counts, backgroundColor: 'rgba(5, 150, 105, 0.7)', borderColor: 'rgb(5, 150, 105)', borderWidth: 1 }]
+            datasets: [{ label: this.$t('dashboard.commits'), data: counts, backgroundColor: 'rgba(99, 102, 241, 0.55)', borderColor: 'rgb(129, 140, 248)', borderWidth: 1 }]
           },
           options: {
             indexAxis: 'y',
@@ -2200,6 +2287,368 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
+}
+
+/* —— 工作台指挥中心（监测统筹 + 科技感） —— */
+.dash-modern .console-inner {
+  max-width: 1320px;
+}
+
+.dash-command {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.04) 0%, rgba(255, 255, 255, 0.92) 42%, rgba(240, 249, 255, 0.95) 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+    0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+.dash-command-bg {
+  position: absolute;
+  inset: -40% -20% auto -20%;
+  height: 70%;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 20%, rgba(34, 211, 238, 0.18), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 10%, rgba(99, 102, 241, 0.2), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 60% 80%, rgba(20, 86, 240, 0.08), transparent 45%);
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+.dash-command-top {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 320px);
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .dash-command-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dash-command-intro {
+  min-width: 0;
+}
+
+.dash-eyebrow {
+  margin: 0 0 var(--space-xs);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6366f1;
+}
+
+.dash-title {
+  margin: 0 0 var(--space-sm);
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.dash-mission {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 36rem;
+}
+
+.dash-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dash-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.dash-chip-glow {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+
+.dash-chip--ok .dash-chip-glow {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+}
+
+.dash-chip--warn .dash-chip-glow {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.55);
+}
+
+.dash-chip--neutral {
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.dash-chip--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.dash-chip--link:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.dash-command-identity {
+  position: relative;
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+.dash-identity-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #22d3ee);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.dash-identity-avatar .identity-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dash-identity-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.dash-identity-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.dash-identity-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dash-identity-edit {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+}
+
+.dash-identity-meta {
+  margin-bottom: 6px;
+}
+
+.dash-identity-tags {
+  flex-wrap: wrap;
+}
+
+.dash-kpi-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+@media (max-width: 1100px) {
+  .dash-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .dash-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dash-kpi {
+  padding: 14px 14px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dash-kpi:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.08);
+}
+
+.dash-kpi--accent {
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(224, 242, 254, 0.9));
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+.dash-kpi-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.dash-kpi-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dash-kpi-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-disabled);
+  line-height: 1.35;
+}
+
+.dash-kpi-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #4f46e5;
+  text-decoration: none;
+}
+
+.dash-kpi-link:hover {
+  text-decoration: underline;
+}
+
+.hub-modules-head {
+  margin-bottom: calc(var(--space-sm) * -1);
+}
+
+.hub-modules-title {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.hub-modules-lead {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 48rem;
+}
+
+.dash-module-grid .hub-card {
+  min-height: 0;
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.dash-module-grid .hub-card:hover {
+  border-color: rgba(99, 102, 241, 0.22);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+}
+
+.dash-module-grid .hub-card-head {
+  margin-bottom: var(--space-md);
+}
+
+.dash-board-header {
+  margin-bottom: var(--space-xs);
+}
+
+.dash-board-eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.dash-board-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.dash-glass-panel {
+  border-radius: 14px !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.04) !important;
+}
+
+.dash-modern .dash-glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%) !important;
+}
+
+.dash-section-title::before {
+  background: linear-gradient(180deg, #22d3ee, #6366f1) !important;
+}
+
+.dash-telemetry-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.55;
+  padding: var(--space-sm) 0;
+}
+
+.dash-modern .chart-tab-strip button.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(34, 211, 238, 0.12));
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #4338ca;
 }
 
 /* 嵌入协作「开发与数据看板」：飞书式紧凑数据区 */
