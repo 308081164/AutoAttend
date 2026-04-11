@@ -1,12 +1,43 @@
 <template>
-  <div class="ai-config-page">
-    <div class="page-header">
+  <div class="ai-config-page ai-config-shell">
+    <header class="ai-config-hero">
       <h1 class="page-title">{{ $t('aiConfig.title') }}</h1>
-    </div>
-    <p class="page-desc">{{ $t('aiConfig.desc') }}</p>
+      <p class="page-lead">{{ $t('aiConfig.pageLead') }}</p>
+    </header>
 
-    <div class="provider-grid">
+    <section class="ai-guide-card" aria-labelledby="ai-guide-title">
+      <div class="ai-guide-head">
+        <span class="ai-guide-kicker">{{ $t('aiConfig.guideKicker') }}</span>
+        <h2 id="ai-guide-title" class="ai-guide-title">{{ $t('aiConfig.guideTitle') }}</h2>
+      </div>
+      <ol class="ai-guide-steps">
+        <li><span class="ai-step-num" aria-hidden="true">1</span><span class="ai-step-text">{{ $t('aiConfig.guideStep1') }}</span></li>
+        <li><span class="ai-step-num" aria-hidden="true">2</span><span class="ai-step-text">{{ $t('aiConfig.guideStep2') }}</span></li>
+        <li><span class="ai-step-num" aria-hidden="true">3</span><span class="ai-step-text">{{ $t('aiConfig.guideStep3') }}</span></li>
+        <li><span class="ai-step-num" aria-hidden="true">4</span><span class="ai-step-text">{{ $t('aiConfig.guideStep4') }}</span></li>
+      </ol>
+      <div class="ai-guide-cta">
+        <router-link :to="{ name: 'test' }" class="ai-cta-btn ai-cta-btn--primary">{{ $t('aiConfig.guideOpenTest') }}</router-link>
+        <span class="ai-guide-cta-hint">{{ $t('aiConfig.guideOpenTestHint') }}</span>
+      </div>
+    </section>
+
+    <section class="ai-section" aria-labelledby="ai-models-heading">
+      <div class="ai-section-head">
+        <h2 id="ai-models-heading" class="ai-section-title">{{ $t('aiConfig.sectionModelsTitle') }}</h2>
+        <p class="ai-section-desc">{{ $t('aiConfig.sectionModelsDesc') }}</p>
+      </div>
+      <div class="provider-grid ai-models-grid">
       <div class="provider-panel">
+        <div class="ai-column-head">
+          <div class="ai-column-head-row">
+            <h3 class="ai-column-title">{{ $t('aiConfig.deepseekBlockTitle') }}</h3>
+            <div class="ai-external-links">
+              <a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer" class="ai-doc-link">{{ $t('aiConfig.openDeepseekConsole') }} ↗</a>
+              <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" class="ai-doc-link">{{ $t('aiConfig.openDeepseekKeys') }} ↗</a>
+            </div>
+          </div>
+        </div>
         <div class="config-card" v-if="config">
           <p v-if="configLoadedHint" class="config-loaded-hint">{{ $t('aiConfig.configLoadedHint') }}</p>
           <form @submit.prevent="saveConfig">
@@ -61,7 +92,7 @@
         <div v-else class="placeholder">{{ $t('aiConfig.loading') }}</div>
 
         <div class="config-card token-usage-card">
-          <h2 class="config-card-title">DeepSeek {{ $t('aiConfig.tokenUsageTitle') }}</h2>
+          <h3 class="config-card-title config-card-title--usage">{{ $t('aiConfig.tokenUsageHeadingDeepseek') }}</h3>
           <p class="config-card-desc">{{ $t('aiConfig.tokenUsageDesc') }}</p>
           <div v-if="usageLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
           <template v-else-if="usage">
@@ -114,34 +145,44 @@
       </div>
 
       <div class="provider-panel">
+        <div class="ai-column-head">
+          <div class="ai-column-head-row">
+            <h3 class="ai-column-title">{{ $t('aiConfig.qwenBlockTitle') }}</h3>
+            <div class="ai-external-links">
+              <a href="https://dashscope.console.aliyun.com/" target="_blank" rel="noopener noreferrer" class="ai-doc-link">{{ $t('aiConfig.openDashscopeConsole') }} ↗</a>
+              <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" rel="noopener noreferrer" class="ai-doc-link">{{ $t('aiConfig.openDashscopeKeys') }} ↗</a>
+              <a href="https://help.aliyun.com/zh/dashscope/developer-reference/api-details" target="_blank" rel="noopener noreferrer" class="ai-doc-link">{{ $t('aiConfig.qwenDocsLink') }} ↗</a>
+            </div>
+          </div>
+          <p class="ai-column-sub">{{ $t('aiConfig.qwenBlockDesc') }}</p>
+        </div>
         <div class="config-card qwen-config-card" v-if="qwenConfig">
-          <h2 class="config-card-title">Qwen 多模态（协作 AI 录入）</h2>
-          <p class="config-card-desc">用于「项目协作 → 任务表」的 AI 录入模式，多模态理解文字+附件。</p>
           <form @submit.prevent="saveQwenConfig">
             <div class="form-row">
-              <label class="form-label">提供商</label>
-              <span class="form-value">Qwen</span>
+              <label class="form-label">{{ $t('aiConfig.qwenProviderLabel') }}</label>
+              <span class="form-value form-value--badge">{{ $t('aiConfig.qwenProviderValue') }}</span>
             </div>
             <div class="form-row">
-              <label class="form-label">Qwen API Key</label>
-              <p v-if="qwenConfig.apiKeyMasked" class="api-key-set">已设置（{{ qwenConfig.apiKeyMasked }}）</p>
+              <label class="form-label">{{ $t('aiConfig.qwenApiKeyLabel') }}</label>
+              <p v-if="qwenConfig.apiKeyMasked" class="api-key-set">{{ $t('aiConfig.qwenApiKeySetHint') }}（{{ qwenConfig.apiKeyMasked }}）</p>
               <input
                 v-model="qwenForm.apiKey"
                 type="password"
                 autocomplete="off"
-                placeholder="不填则保持原值"
+                :placeholder="qwenConfig.apiKeyMasked ? $t('aiConfig.qwenApiKeyPlaceholderKeep') : $t('aiConfig.qwenApiKeyPlaceholder')"
                 class="form-input"
               >
+              <p class="form-hint">{{ $t('aiConfig.qwenApiKeyHint') }}</p>
             </div>
             <div class="form-row">
-              <label class="form-label">启用千问多模态</label>
+              <label class="form-label">{{ $t('aiConfig.qwenEnabledField') }}</label>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="qwenForm.enabled">
-                <span>用于协作任务表 AI 录入模式</span>
+                <span>{{ $t('aiConfig.qwenEnabledLabel') }}</span>
               </label>
             </div>
             <div class="form-row">
-              <label class="form-label">模型</label>
+              <label class="form-label">{{ $t('aiConfig.qwenModelLabel') }}</label>
               <input v-model="qwenForm.model" type="text" class="form-input" placeholder="qwen-omni">
             </div>
             <div class="form-actions">
@@ -152,8 +193,8 @@
         </div>
 
         <div class="config-card token-usage-card qwen-usage-card">
-          <h2 class="config-card-title">千问多模态 {{ $t('aiConfig.tokenUsageTitle') }}</h2>
-          <p class="config-card-desc">协作任务表 AI 录入产生的 Token 消耗。</p>
+          <h3 class="config-card-title config-card-title--usage">{{ $t('aiConfig.tokenUsageHeadingQwen') }}</h3>
+          <p class="config-card-desc">{{ $t('aiConfig.qwenUsageDesc') }}</p>
           <div v-if="usageQwenLoading" class="placeholder small">{{ $t('collab.loading') }}</div>
           <template v-else-if="usageQwen">
             <div class="usage-summary">
@@ -204,6 +245,7 @@
         </div>
       </div>
     </div>
+    </section>
 
     <div class="usage-detail-modal" v-if="usageDetailOpen" @click.self="closeUsageDetail">
       <div class="usage-detail-dialog">
@@ -249,8 +291,17 @@
       </div>
     </div>
 
-    <div class="config-card github-config-card" v-if="githubConfig !== undefined">
-      <h2 class="config-card-title">{{ $t('githubConfig.title') }}</h2>
+    <section class="ai-section" aria-labelledby="ai-github-heading" v-if="githubConfig !== undefined">
+      <div class="ai-section-head">
+        <h2 id="ai-github-heading" class="ai-section-title">{{ $t('aiConfig.sectionGithubTitle') }}</h2>
+        <p class="ai-section-desc">{{ $t('aiConfig.sectionGithubDesc') }}</p>
+        <div class="ai-external-links ai-section-links">
+          <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" class="ai-doc-link">{{ $t('aiConfig.openGithubTokens') }} ↗</a>
+          <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens" target="_blank" rel="noopener noreferrer" class="ai-doc-link">{{ $t('aiConfig.githubPatDoc') }} ↗</a>
+        </div>
+      </div>
+      <div class="config-card github-config-card ai-section-card">
+      <h3 class="config-card-title config-card-title--sub">{{ $t('githubConfig.title') }}</h3>
       <p class="config-card-desc">{{ $t('githubConfig.desc') }}</p>
       <form @submit.prevent="saveGitHubConfig">
         <div class="form-row">
@@ -281,9 +332,16 @@
         </div>
       </form>
     </div>
+    </section>
 
-    <div class="config-card mail-config-card" v-if="mailConfig !== undefined">
-      <h2 class="config-card-title">{{ $t('mailConfig.title') }}</h2>
+    <section class="ai-section" aria-labelledby="ai-mail-heading" v-if="mailConfig !== undefined">
+      <div class="ai-section-head">
+        <h2 id="ai-mail-heading" class="ai-section-title">{{ $t('aiConfig.sectionMailTitle') }}</h2>
+        <p class="ai-section-desc">{{ $t('aiConfig.sectionMailDesc') }}</p>
+        <p class="ai-inline-hint">{{ $t('aiConfig.smtpVendorHint') }}</p>
+      </div>
+      <div class="config-card mail-config-card ai-section-card">
+      <h3 class="config-card-title config-card-title--sub">{{ $t('mailConfig.title') }}</h3>
       <p class="config-card-desc">{{ $t('mailConfig.desc') }}</p>
       <form @submit.prevent="saveMailConfig">
         <div class="form-row">
@@ -335,6 +393,7 @@
         </div>
       </form>
     </div>
+    </section>
   </div>
 </template>
 
@@ -917,40 +976,262 @@ export default {
 </script>
 
 <style scoped>
-.ai-config-page {
-  max-width: 1100px;
+.ai-config-shell {
+  max-width: 1120px;
   margin: 0 auto;
+  padding: 0 var(--space-md) var(--space-xxl);
+  box-sizing: border-box;
 }
+
+.ai-config-hero {
+  margin-bottom: var(--space-lg);
+}
+
+.page-lead {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--font-size-base);
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 52rem;
+}
+
+.ai-guide-card {
+  background: linear-gradient(135deg, rgba(20, 86, 240, 0.06) 0%, var(--bg-card) 48%, var(--bg-card) 100%);
+  border: 1px solid rgba(20, 86, 240, 0.14);
+  border-radius: 12px;
+  padding: var(--space-lg) var(--space-xl);
+  margin-bottom: var(--space-xl);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.ai-guide-head {
+  margin-bottom: var(--space-md);
+}
+
+.ai-guide-kicker {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-blue);
+  margin-bottom: var(--space-xs);
+}
+
+.ai-guide-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.ai-guide-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: ai-step;
+}
+
+.ai-guide-steps li {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.ai-guide-steps li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.ai-step-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--brand-blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.ai-step-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-guide-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px dashed var(--border-primary);
+}
+
+.ai-guide-cta-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.ai-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.ai-cta-btn--primary {
+  background: var(--brand-blue);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(20, 86, 240, 0.25);
+}
+
+.ai-cta-btn--primary:hover {
+  background: var(--brand-blue-hover);
+  color: #fff;
+}
+
+.ai-section {
+  margin-bottom: var(--space-xl);
+}
+
+.ai-section-head {
+  margin-bottom: var(--space-md);
+}
+
+.ai-section-title {
+  margin: 0 0 var(--space-xs);
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.ai-section-desc {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 48rem;
+}
+
+.ai-section-links {
+  margin-top: var(--space-sm);
+}
+
+.ai-inline-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  line-height: 1.45;
+  max-width: 48rem;
+}
+
+.ai-section-card {
+  margin-top: 0;
+}
+
+.ai-column-head {
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.ai-column-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.ai-column-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.ai-column-sub {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+.ai-external-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+}
+
+.ai-doc-link {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--brand-blue);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ai-doc-link:hover {
+  text-decoration: underline;
+  color: var(--brand-blue-hover);
+}
+
 .provider-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-xl);
-  margin-bottom: var(--space-xl);
+  gap: var(--space-lg);
+  margin-bottom: 0;
 }
-@media (max-width: 768px) {
+
+@media (max-width: 900px) {
   .provider-grid {
     grid-template-columns: 1fr;
   }
 }
+
 .provider-panel {
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  transition: var(--transition-normal);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
-.provider-panel:hover {
-  box-shadow: var(--shadow-md);
-}
+
 .provider-panel .config-card {
   border: none;
   border-radius: 0;
   margin-top: 0;
   box-shadow: none;
 }
+
 .provider-panel .config-card:hover {
   box-shadow: none;
+}
+
+.provider-panel .token-usage-card {
+  border-top: 1px solid var(--border-primary);
 }
 .provider-panel .placeholder {
   border: none;
@@ -988,19 +1269,11 @@ export default {
 .qwen-config-card {
   margin-top: 0;
 }
-.page-header {
-  margin-bottom: var(--space-sm);
-}
 .page-title {
   font-size: var(--font-size-xxl);
   margin: 0;
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
-}
-.page-desc {
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
-  margin-bottom: var(--space-xl);
 }
 .config-loaded-hint {
   font-size: var(--font-size-sm);
@@ -1232,14 +1505,22 @@ export default {
 .placeholder.small {
   padding: var(--space-md);
 }
-.github-config-card {
-  margin-top: var(--space-xl);
+.github-config-card,
+.mail-config-card {
+  margin-top: 0;
 }
 .config-card-title {
   font-size: var(--font-size-lg);
   margin: 0 0 var(--space-sm);
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
+}
+.config-card-title--sub {
+  font-size: var(--font-size-base);
+}
+.config-card-title--usage {
+  font-size: var(--font-size-base);
+  margin-bottom: var(--space-xs);
 }
 .config-card-desc {
   font-size: var(--font-size-sm);
@@ -1259,6 +1540,15 @@ export default {
 .form-value {
   font-size: var(--font-size-base);
   color: var(--text-secondary);
+}
+.form-value--badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-primary);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
 }
 .form-input {
   width: 100%;
