@@ -140,5 +140,5 @@ jobs:
               fi
               sleep 2
             done
-            docker compose -f docker-compose.prod.yml restart frontend
-            docker compose -f docker-compose.prod.yml restart platform-monitor-frontend
+            # 勿用 restart：restart 不更换容器所用镜像层；监测台/主前端必须用新拉取的镜像重建，否则 :latest 已更新仍跑旧代码
+            docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate frontend platform-monitor-frontend

@@ -2,11 +2,12 @@
 
 **可以。** 仓库已配置 GitHub Actions（`.github/workflows/deploy.yml`）：向 **`main` 或 `master`** 分支 **push** 后，会自动完成：
 
-1. 在 GitHub 云端构建 **backend**、**frontend** 镜像并推送到 **ghcr.io**（`latest` 标签）。
+1. 在 GitHub 云端构建 **backend**、**frontend**、**platform-monitor-frontend（监测台）** 镜像并推送到 **ghcr.io**（`latest` 标签）。
 2. 通过 **SSH** 将 `docker-compose.prod.yml` 与整个 **`atuo_attend_backend`** 目录同步到服务器上的 **`DEPLOY_PATH`**（与仓库内迁移脚本、清单一致）。
-3. 在服务器执行 **`docker compose pull`** → **`up -d`** → **强制重建 `backend` 容器**，从而：
-   - 拉取刚构建的新镜像；
+3. 在服务器执行 **`docker compose pull`** → **`up -d`** → **强制重建 `backend`** → 待 healthy 后 **强制重建 `frontend` 与 `platform-monitor-frontend`**，从而：
+   - 三张镜像均为本次流水线构建的版本；
    - 每次部署 backend 都会启动一次，**按 `migrate_manifest.txt` 执行数据库迁移**（见 [Docker与CI-CD-数据库迁移.md](./Docker与CI-CD-数据库迁移.md)）。
+   - **说明**：仅对前端容器执行 `docker compose restart` **不会**换成新拉取的镜像（容器仍绑定旧镜像 ID）；现 workflow 已改为 `up -d --force-recreate`，保证主站与监测台与 `latest` 一致。
 
 > **说明**：部署**不是**在服务器上执行 `git pull`；代码与 SQL 以 **SCP 同步的 `atuo_attend_backend`** 为准，镜像以 **ghcr** 为准。
 
