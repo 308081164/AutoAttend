@@ -1,59 +1,161 @@
 <template>
   <div class="login-page">
-    <aside class="login-brand" aria-hidden="false">
-      <div class="login-brand-inner">
-        <div class="login-logo">{{ brandInitial }}</div>
-        <h2 class="login-brand-title">{{ $t('app.title') }}</h2>
-        <p class="login-brand-slogan">{{ $t('app.slogan') }}</p>
-        <ul class="login-points">
-          <li>{{ $t('landing.featConsoleTitle') }}：{{ $t('landing.featConsoleDesc') }}</li>
-          <li>{{ $t('landing.featCollabTitle') }}：{{ $t('landing.featCollabDesc') }}</li>
-          <li>{{ $t('landing.featAiTitle') }}：{{ $t('landing.featAiDesc') }}</li>
-        </ul>
+    <!-- ===== LEFT PANEL ===== -->
+    <aside class="login-left" aria-hidden="true">
+      <div class="login-left-bg"></div>
+
+      <!-- Floating decorations -->
+      <div class="float-deco deco-circle-1"></div>
+      <div class="float-deco deco-circle-2"></div>
+      <div class="float-deco deco-square-1"></div>
+      <div class="float-deco deco-square-2"></div>
+      <div class="float-deco deco-circle-3"></div>
+
+      <div class="login-left-content">
+        <!-- Logo -->
+        <div class="brand-logo-row">
+          <div class="brand-icon-box">流</div>
+          <span class="brand-name">流帮 Project</span>
+        </div>
+
+        <!-- Tagline -->
+        <p class="brand-tagline">软件流程，帮你搞定！</p>
+
+        <!-- Feature cards -->
+        <div class="feat-cards">
+          <div class="feat-card">
+            <div class="feat-icon-wrap">
+              <span class="feat-icon">📋</span>
+            </div>
+            <div class="feat-body">
+              <h3 class="feat-title">智能报价系统</h3>
+              <p class="feat-desc">{{ $t('landing.featConsoleDesc') }}</p>
+            </div>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-icon-wrap">
+              <span class="feat-icon">👥</span>
+            </div>
+            <div class="feat-body">
+              <h3 class="feat-title">团队协作空间</h3>
+              <p class="feat-desc">{{ $t('landing.featCollabDesc') }}</p>
+            </div>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-icon-wrap">
+              <span class="feat-icon">🤖</span>
+            </div>
+            <div class="feat-body">
+              <h3 class="feat-title">AI 能力集成</h3>
+              <p class="feat-desc">{{ $t('landing.featAiDesc') }}</p>
+            </div>
+          </div>
+        </div>
       </div>
     </aside>
-    <div class="login-form-wrap">
-      <div class="login-top">
-        <select v-model="locale" class="login-lang" @change="onLocaleChange">
+
+    <!-- ===== RIGHT PANEL ===== -->
+    <main class="login-right">
+      <!-- Language selector -->
+      <div class="login-top-bar">
+        <select v-model="locale" class="lang-select" @change="onLocaleChange">
           <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
       </div>
-      <div class="login-card">
-        <h1 class="login-title">{{ $t('login.title') }}</h1>
-        <p class="login-sub">{{ $t('login.subtitle') }}</p>
-        <form @submit.prevent="onSubmit">
-          <div class="form-item">
-            <label>{{ $t('login.phone') }}</label>
-            <input
-              v-model="form.phone"
-              type="text"
-              autocomplete="username"
-              :placeholder="$t('login.phoneHint')"
-              required
-            >
+
+      <!-- Form area -->
+      <div class="login-form-area">
+        <div class="login-form-card">
+          <h1 class="form-heading">{{ $t('login.title') }}</h1>
+          <p class="form-subtitle">{{ $t('login.subtitle') }}</p>
+
+          <form @submit.prevent="onSubmit" class="login-form">
+            <!-- Phone -->
+            <div class="field-group">
+              <label class="field-label">{{ $t('login.phone') }}</label>
+              <div class="phone-input-wrap">
+                <span class="phone-prefix">+86</span>
+                <input
+                  v-model="form.phone"
+                  type="text"
+                  class="phone-input"
+                  autocomplete="username"
+                  :placeholder="$t('login.phoneHint')"
+                  required
+                >
+              </div>
+            </div>
+
+            <!-- Password -->
+            <div class="field-group">
+              <label class="field-label">{{ $t('login.password') }}</label>
+              <div class="password-input-wrap">
+                <input
+                  v-model="form.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  class="password-input"
+                  autocomplete="current-password"
+                  required
+                >
+                <button
+                  type="button"
+                  class="eye-toggle"
+                  @click="showPassword = !showPassword"
+                  tabindex="-1"
+                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                >
+                  <!-- Eye open icon -->
+                  <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <!-- Eye closed icon -->
+                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Error -->
+            <div v-if="error" class="error-msg">{{ error }}</div>
+
+            <!-- Submit -->
+            <button type="submit" class="submit-btn" :disabled="loading">
+              <span v-if="loading" class="spinner"></span>
+              <span>{{ loading ? $t('login.submitting') : $t('login.submit') }}</span>
+            </button>
+          </form>
+
+          <!-- Divider -->
+          <div class="divider-row">
+            <span class="divider-line"></span>
+            <span class="divider-text">或</span>
+            <span class="divider-line"></span>
           </div>
-          <div class="form-item">
-            <label>{{ $t('login.password') }}</label>
-            <input
-              v-model="form.password"
-              type="password"
-              autocomplete="current-password"
-              required
-            >
+
+          <!-- Register link -->
+          <div class="alt-action">
+            <router-link to="/register" class="register-link">{{ $t('login.registerLink') }}</router-link>
           </div>
-          <div v-if="error" class="error-text">{{ error }}</div>
-          <button class="primary-button" type="submit" :disabled="loading">
-            {{ loading ? $t('login.submitting') : $t('login.submit') }}
-          </button>
-          <p class="register-hint">
-            <router-link to="/register">{{ $t('login.registerLink') }}</router-link>
-          </p>
-          <p class="back-landing">
-            <router-link :to="{ name: 'landing' }">← {{ $t('login.backLanding') }}</router-link>
-          </p>
-        </form>
+
+          <!-- Back to landing -->
+          <div class="back-link-row">
+            <router-link :to="{ name: 'landing' }" class="back-link">&larr; {{ $t('login.backLanding') }}</router-link>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <!-- Footer -->
+      <footer class="login-footer">
+        <span>&copy; 2026 流帮Project</span>
+      </footer>
+    </main>
   </div>
 </template>
 
@@ -71,7 +173,8 @@ export default {
         password: ''
       },
       loading: false,
-      error: ''
+      error: '',
+      showPassword: false
     }
   },
   computed: {
@@ -128,219 +231,593 @@ export default {
 </script>
 
 <style scoped>
+/* ============================================================
+   LAYOUT
+   ============================================================ */
 .login-page {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1.1fr);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans SC', sans-serif;
+  display: flex;
+  font-family: var(--font-family);
 }
 
-.login-brand {
-  background: linear-gradient(165deg, #f0f4ff 0%, #f7f8fa 45%, #e9f0ff 100%);
-  border-right: 1px solid #dee0e3;
-  padding: 48px 40px;
+/* ============================================================
+   LEFT PANEL (58%)
+   ============================================================ */
+.login-left {
+  position: relative;
+  width: 58%;
+  min-height: 100vh;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.login-brand-inner {
-  max-width: 400px;
+.login-left-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, #0F172A 0%, #1456F0 45%, #7C3AED 100%);
+  z-index: 0;
 }
 
-.login-logo {
+/* Floating decorations */
+.float-deco {
+  position: absolute;
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.deco-circle-1 {
+  width: 320px;
+  height: 320px;
+  top: -80px;
+  right: -60px;
+  background: rgba(255, 255, 255, 0.04);
+  animation: float 8s ease-in-out infinite;
+}
+
+.deco-circle-2 {
+  width: 200px;
+  height: 200px;
+  bottom: 10%;
+  left: -40px;
+  background: rgba(255, 255, 255, 0.05);
+  animation: float 10s ease-in-out infinite 1s;
+}
+
+.deco-circle-3 {
+  width: 120px;
+  height: 120px;
+  top: 40%;
+  right: 15%;
+  background: rgba(255, 255, 255, 0.03);
+  animation: float 7s ease-in-out infinite 2s;
+}
+
+.deco-square-1 {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  bottom: 25%;
+  right: 10%;
+  background: rgba(255, 255, 255, 0.04);
+  transform: rotate(25deg);
+  animation: float 9s ease-in-out infinite 0.5s;
+}
+
+.deco-square-2 {
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  top: 20%;
+  left: 10%;
+  background: rgba(255, 255, 255, 0.05);
+  transform: rotate(15deg);
+  animation: float 6s ease-in-out infinite 3s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-18px) rotate(3deg);
+  }
+}
+
+/* Left content */
+.login-left-content {
+  position: relative;
+  z-index: 2;
+  max-width: 420px;
+  padding: 48px 40px;
+}
+
+.brand-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.brand-icon-box {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #3370ff 0%, #5b9cff 100%);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: #fff;
   font-weight: 700;
-  font-size: 20px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 20px;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.login-brand-title {
-  margin: 0 0 8px;
-  font-size: 24px;
+.brand-name {
+  font-size: 22px;
   font-weight: 600;
-  color: #1f2329;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.brand-tagline {
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0 0 36px;
+}
+
+/* Feature cards */
+.feat-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.feat-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.feat-card:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.feat-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.feat-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.feat-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.feat-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+
+.feat-desc {
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0;
+}
+
+/* ============================================================
+   RIGHT PANEL (42%)
+   ============================================================ */
+.login-right {
+  width: 42%;
+  min-height: 100vh;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-top-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 20px 32px 0;
+}
+
+.lang-select {
+  padding: 6px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  outline: none;
+}
+
+.lang-select:hover {
+  border-color: var(--border-input-hover);
+}
+
+.lang-select:focus {
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 2px rgba(20, 86, 240, 0.12);
+}
+
+/* Form area */
+.login-form-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 32px;
+}
+
+.login-form-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.form-heading {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px;
   letter-spacing: -0.02em;
 }
 
-.login-brand-slogan {
-  margin: 0 0 28px;
-  font-size: 15px;
+.form-subtitle {
+  font-size: var(--font-size-sm);
   line-height: 1.6;
-  color: #646a73;
+  color: var(--text-secondary);
+  margin: 0 0 32px;
 }
 
-.login-points {
-  margin: 0;
-  padding-left: 18px;
-  color: #646a73;
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-.login-points li {
-  margin-bottom: 10px;
-}
-
-.login-form-wrap {
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-.login-top {
-  display: flex;
-  justify-content: flex-end;
-  padding: 16px 24px 0;
-}
-
-.login-lang {
-  padding: 6px 10px;
-  border: 1px solid #dee0e3;
-  border-radius: 8px;
-  font-size: 13px;
-  background: #fff;
-  color: #1f2329;
-  cursor: pointer;
-}
-
-.login-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  max-width: 400px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 24px 24px 48px;
-}
-
-.login-title {
-  margin: 0 0 8px;
-  font-size: 22px;
-  font-weight: 600;
-  color: #1f2329;
-}
-
-.login-sub {
-  margin: 0 0 24px;
-  font-size: 13px;
-  line-height: 1.55;
-  color: #646a73;
-}
-
-.form-item {
-  margin-bottom: 16px;
+/* Form */
+.login-form {
   display: flex;
   flex-direction: column;
 }
 
-label {
-  font-size: 12px;
-  margin-bottom: 6px;
-  color: #646a73;
+.field-group {
+  margin-bottom: 20px;
 }
 
-input {
-  height: 40px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid #dee0e3;
-  font-size: 14px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-input:hover {
-  border-color: #c9cdd4;
-}
-
-input:focus {
-  outline: none;
-  border-color: #3370ff;
-  box-shadow: 0 0 0 3px rgba(51, 112, 255, 0.15);
-}
-
-.primary-button {
-  width: 100%;
-  margin-top: 8px;
-  height: 42px;
-  border-radius: 8px;
-  border: none;
-  background: #3370ff;
-  color: #fff;
-  font-size: 14px;
+.field-label {
+  display: block;
+  font-size: var(--font-size-xs);
   font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* Phone input */
+.phone-input-wrap {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: var(--transition-fast);
+  background: var(--bg-input);
+}
+
+.phone-input-wrap:hover {
+  border-color: var(--border-input-hover);
+}
+
+.phone-input-wrap:focus-within {
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgba(20, 86, 240, 0.12);
+}
+
+.phone-prefix {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 12px;
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-page);
+  border-right: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.phone-input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  outline: none;
+  padding: 0 12px;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.phone-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Password input */
+.password-input-wrap {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: var(--transition-fast);
+  background: var(--bg-input);
+}
+
+.password-input-wrap:hover {
+  border-color: var(--border-input-hover);
+}
+
+.password-input-wrap:focus-within {
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgba(20, 86, 240, 0.12);
+}
+
+.password-input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  outline: none;
+  padding: 0 12px;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.password-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.eye-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100%;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
   cursor: pointer;
-  transition: background 0.15s;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  padding: 0;
 }
 
-.primary-button:hover:not(:disabled) {
-  background: #2860e1;
+.eye-toggle:hover {
+  color: var(--text-secondary);
 }
 
-.primary-button:disabled {
-  opacity: 0.65;
-  cursor: default;
+/* Error */
+.error-msg {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  font-size: var(--font-size-xs);
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: var(--radius-sm);
+  line-height: 1.5;
 }
 
-.error-text {
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: #f53f3f;
+/* Submit button */
+.submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  margin-top: 4px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--brand-blue);
+  color: #fff;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-btn);
+  outline: none;
 }
 
-.register-hint {
-  margin-top: 18px;
-  font-size: 14px;
+.submit-btn:hover:not(:disabled) {
+  background: var(--brand-blue-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(20, 86, 240, 0.35);
+}
+
+.submit-btn:active:not(:disabled) {
+  background: var(--brand-blue-active);
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.submit-btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(20, 86, 240, 0.25);
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Divider */
+.divider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 24px 0 20px;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-primary);
+}
+
+.divider-text {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+/* Register link */
+.alt-action {
   text-align: center;
 }
 
-.register-hint a {
-  color: #3370ff;
-  text-decoration: none;
+.register-link {
+  font-size: var(--font-size-base);
   font-weight: 500;
+  color: var(--brand-blue);
+  text-decoration: none;
+  transition: color 0.15s;
 }
 
-.register-hint a:hover {
+.register-link:hover {
+  color: var(--brand-blue-hover);
   text-decoration: underline;
 }
 
-.back-landing {
-  margin-top: 16px;
-  font-size: 13px;
+/* Back link */
+.back-link-row {
   text-align: center;
+  margin-top: 14px;
 }
 
-.back-landing a {
-  color: #646a73;
+.back-link {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
   text-decoration: none;
+  transition: color 0.15s;
 }
 
-.back-landing a:hover {
-  color: #3370ff;
+.back-link:hover {
+  color: var(--brand-blue);
 }
 
-@media (max-width: 900px) {
+/* Footer */
+.login-footer {
+  padding: 20px 32px;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-disabled);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
   .login-page {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 
-  .login-brand {
-    border-right: none;
-    border-bottom: 1px solid #dee0e3;
-    padding: 32px 24px;
+  .login-left {
+    width: 100%;
+    min-height: auto;
+    padding: 0;
+  }
+
+  .login-left-content {
+    padding: 36px 24px 32px;
+    max-width: 100%;
+  }
+
+  .feat-cards {
+    display: none;
+  }
+
+  .brand-tagline {
+    margin-bottom: 0;
+  }
+
+  .login-right {
+    width: 100%;
     min-height: auto;
   }
 
-  .login-form-wrap {
-    min-height: auto;
+  .login-form-area {
+    padding: 24px 20px;
+  }
+
+  .login-form-card {
+    max-width: 100%;
+  }
+
+  .login-top-bar {
+    padding: 16px 20px 0;
+  }
+
+  .login-footer {
+    padding: 16px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-heading {
+    font-size: 22px;
+  }
+
+  .phone-input {
+    padding: 0 8px;
+    font-size: var(--font-size-sm);
+  }
+
+  .password-input {
+    padding: 0 8px;
+    font-size: var(--font-size-sm);
   }
 }
 </style>
