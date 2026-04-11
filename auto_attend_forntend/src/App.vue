@@ -80,6 +80,10 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">快原型</span>
               </router-link>
+              <router-link to="/cloud-dev" class="nav-item" :class="{ 'is-active': isNavActive('/cloud-dev') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('cloudDev.navTitle') }}</span>
+              </router-link>
             </div>
 
             <!-- Ops & Efficiency -->
@@ -188,6 +192,9 @@ export default {
     },
     currentPageName () {
       const path = this.$route.path
+      if (path === '/cloud-dev') {
+        return this.$t('cloudDev.navTitle')
+      }
       const map = {
         '/console': '工作台',
         '/quote': '报价系统',

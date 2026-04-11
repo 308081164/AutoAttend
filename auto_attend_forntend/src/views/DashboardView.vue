@@ -395,6 +395,15 @@
             <router-link to="/nexus" class="hub-card-more">进入 →</router-link>
           </section>
 
+          <section class="hub-card console-elevated hub-cloud-dev">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-clouddev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
+              <h2 class="hub-card-title">{{ $t('dashboard.hubCloudDevTitle') }}</h2>
+            </div>
+            <p class="hub-desc">{{ $t('dashboard.hubCloudDevDesc') }}</p>
+            <router-link to="/cloud-dev" class="hub-card-more">{{ $t('dashboard.hubCloudDevLink') }}</router-link>
+          </section>
+
           <section class="hub-card console-elevated hub-market hub-card-placeholder">
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-market" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg></span>
@@ -2925,6 +2934,7 @@ export default {
 .hub-icon-team { background: linear-gradient(135deg, #059669, #10b981); }
 .hub-icon-project { background: linear-gradient(135deg, var(--brand-purple), #a855f7); }
 .hub-icon-ops { background: linear-gradient(135deg, #475569, #64748b); }
+.hub-icon-clouddev { background: linear-gradient(135deg, #0ea5e9, #6366f1); }
 .hub-icon-market { background: linear-gradient(135deg, #ea580c, #f97316); }
 .hub-icon-prototype { background: linear-gradient(135deg, var(--brand-blue), #22c55e); }
 .hub-icon-chance { background: linear-gradient(135deg, #0ea5e9, #6366f1); }

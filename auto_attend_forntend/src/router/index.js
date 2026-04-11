@@ -19,6 +19,7 @@ import PrototypeListView from '../views/PrototypeListView.vue'
 import PrototypeProjectView from '../views/PrototypeProjectView.vue'
 import NexusConsoleView from '../views/NexusConsoleView.vue'
 import LabView from '../views/LabView.vue'
+import CloudDevHubView from '../views/CloudDevHubView.vue'
 import ClientBoardView from '../views/ClientBoardView.vue'
 
 Vue.use(VueRouter)
@@ -133,6 +134,11 @@ const routes = [
     path: '/lab',
     name: 'lab',
     component: LabView
+  },
+  {
+    path: '/cloud-dev',
+    name: 'cloud-dev-hub',
+    component: CloudDevHubView
   },
   {
     path: '/client-board/:token',
