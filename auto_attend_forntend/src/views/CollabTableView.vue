@@ -249,17 +249,37 @@
                 <option value="issue_tracking">项目调整（issue_tracking）</option>
               </select>
             </div>
+            <div v-if="clientBoardToken" class="form-row client-board-url-block">
+              <label class="form-label">客户访问链接</label>
+              <div class="client-board-url-row">
+                <input
+                  type="text"
+                  readonly
+                  class="form-input client-board-url-input"
+                  :value="clientBoardPublicUrl"
+                  @click="$event.target.select()"
+                >
+                <button type="button" class="secondary-button small" @click="copyClientBoardLink">
+                  {{ clientBoardCopied === 'link' ? '已复制' : '复制链接' }}
+                </button>
+                <button type="button" class="primary-button small" @click="openClientBoardInNewTab">
+                  打开阅览看板
+                </button>
+              </div>
+              <p class="text-muted small client-board-url-hint">
+                若一键复制无效，可点击输入框全选后 Ctrl+C。内网 HTTP 下浏览器常限制剪贴板 API；对外分享请在构建时配置环境变量 <code>VUE_APP_PUBLIC_ORIGIN</code>（例如 https://your-domain.com）。
+              </p>
+            </div>
             <div v-if="clientBoardToken" class="form-row client-board-token-row">
               <span class="text-muted small">浏览 ID：</span>
               <code class="client-board-code">{{ clientBoardToken }}</code>
-              <button type="button" class="secondary-button small" @click="copyClientBoardId">复制 ID</button>
+              <button type="button" class="secondary-button small" @click="copyClientBoardId">
+                {{ clientBoardCopied === 'id' ? '已复制' : '复制 ID' }}
+              </button>
             </div>
             <div class="form-actions">
               <button type="button" class="primary-button" :disabled="clientBoardSaving" @click="saveClientBoard">
                 {{ clientBoardSaving ? '保存中…' : '保存配置' }}
-              </button>
-              <button type="button" class="secondary-button" :disabled="clientBoardSaving || !clientBoardToken" @click="copyClientBoardLink">
-                {{ clientBoardCopied ? '已复制链接' : '复制阅览链接' }}
               </button>
               <button type="button" class="secondary-button" :disabled="clientBoardSaving" @click="regenerateClientBoardToken">
                 重新生成令牌
@@ -1177,7 +1197,7 @@ export default {
       clientBoardSaving: false,
       clientBoardMessage: '',
       clientBoardMessageOk: false,
-      clientBoardCopied: false,
+      clientBoardCopied: '',
       clientBoardToken: '',
       clientBoardForm: {
         enabled: false,
@@ -1216,6 +1236,10 @@ export default {
       const pn = (this.projectName || '').trim()
       if (!pn) return base
       return this.$t('collabTable.pageTitleWithProject', { project: pn, table: base })
+    },
+    /** 客户阅览看板完整 URL；优先 VUE_APP_PUBLIC_ORIGIN（与当前浏览器地址栏可能不同，如反代/公网域名） */
+    clientBoardPublicUrl () {
+      return this.getClientBoardPublicUrl()
     },
     filterableColumns () {
       const allowed = this.tablePurpose === 'feature_backlog'
@@ -1504,25 +1528,87 @@ export default {
         this.clientBoardSaving = false
       }
     },
-    copyClientBoardLink () {
+    getClientBoardPublicUrl () {
       const token = (this.clientBoardToken || '').trim()
-      if (!token) return
-      const url = `${window.location.origin}/client-board/${token}`
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(() => {
-          this.clientBoardCopied = true
-          setTimeout(() => { this.clientBoardCopied = false }, 2000)
-        }).catch(() => {})
+      if (!token) return ''
+      let origin = ''
+      const env = typeof process !== 'undefined' && process.env
+        ? (process.env.VUE_APP_PUBLIC_ORIGIN || process.env.VUE_APP_CLIENT_BOARD_ORIGIN || '')
+        : ''
+      const envTrim = String(env || '').trim().replace(/\/+$/, '')
+      if (envTrim) {
+        origin = envTrim
+      } else if (typeof window !== 'undefined' && window.location && window.location.origin) {
+        origin = String(window.location.origin).replace(/\/+$/, '')
+      }
+      return `${origin}/client-board/${encodeURIComponent(token)}`
+    },
+    /**
+     * 兼容非 HTTPS / 内网：clipboard API 常不可用，回退到 document.execCommand('copy')。
+     */
+    async copyTextToClipboard (text) {
+      if (text == null || String(text) === '') return false
+      const s = String(text)
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+          await navigator.clipboard.writeText(s)
+          return true
+        }
+      } catch (e) {
+        /* fall through */
+      }
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = s
+        ta.setAttribute('readonly', 'readonly')
+        ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;padding:0;border:none;outline:none;box-shadow:none;background:transparent;opacity:0;'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        ta.setSelectionRange(0, s.length)
+        const ok = document.execCommand('copy')
+        document.body.removeChild(ta)
+        return !!ok
+      } catch (e) {
+        return false
       }
     },
-    copyClientBoardId () {
+    async copyClientBoardLink () {
+      const url = this.getClientBoardPublicUrl()
+      if (!url) return
+      const ok = await this.copyTextToClipboard(url)
+      if (ok) {
+        this.clientBoardCopied = 'link'
+        this.clientBoardMessageOk = true
+        this.clientBoardMessage = '已复制客户访问链接'
+        setTimeout(() => { this.clientBoardCopied = '' }, 2200)
+      } else {
+        this.clientBoardMessageOk = false
+        this.clientBoardMessage = '复制失败：请点击上方链接框全选后手动复制'
+      }
+    },
+    async copyClientBoardId () {
       const token = (this.clientBoardToken || '').trim()
       if (!token) return
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(token).then(() => {
-          this.clientBoardCopied = true
-          setTimeout(() => { this.clientBoardCopied = false }, 2000)
-        }).catch(() => {})
+      const ok = await this.copyTextToClipboard(token)
+      if (ok) {
+        this.clientBoardCopied = 'id'
+        this.clientBoardMessageOk = true
+        this.clientBoardMessage = '已复制浏览 ID'
+        setTimeout(() => { this.clientBoardCopied = '' }, 2200)
+      } else {
+        this.clientBoardMessageOk = false
+        this.clientBoardMessage = '复制失败：请手动选中 ID 文本复制'
+      }
+    },
+    openClientBoardInNewTab () {
+      const url = this.getClientBoardPublicUrl()
+      if (!url) return
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } catch (e) {
+        this.clientBoardMessageOk = false
+        this.clientBoardMessage = '无法打开新窗口，请检查浏览器弹窗拦截'
       }
     },
     toggleDashboardView () {
@@ -4693,6 +4779,33 @@ export default {
   word-break: break-all;
   flex: 1;
   min-width: 0;
+  border: 1px solid var(--border-primary);
+}
+
+.client-board-url-block {
+  margin-top: var(--space-xs);
+}
+.client-board-url-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.client-board-url-input {
+  flex: 1;
+  min-width: 200px;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+.client-board-url-hint {
+  margin-top: var(--space-sm);
+  line-height: 1.45;
+}
+.client-board-url-hint code {
+  font-size: 11px;
+  background: var(--bg-page);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-primary);
 }
 
