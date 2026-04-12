@@ -85,13 +85,13 @@ services:
     ports:
       - "8848:8848"
     restart: unless-stopped
-    # 使用专用探针 /internal/healthz（应用内），避免 Actuator 聚合 health 503、或 liveness 路径差异导致误判
+    # TCP 探活（bash /dev/tcp）：8848 已 accept 即 healthy；不依赖 HTTP 路径、无需镜像内安装 nc
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8848/internal/healthz"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
-      start_period: 240s
+      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8848'"]
+      interval: 15s
+      timeout: 8s
+      retries: 40
+      start_period: 600s
 
   frontend:
     image: ${IMAGE_FRONTEND:-ghcr.io/please-set/autoattend-frontend:latest}

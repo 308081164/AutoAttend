@@ -133,7 +133,8 @@ jobs:
             # 等待 backend 健康后再重启 frontend，避免旧 Nginx 长连接指向已销毁的上游导致大量 502
             echo "等待 backend 健康检查通过..."
             status=""
-            for i in $(seq 1 150); do
+            # 与 compose start_period=600s + 重试对齐，避免迁移/冷启动较长时脚本先超时
+            for i in $(seq 1 300); do
               status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' autoattend-backend 2>/dev/null || echo "missing")
               if [ "$status" = "healthy" ]; then
                 echo "backend 已 healthy"
