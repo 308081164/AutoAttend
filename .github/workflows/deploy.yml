@@ -110,51 +110,77 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           GHCR_USER: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           command_timeout: 3h
-          envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN
+          envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
             DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
             cd "$DPATH"
             mkdir -p "$DPATH/git-repos"
+            echo "DEPLOY_SCRIPT_TAG=v5-staged-host-probe SHA=${GITHUB_SHA:-unknown}"
+
+            set +e
+            sc=$(grep -c 'condition: service_started' docker-compose.prod.yml 2>/dev/null)
+            set -e
+            if [ "${sc:-0}" -lt 3 ]; then
+              echo "错误: 服务器上的 docker-compose.prod.yml 过旧（condition: service_started 出现 ${sc:-0} 次，需>=3）。"
+              echo "请确认已将包含「前端仅 depends_on backend: service_started」的提交推送到 main，且本 job 的 Deploy to server 已 scp 最新文件。"
+              grep 'condition: service' docker-compose.prod.yml || true
+              exit 1
+            fi
+
             if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
             export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml pull
-            # frontend 仅 depends_on backend: service_started，避免 backend 未 healthy 时 compose 整段失败且看不到诊断
-            docker compose -f docker-compose.prod.yml up -d
-            # 数据库迁移：镜像内 /app/db/migrate_manifest.txt，由 docker-entrypoint.sh 在启动 Spring 前执行；此处强制重建 backend 保证每次部署跑迁移。清单须与仓库同步（CI 已校验 schema_*migration*.sql）。
+
+            # 分步 up，避免单次 up 在旧 compose（前端等 backend 健康）下永久 Waiting
+            docker compose -f docker-compose.prod.yml up -d mysql minio
+            docker compose -f docker-compose.prod.yml up -d backend
+            docker compose -f docker-compose.prod.yml up -d frontend platform-monitor-frontend
+
+            # 数据库迁移：强制重建 backend 跑 migrate_manifest.txt
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
-            # 等待 backend 健康后再重启 frontend，避免旧 Nginx 长连接指向已销毁的上游导致大量 502
-            echo "等待 backend 健康检查通过..."
+
+            # 以宿主机访问 8848 为准（映射端口），不依赖 Docker Health（避免 unhealthy 无输出时脚本也过不了）
+            echo "等待 127.0.0.1:8848 可访问（curl/wget 宿主机）..."
             status=""
-            # 与 compose start_period=600s + 重试对齐；每约 60s 打印一次状态，避免日志里只有 unhealthy
             for i in $(seq 1 300); do
-              status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' autoattend-backend 2>/dev/null || echo "missing")
-              if [ "$status" = "healthy" ]; then
-                echo "backend 已 healthy"
+              if curl -sS --connect-timeout 3 -o /dev/null http://127.0.0.1:8848/ 2>/dev/null \
+                || wget -q -O /dev/null --timeout=3 http://127.0.0.1:8848/ 2>/dev/null; then
+                echo "backend 已对宿主机 8848 响应 HTTP"
+                status=ready
+                break
+              fi
+              hb=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' autoattend-backend 2>/dev/null || echo "missing")
+              if [ "$hb" = "healthy" ]; then
+                echo "backend Docker Health=healthy"
+                status=ready
                 break
               fi
               if [ "$((i % 30))" -eq 0 ]; then
-                echo "[wait] 已等待约 $((i * 2))s，Health.Status=$status"
+                echo "[wait] 约$((i * 2))s 8848 仍不可达，Docker.Health=$hb"
+                docker inspect autoattend-backend --format='Status={{.State.Status}} Exit={{.State.ExitCode}}' 2>/dev/null || true
               fi
               sleep 2
             done
-            if [ "$status" != "healthy" ]; then
-              echo "backend 未在预期时间内变为 healthy，当前状态: $status"
-              echo "---- State.Health JSON（含各次检查的 Output/ExitCode）----"
+
+            if [ "$status" != "ready" ]; then
+              echo "8848 在预期时间内不可访问"
+              echo "---- State.Health JSON ----"
               docker inspect autoattend-backend --format='{{json .State.Health}}' 2>/dev/null || true
-              echo "---- 容器内探测 8848（若进程已挂则失败）----"
-              docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "http_code=%{http_code}\n" --connect-timeout 3 http://127.0.0.1:8848/ || echo "curl_in_container_failed"' 2>&1 || true
-              echo "---- autoattend-backend 最近日志 ----"
+              echo "---- 容器内 curl 8848 ----"
+              docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "http_code=%{http_code}\n" --connect-timeout 3 http://127.0.0.1:8848/ || echo curl_fail' 2>&1 || true
+              echo "---- autoattend-backend 日志 ----"
               docker logs --tail 200 autoattend-backend 2>&1 || true
               exit 1
             fi
-            # 勿用 restart：restart 不更换容器所用镜像层；监测台/主前端必须用新拉取的镜像重建，否则 :latest 已更新仍跑旧代码
+
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate frontend platform-monitor-frontend

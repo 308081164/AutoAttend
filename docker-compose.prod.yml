@@ -97,7 +97,7 @@ services:
     image: ${IMAGE_FRONTEND:-ghcr.io/please-set/autoattend-frontend:latest}
     container_name: autoattend-frontend
     depends_on:
-      # 勿用 service_healthy：否则 compose up 会卡在等待，backend 未 healthy 时整段脚本在 set -e 下直接退出，后续诊断永不执行
+      # 必须用 service_started，勿用「等 backend 健康」条件，否则 compose 会长时间 Waiting 且 CI 看不到日志
       backend:
         condition: service_started
     ports:
