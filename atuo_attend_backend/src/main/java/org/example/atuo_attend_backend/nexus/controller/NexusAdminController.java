@@ -69,9 +69,21 @@ public class NexusAdminController {
         this.alertRuleMapper = alertRuleMapper;
     }
 
+    /**
+     * 管理端接口应优先使用会话中的租户 ID。{@link TenantClearFilter} 先于 {@link AdminAuthFilter} 执行，
+     * 会在进入 Controller 前清空 {@link TenantContext}，因此不能仅依赖 ThreadLocal。
+     */
+    private static long tenantIdFrom(HttpServletRequest request) {
+        Object tid = request != null ? request.getAttribute(AdminAuthFilter.ATTR_TENANT_ID) : null;
+        if (tid instanceof Long l) {
+            return l;
+        }
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
     @GetMapping("/accounts")
     public ApiResponse<Map<String, Object>> listAccounts(HttpServletRequest request) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         List<NexusCloudAccount> rows = accountMapper.listByTenant(tenantId);
         // 脱敏：只返回必要字段
         List<Map<String, Object>> items = rows.stream().map(a -> {
@@ -92,7 +104,7 @@ public class NexusAdminController {
             @RequestBody NexusCreateAliyunAccountRequest req,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
 
         if (req == null) return ApiResponse.error(40000, "request is null");
         if (req.getDisplayName() == null || req.getDisplayName().isBlank()) return ApiResponse.error(40000, "displayName required");
@@ -130,9 +142,10 @@ public class NexusAdminController {
 
     @GetMapping("/accounts/{accountId}/instances")
     public ApiResponse<List<NexusCloudInstance>> listInstances(
-            @PathVariable long accountId
+            @PathVariable long accountId,
+            HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         List<NexusCloudInstance> items = instanceMapper.listByAccount(tenantId, accountId);
         return ApiResponse.ok(items);
     }
@@ -142,7 +155,7 @@ public class NexusAdminController {
             @PathVariable long accountId,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
         String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
 
@@ -158,9 +171,10 @@ public class NexusAdminController {
     public ApiResponse<List<NexusCpuMetricMapper.MetricRow>> cpuMetrics(
             @PathVariable long accountId,
             @PathVariable String instanceId,
-            @RequestParam(defaultValue = "60") int limit
+            @RequestParam(defaultValue = "60") int limit,
+            HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         List<NexusCpuMetricMapper.MetricRow> items = cpuMetricMapper.listCpuPoints(tenantId, accountId, instanceId, limit);
         return ApiResponse.ok(items);
     }
@@ -169,9 +183,10 @@ public class NexusAdminController {
     public ApiResponse<List<NexusMemoryMetricMapper.MetricRow>> memoryMetrics(
             @PathVariable long accountId,
             @PathVariable String instanceId,
-            @RequestParam(defaultValue = "60") int limit
+            @RequestParam(defaultValue = "60") int limit,
+            HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         List<NexusMemoryMetricMapper.MetricRow> items = memoryMetricMapper.listMemoryPoints(tenantId, accountId, instanceId, limit);
         return ApiResponse.ok(items);
     }
@@ -183,7 +198,7 @@ public class NexusAdminController {
             @RequestBody NexusSshActionRequest req,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
         String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
 
@@ -222,8 +237,8 @@ public class NexusAdminController {
     }
 
     @GetMapping("/sync-config")
-    public ApiResponse<NexusAutoSyncConfig> getSyncConfig() {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    public ApiResponse<NexusAutoSyncConfig> getSyncConfig(HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
         autoSyncConfigMapper.ensureDefault(tenantId);
         NexusAutoSyncConfig cfg = autoSyncConfigMapper.findByTenant(tenantId);
         return ApiResponse.ok(cfg);
@@ -234,7 +249,7 @@ public class NexusAdminController {
             @RequestBody NexusSyncConfigUpdateRequest req,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         autoSyncConfigMapper.ensureDefault(tenantId);
         NexusAutoSyncConfig cur = autoSyncConfigMapper.findByTenant(tenantId);
         if (cur == null) return ApiResponse.error(50000, "config missing");
@@ -258,7 +273,7 @@ public class NexusAdminController {
             @RequestBody NexusAccountSettingsRequest req,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
         if (acc == null) return ApiResponse.error(40400, "account not found");
         if (req.getDisplayName() != null && !req.getDisplayName().isBlank()) {
@@ -283,7 +298,7 @@ public class NexusAdminController {
             @PathVariable long accountId,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
         accountMapper.updateAutoSyncInterval(tenantId, accountId, null);
         Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
@@ -296,9 +311,10 @@ public class NexusAdminController {
     public ApiResponse<Void> patchInstanceOps(
             @PathVariable long accountId,
             @PathVariable String instanceId,
-            @RequestBody NexusInstanceOpsRequest req
+            @RequestBody NexusInstanceOpsRequest req,
+            HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         String url = req != null && req.getBtPanelUrl() != null ? req.getBtPanelUrl().trim() : null;
         if (url != null && url.isEmpty()) url = null;
         if (url != null && !url.startsWith("https://") && !url.startsWith("http://")) {
@@ -316,7 +332,7 @@ public class NexusAdminController {
             @RequestBody NexusLifecycleRequest req,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
         String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
         if (req == null || req.getAction() == null) return ApiResponse.error(40000, "action required");
@@ -341,7 +357,7 @@ public class NexusAdminController {
             @RequestBody NexusBtPanelActionRequest req,
             HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
         String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
         String type = req != null ? req.getType() : null;
@@ -362,9 +378,10 @@ public class NexusAdminController {
     public ApiResponse<Map<String, Object>> costSummary(
             @PathVariable long accountId,
             @RequestParam(required = false) String billingCycle,
-            @RequestParam(defaultValue = "15") int topN
+            @RequestParam(defaultValue = "15") int topN,
+            HttpServletRequest request
     ) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+        long tenantId = tenantIdFrom(request);
         String cycle = billingCycle;
         if (cycle == null || cycle.isBlank()) {
             cycle = YearMonth.now().minusMonths(1).toString();
@@ -390,14 +407,17 @@ public class NexusAdminController {
     }
 
     @GetMapping("/alert-rules")
-    public ApiResponse<List<NexusAlertRule>> listAlertRules() {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    public ApiResponse<List<NexusAlertRule>> listAlertRules(HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
         return ApiResponse.ok(alertRuleMapper.listByTenant(tenantId));
     }
 
     @PostMapping("/alert-rules")
-    public ApiResponse<Map<String, Object>> createAlertRule(@RequestBody NexusAlertRuleWriteRequest req) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    public ApiResponse<Map<String, Object>> createAlertRule(
+            @RequestBody NexusAlertRuleWriteRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
         ApiResponse<Map<String, Object>> err = validateAlertWrite(tenantId, req, true);
         if (err != null) return err;
         NexusAlertRule r = toRule(tenantId, req, null);
@@ -406,8 +426,12 @@ public class NexusAdminController {
     }
 
     @PutMapping("/alert-rules/{ruleId}")
-    public ApiResponse<Void> updateAlertRule(@PathVariable long ruleId, @RequestBody NexusAlertRuleWriteRequest req) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    public ApiResponse<Void> updateAlertRule(
+            @PathVariable long ruleId,
+            @RequestBody NexusAlertRuleWriteRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
         NexusAlertRule existing = alertRuleMapper.findById(tenantId, ruleId);
         if (existing == null) return ApiResponse.error(40400, "rule not found");
         ApiResponse<Map<String, Object>> err = validateAlertWrite(tenantId, req, false);
@@ -422,8 +446,8 @@ public class NexusAdminController {
     }
 
     @DeleteMapping("/alert-rules/{ruleId}")
-    public ApiResponse<Void> deleteAlertRule(@PathVariable long ruleId) {
-        long tenantId = TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    public ApiResponse<Void> deleteAlertRule(@PathVariable long ruleId, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
         int n = alertRuleMapper.delete(tenantId, ruleId);
         if (n <= 0) return ApiResponse.error(40400, "rule not found");
         return ApiResponse.ok(null);
