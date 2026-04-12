@@ -9,6 +9,8 @@ import org.example.atuo_attend_backend.collab.service.ClientBoardStatsService;
 import org.example.atuo_attend_backend.collab.service.CollabAiTaskIngestService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -26,15 +28,18 @@ public class PublicClientBoardController {
     private final ClientBoardStatsService statsService;
     private final CollabAiTaskIngestService aiIngestService;
     private final BizProjectMapper projectMapper;
+    private final TenantMapper tenantMapper;
 
     public PublicClientBoardController(ClientBoardShareService shareService,
                                        ClientBoardStatsService statsService,
                                        CollabAiTaskIngestService aiIngestService,
-                                       BizProjectMapper projectMapper) {
+                                       BizProjectMapper projectMapper,
+                                       TenantMapper tenantMapper) {
         this.shareService = shareService;
         this.statsService = statsService;
         this.aiIngestService = aiIngestService;
         this.projectMapper = projectMapper;
+        this.tenantMapper = tenantMapper;
     }
 
     @GetMapping("/{token}")
@@ -48,7 +53,13 @@ public class PublicClientBoardController {
             return ApiResponse.error(40400, "项目不存在");
         }
         long tenantId = board.getTenantId();
+
+        // Tenant info
+        Tenant tenant = tenantMapper.findById(tenantId);
+        String tenantName = (tenant != null && tenant.getName() != null) ? tenant.getName() : "";
+
         Map<String, Object> data = new LinkedHashMap<>();
+        data.put("tenantName", tenantName);
         data.put("projectName", project.getName() != null ? project.getName() : "");
         data.put("repoId", project.getRepoId() != null ? project.getRepoId() : "");
         data.put("showProgressDashboard", board.getShowProgressDashboard() == null || board.getShowProgressDashboard());
