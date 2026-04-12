@@ -85,12 +85,13 @@ services:
     ports:
       - "8848:8848"
     restart: unless-stopped
+    # 使用 liveness：整体 /actuator/health 在 DB 等任一 DOWN 时可能返回 503，curl -f 会误判为不健康
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8848/actuator/health"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8848/actuator/health/liveness"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 120s
+      timeout: 10s
+      retries: 30
+      start_period: 180s
 
   frontend:
     image: ${IMAGE_FRONTEND:-ghcr.io/please-set/autoattend-frontend:latest}

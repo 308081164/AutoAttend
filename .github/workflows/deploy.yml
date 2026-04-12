@@ -132,7 +132,8 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
             # 等待 backend 健康后再重启 frontend，避免旧 Nginx 长连接指向已销毁的上游导致大量 502
             echo "等待 backend 健康检查通过..."
-            for i in $(seq 1 90); do
+            status=""
+            for i in $(seq 1 120); do
               status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' autoattend-backend 2>/dev/null || echo "missing")
               if [ "$status" = "healthy" ]; then
                 echo "backend 已 healthy"
@@ -140,5 +141,12 @@ jobs:
               fi
               sleep 2
             done
+            if [ "$status" != "healthy" ]; then
+              echo "backend 未在预期时间内变为 healthy，当前状态: $status"
+              docker inspect -f '{{json .State.Health}}' autoattend-backend 2>/dev/null || true
+              echo "---- autoattend-backend 最近日志 ----"
+              docker logs --tail 150 autoattend-backend 2>&1 || true
+              exit 1
+            fi
             # 勿用 restart：restart 不更换容器所用镜像层；监测台/主前端必须用新拉取的镜像重建，否则 :latest 已更新仍跑旧代码
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate frontend platform-monitor-frontend
