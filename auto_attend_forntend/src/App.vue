@@ -1,5 +1,5 @@
 <template>
-  <div id="app" :class="{ 'embed-mode': isEmbedMode }">
+  <div id="app" :class="{ 'embed-mode': isEmbedMode, 'cloud-dev-embed-max': cloudDevEmbedActive }">
     <!-- bareLayout mode: login/register pages, no sidebar -->
     <template v-if="bareLayout">
       <router-view/>
@@ -154,7 +154,7 @@
           </header>
 
           <!-- MAIN CONTENT -->
-          <main class="app-main">
+          <main class="app-main" :class="{ 'app-main-clouddev-embed': cloudDevEmbedActive }">
             <router-view/>
           </main>
         </div>
@@ -174,7 +174,9 @@ export default {
       localeOptions,
       currentLocale: this.$i18n.locale,
       sidebarOpen: false,
-      sidebarCollapsed: false
+      sidebarCollapsed: false,
+      /** 云开发「站内嵌入」开启时由 CloudDevHubView 通知，用于隐藏主导航侧栏、放大 iframe 区域 */
+      cloudDevEmbedActive: false
     }
   },
   computed: {
@@ -217,9 +219,17 @@ export default {
   mounted () {
     this.initSidebarState()
     window.addEventListener('resize', this.onResize)
+    this._onCloudDevEmbed = (e) => {
+      const active = !!(e && e.detail && e.detail.active)
+      this.cloudDevEmbedActive = active
+    }
+    window.addEventListener('autoattend-clouddev-embed', this._onCloudDevEmbed)
   },
   beforeDestroy () {
     window.removeEventListener('resize', this.onResize)
+    if (this._onCloudDevEmbed) {
+      window.removeEventListener('autoattend-clouddev-embed', this._onCloudDevEmbed)
+    }
   },
   methods: {
     initSidebarState () {
@@ -902,6 +912,36 @@ body {
 
   .app-main {
     padding: 16px;
+  }
+}
+
+/* 云开发中心：站内嵌入开启时隐藏主导航侧栏、收紧顶栏与主区内边距，放大 iframe 可用宽度 */
+.cloud-dev-embed-max .sidebar-wrapper {
+  display: none;
+}
+
+.cloud-dev-embed-max .app-topbar {
+  min-height: 48px;
+  height: auto;
+  padding: 8px 16px;
+}
+
+.cloud-dev-embed-max .topbar-search {
+  display: none;
+}
+
+.cloud-dev-embed-max .app-main-clouddev-embed {
+  padding: 8px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 767px) {
+  .cloud-dev-embed-max .app-topbar {
+    padding-left: 16px;
   }
 }
 </style>

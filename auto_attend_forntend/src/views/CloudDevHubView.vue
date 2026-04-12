@@ -1,13 +1,13 @@
 <template>
-  <div class="cloud-dev-page">
-    <header class="cloud-dev-hero">
+  <div class="cloud-dev-page" :class="{ 'is-embed-active': embedEnabled }">
+    <header v-if="!embedEnabled" class="cloud-dev-hero">
       <h1 class="cloud-dev-title">{{ $t('cloudDev.pageTitle') }}</h1>
       <p class="cloud-dev-lead">{{ $t('cloudDev.pageLead') }}</p>
       <p class="cloud-dev-disclaimer">{{ $t('cloudDev.disclaimer') }}</p>
     </header>
 
-    <div class="cloud-dev-layout">
-      <aside class="cloud-dev-sidebar">
+    <div class="cloud-dev-layout" :class="{ 'cloud-dev-layout--embed': embedEnabled }">
+      <aside v-if="!embedEnabled" class="cloud-dev-sidebar">
         <button
           v-for="p in providers"
           :key="p.id"
@@ -19,11 +19,30 @@
           <span class="cloud-dev-tab-name">{{ $t(p.nameKey) }}</span>
         </button>
       </aside>
+      <div v-else class="cloud-dev-tabs-top" role="tablist" :aria-label="$t('cloudDev.pageTitle')">
+        <button
+          v-for="p in providers"
+          :key="'top-' + p.id"
+          type="button"
+          class="cloud-dev-tab cloud-dev-tab--top"
+          :class="{ 'is-active': selectedId === p.id }"
+          role="tab"
+          :aria-selected="selectedId === p.id"
+          @click="selectProvider(p.id)"
+        >
+          <span class="cloud-dev-tab-name">{{ $t(p.nameKey) }}</span>
+        </button>
+      </div>
 
       <main class="cloud-dev-main">
-        <section v-if="current" class="cloud-dev-panel">
-          <h2 class="cloud-dev-panel-title">{{ $t(current.nameKey) }}</h2>
-          <p class="cloud-dev-panel-desc">{{ $t(current.descKey) }}</p>
+        <section v-if="current" class="cloud-dev-panel" :class="{ 'cloud-dev-panel--embed': embedEnabled }">
+          <template v-if="!embedEnabled">
+            <h2 class="cloud-dev-panel-title">{{ $t(current.nameKey) }}</h2>
+            <p class="cloud-dev-panel-desc">{{ $t(current.descKey) }}</p>
+          </template>
+          <div v-else class="cloud-dev-embed-toolbar">
+            <span class="cloud-dev-embed-toolbar-title">{{ $t(current.nameKey) }}</span>
+          </div>
 
           <div class="cloud-dev-actions">
             <template v-if="current.url">
@@ -87,6 +106,7 @@
             <iframe
               :key="embedSrc"
               class="cloud-dev-frame"
+              :class="{ 'cloud-dev-frame--max': embedEnabled }"
               :src="embedSrc"
               :title="$t(current.nameKey)"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
@@ -152,7 +172,25 @@ export default {
       return ''
     }
   },
+  watch: {
+    embedEnabled (v) {
+      this.notifyAppEmbed(!!v)
+    }
+  },
+  mounted () {
+    this.notifyAppEmbed(this.embedEnabled)
+  },
+  beforeDestroy () {
+    this.notifyAppEmbed(false)
+  },
   methods: {
+    notifyAppEmbed (active) {
+      try {
+        window.dispatchEvent(new CustomEvent('autoattend-clouddev-embed', { detail: { active } }))
+      } catch (e) {
+        /* ignore */
+      }
+    },
     selectProvider (id) {
       this.selectedId = id
       this.embedEnabled = false
@@ -171,6 +209,26 @@ export default {
   margin: 0 auto;
   padding: 0 var(--space-md, 16px) var(--space-xxl, 48px);
   box-sizing: border-box;
+}
+.cloud-dev-page.is-embed-active {
+  max-width: none;
+  margin: 0;
+  padding: 0 0 var(--space-md, 16px);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.cloud-dev-page.is-embed-active .cloud-dev-layout--embed {
+  flex: 1;
+  min-height: 0;
+}
+.cloud-dev-layout--embed .cloud-dev-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .cloud-dev-hero {
   margin-bottom: var(--space-lg, 24px);
@@ -201,10 +259,37 @@ export default {
   gap: 20px;
   align-items: start;
 }
+.cloud-dev-layout--embed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
 @media (max-width: 768px) {
-  .cloud-dev-layout {
+  .cloud-dev-layout:not(.cloud-dev-layout--embed) {
     grid-template-columns: 1fr;
   }
+}
+.cloud-dev-tabs-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+.cloud-dev-tab--top {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.cloud-dev-embed-toolbar {
+  margin: 0 0 10px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-primary, #dee0e3);
+}
+.cloud-dev-embed-toolbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #1F2329);
 }
 .cloud-dev-sidebar {
   display: flex;
@@ -240,6 +325,14 @@ export default {
   border: 1px solid var(--border-primary, #dee0e3);
   border-radius: 12px;
   padding: 20px 22px;
+}
+.cloud-dev-panel--embed {
+  padding: 12px 14px 14px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .cloud-dev-panel-title {
   margin: 0 0 8px;
@@ -336,6 +429,13 @@ export default {
   overflow: hidden;
   border: 1px solid var(--border-primary, #dee0e3);
   background: var(--bg-page, #f0f2f5);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cloud-dev-panel--embed .cloud-dev-frame-wrap {
+  flex: 1 1 auto;
 }
 .cloud-dev-frame {
   display: block;
@@ -343,6 +443,19 @@ export default {
   height: min(72vh, 640px);
   border: none;
   background: #fff;
+  flex: 1 1 auto;
+  min-height: min(72vh, 640px);
+}
+.cloud-dev-frame--max {
+  height: calc(100vh - 200px);
+  min-height: 420px;
+  max-height: none;
+}
+@media (max-width: 768px) {
+  .cloud-dev-frame--max {
+    height: calc(100vh - 220px);
+    min-height: 320px;
+  }
 }
 .cloud-dev-embed-fallback {
   margin: 0;
