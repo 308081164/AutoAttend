@@ -69,13 +69,13 @@ services:
     ports:
       - "8848:8848"
     restart: unless-stopped
-    # 使用 liveness：避免聚合 /actuator/health 返回 503 时 curl -f 失败（见 docker-compose.prod.yml 注释）
+    # 与生产一致：/internal/healthz（见 atuo_attend_backend DockerProbeController）
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8848/actuator/health/liveness"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8848/internal/healthz"]
       interval: 10s
       timeout: 10s
       retries: 30
-      start_period: 180s
+      start_period: 240s
 
   frontend:
     build:
