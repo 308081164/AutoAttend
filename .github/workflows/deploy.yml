@@ -150,9 +150,11 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
 
             # 以宿主机访问 8848 为准（映射端口），不依赖 Docker Health（避免 unhealthy 无输出时脚本也过不了）
-            echo "等待 127.0.0.1:8848 可访问（curl/wget 宿主机）..."
+            # 循环上限：每轮 sleep 2s，共 WAIT_ROUNDS 轮 → 最长约 $((WAIT_ROUNDS * 2)) 秒（超时后打印诊断并失败，不会无限等待）
+            WAIT_ROUNDS=600
+            echo "等待 127.0.0.1:8848 可访问（curl/wget 宿主机）；最长约 $((WAIT_ROUNDS * 2)) 秒..."
             status=""
-            for i in $(seq 1 300); do
+            for i in $(seq 1 "$WAIT_ROUNDS"); do
               if curl -sS --connect-timeout 3 -o /dev/null http://127.0.0.1:8848/ 2>/dev/null \
                 || wget -q -O /dev/null --timeout=3 http://127.0.0.1:8848/ 2>/dev/null; then
                 echo "backend 已对宿主机 8848 响应 HTTP"
@@ -165,8 +167,9 @@ jobs:
                 status=ready
                 break
               fi
-              if [ "$((i % 30))" -eq 0 ]; then
-                echo "[wait] 约$((i * 2))s 8848 仍不可达，Docker.Health=$hb"
+              # 约每 30s 打一行，避免长时间无输出被误认为卡死
+              if [ "$((i % 15))" -eq 0 ]; then
+                echo "[wait] 已等待约 $((i * 2))s / 至多 $((WAIT_ROUNDS * 2))s，8848 仍不可达，Docker.Health=$hb"
                 docker inspect autoattend-backend --format='Status={{.State.Status}} Exit={{.State.ExitCode}}' 2>/dev/null || true
               fi
               sleep 2
