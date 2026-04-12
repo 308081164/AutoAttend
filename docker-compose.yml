@@ -69,11 +69,11 @@ services:
     ports:
       - "8848:8848"
     restart: unless-stopped
-    # 与生产一致：TCP 探活（bash /dev/tcp）
+    # 与生产一致：curl 探活根路径（见 docker-compose.prod.yml）
     healthcheck:
-      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8848'"]
+      test: ["CMD-SHELL", "curl -sS --connect-timeout 4 -o /dev/null http://127.0.0.1:8848/ || exit 1"]
       interval: 15s
-      timeout: 8s
+      timeout: 10s
       retries: 40
       start_period: 600s
 
@@ -83,7 +83,7 @@ services:
     container_name: autoattend-frontend
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8849:80"
     restart: unless-stopped
@@ -94,7 +94,7 @@ services:
     container_name: autoattend-platform-monitor-frontend
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8850:80"
     restart: unless-stopped

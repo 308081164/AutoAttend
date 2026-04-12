@@ -85,11 +85,11 @@ services:
     ports:
       - "8848:8848"
     restart: unless-stopped
-    # TCP 探活（bash /dev/tcp）：8848 已 accept 即 healthy；不依赖 HTTP 路径、无需镜像内安装 nc
+    # 不用 curl -f：任意 HTTP 响应（含 404）即表示 8848 已监听；避免 bash /dev/tcp 在 sh 环境下的差异
     healthcheck:
-      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8848'"]
+      test: ["CMD-SHELL", "curl -sS --connect-timeout 4 -o /dev/null http://127.0.0.1:8848/ || exit 1"]
       interval: 15s
-      timeout: 8s
+      timeout: 10s
       retries: 40
       start_period: 600s
 
@@ -97,8 +97,9 @@ services:
     image: ${IMAGE_FRONTEND:-ghcr.io/please-set/autoattend-frontend:latest}
     container_name: autoattend-frontend
     depends_on:
+      # 勿用 service_healthy：否则 compose up 会卡在等待，backend 未 healthy 时整段脚本在 set -e 下直接退出，后续诊断永不执行
       backend:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8849:80"
     restart: unless-stopped
@@ -108,7 +109,7 @@ services:
     container_name: autoattend-platform-monitor-frontend
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8850:80"
     restart: unless-stopped
