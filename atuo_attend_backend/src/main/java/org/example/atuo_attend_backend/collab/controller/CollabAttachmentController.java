@@ -8,6 +8,7 @@ import org.example.atuo_attend_backend.collab.service.CollabRecordService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -173,7 +175,8 @@ public class CollabAttachmentController {
             String filename = att.getFileName() != null ? att.getFileName() : "download";
             Resource resource = new InputStreamResource(stream);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + sanitizeFilename(filename) + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename(safeFilename(filename), StandardCharsets.UTF_8).build().toString())
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .contentLength(att.getFileSize() != null && att.getFileSize() > 0 ? att.getFileSize() : -1)
                     .body(resource);
@@ -205,8 +208,10 @@ public class CollabAttachmentController {
             else if (filename.endsWith(".webp")) mediaType = MediaType.parseMediaType("image/webp");
             else if (filename.endsWith(".svg")) mediaType = MediaType.parseMediaType("image/svg+xml");
             Resource resource = new InputStreamResource(stream);
+            String displayName = att.getFileName() != null ? att.getFileName() : "preview";
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + sanitizeFilename(att.getFileName()) + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                            .filename(safeFilename(displayName), StandardCharsets.UTF_8).build().toString())
                     .contentType(mediaType)
                     .contentLength(att.getFileSize() != null && att.getFileSize() > 0 ? att.getFileSize() : -1)
                     .body(resource);
@@ -215,9 +220,12 @@ public class CollabAttachmentController {
         }
     }
 
-    private static String sanitizeFilename(String name) {
-        if (name == null) return "download";
-        return name.replace("\"", "%22").replace("\r", "").replace("\n", "");
+    /** 去掉换行，供 ContentDisposition 做 RFC 5987 文件名编码（避免 Tomcat 用 ISO-8859-1 写中文文件名导致 UnmappableCharacterException） */
+    private static String safeFilename(String name) {
+        if (name == null || name.isBlank()) {
+            return "download";
+        }
+        return name.replace("\r", "").replace("\n", "");
     }
 
     @DeleteMapping("/attachments/{id}")
