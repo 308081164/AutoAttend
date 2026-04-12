@@ -31,7 +31,8 @@ public class NexusAlertEvaluationTask {
     private final NexusCpuMetricMapper cpuMetricMapper;
     private final NexusMemoryMetricMapper memoryMetricMapper;
     private final NexusAlertNotifyService notifyService;
-    private final ObjectMapper objectMapper;
+    /** 与其它类一致使用本地实例：Spring Boot 4 下未必注册可注入的 ObjectMapper Bean */
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -44,8 +45,7 @@ public class NexusAlertEvaluationTask {
             NexusInstanceMapper instanceMapper,
             NexusCpuMetricMapper cpuMetricMapper,
             NexusMemoryMetricMapper memoryMetricMapper,
-            NexusAlertNotifyService notifyService,
-            ObjectMapper objectMapper
+            NexusAlertNotifyService notifyService
     ) {
         this.alertRuleMapper = alertRuleMapper;
         this.accountMapper = accountMapper;
@@ -53,7 +53,6 @@ public class NexusAlertEvaluationTask {
         this.cpuMetricMapper = cpuMetricMapper;
         this.memoryMetricMapper = memoryMetricMapper;
         this.notifyService = notifyService;
-        this.objectMapper = objectMapper;
     }
 
     @Scheduled(fixedDelayString = "${nexus.alert.evaluation-delay-ms:120000}")
