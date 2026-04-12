@@ -32,7 +32,6 @@
         <div class="lb-hero-inner">
           <div class="lb-hero-meta">
             <span class="lb-tag">项目看板</span>
-            <span class="lb-hero-date" v-if="generatedAt">{{ generatedAt }}</span>
           </div>
           <h1 class="lb-hero-title">{{ projectName || '未命名项目' }}</h1>
           <p v-if="repoId" class="lb-hero-repo">
@@ -42,157 +41,320 @@
         </div>
       </header>
 
+      <!-- ===== Tab Bar ===== -->
+      <div class="lb-tabs-bar">
+        <div class="lb-tabs-inner">
+          <button
+            v-for="tab in visibleTabs"
+            :key="tab.key"
+            class="lb-tab"
+            :class="{ 'lb-tab--active': activeTab === tab.key }"
+            @click="activeTab = tab.key"
+          >
+            <svg v-if="tab.icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" v-html="tab.icon"></svg>
+            {{ tab.label }}
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== Tab Content ===== -->
       <main class="lb-main">
-        <!-- ===== KPI Summary Cards ===== -->
-        <section v-if="showProgress && progress && !progress.empty" class="lb-kpi-row">
-          <div class="lb-kpi">
-            <div class="lb-kpi-icon lb-kpi-icon--total">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            </div>
-            <div class="lb-kpi-body">
-              <div class="lb-kpi-value">{{ progress.totalRecords || 0 }}</div>
-              <div class="lb-kpi-label">总任务</div>
-            </div>
-          </div>
-          <div class="lb-kpi">
-            <div class="lb-kpi-icon lb-kpi-icon--done">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            </div>
-            <div class="lb-kpi-body">
-              <div class="lb-kpi-value lb-kpi-value--green">{{ progress.resolved || 0 }}</div>
-              <div class="lb-kpi-label">已完成</div>
-            </div>
-          </div>
-          <div class="lb-kpi">
-            <div class="lb-kpi-icon lb-kpi-icon--open">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <div class="lb-kpi-body">
-              <div class="lb-kpi-value lb-kpi-value--orange">{{ progress.unresolved || 0 }}</div>
-              <div class="lb-kpi-label">进行中</div>
-            </div>
-          </div>
-          <div class="lb-kpi" v-if="resolveRate != null">
-            <div class="lb-kpi-icon lb-kpi-icon--rate">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            </div>
-            <div class="lb-kpi-body">
-              <div class="lb-kpi-value lb-kpi-value--blue">{{ resolveRate }}%</div>
-              <div class="lb-kpi-label">完成率</div>
-            </div>
-          </div>
-        </section>
 
-        <!-- ===== Progress Dashboard ===== -->
-        <section v-if="showProgress" class="lb-section">
-          <!-- Empty state -->
-          <div v-if="!progress || progress.empty" class="lb-empty-card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="color:#c0c4cc"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-            <p class="lb-empty-title">{{ progress && progress.message ? progress.message : '暂无项目调整数据' }}</p>
-            <p class="lb-empty-desc">启用项目调整表并添加记录后，此处将自动展示开发进度。</p>
-          </div>
+        <!-- ========== Tab: 项目概览 ========== -->
+        <template v-if="activeTab === 'overview'">
+          <!-- KPI Cards -->
+          <section v-if="showProgress && progress && !progress.empty" class="lb-kpi-row">
+            <div class="lb-kpi">
+              <div class="lb-kpi-icon lb-kpi-icon--total">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              </div>
+              <div class="lb-kpi-body">
+                <div class="lb-kpi-value">{{ progress.totalRecords || 0 }}</div>
+                <div class="lb-kpi-label">总任务</div>
+              </div>
+            </div>
+            <div class="lb-kpi">
+              <div class="lb-kpi-icon lb-kpi-icon--done">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="lb-kpi-body">
+                <div class="lb-kpi-value lb-kpi-value--green">{{ progress.resolved || 0 }}</div>
+                <div class="lb-kpi-label">已完成</div>
+              </div>
+            </div>
+            <div class="lb-kpi">
+              <div class="lb-kpi-icon lb-kpi-icon--open">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="lb-kpi-body">
+                <div class="lb-kpi-value lb-kpi-value--orange">{{ progress.unresolved || 0 }}</div>
+                <div class="lb-kpi-label">进行中</div>
+              </div>
+            </div>
+            <div class="lb-kpi" v-if="resolveRate != null">
+              <div class="lb-kpi-icon lb-kpi-icon--rate">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              </div>
+              <div class="lb-kpi-body">
+                <div class="lb-kpi-value lb-kpi-value--blue">{{ resolveRate }}%</div>
+                <div class="lb-kpi-label">完成率</div>
+              </div>
+            </div>
+          </section>
 
-          <template v-else>
-            <!-- Completion Overview -->
-            <div class="lb-card" v-if="totalTasks > 0">
+          <!-- Progress Dashboard -->
+          <section v-if="showProgress" class="lb-section">
+            <div v-if="!progress || progress.empty" class="lb-empty-card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="color:#c0c4cc"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <p class="lb-empty-title">{{ progress && progress.message ? progress.message : '暂无项目调整数据' }}</p>
+              <p class="lb-empty-desc">启用项目调整表并添加记录后，此处将自动展示开发进度。</p>
+            </div>
+            <template v-else>
+              <!-- Completion Overview -->
+              <div class="lb-card" v-if="totalTasks > 0">
+                <div class="lb-card-head">
+                  <h3 class="lb-card-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    完成概览
+                  </h3>
+                </div>
+                <div class="lb-completion-row">
+                  <div class="lb-completion-chart">
+                    <canvas ref="pieRef" />
+                  </div>
+                  <div class="lb-completion-info">
+                    <div class="lb-completion-bar-wrap">
+                      <div class="lb-completion-bar-label">
+                        <span>整体进度</span>
+                        <span class="lb-completion-pct">{{ resolveRate != null ? resolveRate + '%' : '—' }}</span>
+                      </div>
+                      <div class="lb-completion-bar">
+                        <div class="lb-completion-bar-fill" :style="{ width: (resolveRate || 0) + '%' }"></div>
+                      </div>
+                    </div>
+                    <div class="lb-completion-legend">
+                      <span class="lb-legend-item"><i class="lb-legend-dot lb-legend-dot--green"></i>已完成 {{ progress.resolved || 0 }}</span>
+                      <span class="lb-legend-item"><i class="lb-legend-dot lb-legend-dot--gray"></i>进行中 {{ progress.unresolved || 0 }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Charts Grid -->
+              <div class="lb-chart-grid">
+                <!-- Weekly Trend -->
+                <div class="lb-card lb-card-wide" v-if="hasWeeklyData">
+                  <div class="lb-card-head">
+                    <h3 class="lb-card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                      周趋势
+                    </h3>
+                  </div>
+                  <div class="lb-chart-wrap">
+                    <canvas ref="trendRef" />
+                  </div>
+                </div>
+
+                <!-- Importance Distribution -->
+                <div class="lb-card" v-if="importanceLabels.length && importanceCounts.some(v => v > 0)">
+                  <div class="lb-card-head">
+                    <h3 class="lb-card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                      优先级分布
+                    </h3>
+                  </div>
+                  <div class="lb-chart-wrap">
+                    <canvas ref="barImpRef" />
+                  </div>
+                </div>
+              </div>
+            </template>
+          </section>
+
+          <!-- Feature Backlog -->
+          <section v-if="showFeatures && featureRows.length" class="lb-section">
+            <div class="lb-card">
               <div class="lb-card-head">
                 <h3 class="lb-card-title">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  完成概览
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                  功能清单
                 </h3>
+                <span class="lb-badge">{{ featureRows.length }} 项</span>
               </div>
-              <div class="lb-completion-row">
-                <div class="lb-completion-chart">
-                  <canvas ref="pieRef" />
+              <div class="lb-table-wrap">
+                <table class="lb-table">
+                  <thead><tr><th>功能</th><th>进度</th></tr></thead>
+                  <tbody>
+                    <tr v-for="(row, i) in featureRows" :key="'fr-' + i">
+                      <td>{{ row.featureName }}</td>
+                      <td><span class="lb-pill" :class="pillCls(row.progress)">{{ row.progress }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- ========== Tab: 开发日报 ========== -->
+        <template v-if="activeTab === 'daily'">
+          <div v-if="dailyLoading" class="lb-state" style="padding:60px 32px">
+            <div class="lb-spinner"></div><p>加载日报…</p>
+          </div>
+          <div v-else-if="dailyError" class="lb-empty-card">
+            <p class="lb-empty-title">{{ dailyError }}</p>
+          </div>
+          <template v-else>
+            <!-- Daily Summary List -->
+            <div v-if="!dailyDetail" class="lb-daily-list">
+              <div v-if="!dailyItems.length" class="lb-empty-card">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="color:#c0c4cc"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <p class="lb-empty-title">暂无开发日报</p>
+                <p class="lb-empty-desc">日报将在每日自动生成，展示前一天的代码提交与开发进展。</p>
+              </div>
+              <div v-for="item in dailyItems" :key="item.id" class="lb-daily-item" @click="openDailyDetail(item.id)">
+                <div class="lb-daily-item-left">
+                  <div class="lb-daily-date">{{ formatDailyDate(item.summaryDate) }}</div>
+                  <div class="lb-daily-title">{{ item.title || '每日进展总结' }}</div>
                 </div>
-                <div class="lb-completion-info">
-                  <div class="lb-completion-bar-wrap">
-                    <div class="lb-completion-bar-label">
-                      <span>整体进度</span>
-                      <span class="lb-completion-pct">{{ resolveRate != null ? resolveRate + '%' : '—' }}</span>
-                    </div>
-                    <div class="lb-completion-bar">
-                      <div class="lb-completion-bar-fill" :style="{ width: (resolveRate || 0) + '%' }"></div>
-                    </div>
-                  </div>
-                  <div class="lb-completion-legend">
-                    <span class="lb-legend-item"><i class="lb-legend-dot lb-legend-dot--green"></i>已完成 {{ progress.resolved || 0 }}</span>
-                    <span class="lb-legend-item"><i class="lb-legend-dot lb-legend-dot--gray"></i>进行中 {{ progress.unresolved || 0 }}</span>
-                  </div>
+                <div class="lb-daily-item-right">
+                  <span class="lb-daily-commits">{{ item.commitCount || 0 }} 次提交</span>
+                  <span class="lb-daily-status" :class="item.status === 'success' ? 'lb-daily-status--ok' : 'lb-daily-status--fail'">
+                    {{ item.status === 'success' ? '已生成' : '生成失败' }}
+                  </span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color:var(--lb-text-4);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
                 </div>
+              </div>
+              <!-- Pagination -->
+              <div v-if="dailyTotalPages > 1" class="lb-pagination">
+                <button class="lb-page-btn" :disabled="dailyPage <= 1" @click="dailyPage--; loadDailySummaries()">上一页</button>
+                <span class="lb-page-info">{{ dailyPage }} / {{ dailyTotalPages }}</span>
+                <button class="lb-page-btn" :disabled="dailyPage >= dailyTotalPages" @click="dailyPage++; loadDailySummaries()">下一页</button>
               </div>
             </div>
 
-            <!-- Charts Grid -->
-            <div class="lb-chart-grid">
-              <!-- Weekly Trend (combined created + resolved) -->
-              <div class="lb-card lb-card-wide" v-if="hasWeeklyData">
+            <!-- Daily Detail -->
+            <div v-else class="lb-daily-detail">
+              <button class="lb-back-btn" @click="dailyDetail = null">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+                返回列表
+              </button>
+              <div class="lb-card lb-daily-content">
                 <div class="lb-card-head">
-                  <h3 class="lb-card-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    周趋势
-                  </h3>
+                  <h3 class="lb-card-title">{{ dailyDetail.title || '每日进展总结' }}</h3>
+                  <span class="lb-badge">{{ formatDailyDate(dailyDetail.summaryDate) }}</span>
                 </div>
-                <div class="lb-chart-wrap">
-                  <canvas ref="trendRef" />
+                <div class="lb-daily-meta">
+                  <span>{{ dailyDetail.commitCount || 0 }} 次提交</span>
+                  <span v-if="dailyDetail.model">模型: {{ dailyDetail.model }}</span>
                 </div>
-              </div>
-
-              <!-- Importance Distribution -->
-              <div class="lb-card" v-if="importanceLabels.length && importanceCounts.some(v => v > 0)">
-                <div class="lb-card-head">
-                  <h3 class="lb-card-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-                    优先级分布
-                  </h3>
-                </div>
-                <div class="lb-chart-wrap">
-                  <canvas ref="barImpRef" />
-                </div>
-              </div>
-
-              <!-- Word Cloud -->
-              <div class="lb-card" v-if="wordCloudItems.length">
-                <div class="lb-card-head">
-                  <h3 class="lb-card-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                    需求关键词
-                  </h3>
-                </div>
-                <div class="lb-wc-body">
-                  <span v-for="(it, idx) in wordCloudItems" :key="'wc-' + idx" class="lb-wc-token" :style="wcStyle(it)">{{ it.text }}</span>
-                </div>
+                <div class="lb-md-body" v-html="dailyRenderedHtml"></div>
               </div>
             </div>
           </template>
-        </section>
+        </template>
 
-        <!-- ===== Feature Backlog ===== -->
-        <section v-if="showFeatures && featureRows.length" class="lb-section">
-          <div class="lb-card">
-            <div class="lb-card-head">
-              <h3 class="lb-card-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                功能清单
-              </h3>
-              <span class="lb-badge">{{ featureRows.length }} 项</span>
+        <!-- ========== Tab: 多维表格 ========== -->
+        <template v-if="activeTab === 'table'">
+          <div v-if="tableLoading" class="lb-state" style="padding:60px 32px">
+            <div class="lb-spinner"></div><p>加载表格…</p>
+          </div>
+          <div v-else-if="tableError" class="lb-empty-card">
+            <p class="lb-empty-title">{{ tableError }}</p>
+          </div>
+          <template v-else-if="tableColumns.length">
+            <!-- Table Purpose Selector -->
+            <div class="lb-table-selector" v-if="tablePurposes.length > 1">
+              <button
+                v-for="tp in tablePurposes"
+                :key="tp.value"
+                class="lb-purpose-btn"
+                :class="{ 'lb-purpose-btn--active': tablePurpose === tp.value }"
+                @click="switchTablePurpose(tp.value)"
+              >{{ tp.label }}</button>
             </div>
-            <div class="lb-table-wrap">
-              <table class="lb-table">
-                <thead><tr><th>功能</th><th>进度</th></tr></thead>
+            <!-- Desktop Table -->
+            <div class="lb-table-outer lb-table-outer--desktop">
+              <table class="lb-table lb-table--full">
+                <thead>
+                  <tr>
+                    <th v-for="col in visibleColumns" :key="col.id">{{ col.name }}</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  <tr v-for="(row, i) in featureRows" :key="'fr-' + i">
-                    <td>{{ row.featureName }}</td>
-                    <td><span class="lb-pill" :class="pillCls(row.progress)">{{ row.progress }}</span></td>
+                  <tr v-for="(row, ri) in tableRecords" :key="'tr-' + ri">
+                    <td v-for="col in visibleColumns" :key="col.id">
+                      <template v-if="col.columnType === 'attachment'">
+                        <div class="lb-cell-attachments">
+                          <template v-if="getAttachmentUrls(row, col.id).length">
+                            <img
+                              v-for="(url, ai) in getAttachmentUrls(row, col.id).slice(0, 3)"
+                              :key="ai"
+                              :src="url"
+                              class="lb-cell-thumb"
+                              @click="previewImage(url)"
+                            />
+                            <span v-if="getAttachmentUrls(row, col.id).length > 3" class="lb-cell-more">
+                              +{{ getAttachmentUrls(row, col.id).length - 3 }}
+                            </span>
+                          </template>
+                          <span v-else class="lb-cell-empty">—</span>
+                        </div>
+                      </template>
+                      <template v-else-if="col.columnType === 'status'">
+                        <span class="lb-status-tag" :class="statusCls(getCellValue(row, col.id))">{{ getCellValue(row, col.id) || '—' }}</span>
+                      </template>
+                      <template v-else>
+                        {{ getCellValue(row, col.id) || '—' }}
+                      </template>
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </div>
+            <!-- Mobile Card View -->
+            <div class="lb-mobile-cards">
+              <div v-for="(row, ri) in tableRecords" :key="'mc-' + ri" class="lb-mobile-card">
+                <div v-for="col in visibleColumns" :key="col.id" class="lb-mobile-row">
+                  <span class="lb-mobile-label">{{ col.name }}</span>
+                  <span class="lb-mobile-value">
+                    <template v-if="col.columnType === 'attachment'">
+                      <div class="lb-cell-attachments">
+                        <template v-if="getAttachmentUrls(row, col.id).length">
+                          <img
+                            v-for="(url, ai) in getAttachmentUrls(row, col.id).slice(0, 3)"
+                            :key="ai"
+                            :src="url"
+                            class="lb-cell-thumb"
+                            @click="previewImage(url)"
+                          />
+                        </template>
+                        <span v-else>—</span>
+                      </div>
+                    </template>
+                    <template v-else-if="col.columnType === 'status'">
+                      <span class="lb-status-tag" :class="statusCls(getCellValue(row, col.id))">{{ getCellValue(row, col.id) || '—' }}</span>
+                    </template>
+                    <template v-else>{{ getCellValue(row, col.id) || '—' }}</template>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <!-- Table Pagination -->
+            <div v-if="tableTotalPages > 1" class="lb-pagination">
+              <button class="lb-page-btn" :disabled="tablePage <= 1" @click="tablePage--; loadTableData()">上一页</button>
+              <span class="lb-page-info">{{ tablePage }} / {{ tableTotalPages }}</span>
+              <button class="lb-page-btn" :disabled="tablePage >= tableTotalPages" @click="tablePage++; loadTableData()">下一页</button>
+            </div>
+          </template>
+          <div v-else class="lb-empty-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="color:#c0c4cc"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            <p class="lb-empty-title">暂无表格数据</p>
           </div>
-        </section>
+        </template>
 
-        <!-- ===== AI Entry ===== -->
-        <section v-if="showAi" class="lb-section">
+        <!-- ========== Tab: AI 需求录入 ========== -->
+        <template v-if="activeTab === 'ai'">
           <div class="lb-card lb-card--accent">
             <div class="lb-card-head">
               <h3 class="lb-card-title">
@@ -200,14 +362,48 @@
                 AI 需求录入
               </h3>
             </div>
-            <p class="lb-ai-desc">描述您的需求、问题或变更，AI 将自动解析并生成结构化任务草稿。</p>
-            <textarea v-model="aiText" class="lb-textarea" rows="4" placeholder="请描述需求、问题或变更…" />
+            <p class="lb-ai-desc">描述您的需求、问题或变更，AI 将自动解析并生成结构化任务草稿。支持粘贴或上传图片辅助说明。</p>
+            <textarea
+              v-model="aiText"
+              class="lb-textarea"
+              rows="4"
+              placeholder="请描述需求、问题或变更…"
+              @paste="onAiPaste"
+            />
+            <!-- Attachment Upload -->
+            <div class="lb-ai-upload">
+              <input ref="aiFileInput" type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" style="display:none" @change="onAiFilesSelected">
+              <button type="button" class="lb-btn lb-btn--secondary" @click="triggerAiUpload">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                上传附件
+              </button>
+              <span class="lb-ai-paste-hint">支持 Ctrl+V 粘贴图片</span>
+            </div>
+            <!-- Attachment List -->
+            <div v-if="aiAttachments.length" class="lb-ai-att-list">
+              <div v-for="att in aiAttachments" :key="att.id" class="lb-ai-att-item">
+                <label class="lb-ai-att-check">
+                  <input type="checkbox" :value="att.id" v-model="aiSelectedAttIds">
+                  <div class="lb-ai-att-preview" :title="att.fileName">
+                    <img v-if="att.isImage && att.previewUrl" :src="att.previewUrl" class="lb-ai-att-thumb" alt="">
+                    <span v-else class="lb-ai-att-fileicon">{{ getFileIcon(att.fileName) }}</span>
+                  </div>
+                  <div class="lb-ai-att-meta">
+                    <span class="lb-ai-att-name">{{ att.fileName }}</span>
+                    <span class="lb-ai-att-size">{{ formatFileSize(att.fileSize) }}</span>
+                  </div>
+                </label>
+                <button type="button" class="lb-ai-att-remove" @click.stop="removeAiAtt(att)" title="删除">×</button>
+              </div>
+            </div>
+            <!-- Generate Button -->
             <div class="lb-ai-footer">
-              <button type="button" class="lb-btn" :disabled="aiBusy || !aiText.trim()" @click="runAiPreview">
+              <button type="button" class="lb-btn" :disabled="aiBusy || (!aiText.trim() && !aiSelectedAttIds.length)" @click="runAiPreview">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" v-if="!aiBusy"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 {{ aiBusy ? '生成中…' : '生成草稿' }}
               </button>
             </div>
+            <!-- Drafts -->
             <div v-if="aiDrafts.length" class="lb-drafts">
               <div class="lb-drafts-head">AI 草稿（{{ aiDrafts.length }} 条）</div>
               <div v-for="(d, i) in aiDrafts" :key="'d-' + i" class="lb-draft">
@@ -221,7 +417,7 @@
               </div>
             </div>
           </div>
-        </section>
+        </template>
 
         <!-- ===== Footer ===== -->
         <footer class="lb-footer">
@@ -234,12 +430,21 @@
         </footer>
       </main>
     </template>
+
+    <!-- Image Preview Modal -->
+    <div v-if="previewImageUrl" class="lb-img-modal" @click="previewImageUrl = null">
+      <img :src="previewImageUrl" class="lb-img-modal-content" @click.stop>
+    </div>
   </div>
 </template>
 
 <script>
 import { Chart as ChartJS, registerables } from 'chart.js'
+import MarkdownIt from 'markdown-it'
+import { shouldCompressAsRasterImage, compressImageFile } from '@/utils/imageCompress'
+
 ChartJS.register(...registerables)
+const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
 export default {
   name: 'ClientBoardView',
@@ -256,18 +461,50 @@ export default {
       showAi: false,
       progress: null,
       featureRows: [],
+      charts: {},
+      // Tab
+      activeTab: 'overview',
+      // Daily
+      dailyLoading: false,
+      dailyError: '',
+      dailyItems: [],
+      dailyTotal: 0,
+      dailyPage: 1,
+      dailyPageSize: 10,
+      dailyDetail: null,
+      // Table
+      tableLoading: false,
+      tableError: '',
+      tableColumns: [],
+      tableRecords: [],
+      tableTotal: 0,
+      tablePage: 1,
+      tablePageSize: 20,
+      tablePurpose: 'issue_tracking',
+      tablePurposes: [],
+      // AI
       aiText: '',
       aiDrafts: [],
       aiBusy: false,
       aiCommitting: false,
-      charts: {}
+      aiAttachments: [],
+      aiSelectedAttIds: [],
+      aiUploading: false,
+      // Image preview
+      previewImageUrl: ''
     }
   },
   computed: {
-    generatedAt () {
-      const p = this.progress
-      if (!p || !p.generatedAt) return ''
-      return p.generatedAt
+    visibleTabs () {
+      const tabs = [
+        { key: 'overview', label: '项目概览', icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' }
+      ]
+      tabs.push({ key: 'daily', label: '开发日报', icon: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>' })
+      tabs.push({ key: 'table', label: '多维表格', icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>' })
+      if (this.showAi) {
+        tabs.push({ key: 'ai', label: 'AI 录入', icon: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>' })
+      }
+      return tabs
     },
     resolveRate () {
       const p = this.progress
@@ -284,14 +521,35 @@ export default {
     weeklyResolved () { return (this.progress && this.progress.weeklyResolved) || [] },
     importanceLabels () { return (this.progress && this.progress.importanceLabels) || [] },
     importanceCounts () { return (this.progress && this.progress.importanceCounts) || [] },
-    wordCloudItems () {
-      const p = this.progress
-      if (!p || !Array.isArray(p.wordCloud)) return []
-      return p.wordCloud.slice(0, 40)
-    },
     hasWeeklyData () {
       return this.weekLabels.length > 0 &&
         (this.weeklyCreated.some(v => v > 0) || this.weeklyResolved.some(v => v > 0))
+    },
+    dailyTotalPages () {
+      return Math.max(1, Math.ceil(this.dailyTotal / this.dailyPageSize))
+    },
+    tableTotalPages () {
+      return Math.max(1, Math.ceil(this.tableTotal / this.tablePageSize))
+    },
+    visibleColumns () {
+      return this.tableColumns.filter(c => c.columnType !== 'multi_user')
+    },
+    dailyRenderedHtml () {
+      if (!this.dailyDetail || !this.dailyDetail.content) return ''
+      return md.render(this.dailyDetail.content)
+    }
+  },
+  watch: {
+    activeTab (val) {
+      if (val === 'daily' && !this.dailyItems.length && !this.dailyError) {
+        this.loadDailySummaries()
+      }
+      if (val === 'table' && !this.tableColumns.length && !this.tableError) {
+        this.loadTableData()
+      }
+      if (val === 'overview') {
+        this.$nextTick(() => this.renderCharts())
+      }
     }
   },
   mounted () {
@@ -301,6 +559,7 @@ export default {
   },
   beforeDestroy () { this.destroyCharts() },
   methods: {
+    // ===== Board Init =====
     async fetchBoard () {
       this.loading = true; this.error = ''
       try {
@@ -318,10 +577,17 @@ export default {
         this.showAi = !!d.showAiTableEntry
         this.progress = d.progress || null
         this.featureRows = Array.isArray(d.featureSummary) ? d.featureSummary : []
+        // Build table purposes
+        const purposes = []
+        if (this.showProgress) purposes.push({ value: 'issue_tracking', label: '项目调整' })
+        if (this.showFeatures) purposes.push({ value: 'feature_backlog', label: '需求 Backlog' })
+        this.tablePurposes = purposes
         this.$nextTick(() => this.renderCharts())
       } catch (e) { this.error = '加载失败，请稍后重试' }
       finally { this.loading = false }
     },
+
+    // ===== Charts =====
     destroyCharts () {
       Object.values(this.charts).forEach(c => { if (c && typeof c.destroy === 'function') c.destroy() })
       this.charts = {}
@@ -333,9 +599,8 @@ export default {
       const resolved = Number(p.resolved) || 0
       const unresolved = Number(p.unresolved) || 0
       const total = resolved + unresolved
-      const labels = this.weekLabels
 
-      // 1. Pie chart
+      // Pie
       if (this.$refs.pieRef && total > 0) {
         this.charts.pie = new ChartJS(this.$refs.pieRef, {
           type: 'doughnut',
@@ -343,34 +608,19 @@ export default {
             labels: ['已完成', '进行中'],
             datasets: [{ data: [resolved, unresolved], backgroundColor: ['#3370ff', '#e5e6eb'], borderWidth: 0, hoverOffset: 4 }]
           },
-          options: {
-            responsive: true, maintainAspectRatio: false, cutout: '72%',
-            plugins: { legend: { display: false } }
-          }
+          options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
         })
       }
 
-      // 2. Combined trend chart (created + resolved)
-      if (this.$refs.trendRef && this.hasWeeklyData && labels.length) {
+      // Trend
+      if (this.$refs.trendRef && this.hasWeeklyData && this.weekLabels.length) {
         this.charts.trend = new ChartJS(this.$refs.trendRef, {
           type: 'line',
           data: {
-            labels: labels.map(l => l.slice(5)), // show MM-DD
+            labels: this.weekLabels.map(l => l.slice(5)),
             datasets: [
-              {
-                label: '新建',
-                data: this.weeklyCreated,
-                borderColor: '#3370ff',
-                backgroundColor: 'rgba(51,112,255,0.06)',
-                fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5
-              },
-              {
-                label: '完成',
-                data: this.weeklyResolved,
-                borderColor: '#00b42a',
-                backgroundColor: 'rgba(0,180,42,0.06)',
-                fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5
-              }
+              { label: '新建', data: this.weeklyCreated, borderColor: '#3370ff', backgroundColor: 'rgba(51,112,255,0.06)', fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5 },
+              { label: '完成', data: this.weeklyResolved, borderColor: '#00b42a', backgroundColor: 'rgba(0,180,42,0.06)', fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5 }
             ]
           },
           options: {
@@ -385,8 +635,8 @@ export default {
         })
       }
 
-      // 3. Importance bar
-      if (this.$refs.barImpRef && this.importanceLabels.length) {
+      // Importance
+      if (this.$refs.barImpRef && this.importanceLabels.length && this.importanceCounts.some(v => v > 0)) {
         const colors = ['#f54a45', '#ff8800', '#ffcd00', '#3370ff', '#8f959e']
         this.charts.bar = new ChartJS(this.$refs.barImpRef, {
           type: 'bar',
@@ -405,27 +655,166 @@ export default {
         })
       }
     },
-    wcStyle (it) {
-      const max = it.max || 1; const w = it.weight || 0; const r = max > 0 ? w / max : 0
-      const fs = 12 + 14 * r
-      const palette = ['#1f2329', '#3370ff', '#00b42a', '#ff8800', '#7c3aed', '#f54a45']
-      const idx = (it.text && it.text.charCodeAt(0) ? it.text.charCodeAt(0) : 0) % palette.length
-      return { fontSize: fs + 'px', color: palette[idx], fontWeight: r >= 0.35 ? 600 : 400 }
+
+    // ===== Daily Summaries =====
+    async loadDailySummaries () {
+      this.dailyLoading = true; this.dailyError = ''
+      try {
+        const resp = await this.$http.get(`/public/client-board/${encodeURIComponent(this.token)}/daily-summaries`, { params: { page: this.dailyPage, pageSize: this.dailyPageSize } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.dailyItems = d.items || []
+          this.dailyTotal = d.total || 0
+        } else {
+          this.dailyError = (resp.data && resp.data.message) || '加载日报失败'
+        }
+      } catch (e) { this.dailyError = '加载日报失败，请稍后重试' }
+      finally { this.dailyLoading = false }
     },
-    pillCls (p) {
-      if (!p) return ''
-      const v = String(p)
-      if (v.includes('100') || v.includes('完成') || v.includes('已上线')) return 'lb-pill--done'
-      if (v.includes('进行') || v.includes('开发')) return 'lb-pill--wip'
-      if (v.includes('待') || v.includes('规划') || v.includes('0')) return 'lb-pill--todo'
-      return ''
+    async openDailyDetail (id) {
+      try {
+        const resp = await this.$http.get(`/public/client-board/${encodeURIComponent(this.token)}/daily-summaries/${id}`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.dailyDetail = resp.data.data
+        } else {
+          window.alert((resp.data && resp.data.message) || '加载详情失败')
+        }
+      } catch (e) { window.alert('加载详情失败，请稍后重试') }
+    },
+    formatDailyDate (d) {
+      if (!d) return ''
+      return String(d).slice(0, 10)
+    },
+
+    // ===== Table Data =====
+    async loadTableData () {
+      this.tableLoading = true; this.tableError = ''
+      try {
+        const resp = await this.$http.get(`/public/client-board/${encodeURIComponent(this.token)}/table-data`, {
+          params: { purpose: this.tablePurpose, page: this.tablePage, pageSize: this.tablePageSize }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.tableColumns = d.columns || []
+          this.tableRecords = d.records || []
+          this.tableTotal = d.total || 0
+        } else {
+          this.tableError = (resp.data && resp.data.message) || '加载表格失败'
+        }
+      } catch (e) { this.tableError = '加载表格失败，请稍后重试' }
+      finally { this.tableLoading = false }
+    },
+    switchTablePurpose (purpose) {
+      this.tablePurpose = purpose
+      this.tablePage = 1
+      this.loadTableData()
+    },
+    getCellValue (row, colId) {
+      const v = row['c' + colId]
+      if (v == null) return ''
+      return String(v)
+    },
+    getAttachmentUrls (row, colId) {
+      const v = row['c' + colId]
+      if (!v) return []
+      try {
+        const arr = typeof v === 'string' ? JSON.parse(v) : v
+        if (!Array.isArray(arr)) return []
+        return arr.map(a => {
+          if (typeof a === 'number') return `/api/collab/attachments/${a}/preview`
+          if (a && a.id) return `/api/collab/attachments/${a.id}/preview`
+          return ''
+        }).filter(Boolean)
+      } catch (e) { return [] }
+    },
+    previewImage (url) {
+      this.previewImageUrl = url
+    },
+
+    // ===== AI Entry =====
+    triggerAiUpload () {
+      if (this.$refs.aiFileInput) this.$refs.aiFileInput.click()
+    },
+    async onAiFilesSelected (e) {
+      const files = Array.from(e.target.files || [])
+      if (files.length) await this.uploadAiFiles(files)
+      e.target.value = ''
+    },
+    async onAiPaste (e) {
+      const items = (e.clipboardData || {}).items || []
+      const imageFiles = []
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          const f = item.getAsFile()
+          if (f) imageFiles.push(f)
+        }
+      }
+      if (imageFiles.length) {
+        e.preventDefault()
+        await this.uploadAiFiles(imageFiles)
+      }
+    },
+    async uploadAiFiles (files) {
+      if (this.aiUploading) return
+      this.aiUploading = true
+      try {
+        for (const file of files) {
+          let uploadFile = file
+          if (shouldCompressAsRasterImage(file)) {
+            uploadFile = await compressImageFile(file, { maxWidth: 1920, maxHeight: 1920, quality: 0.82 })
+          }
+          const fd = new FormData()
+          fd.append('file', uploadFile)
+          const resp = await this.$http.post(`/public/client-board/${encodeURIComponent(this.token)}/attachments`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+          if (resp.data && resp.data.code === 0 && resp.data.data) {
+            const att = resp.data.data
+            this.aiAttachments.push({
+              id: att.id,
+              fileName: att.fileName || 'file',
+              fileSize: att.fileSize || 0,
+              isImage: !!att.isImage,
+              previewUrl: att.isImage ? `/api/collab/attachments/${att.id}/preview` : ''
+            })
+            this.aiSelectedAttIds.push(att.id)
+          }
+        }
+      } catch (e) { window.alert('上传失败，请稍后重试') }
+      finally { this.aiUploading = false }
+    },
+    removeAiAtt (att) {
+      const idx = this.aiAttachments.indexOf(att)
+      if (idx >= 0) this.aiAttachments.splice(idx, 1)
+      const sidIdx = this.aiSelectedAttIds.indexOf(att.id)
+      if (sidIdx >= 0) this.aiSelectedAttIds.splice(sidIdx, 1)
+    },
+    getFileIcon (name) {
+      if (!name) return '📄'
+      const n = name.toLowerCase()
+      if (n.endsWith('.pdf')) return '📕'
+      if (n.endsWith('.doc') || n.endsWith('.docx')) return '📘'
+      if (n.endsWith('.xls') || n.endsWith('.xlsx')) return '📗'
+      if (n.endsWith('.ppt') || n.endsWith('.pptx')) return '📙'
+      if (n.endsWith('.txt')) return '📄'
+      if (n.endsWith('.mp4') || n.endsWith('.mov')) return '🎬'
+      return '📎'
+    },
+    formatFileSize (bytes) {
+      if (!bytes) return '0 B'
+      if (bytes < 1024) return bytes + ' B'
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
     },
     async runAiPreview () {
       const raw = (this.aiText || '').trim()
-      if (!raw) return
+      if (!raw && !this.aiSelectedAttIds.length) return
       this.aiBusy = true; this.aiDrafts = []
       try {
-        const resp = await this.$http.post(`/public/client-board/${encodeURIComponent(this.token)}/ai-preview`, { rawText: raw, attachmentIds: [] })
+        const resp = await this.$http.post(`/public/client-board/${encodeURIComponent(this.token)}/ai-preview`, {
+          rawText: raw,
+          attachmentIds: this.aiSelectedAttIds
+        })
         if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.items)) {
           this.aiDrafts = resp.data.data.items
         } else { window.alert((resp.data && resp.data.message) || 'AI 预览失败') }
@@ -440,10 +829,28 @@ export default {
         if (resp.data && resp.data.code === 0) {
           const n = resp.data.data && resp.data.data.createdCount != null ? resp.data.data.createdCount : 0
           window.alert('提交成功，已创建 ' + n + ' 条任务')
-          this.aiDrafts = []; this.aiText = ''; await this.fetchBoard()
+          this.aiDrafts = []; this.aiText = ''; this.aiAttachments = []; this.aiSelectedAttIds = []
+          await this.fetchBoard()
         } else { window.alert((resp.data && resp.data.message) || '提交失败') }
       } catch (e) { window.alert('请求失败，请稍后重试') }
       finally { this.aiCommitting = false }
+    },
+
+    // ===== Helpers =====
+    pillCls (p) {
+      if (!p) return ''
+      const v = String(p)
+      if (v.includes('100') || v.includes('完成') || v.includes('已上线')) return 'lb-pill--done'
+      if (v.includes('进行') || v.includes('开发')) return 'lb-pill--wip'
+      if (v.includes('待') || v.includes('规划') || v.includes('0')) return 'lb-pill--todo'
+      return ''
+    },
+    statusCls (v) {
+      if (!v) return ''
+      const s = String(v)
+      if (s.includes('已解决') || s.includes('已完成') || s.includes('通过') || s.includes('关闭')) return 'lb-status-tag--done'
+      if (s.includes('进行') || s.includes('开发') || s.includes('处理')) return 'lb-status-tag--wip'
+      return ''
     }
   }
 }
@@ -451,7 +858,7 @@ export default {
 
 <style scoped>
 /* ================================================================
-   Client Board — 字节系设计风格 (Lark/飞书 inspired)
+   Client Board — 字节系设计风格 v2 (Tab-based layout)
    ================================================================ */
 
 /* --- Design Tokens --- */
@@ -499,12 +906,20 @@ export default {
 
 /* --- Hero --- */
 .lb-hero { background: var(--lb-bg-card); border-bottom: 1px solid var(--lb-border); }
-.lb-hero-inner { max-width: 1120px; margin: 0 auto; padding: 28px 32px 24px; }
-.lb-hero-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.lb-hero-inner { max-width: 1120px; margin: 0 auto; padding: 20px 32px 16px; }
+.lb-hero-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .lb-tag { display: inline-flex; align-items: center; padding: 2px 8px; background: var(--lb-blue-light); color: var(--lb-blue); font-size: 12px; font-weight: 500; border-radius: 4px; }
-.lb-hero-date { font-size: 12px; color: var(--lb-text-3); }
-.lb-hero-title { margin: 0 0 8px; font-size: 24px; font-weight: 700; color: var(--lb-text-1); line-height: 1.3; }
+.lb-hero-title { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: var(--lb-text-1); line-height: 1.3; }
 .lb-hero-repo { margin: 0; font-size: 13px; color: var(--lb-text-2); font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: var(--lb-bg); border-radius: 4px; }
+
+/* --- Tab Bar --- */
+.lb-tabs-bar { background: var(--lb-bg-card); border-bottom: 1px solid var(--lb-border); position: sticky; top: 52px; z-index: 99; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.lb-tabs-bar::-webkit-scrollbar { display: none; }
+.lb-tabs-inner { max-width: 1120px; margin: 0 auto; padding: 0 32px; display: flex; gap: 0; }
+.lb-tab { display: inline-flex; align-items: center; gap: 6px; padding: 12px 20px; font-size: 14px; font-weight: 500; color: var(--lb-text-2); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s; outline: none; }
+.lb-tab:hover { color: var(--lb-text-1); }
+.lb-tab--active { color: var(--lb-blue); border-bottom-color: var(--lb-blue); }
+.lb-tab svg { flex-shrink: 0; }
 
 /* --- Main --- */
 .lb-main { max-width: 1120px; margin: 0 auto; padding: 20px 32px 48px; }
@@ -551,14 +966,9 @@ export default {
 .lb-legend-dot--gray { background: var(--lb-border); }
 
 /* --- Chart Grid --- */
-.lb-chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.lb-chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 .lb-card-wide { grid-column: span 2; }
 .lb-chart-wrap { height: 220px; position: relative; }
-
-/* --- Word Cloud --- */
-.lb-wc-body { line-height: 2.2; padding: 8px 0; }
-.lb-wc-token { display: inline-block; margin: 2px 10px 2px 0; cursor: default; transition: opacity .15s; }
-.lb-wc-token:hover { opacity: .65; }
 
 /* --- Empty State --- */
 .lb-empty-card { text-align: center; padding: 56px 24px; background: var(--lb-bg-card); border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-border); }
@@ -569,9 +979,36 @@ export default {
 /* --- Table --- */
 .lb-table-wrap { overflow-x: auto; }
 .lb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.lb-table th, .lb-table td { border-bottom: 1px solid var(--lb-border); padding: 10px 14px; text-align: left; }
-.lb-table th { color: var(--lb-text-2); font-weight: 500; font-size: 12px; background: var(--lb-bg); }
+.lb-table th, .lb-table td { border-bottom: 1px solid var(--lb-border); padding: 10px 14px; text-align: left; white-space: nowrap; }
+.lb-table th { color: var(--lb-text-2); font-weight: 500; font-size: 12px; background: var(--lb-bg); position: sticky; top: 0; }
 .lb-table tbody tr:hover { background: #fafbfc; }
+.lb-table--full td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.lb-table-outer--desktop { overflow-x: auto; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-border); background: var(--lb-bg-card); }
+
+/* --- Table Selector --- */
+.lb-table-selector { display: flex; gap: 8px; margin-bottom: 16px; }
+.lb-purpose-btn { padding: 6px 16px; border-radius: 100px; font-size: 13px; font-weight: 500; border: 1px solid var(--lb-border); background: var(--lb-bg-card); color: var(--lb-text-2); cursor: pointer; transition: all .15s; outline: none; }
+.lb-purpose-btn:hover { border-color: var(--lb-blue); color: var(--lb-blue); }
+.lb-purpose-btn--active { background: var(--lb-blue); color: #fff; border-color: var(--lb-blue); }
+
+/* --- Status Tag --- */
+.lb-status-tag { display: inline-block; padding: 2px 10px; border-radius: 100px; font-size: 12px; font-weight: 500; background: var(--lb-bg); color: var(--lb-text-2); }
+.lb-status-tag--done { background: var(--lb-green-light); color: var(--lb-green); }
+.lb-status-tag--wip { background: var(--lb-orange-light); color: var(--lb-orange); }
+
+/* --- Cell Attachments --- */
+.lb-cell-attachments { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lb-cell-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid var(--lb-border); }
+.lb-cell-thumb:hover { opacity: .8; }
+.lb-cell-more { font-size: 12px; color: var(--lb-text-3); }
+.lb-cell-empty { color: var(--lb-text-4); }
+
+/* --- Mobile Cards --- */
+.lb-mobile-cards { display: none; }
+
+/* --- Image Preview Modal --- */
+.lb-img-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; cursor: pointer; }
+.lb-img-modal-content { max-width: 90vw; max-height: 90vh; border-radius: 8px; object-fit: contain; cursor: default; }
 
 /* --- Pill --- */
 .lb-pill { display: inline-block; padding: 2px 10px; border-radius: 100px; font-size: 12px; font-weight: 500; background: var(--lb-bg); color: var(--lb-text-2); }
@@ -579,11 +1016,64 @@ export default {
 .lb-pill--wip { background: var(--lb-orange-light); color: var(--lb-orange); }
 .lb-pill--todo { background: var(--lb-blue-light); color: var(--lb-blue); }
 
+/* --- Daily Summary --- */
+.lb-daily-list { display: flex; flex-direction: column; gap: 8px; }
+.lb-daily-item { background: var(--lb-bg-card); border: 1px solid var(--lb-border); border-radius: var(--lb-radius-lg); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: box-shadow .15s, border-color .15s; box-shadow: var(--lb-shadow); }
+.lb-daily-item:hover { box-shadow: var(--lb-shadow-hover); border-color: var(--lb-blue); }
+.lb-daily-item-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lb-daily-date { font-size: 12px; color: var(--lb-text-3); font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace; }
+.lb-daily-title { font-size: 14px; font-weight: 600; color: var(--lb-text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-daily-item-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.lb-daily-commits { font-size: 12px; color: var(--lb-text-3); }
+.lb-daily-status { font-size: 11px; padding: 2px 8px; border-radius: 100px; font-weight: 500; }
+.lb-daily-status--ok { background: var(--lb-green-light); color: var(--lb-green); }
+.lb-daily-status--fail { background: #fdecee; color: var(--lb-red); }
+.lb-daily-detail { }
+.lb-back-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; font-size: 13px; color: var(--lb-blue); background: none; border: none; cursor: pointer; border-radius: var(--lb-radius); transition: background .15s; margin-bottom: 16px; }
+.lb-back-btn:hover { background: var(--lb-blue-light); }
+.lb-daily-content { }
+.lb-daily-meta { display: flex; gap: 16px; font-size: 12px; color: var(--lb-text-3); margin-bottom: 16px; }
+.lb-md-body { font-size: 14px; line-height: 1.8; color: var(--lb-text-1); }
+.lb-md-body >>> h1, .lb-md-body >>> h2, .lb-md-body >>> h3 { margin: 20px 0 8px; font-weight: 600; }
+.lb-md-body >>> h1 { font-size: 18px; }
+.lb-md-body >>> h2 { font-size: 16px; }
+.lb-md-body >>> h3 { font-size: 15px; }
+.lb-md-body >>> p { margin: 8px 0; }
+.lb-md-body >>> ul, .lb-md-body >>> ol { padding-left: 20px; margin: 8px 0; }
+.lb-md-body >>> li { margin: 4px 0; }
+.lb-md-body >>> code { background: var(--lb-bg); padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace; }
+.lb-md-body >>> pre { background: var(--lb-bg); padding: 12px 16px; border-radius: var(--lb-radius); overflow-x: auto; margin: 12px 0; }
+.lb-md-body >>> pre code { background: none; padding: 0; }
+.lb-md-body >>> strong { font-weight: 600; }
+.lb-md-body >>> blockquote { border-left: 3px solid var(--lb-blue); padding-left: 12px; margin: 12px 0; color: var(--lb-text-2); }
+
+/* --- Pagination --- */
+.lb-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 20px; }
+.lb-page-btn { padding: 6px 16px; font-size: 13px; border: 1px solid var(--lb-border); background: var(--lb-bg-card); color: var(--lb-text-2); border-radius: var(--lb-radius); cursor: pointer; transition: all .15s; outline: none; }
+.lb-page-btn:hover:not(:disabled) { border-color: var(--lb-blue); color: var(--lb-blue); }
+.lb-page-btn:disabled { opacity: .4; cursor: not-allowed; }
+.lb-page-info { font-size: 13px; color: var(--lb-text-3); }
+
 /* --- AI Section --- */
 .lb-ai-desc { margin: 0 0 12px; font-size: 13px; color: var(--lb-text-3); line-height: 1.6; }
 .lb-textarea { width: 100%; border: 1px solid var(--lb-border); border-radius: var(--lb-radius); padding: 10px 14px; font-size: 14px; font-family: inherit; color: var(--lb-text-1); background: var(--lb-bg-card); resize: vertical; box-sizing: border-box; outline: none; transition: border-color .2s, box-shadow .2s; line-height: 1.6; }
 .lb-textarea:focus { border-color: var(--lb-blue); box-shadow: 0 0 0 2px rgba(51,112,255,.12); }
-.lb-ai-footer { margin-top: 12px; }
+.lb-ai-upload { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.lb-ai-paste-hint { font-size: 12px; color: var(--lb-text-4); }
+.lb-ai-att-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.lb-ai-att-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--lb-bg); border-radius: var(--lb-radius); border: 1px solid transparent; transition: border-color .15s; }
+.lb-ai-att-item:hover { border-color: var(--lb-border); }
+.lb-ai-att-check { display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; min-width: 0; }
+.lb-ai-att-check input[type="checkbox"] { flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--lb-blue); }
+.lb-ai-att-preview { width: 36px; height: 36px; border-radius: 4px; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--lb-bg-card); border: 1px solid var(--lb-border); }
+.lb-ai-att-thumb { width: 100%; height: 100%; object-fit: cover; }
+.lb-ai-att-fileicon { font-size: 16px; }
+.lb-ai-att-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lb-ai-att-name { font-size: 13px; color: var(--lb-text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-ai-att-size { font-size: 11px; color: var(--lb-text-4); }
+.lb-ai-att-remove { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: none; background: none; color: var(--lb-text-4); cursor: pointer; border-radius: 4px; font-size: 16px; flex-shrink: 0; }
+.lb-ai-att-remove:hover { background: #fdecee; color: var(--lb-red); }
+.lb-ai-footer { margin-top: 16px; }
 
 /* --- AI Drafts --- */
 .lb-drafts { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--lb-border); }
@@ -600,6 +1090,8 @@ export default {
 .lb-btn:active { background: #1d56d0; }
 .lb-btn:disabled { opacity: .4; cursor: not-allowed; }
 .lb-btn:focus-visible { box-shadow: 0 0 0 2px rgba(51,112,255,.25); }
+.lb-btn--secondary { background: var(--lb-bg-card); color: var(--lb-text-2); border: 1px solid var(--lb-border); }
+.lb-btn--secondary:hover { border-color: var(--lb-blue); color: var(--lb-blue); }
 
 /* --- Footer --- */
 .lb-footer { text-align: center; padding: 32px 0 24px; font-size: 12px; color: var(--lb-text-3); display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -610,15 +1102,27 @@ export default {
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .lb-nav-inner { padding: 0 16px; }
-  .lb-hero-inner { padding: 20px 16px 16px; }
-  .lb-hero-title { font-size: 20px; }
+  .lb-hero-inner { padding: 16px 16px 12px; }
+  .lb-hero-title { font-size: 18px; }
+  .lb-tabs-inner { padding: 0 16px; }
+  .lb-tab { padding: 10px 14px; font-size: 13px; }
   .lb-main { padding: 16px 16px 40px; }
-  .lb-kpi-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .lb-kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
   .lb-kpi { padding: 14px; }
   .lb-kpi-value { font-size: 22px; }
   .lb-chart-grid { grid-template-columns: 1fr; }
   .lb-card-wide { grid-column: span 1; }
   .lb-completion-row { flex-direction: column; gap: 20px; }
   .lb-completion-chart { width: 120px; height: 120px; }
+  /* Mobile: hide desktop table, show cards */
+  .lb-table-outer--desktop { display: none; }
+  .lb-mobile-cards { display: flex; flex-direction: column; gap: 12px; }
+  .lb-mobile-card { background: var(--lb-bg-card); border: 1px solid var(--lb-border); border-radius: var(--lb-radius-lg); padding: 14px 16px; box-shadow: var(--lb-shadow); }
+  .lb-mobile-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--lb-border); gap: 12px; }
+  .lb-mobile-row:last-child { border-bottom: none; }
+  .lb-mobile-label { font-size: 12px; color: var(--lb-text-3); flex-shrink: 0; min-width: 70px; }
+  .lb-mobile-value { font-size: 13px; color: var(--lb-text-1); text-align: right; word-break: break-all; }
+  .lb-daily-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .lb-daily-item-right { align-self: flex-end; }
 }
 </style>

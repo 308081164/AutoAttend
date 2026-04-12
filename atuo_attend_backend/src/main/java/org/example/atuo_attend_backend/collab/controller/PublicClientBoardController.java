@@ -1,20 +1,29 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+import org.example.atuo_attend_backend.ai.service.ProjectDailySummaryService;
+import org.example.atuo_attend_backend.collab.domain.BizAttachment;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectClientBoard;
 import org.example.atuo_attend_backend.collab.dto.CollabAiTaskModels;
+import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
 import org.example.atuo_attend_backend.collab.service.ClientBoardShareService;
 import org.example.atuo_attend_backend.collab.service.ClientBoardStatsService;
 import org.example.atuo_attend_backend.collab.service.CollabAiTaskIngestService;
+import org.example.atuo_attend_backend.collab.service.CollabRecordService;
+import org.example.atuo_attend_backend.collab.service.CollabTableService;
+import org.example.atuo_attend_backend.collab.service.MinioService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 客户阅览看板公开接口（仅凭 token，无需登录）。
@@ -29,17 +38,32 @@ public class PublicClientBoardController {
     private final CollabAiTaskIngestService aiIngestService;
     private final BizProjectMapper projectMapper;
     private final TenantMapper tenantMapper;
+    private final ProjectDailySummaryService dailySummaryService;
+    private final MinioService minioService;
+    private final BizAttachmentMapper attachmentMapper;
+    private final CollabTableService tableService;
+    private final CollabRecordService recordService;
 
     public PublicClientBoardController(ClientBoardShareService shareService,
                                        ClientBoardStatsService statsService,
                                        CollabAiTaskIngestService aiIngestService,
                                        BizProjectMapper projectMapper,
-                                       TenantMapper tenantMapper) {
+                                       TenantMapper tenantMapper,
+                                       ProjectDailySummaryService dailySummaryService,
+                                       MinioService minioService,
+                                       BizAttachmentMapper attachmentMapper,
+                                       CollabTableService tableService,
+                                       CollabRecordService recordService) {
         this.shareService = shareService;
         this.statsService = statsService;
         this.aiIngestService = aiIngestService;
         this.projectMapper = projectMapper;
         this.tenantMapper = tenantMapper;
+        this.dailySummaryService = dailySummaryService;
+        this.minioService = minioService;
+        this.attachmentMapper = attachmentMapper;
+        this.tableService = tableService;
+        this.recordService = recordService;
     }
 
     @GetMapping("/{token}")
@@ -108,15 +132,143 @@ public class PublicClientBoardController {
         if (!"issue_tracking".equals(purpose)) {
             return ApiResponse.error(40000, "当前阅览看板仅支持对「项目调整」表使用 AI 录入；请在配置中将 AI 目标表设为项目调整。");
         }
-        if (body.getTasks() != null) {
-            for (CollabAiTaskModels.AiTaskDraft t : body.getTasks()) {
-                if (t != null) {
-                    t.setAttachmentIds(null);
-                }
-            }
-        }
         long tenantId = board.getTenantId();
         return TenantContext.runWithTenantId(tenantId, () ->
                 aiIngestService.commit(tenantId, board.getProjectId(), purpose, null, "客户（阅览看板）", body));
+    }
+
+    // ==================== 开发日报 ====================
+
+    /** 开发日报列表 */
+    @GetMapping("/{token}/daily-summaries")
+    public ApiResponse<?> listDailySummaries(
+            @PathVariable String token,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
+        BizProjectClientBoard board = shareService.requireEnabledBoard(token);
+        if (board == null) {
+            return ApiResponse.error(40400, "看板不存在或未启用");
+        }
+        BizProject project = projectMapper.findById(board.getProjectId());
+        if (project == null) {
+            return ApiResponse.error(40400, "项目不存在");
+        }
+        String repoId = project.getRepoId();
+        if (repoId == null || repoId.isBlank()) {
+            return ApiResponse.error(40000, "项目未关联仓库");
+        }
+        long tenantId = board.getTenantId();
+        Map<String, Object> result = TenantContext.runWithTenantId(tenantId,
+                () -> dailySummaryService.listByRepo(repoId, page, pageSize));
+        return ApiResponse.ok(result);
+    }
+
+    /** 开发日报详情 */
+    @GetMapping("/{token}/daily-summaries/{id}")
+    public ApiResponse<?> getDailySummary(@PathVariable String token,
+                                          @PathVariable long id) {
+        BizProjectClientBoard board = shareService.requireEnabledBoard(token);
+        if (board == null) {
+            return ApiResponse.error(40400, "看板不存在或未启用");
+        }
+        long tenantId = board.getTenantId();
+        Optional<?> opt = TenantContext.runWithTenantId(tenantId,
+                () -> dailySummaryService.findById(id));
+        return opt.map(s -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getId());
+            m.put("repoFullName", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getRepoFullName());
+            m.put("summaryDate", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getSummaryDate() != null
+                    ? ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getSummaryDate().toString() : null);
+            m.put("title", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getTitle());
+            m.put("content", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getContent());
+            m.put("commitCount", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getCommitCount());
+            m.put("model", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getModel());
+            m.put("status", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getStatus());
+            m.put("errorMessage", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getErrorMessage());
+            m.put("createdAt", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getCreatedAt());
+            m.put("updatedAt", ((org.example.atuo_attend_backend.ai.domain.ProjectDailySummary) s).getUpdatedAt());
+            return ApiResponse.ok(m);
+        }).orElseGet(() -> ApiResponse.error(40400, "总结不存在"));
+    }
+
+    // ==================== 附件上传 ====================
+
+    /** public 附件上传（用于 AI 录入场景） */
+    @PostMapping("/{token}/attachments")
+    public ApiResponse<?> uploadAttachment(@PathVariable String token,
+                                           @RequestParam("file") MultipartFile file) {
+        BizProjectClientBoard board = shareService.requireEnabledBoard(token);
+        if (board == null) {
+            return ApiResponse.error(40400, "看板不存在或未启用");
+        }
+        long projectId = board.getProjectId();
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.error(40000, "请选择文件");
+        }
+        try {
+            String key = minioService.upload(projectId, 0L, file.getOriginalFilename(), file.getInputStream(), file.getSize());
+            BizAttachment att = new BizAttachment();
+            att.setProjectId(projectId);
+            att.setRecordId(null);
+            att.setFileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
+            att.setFileSize(file.getSize());
+            att.setStorageKey(key);
+            att.setUploadedBy(0L);
+            attachmentMapper.insert(att);
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", att.getId());
+            data.put("fileName", att.getFileName());
+            data.put("fileSize", att.getFileSize());
+            data.put("createdAt", att.getCreatedAt());
+            data.put("isImage", isImageFileName(att.getFileName()));
+            return ApiResponse.ok(data);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, "上传失败: " + e.getMessage());
+        }
+    }
+
+    // ==================== 多维表格（只读） ====================
+
+    /** 多维表格数据（只读） */
+    @GetMapping("/{token}/table-data")
+    public ApiResponse<?> getTableData(
+            @PathVariable String token,
+            @RequestParam(value = "purpose", defaultValue = "issue_tracking") String purpose,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "pageSize", defaultValue = "20") int pageSize) {
+        BizProjectClientBoard board = shareService.requireEnabledBoard(token);
+        if (board == null) {
+            return ApiResponse.error(40400, "看板不存在或未启用");
+        }
+        long projectId = board.getProjectId();
+        long tenantId = board.getTenantId();
+        return TenantContext.runWithTenantId(tenantId, () -> {
+            Map<String, Object> tableInfo = tableService.getTableWithColumns(projectId, purpose);
+            if (tableInfo == null) {
+                return ApiResponse.error(40400, "表格不存在");
+            }
+            Object tableIdObj = tableInfo.get("id");
+            if (tableIdObj == null) {
+                return ApiResponse.error(50000, "表格数据异常");
+            }
+            long tableId = ((Number) tableIdObj).longValue();
+            java.util.List<Map<String, Object>> records = recordService.listRecords(tableId, page, pageSize);
+            long total = recordService.countRecords(tableId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("columns", tableInfo.get("columns"));
+            result.put("records", records);
+            result.put("total", total);
+            return ApiResponse.ok(result);
+        });
+    }
+
+    // ==================== 辅助方法 ====================
+
+    private static boolean isImageFileName(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        return n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png")
+                || n.endsWith(".gif") || n.endsWith(".webp") || n.endsWith(".svg");
     }
 }
