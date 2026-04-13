@@ -30,19 +30,9 @@
         </div>
       </dl>
       <p class="sub-effective-hint">{{ $t('subscriptionPage.effectiveLimitsHint') }}</p>
-      <ul class="sub-mini-list">
-        <li v-for="(line, idx) in quotaLines(effectiveQuota)" :key="'eff-' + idx">{{ line }}</li>
+      <ul class="sub-mini-list sub-mini-list--slash">
+        <li v-for="row in usageSlashRows" :key="row.key">{{ row.text }}</li>
       </ul>
-      <template v-if="status.usage">
-        <p class="sub-effective-hint sub-usage-hint">{{ $t('subscriptionPage.usageTitle') }}</p>
-        <ul class="sub-mini-list">
-          <li>{{ $t('subscriptionPage.quotaLineQuotes', { n: num(status.usage.quoteProjects) }) }}</li>
-          <li>{{ $t('subscriptionPage.quotaLineBoards', { n: num(status.usage.clientBoardsEnabled) }) }}</li>
-          <li>{{ $t('subscriptionPage.quotaLineAgent', { n: num(status.usage.agentSessions) }) }}</li>
-          <li>{{ $t('subscriptionPage.quotaLineCollab', { n: num(status.usage.collabProjects) }) }}</li>
-          <li>{{ $t('subscriptionPage.quotaLineNexus', { n: num(status.usage.nexusAccounts) }) }}</li>
-        </ul>
-      </template>
     </section>
 
     <section class="sub-compare sub-card sub-card--panel">
@@ -67,9 +57,9 @@
           </ul>
         </div>
         <div class="sub-compare-col">
-          <div class="sub-compare-name">{{ $t('subscriptionPage.planEnterprise') }}</div>
+          <div class="sub-compare-name">{{ $t('subscriptionPage.planProPlus') }}</div>
           <ul class="sub-compare-list">
-            <li v-for="(line, idx) in quotaLines(quotaEnterprise)" :key="'e-' + idx">{{ line }}</li>
+            <li v-for="(line, idx) in quotaLines(quotaProPlus)" :key="'pp-' + idx">{{ line }}</li>
           </ul>
         </div>
       </div>
@@ -80,6 +70,7 @@
       <article class="sub-plan sub-card sub-card--panel">
         <h3 class="sub-h3">{{ $t('subscriptionPage.teamCard') }}</h3>
         <p class="sub-price">{{ formatMoney(status.teamPriceCents) }}</p>
+        <p class="sub-price-note">{{ $t('subscriptionPage.teamPriceNote') }}</p>
         <p class="sub-desc">{{ $t('subscriptionPage.teamDesc') }}</p>
         <ul class="sub-benefits">
           <li v-for="(line, idx) in quotaLines(quotaTeam)" :key="'bt-' + idx">{{ line }}</li>
@@ -90,12 +81,12 @@
           :disabled="paying"
           @click="mockPay('team')"
         >
-          {{ paying === 'team' ? $t('subscriptionPage.paying') : $t('subscriptionPage.mockPay') }}
+          {{ paying === 'team' ? $t('subscriptionPage.paying') : $t('subscriptionPage.mockPayTeam') }}
         </button>
       </article>
       <article class="sub-plan sub-card sub-card--panel sub-plan--pro">
         <h3 class="sub-h3">{{ $t('subscriptionPage.proCard') }}</h3>
-        <p class="sub-price">{{ formatMoney(status.proPriceCents) }}</p>
+        <p class="sub-price">{{ formatAnnual(status.proAnnualPriceCents) }}</p>
         <p class="sub-desc">{{ $t('subscriptionPage.proDesc') }}</p>
         <ul class="sub-benefits">
           <li v-for="(line, idx) in quotaLines(quotaPro)" :key="'bp-' + idx">{{ line }}</li>
@@ -106,23 +97,23 @@
           :disabled="paying"
           @click="mockPay('pro')"
         >
-          {{ paying === 'pro' ? $t('subscriptionPage.paying') : $t('subscriptionPage.mockPay') }}
+          {{ paying === 'pro' ? $t('subscriptionPage.paying') : $t('subscriptionPage.mockPayAnnual') }}
         </button>
       </article>
       <article class="sub-plan sub-card sub-card--panel sub-plan--ent">
-        <h3 class="sub-h3">{{ $t('subscriptionPage.enterpriseCard') }}</h3>
-        <p class="sub-price">{{ formatMoney(status.enterprisePriceCents) }}</p>
-        <p class="sub-desc">{{ $t('subscriptionPage.enterpriseDesc') }}</p>
+        <h3 class="sub-h3">{{ $t('subscriptionPage.proPlusCard') }}</h3>
+        <p class="sub-price">{{ formatAnnual(status.proPlusAnnualPriceCents) }}</p>
+        <p class="sub-desc">{{ $t('subscriptionPage.proPlusDesc') }}</p>
         <ul class="sub-benefits">
-          <li v-for="(line, idx) in quotaLines(quotaEnterprise)" :key="'be-' + idx">{{ line }}</li>
+          <li v-for="(line, idx) in quotaLines(quotaProPlus)" :key="'bpp-' + idx">{{ line }}</li>
         </ul>
         <button
           type="button"
           class="sub-btn primary"
           :disabled="paying"
-          @click="mockPay('enterprise')"
+          @click="mockPay('pro_plus')"
         >
-          {{ paying === 'enterprise' ? $t('subscriptionPage.paying') : $t('subscriptionPage.mockPay') }}
+          {{ paying === 'pro_plus' ? $t('subscriptionPage.paying') : $t('subscriptionPage.mockPayAnnual') }}
         </button>
       </article>
     </section>
@@ -153,15 +144,15 @@ const DEFAULT_QUOTAS = {
     maxNexusAccounts: 20
   },
   pro: {
-    maxMembers: 10000,
-    maxGithubRepos: 500,
-    maxQuoteProjects: 2000,
-    maxClientBoardsEnabled: 500,
-    maxAgentSessions: 5000,
-    maxCollabProjects: 500,
-    maxNexusAccounts: 100
+    maxMembers: 500,
+    maxGithubRepos: 80,
+    maxQuoteProjects: 400,
+    maxClientBoardsEnabled: 80,
+    maxAgentSessions: 1500,
+    maxCollabProjects: 150,
+    maxNexusAccounts: 40
   },
-  enterprise: {
+  pro_plus: {
     maxMembers: 10000,
     maxGithubRepos: 500,
     maxQuoteProjects: 2000,
@@ -185,8 +176,8 @@ export default {
         billingBaselinePlanCode: 'free',
         subscriptionEndsAt: null,
         teamPriceCents: 0,
-        proPriceCents: 0,
-        enterprisePriceCents: 0,
+        proAnnualPriceCents: 0,
+        proPlusAnnualPriceCents: 0,
         planQuotas: null,
         usage: null,
         effectivePlan: null
@@ -203,8 +194,8 @@ export default {
     quotaPro () {
       return this.normQ(this.status.planQuotas && this.status.planQuotas.pro, DEFAULT_QUOTAS.pro)
     },
-    quotaEnterprise () {
-      return this.normQ(this.status.planQuotas && this.status.planQuotas.enterprise, DEFAULT_QUOTAS.enterprise)
+    quotaProPlus () {
+      return this.normQ(this.status.planQuotas && this.status.planQuotas.pro_plus, DEFAULT_QUOTAS.pro_plus)
     },
     effectiveQuota () {
       if (this.status.effectivePlan) {
@@ -213,8 +204,29 @@ export default {
       const code = (this.status.planCode || 'free').toLowerCase()
       if (code === 'team') return this.quotaTeam
       if (code === 'pro') return this.quotaPro
-      if (code === 'enterprise') return this.quotaEnterprise
+      if (code === 'pro_plus' || code === 'enterprise') return this.quotaProPlus
       return this.quotaFree
+    },
+    usageSlashRows () {
+      const u = this.status.usage || {}
+      const q = this.effectiveQuota
+      const rows = [
+        { key: 'm', label: this.$t('subscriptionPage.quotaLblMembers'), used: this.num(u.collabMembers), cap: q.maxMembers },
+        { key: 'g', label: this.$t('subscriptionPage.quotaLblGithub'), used: this.num(u.githubLinkedQuotes), cap: q.maxGithubRepos },
+        { key: 'q', label: this.$t('subscriptionPage.quotaLblQuotes'), used: this.num(u.quoteProjects), cap: q.maxQuoteProjects },
+        { key: 'b', label: this.$t('subscriptionPage.quotaLblBoards'), used: this.num(u.clientBoardsEnabled), cap: q.maxClientBoardsEnabled },
+        { key: 'a', label: this.$t('subscriptionPage.quotaLblAgent'), used: this.num(u.agentSessions), cap: q.maxAgentSessions },
+        { key: 'c', label: this.$t('subscriptionPage.quotaLblCollab'), used: this.num(u.collabProjects), cap: q.maxCollabProjects },
+        { key: 'n', label: this.$t('subscriptionPage.quotaLblNexus'), used: this.num(u.nexusAccounts), cap: q.maxNexusAccounts }
+      ]
+      return rows.map(r => ({
+        key: r.key,
+        text: this.$t('subscriptionPage.usageSlash', {
+          label: r.label,
+          used: r.used,
+          cap: r.cap
+        })
+      }))
     }
   },
   async mounted () {
@@ -252,13 +264,18 @@ export default {
       const c = (code || 'free').toLowerCase()
       if (c === 'team') return this.$t('subscriptionPage.planTeam')
       if (c === 'pro') return this.$t('subscriptionPage.planPro')
-      if (c === 'enterprise') return this.$t('subscriptionPage.planEnterprise')
+      if (c === 'pro_plus' || c === 'enterprise') return this.$t('subscriptionPage.planProPlus')
       return this.$t('subscriptionPage.planFree')
     },
     formatMoney (cents) {
       const n = Number(cents)
       if (!Number.isFinite(n) || n <= 0) return '—'
       return `¥${(n / 100).toFixed(2)}`
+    },
+    formatAnnual (cents) {
+      const m = this.formatMoney(cents)
+      if (m === '—') return '—'
+      return this.$t('subscriptionPage.pricePerYear', { price: m })
     },
     async load () {
       this.loading = true
@@ -299,7 +316,7 @@ export default {
 </script>
 
 <style scoped>
-/* 本页深色卡片内强制高对比文字（避免继承全局浅底上的棕色字） */
+/* 本页深色卡片内强制高对比文字 */
 .sub-page--billing {
   --sub-on-panel: #f8fafc;
   --sub-on-panel-muted: #cbd5e1;
@@ -410,9 +427,6 @@ export default {
   color: var(--sub-on-panel-muted);
   line-height: 1.45;
 }
-.sub-usage-hint {
-  margin-top: 18px;
-}
 .sub-mini-list {
   margin: 0;
   padding-left: 1.2em;
@@ -420,8 +434,15 @@ export default {
   font-size: 14px;
   line-height: 1.55;
 }
-.sub-mini-list li {
-  margin-bottom: 4px;
+.sub-mini-list--slash {
+  list-style: none;
+  padding-left: 0;
+}
+.sub-mini-list--slash li {
+  margin-bottom: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: var(--sub-on-panel);
 }
 .sub-compare {
   margin-top: 16px;
@@ -490,11 +511,20 @@ export default {
   box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.22);
 }
 .sub-price {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   color: var(--sub-on-panel);
   letter-spacing: 0.02em;
+}
+.sub-price-unit {
+  font-size: 13px;
+  font-weight: 500;
+}
+.sub-price-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--sub-on-panel-dim);
 }
 .sub-desc {
   margin: 0 0 10px;
@@ -504,8 +534,8 @@ export default {
 .sub-benefits {
   margin: 0 0 16px;
   padding-left: 1.15em;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--sub-on-panel-muted);
 }
 .sub-benefits li {

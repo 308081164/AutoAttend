@@ -156,9 +156,9 @@
 | 文档 §3 能力 | 当前实现 |
 |--------------|----------|
 | 订阅与套餐视图、MRR 近似 | 租户表增加 `billing_baseline_plan_code`、`subscription_ends_at`；`aa_subscription_order` 记录模拟支付；监测台 KPI 含 `mrrApproxCents`、有效订阅窗口租户数；租户列表/详情展示套餐与截止时间 |
-| 模拟支付（不跳转真实收银台） | `POST /api/admin/billing/mock-pay`：续期 24 小时所选 team / pro / enterprise 权益，叠加取较高档位 |
+| 模拟支付（不跳转真实收银台） | `POST /api/admin/billing/mock-pay`：team 续期 24h；pro / pro+ 按年费演示价续期 365 天；历史 `enterprise` 代码兼容映射为 pro+ |
 | 配额与用量 | `TenantPlanCatalog` 含成员、GitHub、报价单总数、客户看板启用数、Agent 会话累计、协作项目数、Nexus 云账号等；`TenantResourceQuotaService` 在创建报价单、启用看板、创建 Agent 会话、Webhook 创建协作项目、创建 Nexus 账号等处校验；过期仍由 `TenantBillingService.ensureCurrent` 回退 |
-| 一键企业版 | `POST /api/platform/tenants/{id}/grant-enterprise`（默认 30 天，无订单） |
+| 一键专业增强版 | `POST /api/platform/tenants/{id}/grant-pro-plus`（默认 365 天，无订单）；旧路径 `grant-enterprise` 仍可用 |
 | 工作台权益展示 | `GET /api/admin/workspace/summary`；Dashboard 状态条展示档位与截止时间 |
 | 租户详情页（报表全字段） | 监测台 `/tenants/:id` 只读详情；列表支持搜索、排序、全列 |
 | 运维动作 + 审计 | `POST .../suspend|resume|revoke-admin-sessions`；`aa_platform_ops_audit` 记平台操作 |

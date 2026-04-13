@@ -3,6 +3,7 @@ package org.example.atuo_attend_backend.tenant.quota;
 import org.example.atuo_attend_backend.agent.mapper.AgentSessionMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectClientBoardMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
+import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.example.atuo_attend_backend.nexus.mapper.NexusCloudAccountMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
@@ -26,6 +27,7 @@ public class TenantResourceQuotaService {
     private final BizProjectClientBoardMapper clientBoardMapper;
     private final AgentSessionMapper agentSessionMapper;
     private final BizProjectMapper bizProjectMapper;
+    private final BizUserMapper bizUserMapper;
     private final NexusCloudAccountMapper nexusCloudAccountMapper;
 
     public TenantResourceQuotaService(TenantBillingService tenantBillingService,
@@ -34,6 +36,7 @@ public class TenantResourceQuotaService {
                                       BizProjectClientBoardMapper clientBoardMapper,
                                       AgentSessionMapper agentSessionMapper,
                                       BizProjectMapper bizProjectMapper,
+                                      BizUserMapper bizUserMapper,
                                       NexusCloudAccountMapper nexusCloudAccountMapper) {
         this.tenantBillingService = tenantBillingService;
         this.systemConfigService = systemConfigService;
@@ -41,6 +44,7 @@ public class TenantResourceQuotaService {
         this.clientBoardMapper = clientBoardMapper;
         this.agentSessionMapper = agentSessionMapper;
         this.bizProjectMapper = bizProjectMapper;
+        this.bizUserMapper = bizUserMapper;
         this.nexusCloudAccountMapper = nexusCloudAccountMapper;
     }
 
@@ -63,7 +67,7 @@ public class TenantResourceQuotaService {
         } else if ("team".equalsIgnoreCase(code)) {
             maxMembers = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_TEAM_MAX_MEMBERS), maxMembers);
             maxGithubRepos = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_TEAM_MAX_GITHUB_REPOS), maxGithubRepos);
-        } else if ("pro".equalsIgnoreCase(code) || "enterprise".equalsIgnoreCase(code)) {
+        } else if ("pro".equalsIgnoreCase(code) || "pro_plus".equalsIgnoreCase(code) || "enterprise".equalsIgnoreCase(code)) {
             maxMembers = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_PRO_MAX_MEMBERS), maxMembers);
             maxGithubRepos = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_PRO_MAX_GITHUB_REPOS), maxGithubRepos);
         }
@@ -168,6 +172,8 @@ public class TenantResourceQuotaService {
 
     public java.util.Map<String, Long> usageSnapshot(long tenantId) {
         java.util.Map<String, Long> m = new java.util.HashMap<>();
+        m.put("collabMembers", bizUserMapper.countByTenant(tenantId));
+        m.put("githubLinkedQuotes", quoteProjectMapper.countGithubLinkedByTenant(tenantId));
         m.put("quoteProjects", quoteProjectMapper.countAll(tenantId));
         m.put("clientBoardsEnabled", clientBoardMapper.countEnabledByTenant(tenantId));
         m.put("agentSessions", agentSessionMapper.countByTenant(tenantId));

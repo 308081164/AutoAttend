@@ -114,23 +114,24 @@ public class PlatformTenantController {
     }
 
     /**
-     * 一键开通企业版：续期 {@code enterprise} 档位权益（默认 30 天，不产生订单）。
+     * 一键开通专业增强版：续期 {@code pro_plus} 档位权益（默认 365 天，不产生订单）。
+     * {@code grant-enterprise} 为旧路径，仍映射为 pro_plus。
      */
-    @PostMapping("/{tenantId}/grant-enterprise")
-    public ApiResponse<Map<String, Object>> grantEnterprise(@PathVariable("tenantId") long tenantId,
-                                                            @RequestBody(required = false) Map<String, Object> body,
-                                                            HttpServletRequest request) {
+    @PostMapping({"/{tenantId}/grant-pro-plus", "/{tenantId}/grant-enterprise"})
+    public ApiResponse<Map<String, Object>> grantProPlus(@PathVariable("tenantId") long tenantId,
+                                                       @RequestBody(required = false) Map<String, Object> body,
+                                                       HttpServletRequest request) {
         if (tenantMapper.findById(tenantId) == null) {
             return ApiResponse.error(40400, "租户不存在");
         }
-        int days = 30;
+        int days = 365;
         if (body != null && body.get("days") instanceof Number n) {
             days = n.intValue();
         }
         try {
-            var ends = tenantBillingService.grantPlanWindow(tenantId, "enterprise", days);
-            audit(request, "tenant.grant_enterprise", tenantId, Map.of("days", days, "subscriptionEndsAt", String.valueOf(ends)));
-            return ApiResponse.ok(Map.of("planCode", "enterprise", "subscriptionEndsAt", ends, "days", days));
+            var ends = tenantBillingService.grantPlanWindow(tenantId, "pro_plus", days);
+            audit(request, "tenant.grant_pro_plus", tenantId, Map.of("days", days, "subscriptionEndsAt", String.valueOf(ends)));
+            return ApiResponse.ok(Map.of("planCode", "pro_plus", "subscriptionEndsAt", ends, "days", days));
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());
         }

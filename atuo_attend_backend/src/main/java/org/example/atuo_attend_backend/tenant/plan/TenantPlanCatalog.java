@@ -2,7 +2,8 @@ package org.example.atuo_attend_backend.tenant.plan;
 
 /**
  * 套餐与配额（硬编码中间层，后续可换为数据库 + 支付回调更新 {@code aa_tenant.plan_code}）。
- * {@code pro} 与 {@code enterprise} 数值一致，标签区分为「专业版」与「企业版」。
+ * 付费专业档：{@code pro} 专业版低于 {@code pro_plus} 专业增强版（限额递增）。
+ * 兼容：历史 {@code enterprise} 在 {@link #resolve} 中映射为 {@code pro_plus}。
  * <p>
  * 产品规则：用量超过当前档位上限时，已有资源可继续使用，仅禁止继续新建（见各 {@code assertCan*} 调用点）。
  */
@@ -29,14 +30,6 @@ public final class TenantPlanCatalog {
             int maxNexusAccounts) {
     }
 
-    private static final int E_MAX_M = 10_000;
-    private static final int E_MAX_GH = 500;
-    private static final int E_MAX_QUOTE = 2000;
-    private static final int E_MAX_BOARD = 500;
-    private static final int E_MAX_AGENT = 5000;
-    private static final int E_MAX_COLLAB = 500;
-    private static final int E_MAX_NEXUS = 100;
-
     public static final TenantPlan FREE = new TenantPlan(
             "free", "免费版",
             20, 3,
@@ -47,13 +40,17 @@ public final class TenantPlanCatalog {
             100, 20,
             50, 20, 200, 30, 20);
 
+    /** 专业版（较低一档付费专业档） */
     public static final TenantPlan PRO = new TenantPlan(
             "pro", "专业版",
-            E_MAX_M, E_MAX_GH, E_MAX_QUOTE, E_MAX_BOARD, E_MAX_AGENT, E_MAX_COLLAB, E_MAX_NEXUS);
+            500, 80,
+            400, 80, 1500, 150, 40);
 
-    public static final TenantPlan ENTERPRISE = new TenantPlan(
-            "enterprise", "企业版",
-            E_MAX_M, E_MAX_GH, E_MAX_QUOTE, E_MAX_BOARD, E_MAX_AGENT, E_MAX_COLLAB, E_MAX_NEXUS);
+    /** 专业增强版（较高一档付费专业档） */
+    public static final TenantPlan PRO_PLUS = new TenantPlan(
+            "pro_plus", "专业增强版",
+            10_000, 500,
+            2000, 500, 5000, 500, 100);
 
     private TenantPlanCatalog() {
     }
@@ -65,7 +62,7 @@ public final class TenantPlanCatalog {
         return switch (planCode.trim().toLowerCase()) {
             case "team" -> TEAM;
             case "pro" -> PRO;
-            case "enterprise" -> ENTERPRISE;
+            case "pro_plus", "enterprise" -> PRO_PLUS;
             default -> FREE;
         };
     }

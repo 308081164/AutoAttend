@@ -15,9 +15,10 @@ import java.time.LocalDateTime;
 public class TenantBillingService {
 
     public static final int PRICE_TEAM_CENTS = 9_900;
-    public static final int PRICE_PRO_CENTS = 29_900;
-    /** 企业版模拟标价（与专业版同档权益时可同价；仅用于订单/MRR 记录） */
-    public static final int PRICE_ENTERPRISE_CENTS = 29_900;
+    /** 专业版：¥199/年（模拟订单金额，按年续期窗口） */
+    public static final int PRICE_PRO_ANNUAL_CENTS = 19_900;
+    /** 专业增强版：¥799/年 */
+    public static final int PRICE_PRO_PLUS_ANNUAL_CENTS = 79_900;
 
     private final TenantMapper tenantMapper;
 
@@ -30,7 +31,7 @@ public class TenantBillingService {
             return 0;
         }
         return switch (planCode.trim().toLowerCase()) {
-            case "enterprise" -> 4;
+            case "pro_plus", "enterprise" -> 4;
             case "pro" -> 3;
             case "team" -> 1;
             default -> 0;
@@ -47,7 +48,7 @@ public class TenantBillingService {
         }
         String s = planCode.trim().toLowerCase();
         if ("enterprise".equals(s)) {
-            return TenantPlanCatalog.ENTERPRISE.code();
+            return TenantPlanCatalog.PRO_PLUS.code();
         }
         TenantPlanCatalog.TenantPlan p = TenantPlanCatalog.resolve(planCode);
         return p.code();
@@ -91,8 +92,8 @@ public class TenantBillingService {
         String p = normalize(planCode);
         return switch (p) {
             case "team" -> PRICE_TEAM_CENTS;
-            case "pro" -> PRICE_PRO_CENTS;
-            case "enterprise" -> PRICE_ENTERPRISE_CENTS;
+            case "pro" -> PRICE_PRO_ANNUAL_CENTS;
+            case "pro_plus" -> PRICE_PRO_PLUS_ANNUAL_CENTS;
             default -> 0;
         };
     }
@@ -100,8 +101,8 @@ public class TenantBillingService {
     @Transactional
     public LocalDateTime applyMockPurchase(long tenantId, String selectedPlanCode) {
         String sel = normalize(selectedPlanCode);
-        if (!"team".equals(sel) && !"pro".equals(sel) && !"enterprise".equals(sel)) {
-            throw new IllegalArgumentException("仅支持购买 team、pro 或 enterprise 档位");
+        if (!"team".equals(sel) && !"pro".equals(sel) && !"pro_plus".equals(sel)) {
+            throw new IllegalArgumentException("仅支持购买 team、pro 或 pro_plus 档位");
         }
         Tenant t = tenantMapper.findById(tenantId);
         if (t == null) {
@@ -118,7 +119,9 @@ public class TenantBillingService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime prevEnd = t.getSubscriptionEndsAt();
         LocalDateTime baseStart = prevEnd != null && prevEnd.isAfter(now) ? prevEnd : now;
-        LocalDateTime newEnd = baseStart.plusDays(1);
+        int addDays = "team".equals(sel) ? 1 : 365;
+
+        LocalDateTime newEnd = baseStart.plusDays(addDays);
 
         tenantMapper.updatePlanSubscriptionAndBaseline(tenantId, effectivePlan, newEnd, baseline);
         t.setPlanCode(effectivePlan);
@@ -129,8 +132,6 @@ public class TenantBillingService {
 
     /**
      * 平台运维：为指定租户开通/续期高阶档位（不产生订单）。
-     *
-     * @param planSel {@code enterprise} 或 {@code pro} 等
      */
     @Transactional
     public LocalDateTime grantPlanWindow(long tenantId, String planSel, int days) {
@@ -138,7 +139,7 @@ public class TenantBillingService {
             throw new IllegalArgumentException("days 须在 1～3650 之间");
         }
         String sel = normalize(planSel);
-        if (!"team".equals(sel) && !"pro".equals(sel) && !"enterprise".equals(sel)) {
+        if (!"team".equals(sel) && !"pro".equals(sel) && !"pro_plus".equals(sel)) {
             throw new IllegalArgumentException("不支持的档位");
         }
         Tenant t = tenantMapper.findById(tenantId);

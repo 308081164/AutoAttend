@@ -56,14 +56,14 @@ public class AdminTenantBillingController {
         data.put("billingBaselinePlanCode", t.getBillingBaselinePlanCode());
         data.put("subscriptionEndsAt", t.getSubscriptionEndsAt());
         data.put("teamPriceCents", TenantBillingService.PRICE_TEAM_CENTS);
-        data.put("proPriceCents", TenantBillingService.PRICE_PRO_CENTS);
-        data.put("enterprisePriceCents", TenantBillingService.PRICE_ENTERPRISE_CENTS);
+        data.put("proAnnualPriceCents", TenantBillingService.PRICE_PRO_ANNUAL_CENTS);
+        data.put("proPlusAnnualPriceCents", TenantBillingService.PRICE_PRO_PLUS_ANNUAL_CENTS);
         data.put("planDisplayLabel", TenantPlanCatalog.displayLabel(t.getPlanCode()));
         Map<String, Object> quotas = new HashMap<>();
         quotas.put("free", planQuotaMap(TenantPlanCatalog.FREE));
         quotas.put("team", planQuotaMap(TenantPlanCatalog.TEAM));
         quotas.put("pro", planQuotaMap(TenantPlanCatalog.PRO));
-        quotas.put("enterprise", planQuotaMap(TenantPlanCatalog.ENTERPRISE));
+        quotas.put("pro_plus", planQuotaMap(TenantPlanCatalog.PRO_PLUS));
         data.put("planQuotas", quotas);
         var eff = tenantResourceQuotaService.planForTenant(tid);
         data.put("effectivePlan", planQuotaMap(eff));
@@ -88,7 +88,11 @@ public class AdminTenantBillingController {
             Map<String, Object> data = new HashMap<>();
             data.put("planCode", t != null ? t.getPlanCode() : plan);
             data.put("subscriptionEndsAt", ends);
-            data.put("message", "模拟支付成功，已开通 24 小时权益（无真实扣款）");
+            String purchasedNorm = t != null ? t.getPlanCode() : purchased;
+            String msg = "team".equalsIgnoreCase(purchasedNorm)
+                    ? "模拟支付成功，已续期 24 小时团队权益（无真实扣款）"
+                    : "模拟支付成功，已续期 365 天专业档权益（按年费计价演示，无真实扣款）";
+            data.put("message", msg);
             return ApiResponse.ok(data);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());
@@ -115,7 +119,7 @@ public class AdminTenantBillingController {
         }
         String s = plan.trim().toLowerCase();
         if ("enterprise".equals(s)) {
-            return TenantPlanCatalog.ENTERPRISE.code();
+            return TenantPlanCatalog.PRO_PLUS.code();
         }
         return TenantPlanCatalog.resolve(plan).code();
     }
