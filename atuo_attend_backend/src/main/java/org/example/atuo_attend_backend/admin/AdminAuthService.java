@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.admin.dto.AdminAuthOutcome;
 import org.example.atuo_attend_backend.admin.dto.AdminRegisterRequest;
+import org.example.atuo_attend_backend.admin.sms.AdminSmsService;
 import org.example.atuo_attend_backend.admin.model.AdminUser;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.collab.service.CollabPasswordService;
@@ -37,23 +38,27 @@ public class AdminAuthService {
     private final AdminSessionMapper adminSessionMapper;
     private final CollabPasswordService passwordService;
     private final CollabAuthService collabAuthService;
+    private final AdminSmsService adminSmsService;
 
     public AdminAuthService(TenantMapper tenantMapper,
                             TenantAdminUserMapper tenantAdminUserMapper,
                             AdminSessionMapper adminSessionMapper,
                             CollabPasswordService passwordService,
-                            CollabAuthService collabAuthService) {
+                            CollabAuthService collabAuthService,
+                            AdminSmsService adminSmsService) {
         this.tenantMapper = tenantMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
         this.adminSessionMapper = adminSessionMapper;
         this.passwordService = passwordService;
         this.collabAuthService = collabAuthService;
+        this.adminSmsService = adminSmsService;
     }
 
     /**
+     * @param smsCode 短信验证码；未启用短信时可传 null
      * @return 凭证；账号或密码错误时返回 null
      */
-    public AdminAuthOutcome login(String phoneRaw, String password) {
+    public AdminAuthOutcome login(String phoneRaw, String password, String smsCode) {
         if (password == null || password.isEmpty()) {
             return null;
         }
@@ -75,6 +80,12 @@ public class AdminAuthService {
         if (tenant != null && "suspended".equalsIgnoreCase(tenant.getStatus())) {
             throw new IllegalStateException("组织已暂停服务，请联系平台支持");
         }
+        if (adminSmsService.smsLoginEnabled()) {
+            String err = adminSmsService.verifyAndConsume(phoneRaw, AdminSmsService.PURPOSE_LOGIN, smsCode);
+            if (err != null) {
+                throw new IllegalArgumentException(err);
+            }
+        }
         collabAuthService.ensureBizUserForTenantAdmin(phone, password);
         return createSessionOutcome(user);
     }
@@ -88,6 +99,12 @@ public class AdminAuthService {
         String phone = PhoneNormalizer.normalize(req.getPhone());
         if (phone == null) {
             throw new IllegalArgumentException("手机号格式不正确");
+        }
+        if (adminSmsService.smsLoginEnabled()) {
+            String err = adminSmsService.verifyAndConsume(req.getPhone(), AdminSmsService.PURPOSE_REGISTER, req.getSmsCode());
+            if (err != null) {
+                throw new IllegalArgumentException(err);
+            }
         }
         if (req.getOrgName() == null || req.getOrgName().isBlank()) {
             throw new IllegalArgumentException("组织名称不能为空");

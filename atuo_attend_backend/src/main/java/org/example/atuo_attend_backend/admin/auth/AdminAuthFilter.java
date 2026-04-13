@@ -58,7 +58,9 @@ public class AdminAuthFilter implements Filter {
         }
 
         boolean anonymous = uri.equals("/api/admin/auth/login") && "POST".equalsIgnoreCase(req.getMethod())
-                || uri.equals("/api/admin/auth/register") && "POST".equalsIgnoreCase(req.getMethod());
+                || uri.equals("/api/admin/auth/register") && "POST".equalsIgnoreCase(req.getMethod())
+                || uri.equals("/api/admin/auth/sms/config") && "GET".equalsIgnoreCase(req.getMethod())
+                || uri.equals("/api/admin/auth/sms/send") && "POST".equalsIgnoreCase(req.getMethod());
 
         if (anonymous) {
             chain.doFilter(request, response);

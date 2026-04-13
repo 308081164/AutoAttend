@@ -9,6 +9,8 @@ public class AdminLoginRequest {
     private String phone;
     private String username;
     private String password;
+    /** 短信验证码（启用短信登录时必填） */
+    private String smsCode;
 
     public String getPhone() {
         return phone;
@@ -32,6 +34,14 @@ public class AdminLoginRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getSmsCode() {
+        return smsCode;
+    }
+
+    public void setSmsCode(String smsCode) {
+        this.smsCode = smsCode;
     }
 
     /** 实际用于登录的原始账号串 */

@@ -9,6 +9,8 @@ public class AdminRegisterRequest {
     private String orgName;
     /** 租户 slug，小写字母数字与连字符 */
     private String slug;
+    /** 短信验证码（启用短信时必填） */
+    private String smsCode;
 
     public String getPhone() {
         return phone;
@@ -40,5 +42,13 @@ public class AdminRegisterRequest {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public String getSmsCode() {
+        return smsCode;
+    }
+
+    public void setSmsCode(String smsCode) {
+        this.smsCode = smsCode;
     }
 }

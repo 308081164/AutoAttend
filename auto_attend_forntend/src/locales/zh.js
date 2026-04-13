@@ -135,7 +135,13 @@ export default {
     employeeLoginLink: '员工登录',
     registerLink: '注册新组织',
     subtitle: '使用手机号与密码登录组织控制台；员工可使用邮箱或手机号（与协作账号一致）。',
-    backLanding: '返回产品首页'
+    backLanding: '返回产品首页',
+    smsCode: '短信验证码',
+    smsCodeHint: '6 位数字',
+    sendSms: '获取验证码',
+    sendSmsWait: '{n} 秒后可重发',
+    smsSendFailed: '验证码发送失败',
+    smsRequired: '请先获取并填写短信验证码'
   },
   register: {
     title: '注册组织',
@@ -148,7 +154,13 @@ export default {
     submit: '注册并登录',
     submitting: '提交中...',
     failed: '注册失败',
-    loginLink: '已有账号，去登录'
+    loginLink: '已有账号，去登录',
+    smsCode: '短信验证码',
+    smsCodeHint: '6 位数字',
+    sendSms: '获取验证码',
+    sendSmsWait: '{n} 秒后可重发',
+    smsSendFailed: '验证码发送失败',
+    smsRequired: '请先获取并填写短信验证码'
   },
   collabLogin: {
     title: '项目协作 / 员工登录',

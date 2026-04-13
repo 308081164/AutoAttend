@@ -135,7 +135,13 @@ export default {
     employeeLoginLink: 'Employee Login',
     registerLink: 'Register organization',
     subtitle: 'Sign in with phone and password. Collaborators can use email or phone.',
-    backLanding: 'Back to product home'
+    backLanding: 'Back to product home',
+    smsCode: 'SMS code',
+    smsCodeHint: '6 digits',
+    sendSms: 'Send code',
+    sendSmsWait: 'Resend in {n}s',
+    smsSendFailed: 'Failed to send code',
+    smsRequired: 'Enter the SMS verification code'
   },
   register: {
     title: 'Register organization',
@@ -148,7 +154,13 @@ export default {
     submit: 'Register and sign in',
     submitting: 'Submitting...',
     failed: 'Registration failed',
-    loginLink: 'Have an account? Sign in'
+    loginLink: 'Have an account? Sign in',
+    smsCode: 'SMS code',
+    smsCodeHint: '6 digits',
+    sendSms: 'Send code',
+    sendSmsWait: 'Resend in {n}s',
+    smsSendFailed: 'Failed to send code',
+    smsRequired: 'Enter the SMS verification code'
   },
   collabLogin: {
     title: 'Collaboration / Employee Login',

@@ -7,6 +7,27 @@
           <label>{{ $t('register.phone') }}</label>
           <input v-model="form.phone" type="text" autocomplete="tel" required>
         </div>
+        <div v-if="smsEnabled" class="form-item sms-row">
+          <label>{{ $t('register.smsCode') }}</label>
+          <div class="sms-inline">
+            <input
+              v-model="form.smsCode"
+              type="text"
+              inputmode="numeric"
+              maxlength="6"
+              autocomplete="one-time-code"
+              :placeholder="$t('register.smsCodeHint')"
+            >
+            <button
+              type="button"
+              class="sms-btn"
+              :disabled="smsCooldown > 0 || smsSending"
+              @click="sendRegisterSms"
+            >
+              {{ smsCooldown > 0 ? $t('register.sendSmsWait', { n: smsCooldown }) : (smsSending ? '…' : $t('register.sendSms')) }}
+            </button>
+          </div>
+        </div>
         <div class="form-item">
           <label>{{ $t('register.orgName') }}</label>
           <input v-model="form.orgName" type="text" :placeholder="$t('register.orgNameHint')" required>
@@ -40,23 +61,94 @@ export default {
         phone: '',
         orgName: '',
         slug: '',
-        password: ''
+        password: '',
+        smsCode: ''
       },
       loading: false,
-      error: ''
+      error: '',
+      smsEnabled: false,
+      smsResendInterval: 60,
+      smsCooldown: 0,
+      smsSending: false,
+      smsTimer: null
     }
   },
+  mounted () {
+    this.loadSmsConfig()
+  },
+  beforeDestroy () {
+    if (this.smsTimer) clearInterval(this.smsTimer)
+  },
   methods: {
+    async loadSmsConfig () {
+      try {
+        const resp = await this.$http.get('/admin/auth/sms/config')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.smsEnabled = !!resp.data.data.enabled
+          if (resp.data.data.resendIntervalSeconds != null) {
+            this.smsResendInterval = Number(resp.data.data.resendIntervalSeconds) || 60
+          }
+        }
+      } catch (e) {
+        this.smsEnabled = false
+      }
+    },
+    sendRegisterSms () {
+      if (this.smsCooldown > 0 || this.smsSending) return
+      const phone = this.form.phone.trim()
+      if (!phone) {
+        this.error = this.$t('login.phoneHint')
+        return
+      }
+      this.error = ''
+      this.smsSending = true
+      this.$http.post('/admin/auth/sms/send', { phone, purpose: 'register' })
+        .then(resp => {
+          if (resp.data && resp.data.code === 0) {
+            this.startSmsCooldown()
+          } else {
+            this.error = (resp.data && resp.data.message) || this.$t('register.smsSendFailed')
+          }
+        })
+        .catch(e => {
+          const msg = e.response && e.response.data && e.response.data.message
+          this.error = msg || this.$t('register.smsSendFailed')
+        })
+        .finally(() => { this.smsSending = false })
+    },
+    startSmsCooldown () {
+      this.smsCooldown = this.smsResendInterval
+      if (this.smsTimer) clearInterval(this.smsTimer)
+      this.smsTimer = setInterval(() => {
+        this.smsCooldown--
+        if (this.smsCooldown <= 0) {
+          clearInterval(this.smsTimer)
+          this.smsTimer = null
+          this.smsCooldown = 0
+        }
+      }, 1000)
+    },
     async onSubmit () {
       this.error = ''
+      if (this.smsEnabled) {
+        const sc = (this.form.smsCode || '').trim()
+        if (!/^\d{6}$/.test(sc)) {
+          this.error = this.$t('register.smsRequired')
+          return
+        }
+      }
       this.loading = true
       try {
-        const resp = await this.$http.post('/admin/auth/register', {
+        const body = {
           phone: this.form.phone.trim(),
           orgName: this.form.orgName.trim(),
           slug: this.form.slug.trim(),
           password: this.form.password
-        })
+        }
+        if (this.smsEnabled) {
+          body.smsCode = (this.form.smsCode || '').trim()
+        }
+        const resp = await this.$http.post('/admin/auth/register', body)
         if (resp.data && resp.data.code === 0) {
           const data = resp.data.data
           window.localStorage.setItem('autoattend_token', data.token)
@@ -192,5 +284,34 @@ input::placeholder {
 .login-hint a:hover {
   color: var(--text-link-hover);
   text-decoration: underline;
+}
+
+.sms-row .sms-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sms-row .sms-inline input {
+  flex: 1;
+}
+.sms-btn {
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-input);
+  background: var(--bg-card);
+  color: var(--brand-blue);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sms-btn:hover:not(:disabled) {
+  border-color: var(--brand-blue);
+  background: rgba(20, 86, 240, 0.06);
+}
+.sms-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 </style>

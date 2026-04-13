@@ -90,6 +90,30 @@
               </div>
             </div>
 
+            <!-- SMS (when backend enables Aliyun SMS) -->
+            <div v-if="smsEnabled" class="field-group">
+              <label class="field-label">{{ $t('login.smsCode') }}</label>
+              <div class="sms-row">
+                <input
+                  v-model="form.smsCode"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="6"
+                  autocomplete="one-time-code"
+                  class="sms-input"
+                  :placeholder="$t('login.smsCodeHint')"
+                >
+                <button
+                  type="button"
+                  class="sms-send-btn"
+                  :disabled="smsCooldown > 0 || smsSending"
+                  @click="sendLoginSms"
+                >
+                  {{ smsCooldown > 0 ? $t('login.sendSmsWait', { n: smsCooldown }) : (smsSending ? '…' : $t('login.sendSms')) }}
+                </button>
+              </div>
+            </div>
+
             <!-- Password -->
             <div class="field-group">
               <label class="field-label">{{ $t('login.password') }}</label>
@@ -172,11 +196,17 @@ export default {
       locale: this.$i18n.locale,
       form: {
         phone: '',
-        password: ''
+        password: '',
+        smsCode: ''
       },
       loading: false,
       error: '',
-      showPassword: false
+      showPassword: false,
+      smsEnabled: false,
+      smsResendInterval: 60,
+      smsCooldown: 0,
+      smsSending: false,
+      smsTimer: null
     }
   },
   computed: {
@@ -185,19 +215,81 @@ export default {
       return t && t.length ? t.charAt(0) : '—'
     }
   },
+  mounted () {
+    this.loadSmsConfig()
+  },
+  beforeDestroy () {
+    if (this.smsTimer) clearInterval(this.smsTimer)
+  },
   methods: {
+    async loadSmsConfig () {
+      try {
+        const resp = await this.$http.get('/admin/auth/sms/config')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.smsEnabled = !!resp.data.data.enabled
+          if (resp.data.data.resendIntervalSeconds != null) {
+            this.smsResendInterval = Number(resp.data.data.resendIntervalSeconds) || 60
+          }
+        }
+      } catch (e) {
+        this.smsEnabled = false
+      }
+    },
+    sendLoginSms () {
+      if (this.smsCooldown > 0 || this.smsSending) return
+      const phone = this.form.phone.trim()
+      if (!phone) {
+        this.error = this.$t('login.phoneHint')
+        return
+      }
+      this.error = ''
+      this.smsSending = true
+      this.$http.post('/admin/auth/sms/send', { phone, purpose: 'login' })
+        .then(resp => {
+          if (resp.data && resp.data.code === 0) {
+            this.startSmsCooldown()
+          } else {
+            this.error = (resp.data && resp.data.message) || this.$t('login.smsSendFailed')
+          }
+        })
+        .catch(e => {
+          const msg = e.response && e.response.data && e.response.data.message
+          this.error = msg || this.$t('login.smsSendFailed')
+        })
+        .finally(() => { this.smsSending = false })
+    },
+    startSmsCooldown () {
+      this.smsCooldown = this.smsResendInterval
+      if (this.smsTimer) clearInterval(this.smsTimer)
+      this.smsTimer = setInterval(() => {
+        this.smsCooldown--
+        if (this.smsCooldown <= 0) {
+          clearInterval(this.smsTimer)
+          this.smsTimer = null
+          this.smsCooldown = 0
+        }
+      }, 1000)
+    },
     onLocaleChange () {
       setLocale(this.locale)
     },
     async onSubmit () {
       this.error = ''
+      if (this.smsEnabled) {
+        const sc = (this.form.smsCode || '').trim()
+        if (!/^\d{6}$/.test(sc)) {
+          this.error = this.$t('login.smsRequired')
+          return
+        }
+      }
       this.loading = true
       const phone = this.form.phone.trim()
       try {
-        const adminResp = await this.$http.post('/admin/auth/login', {
-          phone,
-          password: this.form.password
-        })
+        const payload = { phone, password: this.form.password }
+        if (this.smsEnabled) {
+          payload.smsCode = (this.form.smsCode || '').trim()
+        }
+        const adminResp = await this.$http.post('/admin/auth/login', payload)
         if (adminResp.data && adminResp.data.code === 0) {
           const data = adminResp.data.data
           window.localStorage.setItem('autoattend_token', data.token)
@@ -573,6 +665,50 @@ export default {
 
 .phone-input::placeholder {
   color: var(--text-tertiary);
+}
+
+.sms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sms-input {
+  flex: 1;
+  height: 44px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  padding: 0 12px;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: var(--bg-input);
+  outline: none;
+  transition: var(--transition-fast);
+}
+.sms-input:focus {
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgba(20, 86, 240, 0.12);
+}
+.sms-send-btn {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--brand-blue);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition-fast);
+}
+.sms-send-btn:hover:not(:disabled) {
+  background: rgba(20, 86, 240, 0.06);
+  border-color: var(--brand-blue);
+}
+.sms-send-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Password input */
