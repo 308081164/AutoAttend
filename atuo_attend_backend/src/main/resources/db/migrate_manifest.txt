@@ -43,3 +43,4 @@ schema_ui_prototype_job_prompt_snapshot_mediumtext_migration.sql
 schema_agent_session_migration.sql
 schema_admin_sms_migration.sql
 schema_referral_invite_migration.sql
+schema_invite_code_uses_migration.sql

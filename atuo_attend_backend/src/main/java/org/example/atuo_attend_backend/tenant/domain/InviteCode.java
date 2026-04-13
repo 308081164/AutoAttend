@@ -9,6 +9,9 @@ public class InviteCode {
     private Long referrerTenantId;
     private Long creatorUserId;
     private LocalDateTime expiresAt;
+    /** 最大可用次数；null 表示不限制（用户永久邀请码） */
+    private Integer maxUses;
+    private Integer usedCount;
     private Boolean disabled;
     private LocalDateTime createdAt;
 
@@ -58,6 +61,22 @@ public class InviteCode {
 
     public void setExpiresAt(LocalDateTime expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public Integer getMaxUses() {
+        return maxUses;
+    }
+
+    public void setMaxUses(Integer maxUses) {
+        this.maxUses = maxUses;
+    }
+
+    public Integer getUsedCount() {
+        return usedCount;
+    }
+
+    public void setUsedCount(Integer usedCount) {
+        this.usedCount = usedCount;
     }
 
     public Boolean getDisabled() {

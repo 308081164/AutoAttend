@@ -155,6 +155,7 @@ public class PlatformTenantController {
             return ApiResponse.error(40400, "租户不存在");
         }
         LocalDateTime expiresAt = null;
+        Integer maxUses = 1;
         if (body != null) {
             Object iso = body.get("expiresAt");
             if (iso != null && !String.valueOf(iso).isBlank()) {
@@ -169,14 +170,23 @@ public class PlatformTenantController {
                     expiresAt = LocalDateTime.now().plusDays(d);
                 }
             }
+            if (body.get("maxUses") instanceof Number n) {
+                maxUses = n.intValue();
+            }
+        }
+        if (maxUses == null || maxUses < 1 || maxUses > 1_000_000) {
+            return ApiResponse.error(40000, "maxUses 须为 1～1000000 的整数");
         }
         try {
-            var inv = inviteCodeService.createPlatformCode(tenantId, expiresAt);
+            var inv = inviteCodeService.createPlatformCode(tenantId, expiresAt, maxUses);
             audit(request, "tenant.invite_code_platform", tenantId,
-                    Map.of("code", inv.getCode(), "expiresAt", inv.getExpiresAt() != null ? inv.getExpiresAt().toString() : ""));
+                    Map.of("code", inv.getCode(),
+                            "expiresAt", inv.getExpiresAt() != null ? inv.getExpiresAt().toString() : "",
+                            "maxUses", String.valueOf(inv.getMaxUses())));
             Map<String, Object> data = new HashMap<>();
             data.put("code", inv.getCode());
             data.put("expiresAt", inv.getExpiresAt());
+            data.put("maxUses", inv.getMaxUses());
             return ApiResponse.ok(data);
         } catch (Exception e) {
             return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "生成失败");

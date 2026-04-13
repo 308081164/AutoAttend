@@ -77,6 +77,7 @@ public class InviteCodeService {
                 row.setReferrerTenantId(tenantId);
                 row.setCreatorUserId(adminUserId);
                 row.setExpiresAt(null);
+                row.setMaxUses(null); // 用户邀请码：永久有效、不限次数
                 inviteCodeMapper.insert(row);
                 return row;
             } catch (Exception ignored) {
@@ -86,8 +87,17 @@ public class InviteCodeService {
         throw new IllegalStateException("生成邀请码失败，请重试");
     }
 
+    /**
+     * 平台官方邀请码：必须设置可使用次数；未传过期时间时默认自现在起 30 天。
+     */
     @Transactional
-    public InviteCode createPlatformCode(long referrerTenantId, LocalDateTime expiresAt) {
+    public InviteCode createPlatformCode(long referrerTenantId, LocalDateTime expiresAt, Integer maxUses) {
+        if (maxUses == null || maxUses < 1) {
+            throw new IllegalArgumentException("官方邀请码必须设置可使用次数（≥1）");
+        }
+        if (expiresAt == null) {
+            expiresAt = LocalDateTime.now().plusDays(30);
+        }
         for (int i = 0; i < 20; i++) {
             String code = randomCode();
             try {
@@ -97,6 +107,7 @@ public class InviteCodeService {
                 row.setReferrerTenantId(referrerTenantId);
                 row.setCreatorUserId(null);
                 row.setExpiresAt(expiresAt);
+                row.setMaxUses(maxUses);
                 inviteCodeMapper.insert(row);
                 return row;
             } catch (Exception ignored) {
@@ -116,6 +127,9 @@ public class InviteCodeService {
         }
         long ref = inv.getReferrerTenantId();
         if (ref == newTenantId) {
+            return;
+        }
+        if (!tryConsumeUse(inv)) {
             return;
         }
         tenantMapper.updateReferrerIfNull(newTenantId, ref);
@@ -142,10 +156,18 @@ public class InviteCodeService {
         if (ref == tenantId) {
             throw new IllegalArgumentException("不能使用自己的邀请码");
         }
+        if (!tryConsumeUse(inv)) {
+            throw new IllegalArgumentException("邀请码已用尽或暂时不可用，请稍后再试");
+        }
         tenantBillingService.grantPlanWindow(tenantId, "team", 30);
         tenantMapper.updateReferrerIfNull(tenantId, ref);
         tenantMapper.markInviteRedeemed(tenantId);
         tenantMapper.addMemberPoints(ref, 1);
+    }
+
+    /** 占用一次使用额度（与 DB 原子校验并发、过期、次数）。 */
+    private boolean tryConsumeUse(InviteCode inv) {
+        return inviteCodeMapper.tryIncrementUse(inv.getId()) > 0;
     }
 
     private String randomCode() {

@@ -63,13 +63,15 @@
 
       <section class="panel">
         <h3>平台邀请码（引流）</h3>
-        <p class="muted small">为该租户生成邀请码，新用户注册或兑换时可绑定推荐关系。可设置有效天数（留空则 30 天）。用户自建邀请码在租户侧「会员与计费」页查看。</p>
+        <p class="muted small">为该租户生成官方邀请码：须设置可使用次数；有效天数留空则 30 天。用户侧永久邀请码在「会员与计费」页生成。</p>
         <div class="invite-row">
           <label class="muted small">有效天数</label>
           <input v-model.number="inviteValidDays" type="number" min="1" max="3650" class="invite-input" placeholder="30">
+          <label class="muted small">可用次数</label>
+          <input v-model.number="inviteMaxUses" type="number" min="1" max="1000000" class="invite-input wide" placeholder="1">
           <button type="button" class="btn" :disabled="acting" @click="doCreateInvite">生成邀请码</button>
         </div>
-        <p v-if="lastInviteCode" class="mono ok">最新：{{ lastInviteCode }} <span v-if="lastInviteExpires" class="muted">（至 {{ lastInviteExpires }}）</span></p>
+        <p v-if="lastInviteCode" class="mono ok">最新：{{ lastInviteCode }} <span v-if="lastInviteExpires" class="muted">（至 {{ lastInviteExpires }}）</span><span v-if="lastInviteMaxUses != null" class="muted"> · 可用 {{ lastInviteMaxUses }} 次</span></p>
       </section>
     </template>
   </div>
@@ -89,8 +91,10 @@ export default {
       acting: false,
       actionMsg: '',
       inviteValidDays: 30,
+      inviteMaxUses: 1,
       lastInviteCode: '',
-      lastInviteExpires: ''
+      lastInviteExpires: '',
+      lastInviteMaxUses: null
     }
   },
   computed: {
@@ -178,10 +182,13 @@ export default {
       this.actionMsg = ''
       try {
         const d = this.inviteValidDays != null && this.inviteValidDays > 0 ? { validDays: this.inviteValidDays } : { validDays: 30 }
+        const mu = this.inviteMaxUses != null && this.inviteMaxUses > 0 ? this.inviteMaxUses : 1
+        d.maxUses = mu
         const { data } = await http.post(`/platform/tenants/${this.tenantId}/invite-code`, d)
         if (data.code === 0 && data.data) {
           this.lastInviteCode = data.data.code || ''
           this.lastInviteExpires = data.data.expiresAt || ''
+          this.lastInviteMaxUses = data.data.maxUses != null ? data.data.maxUses : mu
           this.actionMsg = '已生成邀请码'
         } else {
           this.actionMsg = (data && data.message) || '生成失败'
@@ -282,6 +289,7 @@ code { background: #1e293b; padding: 2px 6px; border-radius: 4px; }
   color: #e2e8f0;
   font-size: 14px;
 }
+.invite-input.wide { width: 120px; }
 .small { font-size: 13px; }
 @media (max-width: 900px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
