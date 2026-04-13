@@ -175,7 +175,8 @@ export default {
     baseline: 'Falls back to',
     endsAt: 'Entitlement ends at',
     noActiveWindow: 'No active paid window (not purchased or expired)',
-    effectiveLimitsHint: 'Main limits in effect (creating resources is blocked when a cap is reached):',
+    effectiveLimitsHint:
+      'Main limits: existing usage above the cap keeps working; only new creates (or newly enabled client boards) are blocked. If usage exceeds the limit after a downgrade, that is expected.',
     usageTitle: 'Current usage (partial)',
     compareTitle: 'Plan comparison',
     compareNote:
@@ -197,7 +198,7 @@ export default {
     paying: 'Working…',
     success: 'Mock payment succeeded',
     footnote:
-      'Pricing is placeholder; real payments/invoicing can be added later. After the window ends, quotas revert to the baseline tier (usually Free defaults) unless renewed.',
+      'Pricing is placeholder; real payments/invoicing can be added later. After the window ends, quotas revert to the baseline tier. If usage already exceeds the new tier, existing resources stay usable; only new creates are blocked until you upgrade or free capacity.',
     planFree: 'Free',
     planTeam: 'Team',
     planPro: 'Pro',

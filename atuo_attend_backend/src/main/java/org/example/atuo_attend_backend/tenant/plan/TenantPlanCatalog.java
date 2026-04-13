@@ -3,6 +3,8 @@ package org.example.atuo_attend_backend.tenant.plan;
 /**
  * 套餐与配额（硬编码中间层，后续可换为数据库 + 支付回调更新 {@code aa_tenant.plan_code}）。
  * {@code pro} 与 {@code enterprise} 数值一致，标签区分为「专业版」与「企业版」。
+ * <p>
+ * 产品规则：用量超过当前档位上限时，已有资源可继续使用，仅禁止继续新建（见各 {@code assertCan*} 调用点）。
  */
 public final class TenantPlanCatalog {
 

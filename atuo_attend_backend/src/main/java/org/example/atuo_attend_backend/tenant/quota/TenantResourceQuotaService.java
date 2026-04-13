@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 
 /**
  * 租户各业务资源配额（报价单数、客户看板、Agent、协作项目、快捷运维账号等）。
+ * <p>
+ * 策略：仅在实际<strong>新建</strong>资源或<strong>首次启用</strong>客户看板时校验。
+ * 若历史用量已超过当前档位上限，已有数据可继续使用，仅禁止继续新增直至删除/关闭或升级档位。
  */
 @Service
 public class TenantResourceQuotaService {
@@ -87,7 +90,7 @@ public class TenantResourceQuotaService {
         long n = quoteProjectMapper.countAll(tenantId);
         if (n >= plan.maxQuoteProjects()) {
             throw new IllegalArgumentException("报价单数量已达当前套餐上限（" + plan.maxQuoteProjects()
-                    + "），请升级套餐或删除无用报价单后再试。");
+                    + "），仅限制新建报价单；已有报价单可继续使用。请升级套餐或删除无用报价单后再新建。");
         }
     }
 
@@ -106,7 +109,7 @@ public class TenantResourceQuotaService {
         long n = clientBoardMapper.countEnabledByTenant(tenantId);
         if (n >= plan.maxClientBoardsEnabled()) {
             throw new IllegalArgumentException("已启用的客户看板数量已达当前套餐上限（" + plan.maxClientBoardsEnabled()
-                    + "），请升级套餐或关闭部分看板后再试。");
+                    + "），仅限制新启用看板；已启用的看板可继续访问。请升级套餐或关闭部分看板后再启用新的。");
         }
     }
 
@@ -122,7 +125,7 @@ public class TenantResourceQuotaService {
         long n = agentSessionMapper.countByTenant(tenantId);
         if (n >= plan.maxAgentSessions()) {
             throw new IllegalArgumentException("Agent 需求引导会话数已达当前套餐上限（" + plan.maxAgentSessions()
-                    + "），请升级套餐后再试。");
+                    + "），仅限制新建会话；已有会话可继续使用。请升级套餐后再新建。");
         }
     }
 
@@ -138,7 +141,7 @@ public class TenantResourceQuotaService {
         long n = bizProjectMapper.countByTenant(tenantId);
         if (n >= plan.maxCollabProjects()) {
             throw new IllegalArgumentException("协作项目（项目管理）数量已达当前套餐上限（" + plan.maxCollabProjects()
-                    + "），请升级套餐后再试。");
+                    + "），仅限制新建项目；已有项目可继续使用。请升级套餐后再由 Webhook 创建新项目。");
         }
     }
 
@@ -154,7 +157,7 @@ public class TenantResourceQuotaService {
         long n = nexusCloudAccountMapper.countByTenant(tenantId);
         if (n >= plan.maxNexusAccounts()) {
             throw new IllegalArgumentException("快捷运维云账号数量已达当前套餐上限（" + plan.maxNexusAccounts()
-                    + "），请升级套餐后再试。");
+                    + "），仅限制新建云账号；已有账号可继续使用。请升级套餐后再添加。");
         }
     }
 
