@@ -5,6 +5,7 @@ import org.example.atuo_attend_backend.collab.domain.*;
 import org.example.atuo_attend_backend.collab.mapper.*;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class CollabSyncService {
     private final BizTableColumnMapper columnMapper;
     private final BizOptionGroupMapper optionGroupMapper;
     private final CollabPasswordService passwordService;
+    private final TenantResourceQuotaService tenantResourceQuotaService;
 
     private static long currentTenantId() {
         return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
@@ -40,7 +42,8 @@ public class CollabSyncService {
                              BizProjectTableMapper tableMapper,
                              BizTableColumnMapper columnMapper,
                              BizOptionGroupMapper optionGroupMapper,
-                             CollabPasswordService passwordService) {
+                             CollabPasswordService passwordService,
+                             TenantResourceQuotaService tenantResourceQuotaService) {
         this.userMapper = userMapper;
         this.projectMapper = projectMapper;
         this.memberMapper = memberMapper;
@@ -48,6 +51,7 @@ public class CollabSyncService {
         this.columnMapper = columnMapper;
         this.optionGroupMapper = optionGroupMapper;
         this.passwordService = passwordService;
+        this.tenantResourceQuotaService = tenantResourceQuotaService;
     }
 
     /**
@@ -87,6 +91,8 @@ public class CollabSyncService {
         long tid = currentTenantId();
         BizProject project = projectMapper.findByTenantAndRepoId(tid, repoId);
         if (project != null) return project;
+
+        tenantResourceQuotaService.assertCanCreateCollabProject(tid);
 
         project = new BizProject();
         project.setTenantId(tid);

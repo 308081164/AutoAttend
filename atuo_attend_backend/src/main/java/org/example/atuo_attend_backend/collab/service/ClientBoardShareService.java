@@ -4,6 +4,7 @@ import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectClientBoard;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectClientBoardMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
+import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +17,14 @@ public class ClientBoardShareService {
 
     private final BizProjectClientBoardMapper boardMapper;
     private final BizProjectMapper projectMapper;
+    private final TenantResourceQuotaService resourceQuotaService;
 
-    public ClientBoardShareService(BizProjectClientBoardMapper boardMapper, BizProjectMapper projectMapper) {
+    public ClientBoardShareService(BizProjectClientBoardMapper boardMapper,
+                                   BizProjectMapper projectMapper,
+                                   TenantResourceQuotaService resourceQuotaService) {
         this.boardMapper = boardMapper;
         this.projectMapper = projectMapper;
+        this.resourceQuotaService = resourceQuotaService;
     }
 
     public Map<String, Object> getBoardConfig(long projectId) {
@@ -52,6 +57,7 @@ public class ClientBoardShareService {
             throw new IllegalArgumentException("项目不存在或无权操作");
         }
         BizProjectClientBoard row = boardMapper.findByProjectId(projectId);
+        boolean wasEnabled = row != null && Boolean.TRUE.equals(row.getEnabled());
         boolean enabled = bool(body.get("enabled"), false);
         boolean showProgress = bool(body.get("showProgressDashboard"), true);
         boolean showFeature = bool(body.get("showFeatureBacklog"), false);
@@ -59,6 +65,8 @@ public class ClientBoardShareService {
         String aiPurpose = str(body.get("aiPurpose"), "issue_tracking");
         if (aiPurpose.isBlank()) aiPurpose = "issue_tracking";
         boolean regenerate = bool(body.get("regenerateToken"), false);
+
+        resourceQuotaService.assertCanEnableClientBoard(tenantId, wasEnabled, enabled);
 
         if (row == null) {
             row = new BizProjectClientBoard();

@@ -53,6 +53,7 @@
         <h3>运维动作（需审计）</h3>
         <p class="muted small">暂停后该租户管理员无法登录控制台；恢复后可继续使用。强制下线将清除该租户全部管理员会话。</p>
         <div class="btn-row">
+          <button type="button" class="btn ok" :disabled="acting" @click="doGrantEnterprise">一键开通企业版（30天）</button>
           <button type="button" class="btn danger" :disabled="acting" @click="doSuspend">暂停租户</button>
           <button type="button" class="btn" :disabled="acting" @click="doResume">恢复服务</button>
           <button type="button" class="btn warn" :disabled="acting" @click="doRevoke">强制下线管理员会话</button>
@@ -137,6 +138,27 @@ export default {
       if (!window.confirm('确认清除该租户全部管理员会话？')) return
       await this.postAction('revoke')
     },
+    async doGrantEnterprise () {
+      if (!window.confirm('确认为该租户开通企业版权益 30 天？（不产生订单，仅延长 plan 窗口）')) return
+      await this.postGrantEnterprise()
+    },
+    async postGrantEnterprise () {
+      this.acting = true
+      this.actionMsg = ''
+      try {
+        const { data } = await http.post(`/platform/tenants/${this.tenantId}/grant-enterprise`, { days: 30 })
+        if (data.code === 0) {
+          this.actionMsg = '已开通企业版权益'
+          await this.load()
+        } else {
+          this.actionMsg = (data && data.message) || '失败'
+        }
+      } catch (e) {
+        this.actionMsg = '请求失败'
+      } finally {
+        this.acting = false
+      }
+    },
     async postAction (kind) {
       this.acting = true
       this.actionMsg = ''
@@ -216,6 +238,7 @@ code { background: #1e293b; padding: 2px 6px; border-radius: 4px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.danger { border-color: #b91c1c; background: #7f1d1d; }
 .btn.warn { border-color: #ca8a04; background: #713f12; }
+.btn.ok { border-color: #15803d; background: #14532d; color: #ecfdf5; }
 .small { font-size: 13px; }
 @media (max-width: 900px) {
   .cards { grid-template-columns: repeat(2, 1fr); }

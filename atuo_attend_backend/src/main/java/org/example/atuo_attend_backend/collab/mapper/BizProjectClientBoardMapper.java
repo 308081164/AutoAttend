@@ -44,4 +44,10 @@ public interface BizProjectClientBoardMapper {
             WHERE id = #{id} AND tenant_id = #{tenantId}
             """)
     int update(BizProjectClientBoard row);
+
+    @Select("""
+            SELECT COUNT(*) FROM biz_project_client_board
+            WHERE tenant_id = #{tenantId} AND enabled = 1
+            """)
+    long countEnabledByTenant(@Param("tenantId") long tenantId);
 }

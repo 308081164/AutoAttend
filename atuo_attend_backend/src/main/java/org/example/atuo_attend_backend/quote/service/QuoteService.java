@@ -17,6 +17,7 @@ import org.example.atuo_attend_backend.quote.dto.*;
 import org.example.atuo_attend_backend.quote.mapper.*;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
+import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +49,7 @@ public class QuoteService {
     private final AiAnalysisConfigService aiConfigService;
     private final DeepSeekClient deepSeekClient;
     private final SystemConfigService systemConfigService;
+    private final TenantResourceQuotaService tenantResourceQuotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     /** 模型偶发在字符串内输出未转义控制字符时，尽量放宽解析（仍须为合法 JSON 结构）。 */
     private final ObjectMapper lenientJsonMapper = new ObjectMapper(
@@ -62,7 +64,8 @@ public class QuoteService {
                         QuoteDocumentMapper documentMapper, QuoteContractDraftMapper contractDraftMapper,
                         QuotePresetItemMapper presetItemMapper,
                         AiAnalysisConfigService aiConfigService, DeepSeekClient deepSeekClient,
-                        SystemConfigService systemConfigService) {
+                        SystemConfigService systemConfigService,
+                        TenantResourceQuotaService tenantResourceQuotaService) {
         this.projectMapper = projectMapper;
         this.moduleMapper = moduleMapper;
         this.itemMapper = itemMapper;
@@ -76,6 +79,7 @@ public class QuoteService {
         this.aiConfigService = aiConfigService;
         this.deepSeekClient = deepSeekClient;
         this.systemConfigService = systemConfigService;
+        this.tenantResourceQuotaService = tenantResourceQuotaService;
     }
 
     private static long tid() {
@@ -84,6 +88,7 @@ public class QuoteService {
 
     @Transactional
     public long createProject(QuoteProjectSaveDto dto) {
+        tenantResourceQuotaService.assertCanCreateQuoteProject(tid());
         QuoteProject p = toProject(dto);
         if (p.getName() == null || p.getName().isBlank()) throw new IllegalArgumentException("项目名称不能为空");
         if (p.getStatus() == null) p.setStatus("draft");

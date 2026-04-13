@@ -14,6 +14,7 @@ import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.collab.domain.BizAttachment;
 import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
 import org.example.atuo_attend_backend.collab.service.MinioService;
+import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,7 @@ public class AgentSessionService {
     private final QwenClient qwenClient;
     private final AiAnalysisConfigMapper aiAnalysisConfigMapper;
     private final AiTokenUsageMapper tokenUsageMapper;
+    private final TenantResourceQuotaService tenantResourceQuotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AgentSessionService(AgentSessionMapper sessionMapper,
@@ -50,7 +52,8 @@ public class AgentSessionService {
                                DeepSeekClient deepSeekClient,
                                QwenClient qwenClient,
                                AiAnalysisConfigMapper aiAnalysisConfigMapper,
-                               AiTokenUsageMapper tokenUsageMapper) {
+                               AiTokenUsageMapper tokenUsageMapper,
+                               TenantResourceQuotaService tenantResourceQuotaService) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.attachmentMapper = attachmentMapper;
@@ -59,6 +62,7 @@ public class AgentSessionService {
         this.qwenClient = qwenClient;
         this.aiAnalysisConfigMapper = aiAnalysisConfigMapper;
         this.tokenUsageMapper = tokenUsageMapper;
+        this.tenantResourceQuotaService = tenantResourceQuotaService;
     }
 
     private AiAnalysisConfig requireDeepSeekConfig(long tenantId) {
@@ -142,6 +146,8 @@ public class AgentSessionService {
                                       List<BackgroundTextItem> backgroundTexts,
                                       List<Long> backgroundAttachmentIds) {
         log.info("Creating agent session: tenantId={}, projectId={}", tenantId, projectId);
+
+        tenantResourceQuotaService.assertCanCreateAgentSession(tenantId);
 
         // 1. 生成 48 字符随机 publicToken
         String publicToken = generatePublicToken();

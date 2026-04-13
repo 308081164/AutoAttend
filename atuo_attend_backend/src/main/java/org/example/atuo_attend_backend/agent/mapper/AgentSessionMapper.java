@@ -79,4 +79,7 @@ public interface AgentSessionMapper {
             ORDER BY created_at DESC
             """)
     List<AgentSession> listByProjectId(@Param("projectId") Long projectId);
+
+    @Select("SELECT COUNT(*) FROM aa_agent_session WHERE tenant_id = #{tenantId}")
+    long countByTenant(@Param("tenantId") long tenantId);
 }

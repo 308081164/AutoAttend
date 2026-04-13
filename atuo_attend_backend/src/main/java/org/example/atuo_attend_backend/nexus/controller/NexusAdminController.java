@@ -16,6 +16,7 @@ import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.springframework.web.bind.annotation.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +42,7 @@ public class NexusAdminController {
     private final NexusEcsOpsService ecsOpsService;
     private final NexusBssCostService bssCostService;
     private final NexusAlertRuleMapper alertRuleMapper;
+    private final TenantResourceQuotaService tenantResourceQuotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public NexusAdminController(
@@ -54,7 +56,8 @@ public class NexusAdminController {
             NexusAuditLogMapper auditLogMapper,
             NexusEcsOpsService ecsOpsService,
             NexusBssCostService bssCostService,
-            NexusAlertRuleMapper alertRuleMapper
+            NexusAlertRuleMapper alertRuleMapper,
+            TenantResourceQuotaService tenantResourceQuotaService
     ) {
         this.accountMapper = accountMapper;
         this.instanceMapper = instanceMapper;
@@ -67,6 +70,7 @@ public class NexusAdminController {
         this.ecsOpsService = ecsOpsService;
         this.bssCostService = bssCostService;
         this.alertRuleMapper = alertRuleMapper;
+        this.tenantResourceQuotaService = tenantResourceQuotaService;
     }
 
     /**
@@ -111,6 +115,12 @@ public class NexusAdminController {
         if (req.getRegionId() == null || req.getRegionId().isBlank()) return ApiResponse.error(40000, "regionId required");
         if (req.getAccessKeyId() == null || req.getAccessKeyId().isBlank()) return ApiResponse.error(40000, "accessKeyId required");
         if (req.getAccessKeySecret() == null || req.getAccessKeySecret().isBlank()) return ApiResponse.error(40000, "accessKeySecret required");
+
+        try {
+            tenantResourceQuotaService.assertCanCreateNexusAccount(tenantId);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
 
         autoSyncConfigMapper.ensureDefault(tenantId);
 

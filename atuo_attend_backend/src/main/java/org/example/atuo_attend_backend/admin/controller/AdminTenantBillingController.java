@@ -7,6 +7,7 @@ import org.example.atuo_attend_backend.tenant.billing.TenantBillingService;
 import org.example.atuo_attend_backend.tenant.mapper.SubscriptionOrderMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.example.atuo_attend_backend.tenant.plan.TenantPlanCatalog;
+import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -23,13 +24,16 @@ public class AdminTenantBillingController {
     private final TenantMapper tenantMapper;
     private final TenantBillingService tenantBillingService;
     private final SubscriptionOrderMapper subscriptionOrderMapper;
+    private final TenantResourceQuotaService tenantResourceQuotaService;
 
     public AdminTenantBillingController(TenantMapper tenantMapper,
                                         TenantBillingService tenantBillingService,
-                                        SubscriptionOrderMapper subscriptionOrderMapper) {
+                                        SubscriptionOrderMapper subscriptionOrderMapper,
+                                        TenantResourceQuotaService tenantResourceQuotaService) {
         this.tenantMapper = tenantMapper;
         this.tenantBillingService = tenantBillingService;
         this.subscriptionOrderMapper = subscriptionOrderMapper;
+        this.tenantResourceQuotaService = tenantResourceQuotaService;
     }
 
     private static long tenantId(HttpServletRequest request) {
@@ -53,11 +57,17 @@ public class AdminTenantBillingController {
         data.put("subscriptionEndsAt", t.getSubscriptionEndsAt());
         data.put("teamPriceCents", TenantBillingService.PRICE_TEAM_CENTS);
         data.put("proPriceCents", TenantBillingService.PRICE_PRO_CENTS);
+        data.put("enterprisePriceCents", TenantBillingService.PRICE_ENTERPRISE_CENTS);
+        data.put("planDisplayLabel", TenantPlanCatalog.displayLabel(t.getPlanCode()));
         Map<String, Object> quotas = new HashMap<>();
         quotas.put("free", planQuotaMap(TenantPlanCatalog.FREE));
         quotas.put("team", planQuotaMap(TenantPlanCatalog.TEAM));
         quotas.put("pro", planQuotaMap(TenantPlanCatalog.PRO));
+        quotas.put("enterprise", planQuotaMap(TenantPlanCatalog.ENTERPRISE));
         data.put("planQuotas", quotas);
+        var eff = tenantResourceQuotaService.planForTenant(tid);
+        data.put("effectivePlan", planQuotaMap(eff));
+        data.put("usage", tenantResourceQuotaService.usageSnapshot(tid));
         return ApiResponse.ok(data);
     }
 
@@ -72,7 +82,7 @@ public class AdminTenantBillingController {
         try {
             LocalDateTime ends = tenantBillingService.applyMockPurchase(tid, plan);
             var t = tenantMapper.findById(tid);
-            String purchased = TenantPlanCatalog.resolve(plan).code();
+            String purchased = normalizePurchased(plan);
             int cents = tenantBillingService.priceCentsForPlan(purchased);
             subscriptionOrderMapper.insert(tid, purchased, cents, "CNY", "mock", "completed");
             Map<String, Object> data = new HashMap<>();
@@ -87,8 +97,26 @@ public class AdminTenantBillingController {
 
     private static Map<String, Object> planQuotaMap(TenantPlanCatalog.TenantPlan p) {
         Map<String, Object> m = new HashMap<>();
+        m.put("code", p.code());
+        m.put("label", p.label());
         m.put("maxMembers", p.maxMembers());
         m.put("maxGithubRepos", p.maxGithubRepos());
+        m.put("maxQuoteProjects", p.maxQuoteProjects());
+        m.put("maxClientBoardsEnabled", p.maxClientBoardsEnabled());
+        m.put("maxAgentSessions", p.maxAgentSessions());
+        m.put("maxCollabProjects", p.maxCollabProjects());
+        m.put("maxNexusAccounts", p.maxNexusAccounts());
         return m;
+    }
+
+    private static String normalizePurchased(String plan) {
+        if (plan == null || plan.isBlank()) {
+            return TenantPlanCatalog.FREE.code();
+        }
+        String s = plan.trim().toLowerCase();
+        if ("enterprise".equals(s)) {
+            return TenantPlanCatalog.ENTERPRISE.code();
+        }
+        return TenantPlanCatalog.resolve(plan).code();
     }
 }

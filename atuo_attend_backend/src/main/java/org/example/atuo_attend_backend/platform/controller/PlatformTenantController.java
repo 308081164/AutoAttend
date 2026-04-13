@@ -8,6 +8,7 @@ import org.example.atuo_attend_backend.platform.auth.PlatformAuthFilter;
 import org.example.atuo_attend_backend.platform.dto.PlatformTenantOpsRow;
 import org.example.atuo_attend_backend.platform.mapper.PlatformOpsAuditMapper;
 import org.example.atuo_attend_backend.platform.mapper.PlatformOpsReportMapper;
+import org.example.atuo_attend_backend.tenant.billing.TenantBillingService;
 import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
 import org.example.atuo_attend_backend.tenant.mapper.SubscriptionOrderMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
@@ -28,18 +29,21 @@ public class PlatformTenantController {
     private final AdminSessionMapper adminSessionMapper;
     private final PlatformOpsAuditMapper platformOpsAuditMapper;
     private final SubscriptionOrderMapper subscriptionOrderMapper;
+    private final TenantBillingService tenantBillingService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PlatformTenantController(PlatformOpsReportMapper platformOpsReportMapper,
                                     TenantMapper tenantMapper,
                                     AdminSessionMapper adminSessionMapper,
                                     PlatformOpsAuditMapper platformOpsAuditMapper,
-                                    SubscriptionOrderMapper subscriptionOrderMapper) {
+                                    SubscriptionOrderMapper subscriptionOrderMapper,
+                                    TenantBillingService tenantBillingService) {
         this.platformOpsReportMapper = platformOpsReportMapper;
         this.tenantMapper = tenantMapper;
         this.adminSessionMapper = adminSessionMapper;
         this.platformOpsAuditMapper = platformOpsAuditMapper;
         this.subscriptionOrderMapper = subscriptionOrderMapper;
+        this.tenantBillingService = tenantBillingService;
     }
 
     private Long sessionId(HttpServletRequest request) {
@@ -107,5 +111,28 @@ public class PlatformTenantController {
         int deleted = adminSessionMapper.deleteByTenantId(tenantId);
         audit(request, "tenant.revoke_admin_sessions", tenantId, Map.of("deletedSessions", deleted));
         return ApiResponse.ok(Map.of("deletedSessions", deleted));
+    }
+
+    /**
+     * 一键开通企业版：续期 {@code enterprise} 档位权益（默认 30 天，不产生订单）。
+     */
+    @PostMapping("/{tenantId}/grant-enterprise")
+    public ApiResponse<Map<String, Object>> grantEnterprise(@PathVariable("tenantId") long tenantId,
+                                                            @RequestBody(required = false) Map<String, Object> body,
+                                                            HttpServletRequest request) {
+        if (tenantMapper.findById(tenantId) == null) {
+            return ApiResponse.error(40400, "租户不存在");
+        }
+        int days = 30;
+        if (body != null && body.get("days") instanceof Number n) {
+            days = n.intValue();
+        }
+        try {
+            var ends = tenantBillingService.grantPlanWindow(tenantId, "enterprise", days);
+            audit(request, "tenant.grant_enterprise", tenantId, Map.of("days", days, "subscriptionEndsAt", String.valueOf(ends)));
+            return ApiResponse.ok(Map.of("planCode", "enterprise", "subscriptionEndsAt", ends, "days", days));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
     }
 }

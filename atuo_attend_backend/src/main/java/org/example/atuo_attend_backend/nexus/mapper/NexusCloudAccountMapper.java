@@ -27,6 +27,9 @@ public interface NexusCloudAccountMapper {
             """)
     List<NexusCloudAccount> listByTenant(@Param("tenantId") long tenantId);
 
+    @Select("SELECT COUNT(*) FROM aa_nexus_cloud_account WHERE tenant_id = #{tenantId}")
+    long countByTenant(@Param("tenantId") long tenantId);
+
     @Select("""
             SELECT
               id,

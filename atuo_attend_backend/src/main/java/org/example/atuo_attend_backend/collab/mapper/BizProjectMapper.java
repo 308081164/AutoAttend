@@ -23,4 +23,7 @@ public interface BizProjectMapper {
 
     @Update("UPDATE biz_project SET name = #{name}, description = #{description}, status = #{status} WHERE id = #{id} AND tenant_id = #{tenantId}")
     int update(BizProject project);
+
+    @Select("SELECT COUNT(*) FROM biz_project WHERE tenant_id = #{tenantId}")
+    long countByTenant(@Param("tenantId") long tenantId);
 }

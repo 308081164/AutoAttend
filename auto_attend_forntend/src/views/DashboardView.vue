@@ -27,6 +27,15 @@
                   {{ nexusHub.loading ? '…' : $t('dashboard.statusStripNexus', { n: nexusHub.accountCount }) }}
                 </router-link>
                 <router-link to="/cloud-dev" class="dash-chip dash-chip--link dash-chip--neutral">{{ $t('dashboard.statusStripCloudDev') }}</router-link>
+                <router-link
+                  v-if="workspaceSummary"
+                  to="/subscription"
+                  class="dash-chip dash-chip--link dash-chip--ent"
+                  :title="$t('dashboard.entitlementChipHint')"
+                >
+                  {{ workspaceSummary.planDisplayLabel }}
+                  <template v-if="workspaceSummary.subscriptionEndsAt"> · {{ $t('dashboard.entitlementUntil', { date: formatWsDate(workspaceSummary.subscriptionEndsAt) }) }}</template>
+                </router-link>
               </div>
             </div>
             <div class="dash-command-identity">
@@ -932,6 +941,8 @@ export default {
       dailyDetailLoading: false,
       quoteHub: { loading: false, items: [], total: 0 },
       nexusHub: { loading: false, accountCount: 0 },
+      workspaceSummary: null,
+      workspaceSummaryLoading: false,
       prototypeHub: { loading: false, items: [], total: 0 },
       prototypeHubFilter: '',
       teamHubCount: null,
@@ -1259,6 +1270,7 @@ export default {
     this.loadStatsCommitsByDay()
     this.loadStatsAuthors()
     this.loadConsoleHub()
+    this.loadWorkspaceSummary()
     this.loadRepos().then(() => {
       if (this.selectedRepo) {
         this.loadRepoInfo()
@@ -1326,6 +1338,26 @@ export default {
         this.nexusHub.accountCount = 0
       } finally {
         this.nexusHub.loading = false
+      }
+    },
+    formatWsDate (v) {
+      if (v == null || v === '') return ''
+      const s = String(v)
+      return s.length >= 16 ? s.slice(0, 16).replace('T', ' ') : s
+    },
+    async loadWorkspaceSummary () {
+      this.workspaceSummaryLoading = true
+      try {
+        const resp = await this.$http.get('/admin/workspace/summary')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.workspaceSummary = resp.data.data
+        } else {
+          this.workspaceSummary = null
+        }
+      } catch (e) {
+        this.workspaceSummary = null
+      } finally {
+        this.workspaceSummaryLoading = false
       }
     },
     openSubjectModal () {
@@ -2404,6 +2436,13 @@ export default {
 
 .dash-chip--neutral {
   background: rgba(248, 250, 252, 0.85);
+}
+
+.dash-chip--ent {
+  font-weight: 600;
+  color: #0f172a;
+  background: linear-gradient(135deg, #e0e7ff, #cffafe);
+  border-color: rgba(99, 102, 241, 0.35);
 }
 
 .dash-chip--link {

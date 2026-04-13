@@ -90,11 +90,15 @@ public class TenantQuotaService {
         } else if ("team".equalsIgnoreCase(code)) {
             maxMembers = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_TEAM_MAX_MEMBERS), maxMembers);
             maxGithubRepos = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_TEAM_MAX_GITHUB_REPOS), maxGithubRepos);
-        } else if ("pro".equalsIgnoreCase(code)) {
+        } else if ("pro".equalsIgnoreCase(code) || "enterprise".equalsIgnoreCase(code)) {
             maxMembers = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_PRO_MAX_MEMBERS), maxMembers);
             maxGithubRepos = nvlPositive(systemConfigService.getPlanQuota(SystemConfigService.KEY_PLAN_PRO_MAX_GITHUB_REPOS), maxGithubRepos);
         }
-        return new TenantPlanCatalog.TenantPlan(base.code(), base.label(), maxMembers, maxGithubRepos);
+        return new TenantPlanCatalog.TenantPlan(
+                base.code(), base.label(),
+                maxMembers, maxGithubRepos,
+                base.maxQuoteProjects(), base.maxClientBoardsEnabled(),
+                base.maxAgentSessions(), base.maxCollabProjects(), base.maxNexusAccounts());
     }
 
     private static int nvlPositive(Integer value, int defaultValue) {
