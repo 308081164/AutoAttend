@@ -17,12 +17,21 @@ import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -226,6 +235,59 @@ public class PublicClientBoardController {
         } catch (Exception e) {
             return ApiResponse.error(50000, "上传失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 公开预览附件（仅当附件属于该 token 对应项目时允许，供客户看板多维表与 AI 缩略图使用）。
+     */
+    @GetMapping("/{token}/attachments/{id}/preview")
+    public ResponseEntity<Resource> previewAttachment(@PathVariable String token,
+                                                      @PathVariable long id) {
+        BizProjectClientBoard board = shareService.requireEnabledBoard(token);
+        if (board == null) {
+            return ResponseEntity.status(404).build();
+        }
+        long projectId = board.getProjectId();
+        BizAttachment att = attachmentMapper.findById(id);
+        if (att == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!Objects.equals(att.getProjectId(), projectId)) {
+            return ResponseEntity.status(403).build();
+        }
+        try {
+            InputStream stream = minioService.download(att.getStorageKey());
+            String fn = att.getFileName() != null ? att.getFileName().toLowerCase() : "";
+            MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+            if (fn.endsWith(".jpg") || fn.endsWith(".jpeg")) {
+                mediaType = MediaType.IMAGE_JPEG;
+            } else if (fn.endsWith(".png")) {
+                mediaType = MediaType.IMAGE_PNG;
+            } else if (fn.endsWith(".gif")) {
+                mediaType = MediaType.IMAGE_GIF;
+            } else if (fn.endsWith(".webp")) {
+                mediaType = MediaType.parseMediaType("image/webp");
+            } else if (fn.endsWith(".svg")) {
+                mediaType = MediaType.parseMediaType("image/svg+xml");
+            }
+            Resource resource = new InputStreamResource(stream);
+            String displayName = att.getFileName() != null ? att.getFileName() : "preview";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                            .filename(safeFilename(displayName), StandardCharsets.UTF_8).build().toString())
+                    .contentType(mediaType)
+                    .contentLength(att.getFileSize() != null && att.getFileSize() > 0 ? att.getFileSize() : -1)
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    private static String safeFilename(String name) {
+        if (name == null || name.isBlank()) {
+            return "preview";
+        }
+        return name.replace("\r", "").replace("\n", "");
     }
 
     // ==================== 多维表格（只读） ====================

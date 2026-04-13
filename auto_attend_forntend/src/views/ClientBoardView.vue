@@ -17,12 +17,12 @@
       <!-- ===== Top Navigation Bar ===== -->
       <nav class="lb-nav">
         <div class="lb-nav-inner">
-          <div class="lb-nav-left">
+          <router-link class="lb-nav-left lb-nav-brand" :to="{ name: 'landing' }" title="返回平台首页">
             <div class="lb-nav-logo" aria-hidden="true">
               <img class="lb-nav-logo-img" src="/brand-logo.svg" width="24" height="24" alt="">
             </div>
             <span class="lb-nav-title">流帮 Project</span>
-          </div>
+          </router-link>
           <div class="lb-nav-right">
             <span class="lb-nav-tenant" v-if="tenantName">{{ tenantName }}</span>
           </div>
@@ -365,6 +365,28 @@
               </h3>
             </div>
             <p class="lb-ai-desc">描述您的需求、问题或变更，AI 将自动解析并生成结构化任务草稿。支持粘贴或上传图片辅助说明。</p>
+            <div class="lb-ai-split-mode" role="tablist" aria-label="AI 录入模式">
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="aiSplitMode === 'single'"
+                :class="{ 'lb-ai-split-tab--active': aiSplitMode === 'single' }"
+                class="lb-ai-split-tab"
+                @click="aiSplitMode = 'single'"
+              >
+                单条任务录入
+              </button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="aiSplitMode === 'multi'"
+                :class="{ 'lb-ai-split-tab--active': aiSplitMode === 'multi' }"
+                class="lb-ai-split-tab"
+                @click="aiSplitMode = 'multi'"
+              >
+                智能拆分为多条任务
+              </button>
+            </div>
             <textarea
               v-model="aiText"
               class="lb-textarea"
@@ -494,11 +516,16 @@ export default {
       aiAttachments: [],
       aiSelectedAttIds: [],
       aiUploading: false,
+      /** 与协作端多维表一致：single 仅保留首条草稿，multi 允许多条 */
+      aiSplitMode: 'multi',
       // Image preview
       previewImageUrl: ''
     }
   },
   computed: {
+    apiBase () {
+      return (this.$http && this.$http.defaults && this.$http.defaults.baseURL) ? this.$http.defaults.baseURL : '/api'
+    },
     visibleTabs () {
       const tabs = [
         { key: 'overview', label: '项目概览', icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' }
@@ -561,7 +588,10 @@ export default {
     if (!this.token) { this.error = '无效的看板链接'; this.loading = false; return }
     this.fetchBoard()
   },
-  beforeDestroy () { this.destroyCharts() },
+  beforeDestroy () {
+    this.destroyCharts()
+    this.revokeAiAttachmentBlobs()
+  },
   methods: {
     // ===== Board Init =====
     async fetchBoard () {
@@ -726,6 +756,11 @@ export default {
       if (v == null) return ''
       return String(v)
     },
+    publicAttachmentPreviewUrl (attachmentId) {
+      const id = Number(attachmentId)
+      if (Number.isNaN(id)) return ''
+      return `${this.apiBase}/public/client-board/${encodeURIComponent(this.token)}/attachments/${id}/preview`
+    },
     getAttachmentUrls (row, colId) {
       const v = row['c' + colId]
       if (!v) return []
@@ -733,8 +768,8 @@ export default {
         const arr = typeof v === 'string' ? JSON.parse(v) : v
         if (!Array.isArray(arr)) return []
         return arr.map(a => {
-          if (typeof a === 'number') return `/api/collab/attachments/${a}/preview`
-          if (a && a.id) return `/api/collab/attachments/${a.id}/preview`
+          if (typeof a === 'number') return this.publicAttachmentPreviewUrl(a)
+          if (a && a.id) return this.publicAttachmentPreviewUrl(a.id)
           return ''
         }).filter(Boolean)
       } catch (e) { return [] }
@@ -766,6 +801,13 @@ export default {
         await this.uploadAiFiles(imageFiles)
       }
     },
+    revokeAiAttachmentBlobs () {
+      this.aiAttachments.forEach(a => {
+        if (a && a.previewUrl && String(a.previewUrl).startsWith('blob:')) {
+          try { URL.revokeObjectURL(a.previewUrl) } catch (e) { /* ignore */ }
+        }
+      })
+    },
     async uploadAiFiles (files) {
       if (this.aiUploading) return
       this.aiUploading = true
@@ -773,7 +815,9 @@ export default {
         for (const file of files) {
           let uploadFile = file
           if (shouldCompressAsRasterImage(file)) {
-            uploadFile = await compressImageFile(file, { maxWidth: 1920, maxHeight: 1920, quality: 0.82 })
+            try {
+              uploadFile = await compressImageFile(file, { maxWidth: 1920, maxHeight: 1920, quality: 0.82 })
+            } catch (_err) { /* 使用原文件 */ }
           }
           const fd = new FormData()
           fd.append('file', uploadFile)
@@ -782,12 +826,13 @@ export default {
           })
           if (resp.data && resp.data.code === 0 && resp.data.data) {
             const att = resp.data.data
+            const isImg = !!att.isImage
             this.aiAttachments.push({
               id: att.id,
               fileName: att.fileName || 'file',
               fileSize: att.fileSize || 0,
-              isImage: !!att.isImage,
-              previewUrl: att.isImage ? `/api/collab/attachments/${att.id}/preview` : ''
+              isImage: isImg,
+              previewUrl: isImg ? URL.createObjectURL(uploadFile) : null
             })
             this.aiSelectedAttIds.push(att.id)
           }
@@ -796,6 +841,9 @@ export default {
       finally { this.aiUploading = false }
     },
     removeAiAtt (att) {
+      if (att && att.previewUrl && String(att.previewUrl).startsWith('blob:')) {
+        try { URL.revokeObjectURL(att.previewUrl) } catch (e) { /* ignore */ }
+      }
       const idx = this.aiAttachments.indexOf(att)
       if (idx >= 0) this.aiAttachments.splice(idx, 1)
       const sidIdx = this.aiSelectedAttIds.indexOf(att.id)
@@ -828,7 +876,20 @@ export default {
           attachmentIds: this.aiSelectedAttIds
         })
         if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.items)) {
-          this.aiDrafts = resp.data.data.items
+          let items = resp.data.data.items || []
+          if (Array.isArray(items) && this.aiSelectedAttIds && this.aiSelectedAttIds.length) {
+            const baseIds = Array.from(new Set(this.aiSelectedAttIds.map(Number).filter(n => !Number.isNaN(n))))
+            items.forEach(t => {
+              if (!t) return
+              const existing = Array.isArray(t.attachmentIds) ? t.attachmentIds : []
+              const merged = Array.from(new Set([...existing, ...baseIds].map(Number).filter(n => !Number.isNaN(n))))
+              t.attachmentIds = merged
+            })
+          }
+          if (this.aiSplitMode === 'single' && Array.isArray(items) && items.length > 1) {
+            items = [items[0]]
+          }
+          this.aiDrafts = items
         } else { window.alert((resp.data && resp.data.message) || 'AI 预览失败') }
       } catch (e) { window.alert('请求失败，请稍后重试') }
       finally { this.aiBusy = false }
@@ -841,6 +902,7 @@ export default {
         if (resp.data && resp.data.code === 0) {
           const n = resp.data.data && resp.data.data.createdCount != null ? resp.data.data.createdCount : 0
           window.alert('提交成功，已创建 ' + n + ' 条任务')
+          this.revokeAiAttachmentBlobs()
           this.aiDrafts = []; this.aiText = ''; this.aiAttachments = []; this.aiSelectedAttIds = []
           await this.fetchBoard()
         } else { window.alert((resp.data && resp.data.message) || '提交失败') }
@@ -912,6 +974,9 @@ export default {
 .lb-nav { background: var(--lb-bg-card); border-bottom: 1px solid var(--lb-border); position: sticky; top: 0; z-index: 100; }
 .lb-nav-inner { max-width: 1120px; margin: 0 auto; padding: 0 32px; height: 52px; display: flex; align-items: center; justify-content: space-between; }
 .lb-nav-left { display: flex; align-items: center; gap: 10px; }
+.lb-nav-brand { text-decoration: none; color: inherit; cursor: pointer; border-radius: 8px; padding: 2px 4px; margin: -2px -4px; transition: background .15s; }
+.lb-nav-brand:hover { background: rgba(51, 112, 255, 0.08); }
+.lb-nav-brand:focus-visible { outline: 2px solid var(--lb-blue); outline-offset: 2px; }
 .lb-nav-logo { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 .lb-nav-logo-img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .lb-nav-title { font-size: 15px; font-weight: 600; color: var(--lb-text-1); }
@@ -1068,6 +1133,10 @@ export default {
 .lb-page-info { font-size: 13px; color: var(--lb-text-3); }
 
 /* --- AI Section --- */
+.lb-ai-split-mode { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.lb-ai-split-tab { padding: 6px 12px; border: 1px solid var(--lb-border); border-radius: 8px; background: var(--lb-bg-card); color: var(--lb-text-2); font-size: 13px; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+.lb-ai-split-tab:hover { background: var(--lb-bg); color: var(--lb-text-1); }
+.lb-ai-split-tab--active { border-color: var(--lb-blue); background: var(--lb-blue-light); color: var(--lb-blue); font-weight: 500; }
 .lb-ai-desc { margin: 0 0 12px; font-size: 13px; color: var(--lb-text-3); line-height: 1.6; }
 .lb-textarea { width: 100%; border: 1px solid var(--lb-border); border-radius: var(--lb-radius); padding: 10px 14px; font-size: 14px; font-family: inherit; color: var(--lb-text-1); background: var(--lb-bg-card); resize: vertical; box-sizing: border-box; outline: none; transition: border-color .2s, box-shadow .2s; line-height: 1.6; }
 .lb-textarea:focus { border-color: var(--lb-blue); box-shadow: 0 0 0 2px rgba(51,112,255,.12); }
