@@ -11,6 +11,8 @@ public class AdminRegisterRequest {
     private String slug;
     /** 短信验证码（启用短信时必填） */
     private String smsCode;
+    /** 邀请码（可选，注册成功绑定推荐关系） */
+    private String inviteCode;
 
     public String getPhone() {
         return phone;
@@ -50,5 +52,13 @@ public class AdminRegisterRequest {
 
     public void setSmsCode(String smsCode) {
         this.smsCode = smsCode;
+    }
+
+    public String getInviteCode() {
+        return inviteCode;
+    }
+
+    public void setInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
     }
 }

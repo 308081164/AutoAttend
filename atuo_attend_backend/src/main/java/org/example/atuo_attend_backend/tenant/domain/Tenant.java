@@ -7,6 +7,14 @@ public class Tenant {
     private Long id;
     private String name;
     private String slug;
+    /** 推荐方租户 ID（被邀请注册或兑换时写入） */
+    private Long referrerTenantId;
+    /** 是否已使用邀请码兑换过尝鲜权益（每租户一次） */
+    private Boolean inviteCodeRedeemed;
+    /** 会员积分（1 积分可抵 1 元模拟购买） */
+    private Integer memberPoints;
+    /** 是否已使用过尝鲜版首月优惠价 */
+    private Boolean teamFirstMonthUsed;
     /** 套餐档位：free / team / pro（当前权益档位；付费窗口内为已购档位） */
     private String planCode;
     /** 无付费/试用窗口时的回退档位（通常为 free，或由升级链决定） */
@@ -39,6 +47,38 @@ public class Tenant {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public Long getReferrerTenantId() {
+        return referrerTenantId;
+    }
+
+    public void setReferrerTenantId(Long referrerTenantId) {
+        this.referrerTenantId = referrerTenantId;
+    }
+
+    public Boolean getInviteCodeRedeemed() {
+        return inviteCodeRedeemed;
+    }
+
+    public void setInviteCodeRedeemed(Boolean inviteCodeRedeemed) {
+        this.inviteCodeRedeemed = inviteCodeRedeemed;
+    }
+
+    public Integer getMemberPoints() {
+        return memberPoints;
+    }
+
+    public void setMemberPoints(Integer memberPoints) {
+        this.memberPoints = memberPoints;
+    }
+
+    public Boolean getTeamFirstMonthUsed() {
+        return teamFirstMonthUsed;
+    }
+
+    public void setTeamFirstMonthUsed(Boolean teamFirstMonthUsed) {
+        this.teamFirstMonthUsed = teamFirstMonthUsed;
     }
 
     public String getPlanCode() {

@@ -29,6 +29,10 @@
           </div>
         </div>
         <div class="form-item">
+          <label>{{ $t('register.inviteCode') }}</label>
+          <input v-model="form.inviteCode" type="text" autocomplete="off" :placeholder="$t('register.inviteCodeHint')">
+        </div>
+        <div class="form-item">
           <label>{{ $t('register.orgName') }}</label>
           <input v-model="form.orgName" type="text" :placeholder="$t('register.orgNameHint')" required>
         </div>
@@ -62,7 +66,8 @@ export default {
         orgName: '',
         slug: '',
         password: '',
-        smsCode: ''
+        smsCode: '',
+        inviteCode: ''
       },
       loading: false,
       error: '',
@@ -147,6 +152,10 @@ export default {
         }
         if (this.smsEnabled) {
           body.smsCode = (this.form.smsCode || '').trim()
+        }
+        const inv = (this.form.inviteCode || '').trim()
+        if (inv) {
+          body.inviteCode = inv
         }
         const resp = await this.$http.post('/admin/auth/register', body)
         if (resp.data && resp.data.code === 0) {

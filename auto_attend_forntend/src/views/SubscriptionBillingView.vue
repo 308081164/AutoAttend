@@ -28,11 +28,34 @@
           <dt>{{ $t('subscriptionPage.endsAt') }}</dt>
           <dd class="sub-dd-strong">{{ status.subscriptionEndsAt || $t('subscriptionPage.noActiveWindow') }}</dd>
         </div>
+        <div>
+          <dt>{{ $t('subscriptionPage.memberPoints') }}</dt>
+          <dd class="sub-dd-strong">{{ num(status.memberPoints) }}</dd>
+        </div>
       </dl>
+      <p class="sub-points-hint">{{ $t('subscriptionPage.pointsRule') }}</p>
       <p class="sub-effective-hint">{{ $t('subscriptionPage.effectiveLimitsHint') }}</p>
       <ul class="sub-mini-list sub-mini-list--slash">
         <li v-for="row in usageSlashRows" :key="row.key">{{ row.text }}</li>
       </ul>
+    </section>
+
+    <section v-if="!loading && !error" class="sub-invite sub-card sub-card--panel">
+      <h2 class="sub-h2">{{ $t('subscriptionPage.inviteRedeemTitle') }}</h2>
+      <p class="sub-desc">{{ $t('subscriptionPage.inviteRedeemHint') }}</p>
+      <div class="sub-invite-row">
+        <input v-model="redeemCode" type="text" class="sub-invite-input" :disabled="status.inviteCodeRedeemed" :placeholder="'ABC12345'">
+        <button type="button" class="sub-btn primary" :disabled="redeeming || status.inviteCodeRedeemed" @click="redeemInvite">
+          {{ redeeming ? $t('subscriptionPage.paying') : $t('subscriptionPage.inviteRedeemBtn') }}
+        </button>
+      </div>
+      <p v-if="status.inviteCodeRedeemed" class="sub-muted">{{ $t('subscriptionPage.inviteRedeemedNote') }}</p>
+      <h3 class="sub-h3 sub-h3--sm">{{ $t('subscriptionPage.myInviteCode') }}</h3>
+      <p v-if="myInviteLoading" class="sub-muted">…</p>
+      <template v-else>
+        <p class="sub-mono">{{ myInviteCode || '—' }}</p>
+        <button type="button" class="sub-btn secondary small" @click="loadMyInvite">{{ $t('subscriptionPage.refreshInvite') }}</button>
+      </template>
     </section>
 
     <section class="sub-compare sub-card sub-card--panel">
@@ -69,7 +92,8 @@
     <section class="sub-plans sub-plans--3">
       <article class="sub-plan sub-card sub-card--panel">
         <h3 class="sub-h3">{{ $t('subscriptionPage.teamCard') }}</h3>
-        <p class="sub-price">{{ formatMoney(status.teamPriceCents) }}</p>
+        <p class="sub-price">{{ formatMoney(status.teamPriceCents) }}{{ $t('subscriptionPage.perMonth') }}</p>
+        <p class="sub-price-sub">{{ $t('subscriptionPage.teamFirstMonth') }}：{{ formatMoney(status.teamFirstMonthPriceCents) }}{{ $t('subscriptionPage.perMonth') }}</p>
         <p class="sub-price-note">{{ $t('subscriptionPage.teamPriceNote') }}</p>
         <p class="sub-desc">{{ $t('subscriptionPage.teamDesc') }}</p>
         <ul class="sub-benefits">
@@ -171,11 +195,18 @@ export default {
       error: '',
       paying: '',
       toast: '',
+      redeemCode: '',
+      redeeming: false,
+      myInviteCode: '',
+      myInviteLoading: false,
       status: {
         planCode: 'free',
         billingBaselinePlanCode: 'free',
         subscriptionEndsAt: null,
         teamPriceCents: 0,
+        teamFirstMonthPriceCents: 0,
+        memberPoints: 0,
+        inviteCodeRedeemed: false,
         proAnnualPriceCents: 0,
         proPlusAnnualPriceCents: 0,
         planQuotas: null,
@@ -284,6 +315,7 @@ export default {
         const { data } = await this.$http.get('/admin/billing/status')
         if (data.code === 0 && data.data) {
           this.status = { ...this.status, ...data.data }
+          this.loadMyInvite()
         } else {
           this.error = (data && data.message) || '加载失败'
         }
@@ -293,11 +325,44 @@ export default {
         this.loading = false
       }
     },
+    async loadMyInvite () {
+      this.myInviteLoading = true
+      try {
+        const { data } = await this.$http.get('/admin/billing/invite/my-code')
+        if (data.code === 0 && data.data && data.data.code) {
+          this.myInviteCode = data.data.code
+        }
+      } catch (e) {
+        this.myInviteCode = ''
+      } finally {
+        this.myInviteLoading = false
+      }
+    },
+    async redeemInvite () {
+      const c = (this.redeemCode || '').trim()
+      if (!c || this.status.inviteCodeRedeemed) return
+      this.redeeming = true
+      this.toast = ''
+      try {
+        const { data } = await this.$http.post('/admin/billing/invite/redeem', { inviteCode: c })
+        if (data.code === 0) {
+          this.toast = (data.data && data.data.message) || this.$t('subscriptionPage.inviteRedeemOk')
+          await this.load()
+        } else {
+          this.toast = (data && data.message) || '兑换失败'
+        }
+      } catch (e) {
+        const msg = e.response && e.response.data && e.response.data.message
+        this.toast = msg || '兑换失败'
+      } finally {
+        this.redeeming = false
+      }
+    },
     async mockPay (planCode) {
       this.paying = planCode
       this.toast = ''
       try {
-        const { data } = await this.$http.post('/admin/billing/mock-pay', { planCode })
+        const { data } = await this.$http.post('/admin/billing/mock-pay', { planCode, useMemberPoints: true })
         if (data.code === 0 && data.data) {
           this.toast = data.data.message || this.$t('subscriptionPage.success')
           await this.load()
@@ -420,6 +485,64 @@ export default {
 .sub-pill--muted {
   background: #64748b;
   color: #f8fafc;
+}
+.sub-points-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--sub-on-panel-dim);
+  line-height: 1.45;
+}
+.sub-invite {
+  margin-top: 16px;
+}
+.sub-invite-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0 16px;
+}
+.sub-invite-input {
+  flex: 1;
+  min-width: 160px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--sub-panel-border);
+  background: #1e293b;
+  color: var(--sub-on-panel);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+.sub-h3--sm {
+  margin-top: 12px;
+  font-size: 15px;
+}
+.sub-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin: 6px 0;
+}
+.sub-muted {
+  font-size: 13px;
+  color: var(--sub-on-panel-dim);
+  margin: 6px 0;
+}
+.sub-btn.secondary {
+  background: transparent;
+  border: 1px solid #64748b;
+  color: #e2e8f0;
+}
+.sub-btn.small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.sub-price-sub {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: #a5b4fc;
+  font-weight: 600;
 }
 .sub-effective-hint {
   margin: 14px 0 8px;

@@ -36,7 +36,7 @@ public final class TenantPlanCatalog {
             3, 3, 3, 5, 2);
 
     public static final TenantPlan TEAM = new TenantPlan(
-            "team", "团队版",
+            "team", "尝鲜版",
             100, 20,
             50, 20, 200, 30, 20);
 

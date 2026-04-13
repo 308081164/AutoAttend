@@ -45,7 +45,7 @@
           <input v-model.number="planForm.freeMaxGithubRepos" type="number" min="1">
         </div>
         <div class="plan-col">
-          <div class="plan-name">团队版（team）</div>
+          <div class="plan-name">尝鲜版（team）</div>
           <label>协作成员上限</label>
           <input v-model.number="planForm.teamMaxMembers" type="number" min="1">
           <label>GitHub 仓库上限</label>

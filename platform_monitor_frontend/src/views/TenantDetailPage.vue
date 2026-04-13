@@ -60,6 +60,17 @@
         </div>
         <p v-if="actionMsg" class="ok">{{ actionMsg }}</p>
       </section>
+
+      <section class="panel">
+        <h3>平台邀请码（引流）</h3>
+        <p class="muted small">为该租户生成邀请码，新用户注册或兑换时可绑定推荐关系。可设置有效天数（留空则 30 天）。用户自建邀请码在租户侧「会员与计费」页查看。</p>
+        <div class="invite-row">
+          <label class="muted small">有效天数</label>
+          <input v-model.number="inviteValidDays" type="number" min="1" max="3650" class="invite-input" placeholder="30">
+          <button type="button" class="btn" :disabled="acting" @click="doCreateInvite">生成邀请码</button>
+        </div>
+        <p v-if="lastInviteCode" class="mono ok">最新：{{ lastInviteCode }} <span v-if="lastInviteExpires" class="muted">（至 {{ lastInviteExpires }}）</span></p>
+      </section>
     </template>
   </div>
 </template>
@@ -76,7 +87,10 @@ export default {
       tenant: null,
       mrrApproxCents: 0,
       acting: false,
-      actionMsg: ''
+      actionMsg: '',
+      inviteValidDays: 30,
+      lastInviteCode: '',
+      lastInviteExpires: ''
     }
   },
   computed: {
@@ -152,6 +166,25 @@ export default {
           await this.load()
         } else {
           this.actionMsg = (data && data.message) || '失败'
+        }
+      } catch (e) {
+        this.actionMsg = '请求失败'
+      } finally {
+        this.acting = false
+      }
+    },
+    async doCreateInvite () {
+      this.acting = true
+      this.actionMsg = ''
+      try {
+        const d = this.inviteValidDays != null && this.inviteValidDays > 0 ? { validDays: this.inviteValidDays } : { validDays: 30 }
+        const { data } = await http.post(`/platform/tenants/${this.tenantId}/invite-code`, d)
+        if (data.code === 0 && data.data) {
+          this.lastInviteCode = data.data.code || ''
+          this.lastInviteExpires = data.data.expiresAt || ''
+          this.actionMsg = '已生成邀请码'
+        } else {
+          this.actionMsg = (data && data.message) || '生成失败'
         }
       } catch (e) {
         this.actionMsg = '请求失败'
@@ -239,6 +272,16 @@ code { background: #1e293b; padding: 2px 6px; border-radius: 4px; }
 .btn.danger { border-color: #b91c1c; background: #7f1d1d; }
 .btn.warn { border-color: #ca8a04; background: #713f12; }
 .btn.ok { border-color: #15803d; background: #14532d; color: #ecfdf5; }
+.invite-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.invite-input {
+  width: 100px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 14px;
+}
 .small { font-size: 13px; }
 @media (max-width: 900px) {
   .cards { grid-template-columns: repeat(2, 1fr); }

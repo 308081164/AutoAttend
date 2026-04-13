@@ -14,7 +14,12 @@ import java.time.LocalDateTime;
 @Service
 public class TenantBillingService {
 
-    public static final int PRICE_TEAM_CENTS = 9_900;
+    /** 尝鲜版（team）：¥49/月（模拟） */
+    public static final int PRICE_TEAM_MONTHLY_CENTS = 4_900;
+    /** 尝鲜版首月：¥19.9（每租户首次购买 team 时） */
+    public static final int PRICE_TEAM_FIRST_MONTH_CENTS = 1_990;
+    /** 兼容旧常量：与月价一致 */
+    public static final int PRICE_TEAM_CENTS = PRICE_TEAM_MONTHLY_CENTS;
     /** 专业版：¥199/年（模拟订单金额，按年续期窗口） */
     public static final int PRICE_PRO_ANNUAL_CENTS = 19_900;
     /** 专业增强版：¥799/年 */
@@ -91,11 +96,22 @@ public class TenantBillingService {
     public int priceCentsForPlan(String planCode) {
         String p = normalize(planCode);
         return switch (p) {
-            case "team" -> PRICE_TEAM_CENTS;
+            case "team" -> PRICE_TEAM_MONTHLY_CENTS;
             case "pro" -> PRICE_PRO_ANNUAL_CENTS;
             case "pro_plus" -> PRICE_PRO_PLUS_ANNUAL_CENTS;
             default -> 0;
         };
+    }
+
+    /** 当前租户购买尝鲜版应付标价（分）：首月优惠价或正价 */
+    public int teamPurchaseListPriceCents(Tenant t) {
+        if (t == null) {
+            return PRICE_TEAM_MONTHLY_CENTS;
+        }
+        if (!Boolean.TRUE.equals(t.getTeamFirstMonthUsed())) {
+            return PRICE_TEAM_FIRST_MONTH_CENTS;
+        }
+        return PRICE_TEAM_MONTHLY_CENTS;
     }
 
     @Transactional
@@ -119,11 +135,14 @@ public class TenantBillingService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime prevEnd = t.getSubscriptionEndsAt();
         LocalDateTime baseStart = prevEnd != null && prevEnd.isAfter(now) ? prevEnd : now;
-        int addDays = "team".equals(sel) ? 1 : 365;
+        int addDays = "team".equals(sel) ? 30 : 365;
 
         LocalDateTime newEnd = baseStart.plusDays(addDays);
 
         tenantMapper.updatePlanSubscriptionAndBaseline(tenantId, effectivePlan, newEnd, baseline);
+        if ("team".equals(sel) && !Boolean.TRUE.equals(t.getTeamFirstMonthUsed())) {
+            tenantMapper.markTeamFirstMonthUsed(tenantId);
+        }
         t.setPlanCode(effectivePlan);
         t.setSubscriptionEndsAt(newEnd);
         t.setBillingBaselinePlanCode(baseline);

@@ -5,6 +5,7 @@ import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.admin.dto.AdminAuthOutcome;
 import org.example.atuo_attend_backend.admin.dto.AdminRegisterRequest;
 import org.example.atuo_attend_backend.admin.sms.AdminSmsService;
+import org.example.atuo_attend_backend.tenant.referral.InviteCodeService;
 import org.example.atuo_attend_backend.admin.model.AdminUser;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.collab.service.CollabPasswordService;
@@ -39,19 +40,22 @@ public class AdminAuthService {
     private final CollabPasswordService passwordService;
     private final CollabAuthService collabAuthService;
     private final AdminSmsService adminSmsService;
+    private final InviteCodeService inviteCodeService;
 
     public AdminAuthService(TenantMapper tenantMapper,
                             TenantAdminUserMapper tenantAdminUserMapper,
                             AdminSessionMapper adminSessionMapper,
                             CollabPasswordService passwordService,
                             CollabAuthService collabAuthService,
-                            AdminSmsService adminSmsService) {
+                            AdminSmsService adminSmsService,
+                            InviteCodeService inviteCodeService) {
         this.tenantMapper = tenantMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
         this.adminSessionMapper = adminSessionMapper;
         this.passwordService = passwordService;
         this.collabAuthService = collabAuthService;
         this.adminSmsService = adminSmsService;
+        this.inviteCodeService = inviteCodeService;
     }
 
     /**
@@ -135,6 +139,13 @@ public class AdminAuthService {
         tenantAdminUserMapper.insert(user);
 
         collabAuthService.ensureBizUserForTenantAdmin(phone, req.getPassword());
+        if (req.getInviteCode() != null && !req.getInviteCode().isBlank()) {
+            try {
+                inviteCodeService.onTenantRegisteredWithInvite(tenant.getId(), req.getInviteCode());
+            } catch (Exception ignored) {
+                // 邀请码无效时不阻断注册
+            }
+        }
         return createSessionOutcome(user);
     }
 

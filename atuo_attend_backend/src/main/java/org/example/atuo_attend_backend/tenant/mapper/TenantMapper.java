@@ -8,15 +8,21 @@ import java.util.List;
 @Mapper
 public interface TenantMapper {
 
-    @Select("SELECT id, name, slug, plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
+    @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
+            + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
+            + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
             + "subscription_ends_at AS subscriptionEndsAt, status, created_at AS createdAt FROM aa_tenant WHERE id = #{id}")
     Tenant findById(@Param("id") long id);
 
-    @Select("SELECT id, name, slug, plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
+    @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
+            + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
+            + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
             + "subscription_ends_at AS subscriptionEndsAt, status, created_at AS createdAt FROM aa_tenant WHERE slug = #{slug}")
     Tenant findBySlug(@Param("slug") String slug);
 
-    @Select("SELECT id, name, slug, plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
+    @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
+            + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
+            + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
             + "subscription_ends_at AS subscriptionEndsAt, status, created_at AS createdAt FROM aa_tenant ORDER BY id")
     List<Tenant> listAll();
 
@@ -66,4 +72,16 @@ public interface TenantMapper {
 
     @Select("SELECT COUNT(*) FROM aa_tenant WHERE status = 'suspended'")
     long countSuspendedTenants();
+
+    @Update("UPDATE aa_tenant SET referrer_tenant_id = #{referrerTenantId} WHERE id = #{id} AND referrer_tenant_id IS NULL")
+    int updateReferrerIfNull(@Param("id") long id, @Param("referrerTenantId") long referrerTenantId);
+
+    @Update("UPDATE aa_tenant SET invite_code_redeemed = 1 WHERE id = #{id}")
+    int markInviteRedeemed(@Param("id") long id);
+
+    @Update("UPDATE aa_tenant SET member_points = member_points + #{delta} WHERE id = #{id} AND member_points + #{delta} >= 0")
+    int addMemberPoints(@Param("id") long id, @Param("delta") int delta);
+
+    @Update("UPDATE aa_tenant SET team_first_month_used = 1 WHERE id = #{id}")
+    int markTeamFirstMonthUsed(@Param("id") long id);
 }
