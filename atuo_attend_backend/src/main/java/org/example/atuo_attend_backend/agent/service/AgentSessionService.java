@@ -1,0 +1,602 @@
+package org.example.atuo_attend_backend.agent.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.example.atuo_attend_backend.agent.domain.AgentMessage;
+import org.example.atuo_attend_backend.agent.domain.AgentSession;
+import org.example.atuo_attend_backend.agent.dto.AgentModels.BackgroundTextItem;
+import org.example.atuo_attend_backend.agent.mapper.AgentMessageMapper;
+import org.example.atuo_attend_backend.agent.mapper.AgentSessionMapper;
+import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
+import org.example.atuo_attend_backend.ai.client.QwenClient;
+import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
+import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
+import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
+import org.example.atuo_attend_backend.collab.service.MinioService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.*;
+
+/**
+ * Agent 会话服务 - 核心业务逻辑
+ */
+@Slf4j
+@Service
+public class AgentSessionService {
+
+    @Autowired
+    private AgentSessionMapper sessionMapper;
+
+    @Autowired
+    private AgentMessageMapper messageMapper;
+
+    @Autowired
+    private BizAttachmentMapper attachmentMapper;
+
+    @Autowired
+    private MinioService minioService;
+
+    @Autowired
+    private DeepSeekClient deepSeekClient;
+
+    @Autowired
+    private QwenClient qwenClient;
+
+    @Autowired
+    private AiAnalysisConfigService configService;
+
+    @Autowired
+    private AiTokenUsageMapper tokenUsageMapper;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // ==================== 会话生命周期 ====================
+
+    /**
+     * 创建 Agent 会话
+     */
+    @Transactional
+    public AgentSession createSession(Long tenantId, Long projectId, String projectContext,
+                                      List<BackgroundTextItem> backgroundTexts,
+                                      List<Long> backgroundAttachmentIds) {
+        log.info("Creating agent session: tenantId={}, projectId={}", tenantId, projectId);
+
+        // 1. 生成 48 字符随机 publicToken
+        String publicToken = generatePublicToken();
+
+        // 2. 构建会话对象
+        AgentSession session = new AgentSession();
+        session.setTenantId(tenantId);
+        session.setProjectId(projectId);
+        session.setPublicToken(publicToken);
+        session.setStatus("active");
+        session.setProjectContext(projectContext);
+        session.setTotalMessages(0);
+        session.setTotalInputTokens(0L);
+        session.setTotalOutputTokens(0L);
+
+        // 3. 处理背景材料
+        boolean hasBackground = (backgroundTexts != null && !backgroundTexts.isEmpty())
+                || (backgroundAttachmentIds != null && !backgroundAttachmentIds.isEmpty());
+
+        if (hasBackground) {
+            try {
+                String backgroundSummary = processBackgroundMaterials(backgroundTexts, backgroundAttachmentIds);
+                session.setBackgroundContext(backgroundSummary);
+
+                // 构建背景来源 JSON
+                List<Map<String, Object>> sources = new ArrayList<>();
+                if (backgroundTexts != null) {
+                    for (BackgroundTextItem item : backgroundTexts) {
+                        Map<String, Object> source = new HashMap<>();
+                        source.put("type", "text");
+                        source.put("label", item.getLabel());
+                        sources.add(source);
+                    }
+                }
+                if (backgroundAttachmentIds != null) {
+                    for (Long attachmentId : backgroundAttachmentIds) {
+                        Map<String, Object> source = new HashMap<>();
+                        source.put("type", "attachment");
+                        source.put("id", attachmentId);
+                        sources.add(source);
+                    }
+                }
+                session.setBackgroundSources(objectMapper.writeValueAsString(sources));
+            } catch (Exception e) {
+                log.error("Failed to process background materials", e);
+            }
+        }
+
+        // 4. 插入数据库
+        sessionMapper.insert(session);
+        log.info("Agent session created: id={}, publicToken={}", session.getId(), publicToken);
+
+        // 5. 生成第一条 assistant 消息
+        try {
+            String openingMessage = generateOpeningMessage(session);
+            AgentMessage msg = new AgentMessage();
+            msg.setSessionId(session.getId());
+            msg.setRole("assistant");
+            msg.setContent(openingMessage);
+            msg.setContentType("text");
+            messageMapper.insert(msg);
+
+            session.setTotalMessages(1);
+            sessionMapper.update(session);
+        } catch (Exception e) {
+            log.error("Failed to generate opening message", e);
+        }
+
+        return session;
+    }
+
+    /**
+     * 发送消息
+     */
+    @Transactional
+    public AgentMessage sendMessage(Long sessionId, String content, List<Long> attachmentIds) {
+        log.info("Sending message: sessionId={}", sessionId);
+
+        // 1. 查找并验证会话
+        AgentSession session = sessionMapper.findById(sessionId);
+        if (session == null) {
+            throw new RuntimeException("会话不存在");
+        }
+        if (!"active".equals(session.getStatus())) {
+            throw new RuntimeException("会话已结束，无法继续发送消息");
+        }
+
+        // 2. 保存用户消息
+        AgentMessage userMsg = new AgentMessage();
+        userMsg.setSessionId(sessionId);
+        userMsg.setRole("user");
+        userMsg.setContent(content);
+        userMsg.setContentType("text");
+        messageMapper.insert(userMsg);
+
+        // 3. 处理附件（图片用 Qwen VL 理解）
+        StringBuilder attachmentDesc = new StringBuilder();
+        if (attachmentIds != null && !attachmentIds.isEmpty()) {
+            for (Long attachmentId : attachmentIds) {
+                try {
+                    String desc = processAttachment(attachmentId);
+                    if (desc != null && !desc.isEmpty()) {
+                        attachmentDesc.append("\n\n[附件描述]: ").append(desc);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to process attachment: id={}", attachmentId, e);
+                }
+            }
+        }
+
+        // 4. 构建上下文
+        String systemPrompt = buildSystemPrompt(session);
+        List<Map<String, String>> historyMessages = getRecentMessages(sessionId, 20);
+
+        // 将用户消息加入历史
+        String userContent = content;
+        if (attachmentDesc.length() > 0) {
+            userContent += attachmentDesc.toString();
+        }
+
+        // 5. 调用 DeepSeek
+        String assistantReply;
+        int inputTokens = 0;
+        int outputTokens = 0;
+        try {
+            Map<String, Object> usageResult = deepSeekClient.chatWithUsage(systemPrompt, historyMessages, userContent);
+            assistantReply = (String) usageResult.get("content");
+            inputTokens = usageResult.get("inputTokens") != null ? ((Number) usageResult.get("inputTokens")).intValue() : 0;
+            outputTokens = usageResult.get("outputTokens") != null ? ((Number) usageResult.get("outputTokens")).intValue() : 0;
+        } catch (Exception e) {
+            log.error("DeepSeek chat failed", e);
+            assistantReply = "抱歉，我暂时无法回复，请稍后再试。";
+        }
+
+        // 6. 保存 assistant 回复
+        AgentMessage assistantMsg = new AgentMessage();
+        assistantMsg.setSessionId(sessionId);
+        assistantMsg.setRole("assistant");
+        assistantMsg.setContent(assistantReply);
+        assistantMsg.setContentType("text");
+        assistantMsg.setInputTokens(inputTokens);
+        assistantMsg.setOutputTokens(outputTokens);
+        messageMapper.insert(assistantMsg);
+
+        // 7. 更新会话统计
+        session.setTotalMessages(session.getTotalMessages() + 2);
+        session.setTotalInputTokens(session.getTotalInputTokens() + inputTokens);
+        session.setTotalOutputTokens(session.getTotalOutputTokens() + outputTokens);
+        sessionMapper.update(session);
+
+        // 8. 记录 token 用量
+        try {
+            recordTokenUsage(session.getTenantId(), "deepseek-chat", inputTokens, outputTokens);
+        } catch (Exception e) {
+            log.warn("Failed to record token usage", e);
+        }
+
+        return assistantMsg;
+    }
+
+    /**
+     * 生成摘要预览
+     */
+    public String generateSummaryPreview(Long sessionId) {
+        log.info("Generating summary preview: sessionId={}", sessionId);
+
+        AgentSession session = sessionMapper.findById(sessionId);
+        if (session == null) {
+            throw new RuntimeException("会话不存在");
+        }
+
+        List<AgentMessage> messages = messageMapper.listBySessionId(sessionId, 100, 0);
+        if (messages.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder conversation = new StringBuilder();
+        for (AgentMessage msg : messages) {
+            conversation.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
+        }
+
+        String prompt = "请根据以下对话内容，生成一份结构化的需求摘要。摘要应包含：\n" +
+                "1. 项目背景概述\n" +
+                "2. 核心需求列表（按优先级排列）\n" +
+                "3. 功能描述要点\n" +
+                "4. 特殊要求或约束\n\n" +
+                "对话内容：\n" + conversation.toString() + "\n\n" +
+                "请用中文输出，格式清晰，约500字。";
+
+        try {
+            Map<String, Object> result = deepSeekClient.chatWithUsage(
+                    "你是一个专业的需求分析师，擅长从对话中提炼结构化需求文档。", null, prompt);
+            return (String) result.get("content");
+        } catch (Exception e) {
+            log.error("Failed to generate summary preview", e);
+            throw new RuntimeException("生成摘要失败");
+        }
+    }
+
+    /**
+     * 确认并结束会话
+     */
+    @Transactional
+    public AgentSession confirmAndEnd(Long sessionId) {
+        log.info("Confirming and ending session: sessionId={}", sessionId);
+
+        AgentSession session = sessionMapper.findById(sessionId);
+        if (session == null) {
+            throw new RuntimeException("会话不存在");
+        }
+        if (!"active".equals(session.getStatus())) {
+            throw new RuntimeException("会话已结束");
+        }
+
+        // 生成最终摘要
+        try {
+            String summary = generateSummaryPreview(sessionId);
+            session.setSummaryText(summary);
+        } catch (Exception e) {
+            log.warn("Failed to generate final summary", e);
+        }
+
+        session.setStatus("ended");
+        session.setEndedAt(LocalDateTime.now());
+        session.setEndedBy("customer");
+        sessionMapper.update(session);
+
+        return session;
+    }
+
+    /**
+     * 终止会话（运营方操作）
+     */
+    @Transactional
+    public AgentSession terminateSession(Long sessionId) {
+        log.info("Terminating session: sessionId={}", sessionId);
+
+        AgentSession session = sessionMapper.findById(sessionId);
+        if (session == null) {
+            throw new RuntimeException("会话不存在");
+        }
+        if (!"active".equals(session.getStatus())) {
+            throw new RuntimeException("会话已结束");
+        }
+
+        // 生成已有内容的摘要
+        try {
+            String summary = generateSummaryPreview(sessionId);
+            session.setSummaryText(summary);
+        } catch (Exception e) {
+            log.warn("Failed to generate termination summary", e);
+        }
+
+        session.setStatus("terminated");
+        session.setEndedAt(LocalDateTime.now());
+        session.setEndedBy("operator");
+        sessionMapper.update(session);
+
+        return session;
+    }
+
+    /**
+     * 根据 publicToken 获取会话
+     */
+    public AgentSession getByPublicToken(String publicToken) {
+        return sessionMapper.findByPublicToken(publicToken);
+    }
+
+    /**
+     * 获取会话详情
+     */
+    public AgentSession getSession(Long sessionId) {
+        return sessionMapper.findById(sessionId);
+    }
+
+    /**
+     * 获取会话消息列表
+     */
+    public List<AgentMessage> getMessages(Long sessionId, int limit, int offset) {
+        return messageMapper.listBySessionId(sessionId, limit, offset);
+    }
+
+    /**
+     * 获取项目下的会话列表
+     */
+    public List<AgentSession> listByProject(Long projectId) {
+        return sessionMapper.listByProjectId(projectId);
+    }
+
+    // ==================== 内部方法 ====================
+
+    /**
+     * 处理背景材料，生成背景摘要
+     */
+    private String processBackgroundMaterials(List<BackgroundTextItem> backgroundTexts,
+                                              List<Long> attachmentIds) {
+        StringBuilder allMaterials = new StringBuilder();
+        int totalChars = 0;
+        int maxChars = 8000;
+
+        // 收集文本内容
+        if (backgroundTexts != null) {
+            for (BackgroundTextItem item : backgroundTexts) {
+                String text = "[" + item.getLabel() + "]\n" + item.getContent();
+                if (totalChars + text.length() > maxChars) {
+                    text = text.substring(0, Math.max(0, maxChars - totalChars)) + "...(已截断)";
+                }
+                allMaterials.append("\n\n").append(text);
+                totalChars += text.length();
+                if (totalChars >= maxChars) {
+                    break;
+                }
+            }
+        }
+
+        // 处理附件
+        if (attachmentIds != null && totalChars < maxChars) {
+            for (Long attachmentId : attachmentIds) {
+                try {
+                    String desc = processAttachment(attachmentId);
+                    if (desc != null && !desc.isEmpty()) {
+                        String text = "[附件 " + attachmentId + " 描述]\n" + desc;
+                        if (totalChars + text.length() > maxChars) {
+                            text = text.substring(0, Math.max(0, maxChars - totalChars)) + "...(已截断)";
+                        }
+                        allMaterials.append("\n\n").append(text);
+                        totalChars += text.length();
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to process background attachment: id={}", attachmentId, e);
+                }
+                if (totalChars >= maxChars) {
+                    break;
+                }
+            }
+        }
+
+        if (allMaterials.length() == 0) {
+            return "";
+        }
+
+        // 调用 DeepSeek 生成背景摘要
+        String prompt = "请根据以下背景材料，生成一份约500字的项目背景摘要。" +
+                "摘要应提炼关键信息，包括：项目类型、业务领域、核心目标、主要功能需求等。\n\n" +
+                "背景材料：\n" + allMaterials.toString();
+
+        try {
+            Map<String, Object> result = deepSeekClient.chatWithUsage(
+                    "你是一个专业的项目分析师，擅长从杂乱的背景材料中提炼关键信息。", null, prompt);
+            return (String) result.get("content");
+        } catch (Exception e) {
+            log.error("Failed to generate background summary", e);
+            return allMaterials.toString();
+        }
+    }
+
+    /**
+     * 处理单个附件
+     */
+    private String processAttachment(Long attachmentId) {
+        // 查询附件信息
+        Map<String, Object> attachment = attachmentMapper.findById(attachmentId);
+        if (attachment == null) {
+            log.warn("Attachment not found: id={}", attachmentId);
+            return null;
+        }
+
+        String fileType = (String) attachment.get("fileType");
+        String objectName = (String) attachment.get("objectName");
+
+        // 如果是图片，调用 Qwen VL 生成描述
+        if (isImageFile(fileType)) {
+            try {
+                String imageUrl = minioService.getPresignedUrl(objectName);
+                return qwenClient.describeImage(imageUrl);
+            } catch (Exception e) {
+                log.error("Failed to describe image: attachmentId={}", attachmentId, e);
+                return "[图片附件，AI 描述生成失败]";
+            }
+        }
+
+        // 如果是文档，提取文本（模拟）
+        if (isDocumentFile(fileType)) {
+            try {
+                return extractTextFromDocument(objectName);
+            } catch (Exception e) {
+                log.error("Failed to extract text from document: attachmentId={}", attachmentId, e);
+                return "[文档附件，文本提取失败]";
+            }
+        }
+
+        return "[不支持的附件类型: " + fileType + "]";
+    }
+
+    /**
+     * 判断是否为图片文件
+     */
+    private boolean isImageFile(String fileType) {
+        if (fileType == null) {
+            return false;
+        }
+        String lower = fileType.toLowerCase();
+        return lower.startsWith("image/") || lower.equals("jpg") || lower.equals("jpeg")
+                || lower.equals("png") || lower.equals("gif") || lower.equals("webp")
+                || lower.equals("bmp");
+    }
+
+    /**
+     * 判断是否为文档文件
+     */
+    private boolean isDocumentFile(String fileType) {
+        if (fileType == null) {
+            return false;
+        }
+        String lower = fileType.toLowerCase();
+        return lower.equals("application/pdf") || lower.equals("pdf")
+                || lower.startsWith("application/vnd.openxmlformats-officedocument")
+                || lower.startsWith("application/msword")
+                || lower.equals("doc") || lower.equals("docx") || lower.equals("xls")
+                || lower.equals("xlsx") || lower.equals("ppt") || lower.equals("pptx")
+                || lower.equals("txt");
+    }
+
+    /**
+     * 从文档中提取文本（模拟实现，实际需要 PDFBox/POI）
+     */
+    private String extractTextFromDocument(String objectName) {
+        // TODO: 实际项目中使用 PDFBox 或 Apache POI 提取文本
+        // 当前为模拟实现
+        log.info("Extracting text from document: {} (simulated)", objectName);
+        return "[文档内容已上传，具体文本提取需集成 PDFBox/POI 库]";
+    }
+
+    /**
+     * 构建 System Prompt
+     */
+    private String buildSystemPrompt(AgentSession session) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是一个专业的项目需求顾问 AI 助手。你的职责是：\n");
+        prompt.append("1. 通过对话引导客户清晰地描述他们的项目需求\n");
+        prompt.append("2. 提出有针对性的问题，帮助客户梳理需求细节\n");
+        prompt.append("3. 对客户的需求进行专业分析和建议\n");
+        prompt.append("4. 最终生成结构化的需求摘要文档\n\n");
+        prompt.append("注意事项：\n");
+        prompt.append("- 使用友好、专业的语气\n");
+        prompt.append("- 每次回复控制在合理长度，避免过长\n");
+        prompt.append("- 主动引导对话方向，不要被动等待\n");
+        prompt.append("- 对技术细节给出专业建议\n");
+
+        // 添加项目上下文
+        if (session.getProjectContext() != null && !session.getProjectContext().isEmpty()) {
+            prompt.append("\n\n【项目上下文】\n");
+            prompt.append(session.getProjectContext());
+        }
+
+        // 添加背景资料
+        if (session.getBackgroundContext() != null && !session.getBackgroundContext().isEmpty()) {
+            prompt.append("\n\n【背景资料摘要】\n");
+            prompt.append("以下是从客户提供的背景材料中提取的摘要信息，请在对话中参考：\n");
+            prompt.append(session.getBackgroundContext());
+        }
+
+        return prompt.toString();
+    }
+
+    /**
+     * 生成开场白
+     */
+    private String generateOpeningMessage(AgentSession session) {
+        if (session.getBackgroundContext() != null && !session.getBackgroundContext().isEmpty()) {
+            // 基于背景生成个性化开场白
+            String prompt = "根据以下项目背景摘要，生成一段友好的开场白（约100字）。" +
+                    "开场白应：\n" +
+                    "1. 表明你已经了解了客户的项目背景\n" +
+                    "2. 简要提及你理解到的关键信息\n" +
+                    "3. 引导客户开始描述具体需求\n\n" +
+                    "背景摘要：\n" + session.getBackgroundContext();
+
+            try {
+                Map<String, Object> result = deepSeekClient.chatWithUsage(
+                        "你是一个专业的项目需求顾问 AI 助手。", null, prompt);
+                return (String) result.get("content");
+            } catch (Exception e) {
+                log.error("Failed to generate personalized opening", e);
+            }
+        }
+
+        // 通用开场白
+        return "您好！我是您的项目需求顾问助手。我会通过对话帮助您梳理和描述项目需求。\n\n" +
+                "请告诉我，您希望做一个什么样的项目？可以从以下几个方面开始：\n" +
+                "- 这个项目要解决什么问题？\n" +
+                "- 主要面向哪些用户？\n" +
+                "- 您期望实现的核心功能是什么？\n\n" +
+                "不用一次说全，我们可以一步步来聊。";
+    }
+
+    /**
+     * 获取最近的历史消息
+     */
+    private List<Map<String, String>> getRecentMessages(Long sessionId, int limit) {
+        List<AgentMessage> messages = messageMapper.listBySessionId(sessionId, limit, 0);
+        List<Map<String, String>> history = new ArrayList<>();
+        for (AgentMessage msg : messages) {
+            Map<String, String> item = new HashMap<>();
+            item.put("role", msg.getRole());
+            item.put("content", msg.getContent());
+            history.add(item);
+        }
+        return history;
+    }
+
+    /**
+     * 生成 48 字符随机 publicToken
+     */
+    private String generatePublicToken() {
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        String random = UUID.randomUUID().toString().replace("-", "");
+        return uuid + random.substring(0, 48 - uuid.length());
+    }
+
+    /**
+     * 记录 token 用量
+     */
+    private void recordTokenUsage(Long tenantId, String model, int inputTokens, int outputTokens) {
+        try {
+            Map<String, Object> usage = new HashMap<>();
+            usage.put("tenantId", tenantId);
+            usage.put("model", model);
+            usage.put("inputTokens", inputTokens);
+            usage.put("outputTokens", outputTokens);
+            usage.put("createdAt", LocalDateTime.now());
+            tokenUsageMapper.insert(usage);
+        } catch (Exception e) {
+            log.warn("Failed to record token usage", e);
+        }
+    }
+}

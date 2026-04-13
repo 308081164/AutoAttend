@@ -21,6 +21,7 @@ import NexusConsoleView from '../views/NexusConsoleView.vue'
 import LabView from '../views/LabView.vue'
 import CloudDevHubView from '../views/CloudDevHubView.vue'
 import ClientBoardView from '../views/ClientBoardView.vue'
+import AgentChatView from '../views/AgentChatView.vue'
 
 Vue.use(VueRouter)
 
@@ -144,6 +145,12 @@ const routes = [
     path: '/client-board/:token',
     name: 'client-board',
     component: ClientBoardView,
+    meta: { public: true, bareLayout: true }
+  },
+  {
+    path: '/agent/:publicToken',
+    name: 'agent-chat',
+    component: AgentChatView,
     meta: { public: true, bareLayout: true }
   }
 ]

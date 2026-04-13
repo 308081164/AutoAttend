@@ -131,6 +131,10 @@
             <input v-model="moduleEntryMode" type="radio" value="ai" />
             {{ $t('quote.moduleEntryAi') }}
           </label>
+          <label class="mode-opt-inline">
+            <input v-model="moduleEntryMode" type="radio" value="agent" />
+            Agent 智能引导
+          </label>
         </div>
 
         <div v-show="moduleEntryMode === 'ai'" class="quote-ai-panel">
@@ -159,6 +163,70 @@
             {{ aiModuleParsing ? $t('quote.aiModuleParsing') : $t('quote.aiModuleParseBtn') }}
           </button>
           <p v-if="aiModuleMsg" :class="aiModuleOk ? 'ok' : 'err'" style="margin-top:10px">{{ aiModuleMsg }}</p>
+        </div>
+
+        <!-- Agent 智能引导面板 -->
+        <div v-show="moduleEntryMode === 'agent'" class="quote-agent-panel">
+          <p class="hint">通过 Agent 智能引导客户自助描述需求，AI 将整理为结构化文本后自动填充到上方输入框。</p>
+
+          <!-- 当前活跃会话 -->
+          <div v-if="activeAgentSession" class="agent-session-card">
+            <div class="agent-session-header">
+              <span class="agent-status" :class="activeAgentSession.status === 'active' ? 'agent-status--active' : 'agent-status--ended'">
+                {{ activeAgentSession.status === 'active' ? '进行中' : '已结束' }}
+              </span>
+              <span class="agent-meta">消息 {{ activeAgentSession.totalMessages || 0 }} 条</span>
+              <span class="agent-meta">Token {{ (activeAgentSession.totalInputTokens || 0) + (activeAgentSession.totalOutputTokens || 0) }}</span>
+            </div>
+            <div class="agent-share-row">
+              <input class="inp" :value="buildAgentShareLink(activeAgentSession.publicToken)" readonly style="flex:1" />
+              <button type="button" class="btn secondary" @click="copyAgentShareLink">复制链接</button>
+            </div>
+            <div class="agent-actions">
+              <button type="button" class="btn secondary" @click="openAgentChat(activeAgentSession.publicToken)">查看对话</button>
+              <button v-if="activeAgentSession.status === 'active'" type="button" class="btn danger" @click="terminateAgentSession(activeAgentSession.id)">终止会话</button>
+              <button v-if="activeAgentSession.status !== 'active' && activeAgentSession.summaryText" type="button" class="btn primary" @click="applyAgentSummary(activeAgentSession)">应用摘要到 AI 录入</button>
+            </div>
+          </div>
+
+          <!-- 无活跃会话 -->
+          <div v-else class="agent-empty">
+            <p>暂无进行中的 Agent 会话</p>
+            <button type="button" class="btn primary" @click="showCreateAgentModal = true">新建 Agent 会话</button>
+          </div>
+
+          <!-- 已结束的会话列表 -->
+          <div v-if="endedAgentSessions.length" class="agent-ended-list">
+            <h4 style="margin:16px 0 8px">已结束的会话</h4>
+            <div v-for="s in endedAgentSessions" :key="'aes-' + s.id" class="agent-ended-item">
+              <span>{{ formatDate(s.createdAt) }}</span>
+              <span class="agent-meta">{{ s.totalMessages || 0 }} 条消息</span>
+              <button type="button" class="btn secondary small" @click="viewHistorySession(s)">查看</button>
+              <button v-if="s.summaryText" type="button" class="btn secondary small" @click="applyAgentSummary(s)">应用</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 创建 Agent 会话弹窗 -->
+        <div v-if="showCreateAgentModal" class="modal-overlay" @click.self="showCreateAgentModal = false">
+          <div class="modal-card" style="max-width:600px">
+            <h3>新建 Agent 会话</h3>
+            <p class="hint" style="margin-bottom:12px">可选：导入前期与客户的沟通记录或附件，让 Agent 提前了解需求背景。</p>
+            <div class="form-group">
+              <label>沟通记录文本（可选）</label>
+              <textarea v-model="agentBgText" class="textarea" rows="4" placeholder="粘贴微信聊天记录、电话纪要等..."></textarea>
+            </div>
+            <div class="form-group">
+              <label>已有附件（可选）</label>
+              <p class="hint">暂不支持在此选择附件，请先在项目中上传附件后再创建会话。</p>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn secondary" @click="showCreateAgentModal = false">取消</button>
+              <button type="button" class="btn primary" :disabled="agentCreating" @click="createAgentSession">
+                {{ agentCreating ? '创建中...' : '创建会话' }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div v-for="(mod, mi) in modules" :key="'m-' + mi" class="module-block">
@@ -1050,6 +1118,12 @@ export default {
       aiAcceptanceOk: false,
       aiAcceptanceMergeMode: 'replace',
       aiFileName: '',
+      // Agent 智能引导
+      activeAgentSession: null,
+      endedAgentSessions: [],
+      showCreateAgentModal: false,
+      agentBgText: '',
+      agentCreating: false,
       deliverableOptions: [
         { k: 'source_code', l: '源代码' },
         { k: 'deploy_doc', l: '部署文档' },
@@ -1163,6 +1237,11 @@ export default {
   watch: {
     '$route.params.id' () {
       this.init()
+    },
+    moduleEntryMode (val) {
+      if (val === 'agent' && this.form.id) {
+        this.fetchAgentSessions()
+      }
     },
       // 依据用户在“报价抬头/主体模板”选择的主体名，同步到 AI 合同的“我方公司名”
       'form.quoteSubjectMode': {
@@ -2094,6 +2173,77 @@ export default {
       } finally {
         this.aiAcceptanceParsing = false
       }
+    },
+    // ==================== Agent 智能引导 ====================
+    async fetchAgentSessions () {
+      try {
+        const resp = await this.$http.get(`/admin/agent/quote/projects/${this.form.id}/agent-sessions`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const items = resp.data.data.items || []
+          this.activeAgentSession = items.find(s => s.status === 'active') || null
+          this.endedAgentSessions = items.filter(s => s.status !== 'active')
+        }
+      } catch (e) { console.error('Failed to fetch agent sessions', e) }
+    },
+    buildAgentShareLink (publicToken) {
+      if (!publicToken) return ''
+      return window.location.origin + '/agent/' + publicToken
+    },
+    copyAgentShareLink () {
+      const link = this.buildAgentShareLink(this.activeAgentSession && this.activeAgentSession.publicToken)
+      if (link && navigator.clipboard) {
+        navigator.clipboard.writeText(link).then(() => alert('链接已复制'))
+      }
+    },
+    openAgentChat (publicToken) {
+      window.open('/agent/' + publicToken, '_blank')
+    },
+    async terminateAgentSession (sessionId) {
+      if (!confirm('确定要终止此会话吗？Agent 将基于已有对话生成需求摘要。')) return
+      try {
+        const resp = await this.$http.post(`/admin/agent/sessions/${sessionId}/terminate`)
+        if (resp.data && resp.data.code === 0) {
+          alert('会话已终止')
+          await this.fetchAgentSessions()
+        } else {
+          alert((resp.data && resp.data.message) || '操作失败')
+        }
+      } catch (e) { alert('操作失败') }
+    },
+    async applyAgentSummary (session) {
+      if (session && session.summaryText) {
+        this.aiRequirementText = session.summaryText
+        this.moduleEntryMode = 'ai'
+        alert('需求摘要已填充到 AI 录入文本框')
+      }
+    },
+    viewHistorySession (session) {
+      if (session && session.publicToken) {
+        window.open('/agent/' + session.publicToken, '_blank')
+      }
+    },
+    async createAgentSession () {
+      this.agentCreating = true
+      try {
+        const body = {}
+        const text = (this.agentBgText || '').trim()
+        if (text) {
+          body.backgroundTexts = [{ label: '沟通记录', content: text }]
+        }
+        const resp = await this.$http.post(`/admin/agent/quote/projects/${this.form.id}/agent-sessions`, body)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.showCreateAgentModal = false
+          this.agentBgText = ''
+          await this.fetchAgentSessions()
+        } else {
+          alert((resp.data && resp.data.message) || '创建失败')
+        }
+      } catch (e) { alert('创建失败，请稍后重试') }
+      finally { this.agentCreating = false }
+    },
+    formatDate (d) {
+      if (!d) return ''
+      return String(d).slice(0, 16).replace('T', ' ')
     },
     async runAiParseModules () {
       const text = (this.aiRequirementText || '').trim()
@@ -3845,4 +3995,26 @@ label.block {
     text-align: center;
   }
 }
+/* Agent 智能引导面板 */
+.quote-agent-panel { padding: 16px 0; }
+.agent-session-card { border: 1px solid #e5e6eb; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.agent-session-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.agent-status { display: inline-block; padding: 2px 10px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+.agent-status--active { background: #e8ffea; color: #00b42a; }
+.agent-status--ended { background: #f2f3f5; color: #8f959e; }
+.agent-meta { font-size: 12px; color: #8f959e; }
+.agent-share-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.agent-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.agent-empty { text-align: center; padding: 32px; color: #8f959e; }
+.agent-empty p { margin-bottom: 12px; }
+.agent-ended-list { margin-top: 8px; }
+.agent-ended-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #e5e6eb; border-radius: 6px; margin-bottom: 6px; font-size: 13px; }
+.agent-ended-item span:first-child { flex: 1; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.modal-card { background: #fff; border-radius: 12px; padding: 24px; width: 90%; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+.modal-card h3 { margin: 0 0 16px; font-size: 16px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.btn.danger { background: #f54a45; color: #fff; }
+.btn.danger:hover { background: #d63530; }
+.btn.small { padding: 4px 10px; font-size: 12px; }
 </style>
