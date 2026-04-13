@@ -11,12 +11,14 @@ import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.client.QwenClient;
 import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
+import org.example.atuo_attend_backend.collab.domain.BizAttachment;
 import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
 import org.example.atuo_attend_backend.collab.service.MinioService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -27,38 +29,40 @@ import java.util.*;
 @Service
 public class AgentSessionService {
 
-    @Autowired
-    private AgentSessionMapper sessionMapper;
-
-    @Autowired
-    private AgentMessageMapper messageMapper;
-
-    @Autowired
-    private BizAttachmentMapper attachmentMapper;
-
-    @Autowired
-    private MinioService minioService;
-
-    @Autowired
-    private DeepSeekClient deepSeekClient;
-
-    @Autowired
-    private QwenClient qwenClient;
-
-    @Autowired
-    private AiAnalysisConfigService configService;
-
-    @Autowired
-    private AiTokenUsageMapper tokenUsageMapper;
-
+    private final AgentSessionMapper sessionMapper;
+    private final AgentMessageMapper messageMapper;
+    private final BizAttachmentMapper attachmentMapper;
+    private final MinioService minioService;
+    private final DeepSeekClient deepSeekClient;
+    private final QwenClient qwenClient;
+    private final AiAnalysisConfigService configService;
+    private final AiTokenUsageMapper tokenUsageMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public AgentSessionService(AgentSessionMapper sessionMapper,
+                               AgentMessageMapper messageMapper,
+                               BizAttachmentMapper attachmentMapper,
+                               MinioService minioService,
+                               DeepSeekClient deepSeekClient,
+                               QwenClient qwenClient,
+                               AiAnalysisConfigService configService,
+                               AiTokenUsageMapper tokenUsageMapper) {
+        this.sessionMapper = sessionMapper;
+        this.messageMapper = messageMapper;
+        this.attachmentMapper = attachmentMapper;
+        this.minioService = minioService;
+        this.deepSeekClient = deepSeekClient;
+        this.qwenClient = qwenClient;
+        this.configService = configService;
+        this.tokenUsageMapper = tokenUsageMapper;
+    }
 
     // ==================== 会话生命周期 ====================
 
     /**
      * 创建 Agent 会话
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public AgentSession createSession(Long tenantId, Long projectId, String projectContext,
                                       List<BackgroundTextItem> backgroundTexts,
                                       List<Long> backgroundAttachmentIds) {
@@ -137,7 +141,7 @@ public class AgentSessionService {
     /**
      * 发送消息
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public AgentMessage sendMessage(Long sessionId, String content, List<Long> attachmentIds) {
         log.info("Sending message: sessionId={}", sessionId);
 
@@ -265,7 +269,7 @@ public class AgentSessionService {
     /**
      * 确认并结束会话
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public AgentSession confirmAndEnd(Long sessionId) {
         log.info("Confirming and ending session: sessionId={}", sessionId);
 
@@ -296,7 +300,7 @@ public class AgentSessionService {
     /**
      * 终止会话（运营方操作）
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public AgentSession terminateSession(Long sessionId) {
         log.info("Terminating session: sessionId={}", sessionId);
 
@@ -350,6 +354,68 @@ public class AgentSessionService {
      */
     public List<AgentSession> listByProject(Long projectId) {
         return sessionMapper.listByProjectId(projectId);
+    }
+
+    // ==================== 附件操作 ====================
+
+    /**
+     * 上传附件到会话
+     */
+    public Map<String, Object> uploadAttachment(Long sessionId, Long projectId,
+                                                String originalFilename, String contentType,
+                                                long size, MultipartFile file) {
+        try {
+            // 上传到 MinIO，返回实际 storageKey
+            String storageKey = minioService.upload(
+                    projectId != null ? projectId : 0L, sessionId,
+                    originalFilename, file.getInputStream(), file.getSize());
+
+            // 保存附件记录
+            BizAttachment attachment = new BizAttachment();
+            attachment.setProjectId(projectId != null ? projectId : 0L);
+            attachment.setRecordId(sessionId);
+            attachment.setFileName(originalFilename);
+            attachment.setFileSize(size);
+            attachment.setStorageKey(storageKey);
+            attachmentMapper.insert(attachment);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("id", attachment.getId());
+            result.put("fileName", originalFilename);
+            result.put("fileSize", size);
+            result.put("fileType", contentType);
+            result.put("storageKey", storageKey);
+
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to upload attachment: sessionId={}", sessionId, e);
+            throw new RuntimeException("上传附件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取附件预览信息
+     */
+    public Map<String, Object> getAttachmentPreview(Long id) {
+        BizAttachment attachment = attachmentMapper.findById(id);
+        if (attachment == null) {
+            return null;
+        }
+
+        try {
+            String previewUrl = minioService.generatePresignedUrl(attachment.getStorageKey(), 3600);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("id", attachment.getId());
+            result.put("fileName", attachment.getFileName());
+            result.put("fileSize", attachment.getFileSize());
+            result.put("previewUrl", previewUrl);
+
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to get attachment preview: id={}", id, e);
+            throw new RuntimeException("获取附件预览失败: " + e.getMessage());
+        }
     }
 
     // ==================== 内部方法 ====================
@@ -424,19 +490,19 @@ public class AgentSessionService {
      */
     private String processAttachment(Long attachmentId) {
         // 查询附件信息
-        Map<String, Object> attachment = attachmentMapper.findById(attachmentId);
+        BizAttachment attachment = attachmentMapper.findById(attachmentId);
         if (attachment == null) {
             log.warn("Attachment not found: id={}", attachmentId);
             return null;
         }
 
-        String fileType = (String) attachment.get("fileType");
-        String objectName = (String) attachment.get("objectName");
+        String fileName = attachment.getFileName();
+        String storageKey = attachment.getStorageKey();
 
         // 如果是图片，调用 Qwen VL 生成描述
-        if (isImageFile(fileType)) {
+        if (isImageFile(fileName)) {
             try {
-                String imageUrl = minioService.getPresignedUrl(objectName);
+                String imageUrl = minioService.generatePresignedUrl(storageKey, 3600);
                 return qwenClient.describeImage(imageUrl);
             } catch (Exception e) {
                 log.error("Failed to describe image: attachmentId={}", attachmentId, e);
@@ -445,54 +511,53 @@ public class AgentSessionService {
         }
 
         // 如果是文档，提取文本（模拟）
-        if (isDocumentFile(fileType)) {
+        if (isDocumentFile(fileName)) {
             try {
-                return extractTextFromDocument(objectName);
+                return extractTextFromDocument(storageKey);
             } catch (Exception e) {
                 log.error("Failed to extract text from document: attachmentId={}", attachmentId, e);
                 return "[文档附件，文本提取失败]";
             }
         }
 
-        return "[不支持的附件类型: " + fileType + "]";
+        return "[不支持的附件类型]";
     }
 
     /**
      * 判断是否为图片文件
      */
-    private boolean isImageFile(String fileType) {
-        if (fileType == null) {
+    private boolean isImageFile(String fileName) {
+        if (fileName == null) {
             return false;
         }
-        String lower = fileType.toLowerCase();
-        return lower.startsWith("image/") || lower.equals("jpg") || lower.equals("jpeg")
-                || lower.equals("png") || lower.equals("gif") || lower.equals("webp")
-                || lower.equals("bmp");
+        String lower = fileName.toLowerCase();
+        return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+                || lower.endsWith(".gif") || lower.endsWith(".webp")
+                || lower.endsWith(".bmp");
     }
 
     /**
      * 判断是否为文档文件
      */
-    private boolean isDocumentFile(String fileType) {
-        if (fileType == null) {
+    private boolean isDocumentFile(String fileName) {
+        if (fileName == null) {
             return false;
         }
-        String lower = fileType.toLowerCase();
-        return lower.equals("application/pdf") || lower.equals("pdf")
-                || lower.startsWith("application/vnd.openxmlformats-officedocument")
-                || lower.startsWith("application/msword")
-                || lower.equals("doc") || lower.equals("docx") || lower.equals("xls")
-                || lower.equals("xlsx") || lower.equals("ppt") || lower.equals("pptx")
-                || lower.equals("txt");
+        String lower = fileName.toLowerCase();
+        return lower.endsWith(".pdf")
+                || lower.endsWith(".doc") || lower.endsWith(".docx")
+                || lower.endsWith(".xls") || lower.endsWith(".xlsx")
+                || lower.endsWith(".ppt") || lower.endsWith(".pptx")
+                || lower.endsWith(".txt");
     }
 
     /**
      * 从文档中提取文本（模拟实现，实际需要 PDFBox/POI）
      */
-    private String extractTextFromDocument(String objectName) {
+    private String extractTextFromDocument(String storageKey) {
         // TODO: 实际项目中使用 PDFBox 或 Apache POI 提取文本
         // 当前为模拟实现
-        log.info("Extracting text from document: {} (simulated)", objectName);
+        log.info("Extracting text from document: {} (simulated)", storageKey);
         return "[文档内容已上传，具体文本提取需集成 PDFBox/POI 库]";
     }
 

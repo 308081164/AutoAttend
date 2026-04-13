@@ -5,7 +5,10 @@ import java.util.List;
 /**
  * Agent 模块 DTO 集合
  */
-public class AgentModels {
+public final class AgentModels {
+
+    private AgentModels() {
+    }
 
     /**
      * 创建会话请求

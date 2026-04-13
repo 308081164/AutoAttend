@@ -259,12 +259,14 @@ export default {
       this.loading = true
       this.error = ''
       try {
-        const res = await this.$http.get(`/api/public/agent/sessions/${this.token}`)
-        const data = res.data || res
-        this.session = data.session || data
-        this.messages = data.messages || []
-        this.tenantName = data.tenantName || (this.session && this.session.tenantName) || ''
-        this.projectName = data.projectName || (this.session && this.session.projectName) || ''
+        const resp = await this.$http.get(`/public/agent/sessions/${encodeURIComponent(this.token)}`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const data = resp.data.data
+          this.session = data.session || data
+          this.messages = data.messages || []
+          this.tenantName = data.tenantName || (this.session && this.session.tenantName) || ''
+          this.projectName = data.projectName || (this.session && this.session.projectName) || ''
+        }
         this.$nextTick(() => this.scrollToBottom())
       } catch (err) {
         const msg = (err.response && err.response.data && err.response.data.message) || err.message || '加载会话失败'
@@ -315,24 +317,26 @@ export default {
         if (optimisticMsg.attachments.length) {
           payload.attachmentIds = optimisticMsg.attachments.map(a => a.id)
         }
-        const res = await this.$http.post(
-          `/api/public/agent/sessions/${this.token}/messages`,
+        const resp = await this.$http.post(
+          `/public/agent/sessions/${encodeURIComponent(this.token)}/messages`,
           payload
         )
-        const data = res.data || res
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const data = resp.data.data
 
-        // 替换乐观消息为服务端消息
-        const idx = this.messages.findIndex(m => m.id === optimisticMsg.id)
-        if (idx !== -1) {
-          this.messages.splice(idx, 1, data.userMessage || optimisticMsg)
-        }
+          // 替换乐观消息为服务端消息
+          const idx = this.messages.findIndex(m => m.id === optimisticMsg.id)
+          if (idx !== -1) {
+            this.messages.splice(idx, 1, data.userMessage || optimisticMsg)
+          }
 
-        // 添加 assistant 回复
-        if (data.assistantMessage) {
-          this.messages.push(data.assistantMessage)
-        } else if (data.messages) {
-          // 如果返回的是完整消息列表，则更新
-          this.messages = data.messages
+          // 添加 assistant 回复
+          if (data.assistantMessage) {
+            this.messages.push(data.assistantMessage)
+          } else if (data.messages) {
+            // 如果返回的是完整消息列表，则更新
+            this.messages = data.messages
+          }
         }
 
         this.$nextTick(() => this.scrollToBottom())
@@ -362,22 +366,24 @@ export default {
       formData.append('file', file)
 
       try {
-        const res = await this.$http.post(
-          `/api/public/agent/sessions/${this.token}/attachments`,
+        const resp = await this.$http.post(
+          `/public/agent/sessions/${encodeURIComponent(this.token)}/attachments`,
           formData,
           { headers: { 'Content-Type': 'multipart/form-data' } }
         )
-        const data = res.data || res
-        this.attachments.push({
-          id: data.id || data.attachmentId,
-          fileName: data.fileName || file.name,
-          fileSize: data.fileSize || file.size,
-          type: data.type || file.type,
-          url: data.url,
-          thumbnailUrl: data.thumbnailUrl,
-          tempId: 'att-' + Date.now()
-        })
-        this.selectedAttachmentIds.push(data.id || data.attachmentId)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const data = resp.data.data
+          this.attachments.push({
+            id: data.id || data.attachmentId,
+            fileName: data.fileName || file.name,
+            fileSize: data.fileSize || file.size,
+            type: data.type || file.type,
+            url: data.url,
+            thumbnailUrl: data.thumbnailUrl,
+            tempId: 'att-' + Date.now()
+          })
+          this.selectedAttachmentIds.push(data.id || data.attachmentId)
+        }
       } catch (err) {
         const msg = (err.response && err.response.data && err.response.data.message) || err.message || '上传失败'
         this.error = msg
@@ -461,13 +467,15 @@ export default {
       this.error = ''
 
       try {
-        const res = await this.$http.post(
-          `/api/public/agent/sessions/${this.token}/finish`,
+        const resp = await this.$http.post(
+          `/public/agent/sessions/${encodeURIComponent(this.token)}/finish`,
           { confirmed: false }
         )
-        const data = res.data || res
-        this.finishPreview = data.summary || data
-        this.showFinishModal = true
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const data = resp.data.data
+          this.finishPreview = data.summary || data
+          this.showFinishModal = true
+        }
       } catch (err) {
         const msg = (err.response && err.response.data && err.response.data.message) || err.message || '获取摘要失败'
         this.error = msg
@@ -484,21 +492,23 @@ export default {
       this.error = ''
 
       try {
-        await this.$http.post(
-          `/api/public/agent/sessions/${this.token}/finish`,
+        const resp = await this.$http.post(
+          `/public/agent/sessions/${encodeURIComponent(this.token)}/finish`,
           { confirmed: true }
         )
-        this.showFinishModal = false
-        this.finishPreview = null
+        if (resp.data && resp.data.code === 0) {
+          this.showFinishModal = false
+          this.finishPreview = null
 
-        // 添加系统消息
-        this.messages.push({
-          id: 'sys-' + Date.now(),
-          role: 'assistant',
-          content: '您的需求已成功提交，我们会尽快为您处理。感谢您的配合！',
-          createdAt: new Date().toISOString()
-        })
-        this.$nextTick(() => this.scrollToBottom())
+          // 添加系统消息
+          this.messages.push({
+            id: 'sys-' + Date.now(),
+            role: 'assistant',
+            content: '您的需求已成功提交，我们会尽快为您处理。感谢您的配合！',
+            createdAt: new Date().toISOString()
+          })
+          this.$nextTick(() => this.scrollToBottom())
+        }
       } catch (err) {
         const msg = (err.response && err.response.data && err.response.data.message) || err.message || '提交失败'
         this.error = msg
@@ -587,7 +597,7 @@ export default {
 
 <style scoped>
 /* ========== Design Tokens ========== */
-:root {
+.agent-chat-page {
   --lb-blue: #3370ff;
   --lb-green: #00b42a;
   --lb-bg: #f5f6f7;
@@ -737,10 +747,10 @@ export default {
   border: 3px solid var(--lb-border);
   border-top-color: var(--lb-blue);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: lb-spin 0.8s linear infinite;
 }
 
-@keyframes spin {
+@keyframes lb-spin {
   to { transform: rotate(360deg); }
 }
 
@@ -859,14 +869,14 @@ export default {
   height: 8px;
   background: var(--lb-blue);
   border-radius: 50%;
-  animation: bounce 1.4s ease-in-out infinite;
+  animation: lb-bounce 1.4s ease-in-out infinite;
 }
 
 .dot:nth-child(1) { animation-delay: 0s; }
 .dot:nth-child(2) { animation-delay: 0.2s; }
 .dot:nth-child(3) { animation-delay: 0.4s; }
 
-@keyframes bounce {
+@keyframes lb-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
   30% { transform: translateY(-8px); opacity: 1; }
 }

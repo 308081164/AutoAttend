@@ -2187,7 +2187,7 @@ export default {
     },
     buildAgentShareLink (publicToken) {
       if (!publicToken) return ''
-      return window.location.origin + '/agent/' + publicToken
+      return window.location.origin + '/agent/' + encodeURIComponent(publicToken)
     },
     copyAgentShareLink () {
       const link = this.buildAgentShareLink(this.activeAgentSession && this.activeAgentSession.publicToken)
@@ -2196,7 +2196,7 @@ export default {
       }
     },
     openAgentChat (publicToken) {
-      window.open('/agent/' + publicToken, '_blank')
+      window.open('/agent/' + encodeURIComponent(publicToken), '_blank')
     },
     async terminateAgentSession (sessionId) {
       if (!confirm('确定要终止此会话吗？Agent 将基于已有对话生成需求摘要。')) return
@@ -2219,7 +2219,7 @@ export default {
     },
     viewHistorySession (session) {
       if (session && session.publicToken) {
-        window.open('/agent/' + session.publicToken, '_blank')
+        window.open('/agent/' + encodeURIComponent(session.publicToken), '_blank')
       }
     },
     async createAgentSession () {
