@@ -73,6 +73,10 @@ public interface TenantMapper {
     @Select("SELECT COUNT(*) FROM aa_tenant WHERE status = 'suspended'")
     long countSuspendedTenants();
 
+    /** 仅查名称，避免依赖 aa_tenant 增量列（公开页在迁移未执行时仍可用） */
+    @Select("SELECT name FROM aa_tenant WHERE id = #{id}")
+    String findNameById(@Param("id") long id);
+
     @Update("UPDATE aa_tenant SET referrer_tenant_id = #{referrerTenantId} WHERE id = #{id} AND referrer_tenant_id IS NULL")
     int updateReferrerIfNull(@Param("id") long id, @Param("referrerTenantId") long referrerTenantId);
 

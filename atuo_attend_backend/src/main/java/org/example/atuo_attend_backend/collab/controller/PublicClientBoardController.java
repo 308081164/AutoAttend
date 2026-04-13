@@ -15,7 +15,6 @@ import org.example.atuo_attend_backend.collab.service.CollabTableService;
 import org.example.atuo_attend_backend.collab.service.MinioService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
-import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -25,6 +24,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -41,6 +42,8 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/public/client-board")
 public class PublicClientBoardController {
+
+    private static final Logger log = LoggerFactory.getLogger(PublicClientBoardController.class);
 
     private final ClientBoardShareService shareService;
     private final ClientBoardStatsService statsService;
@@ -87,9 +90,11 @@ public class PublicClientBoardController {
         }
         long tenantId = board.getTenantId();
 
-        // Tenant info
-        Tenant tenant = tenantMapper.findById(tenantId);
-        String tenantName = (tenant != null && tenant.getName() != null) ? tenant.getName() : "";
+        // 仅用 name 列，避免 aa_tenant 未跑迁移时 findById 因缺列失败导致 502
+        String tenantName = tenantMapper.findNameById(tenantId);
+        if (tenantName == null) {
+            tenantName = "";
+        }
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("tenantName", tenantName);
@@ -101,10 +106,10 @@ public class PublicClientBoardController {
         data.put("aiPurpose", board.getAiPurpose() != null ? board.getAiPurpose() : "issue_tracking");
 
         if (Boolean.TRUE.equals(data.get("showProgressDashboard"))) {
-            data.put("progress", TenantContext.runWithTenantId(tenantId, () -> statsService.buildIssueProgressStats(board.getProjectId())));
+            data.put("progress", safeIssueProgress(tenantId, board.getProjectId()));
         }
         if (Boolean.TRUE.equals(data.get("showFeatureBacklog"))) {
-            data.put("featureSummary", TenantContext.runWithTenantId(tenantId, () -> statsService.buildFeatureBacklogSummary(board.getProjectId(), 100)));
+            data.put("featureSummary", safeFeatureSummary(tenantId, board.getProjectId()));
         }
         return ApiResponse.ok(data);
     }
@@ -326,6 +331,27 @@ public class PublicClientBoardController {
     }
 
     // ==================== 辅助方法 ====================
+
+    private Map<String, Object> safeIssueProgress(long tenantId, long projectId) {
+        try {
+            return TenantContext.runWithTenantId(tenantId, () -> statsService.buildIssueProgressStats(projectId));
+        } catch (Exception e) {
+            log.warn("Client board progress stats failed tenantId={} projectId={}: {}", tenantId, projectId, e.toString());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("empty", true);
+            m.put("message", "统计数据暂不可用");
+            return m;
+        }
+    }
+
+    private java.util.List<Map<String, Object>> safeFeatureSummary(long tenantId, long projectId) {
+        try {
+            return TenantContext.runWithTenantId(tenantId, () -> statsService.buildFeatureBacklogSummary(projectId, 100));
+        } catch (Exception e) {
+            log.warn("Client board feature summary failed tenantId={} projectId={}: {}", tenantId, projectId, e.toString());
+            return java.util.List.of();
+        }
+    }
 
     private static boolean isImageFileName(String name) {
         if (name == null) return false;
