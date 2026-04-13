@@ -1,7 +1,6 @@
 package org.example.atuo_attend_backend.agent.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
 import org.example.atuo_attend_backend.agent.domain.AgentMessage;
 import org.example.atuo_attend_backend.agent.domain.AgentSession;
 import org.example.atuo_attend_backend.agent.dto.AgentModels.BackgroundTextItem;
@@ -9,25 +8,30 @@ import org.example.atuo_attend_backend.agent.mapper.AgentMessageMapper;
 import org.example.atuo_attend_backend.agent.mapper.AgentSessionMapper;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.client.QwenClient;
+import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
+import org.example.atuo_attend_backend.ai.mapper.AiAnalysisConfigMapper;
 import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
-import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.collab.domain.BizAttachment;
 import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
 import org.example.atuo_attend_backend.collab.service.MinioService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * Agent 会话服务 - 核心业务逻辑
  */
-@Slf4j
 @Service
 public class AgentSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(AgentSessionService.class);
+    private static final String PROVIDER_DEEPSEEK = "deepseek";
+    private static final String PROVIDER_QWEN = "qwen";
 
     private final AgentSessionMapper sessionMapper;
     private final AgentMessageMapper messageMapper;
@@ -35,7 +39,7 @@ public class AgentSessionService {
     private final MinioService minioService;
     private final DeepSeekClient deepSeekClient;
     private final QwenClient qwenClient;
-    private final AiAnalysisConfigService configService;
+    private final AiAnalysisConfigMapper aiAnalysisConfigMapper;
     private final AiTokenUsageMapper tokenUsageMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -45,7 +49,7 @@ public class AgentSessionService {
                                MinioService minioService,
                                DeepSeekClient deepSeekClient,
                                QwenClient qwenClient,
-                               AiAnalysisConfigService configService,
+                               AiAnalysisConfigMapper aiAnalysisConfigMapper,
                                AiTokenUsageMapper tokenUsageMapper) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
@@ -53,8 +57,79 @@ public class AgentSessionService {
         this.minioService = minioService;
         this.deepSeekClient = deepSeekClient;
         this.qwenClient = qwenClient;
-        this.configService = configService;
+        this.aiAnalysisConfigMapper = aiAnalysisConfigMapper;
         this.tokenUsageMapper = tokenUsageMapper;
+    }
+
+    private AiAnalysisConfig requireDeepSeekConfig(long tenantId) {
+        AiAnalysisConfig cfg = aiAnalysisConfigMapper.findByProvider(tenantId, PROVIDER_DEEPSEEK);
+        if (cfg == null || cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            return null;
+        }
+        return cfg;
+    }
+
+    private AiAnalysisConfig requireQwenConfig(long tenantId) {
+        AiAnalysisConfig cfg = aiAnalysisConfigMapper.findByProvider(tenantId, PROVIDER_QWEN);
+        if (cfg == null || cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            return null;
+        }
+        return cfg;
+    }
+
+    private static Map<String, Object> deepSeekResultToMap(DeepSeekClient.ChatResult r) {
+        Map<String, Object> m = new HashMap<>();
+        if (r == null) {
+            m.put("content", null);
+            m.put("inputTokens", 0);
+            m.put("outputTokens", 0);
+            return m;
+        }
+        m.put("content", r.getContent());
+        m.put("inputTokens", r.getInputTokens());
+        m.put("outputTokens", r.getOutputTokens());
+        return m;
+    }
+
+    private List<DeepSeekClient.ChatMessage> buildDeepSeekMessages(String systemPrompt,
+                                                                  List<Map<String, String>> history,
+                                                                  String userContent) {
+        List<DeepSeekClient.ChatMessage> msgs = new ArrayList<>();
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            msgs.add(new DeepSeekClient.ChatMessage("system", systemPrompt));
+        }
+        if (history != null) {
+            for (Map<String, String> h : history) {
+                if (h == null) continue;
+                String role = h.get("role");
+                String content = h.get("content");
+                if (role == null || content == null) continue;
+                if (!"user".equals(role) && !"assistant".equals(role)) continue;
+                msgs.add(new DeepSeekClient.ChatMessage(role, content));
+            }
+        }
+        msgs.add(new DeepSeekClient.ChatMessage("user", userContent != null ? userContent : ""));
+        return msgs;
+    }
+
+    /**
+     * 调用 DeepSeek，按租户读取 API Key / model。
+     */
+    private Map<String, Object> chatDeepSeek(long tenantId,
+                                            String systemPrompt,
+                                            List<Map<String, String>> history,
+                                            String userContent,
+                                            boolean requestJson,
+                                            Integer maxCompletionTokens) {
+        AiAnalysisConfig cfg = requireDeepSeekConfig(tenantId);
+        if (cfg == null) {
+            log.warn("DeepSeek 未配置或缺少 API Key，tenantId={}", tenantId);
+            return deepSeekResultToMap(null);
+        }
+        String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
+        List<DeepSeekClient.ChatMessage> messages = buildDeepSeekMessages(systemPrompt, history, userContent);
+        DeepSeekClient.ChatResult r = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, requestJson, maxCompletionTokens);
+        return deepSeekResultToMap(r);
     }
 
     // ==================== 会话生命周期 ====================
@@ -88,7 +163,7 @@ public class AgentSessionService {
 
         if (hasBackground) {
             try {
-                String backgroundSummary = processBackgroundMaterials(backgroundTexts, backgroundAttachmentIds);
+                String backgroundSummary = processBackgroundMaterials(tenantId, backgroundTexts, backgroundAttachmentIds);
                 session.setBackgroundContext(backgroundSummary);
 
                 // 构建背景来源 JSON
@@ -167,7 +242,7 @@ public class AgentSessionService {
         if (attachmentIds != null && !attachmentIds.isEmpty()) {
             for (Long attachmentId : attachmentIds) {
                 try {
-                    String desc = processAttachment(attachmentId);
+                    String desc = processAttachment(session.getTenantId(), attachmentId);
                     if (desc != null && !desc.isEmpty()) {
                         attachmentDesc.append("\n\n[附件描述]: ").append(desc);
                     }
@@ -192,7 +267,7 @@ public class AgentSessionService {
         int inputTokens = 0;
         int outputTokens = 0;
         try {
-            Map<String, Object> usageResult = deepSeekClient.chatWithUsage(systemPrompt, historyMessages, userContent);
+            Map<String, Object> usageResult = chatDeepSeek(session.getTenantId(), systemPrompt, historyMessages, userContent, false, null);
             assistantReply = (String) usageResult.get("content");
             inputTokens = usageResult.get("inputTokens") != null ? ((Number) usageResult.get("inputTokens")).intValue() : 0;
             outputTokens = usageResult.get("outputTokens") != null ? ((Number) usageResult.get("outputTokens")).intValue() : 0;
@@ -219,7 +294,10 @@ public class AgentSessionService {
 
         // 8. 记录 token 用量
         try {
-            recordTokenUsage(session.getTenantId(), "deepseek-chat", inputTokens, outputTokens);
+            AiAnalysisConfig dsCfg = requireDeepSeekConfig(session.getTenantId());
+            String modelLabel = dsCfg != null && dsCfg.getModel() != null && !dsCfg.getModel().isBlank()
+                    ? dsCfg.getModel() : "deepseek-chat";
+            recordTokenUsage(session.getTenantId(), modelLabel, PROVIDER_DEEPSEEK, inputTokens, outputTokens);
         } catch (Exception e) {
             log.warn("Failed to record token usage", e);
         }
@@ -237,6 +315,7 @@ public class AgentSessionService {
         if (session == null) {
             throw new RuntimeException("会话不存在");
         }
+        long tenantId = session.getTenantId() != null ? session.getTenantId() : 1L;
 
         List<AgentMessage> messages = messageMapper.listBySessionId(sessionId, 100, 0);
         if (messages.isEmpty()) {
@@ -257,8 +336,13 @@ public class AgentSessionService {
                 "请用中文输出，格式清晰，约500字。";
 
         try {
-            Map<String, Object> result = deepSeekClient.chatWithUsage(
-                    "你是一个专业的需求分析师，擅长从对话中提炼结构化需求文档。", null, prompt);
+            Map<String, Object> result = chatDeepSeek(
+                    tenantId,
+                    "你是一个专业的需求分析师，擅长从对话中提炼结构化需求文档。",
+                    null,
+                    prompt,
+                    false,
+                    8192);
             return (String) result.get("content");
         } catch (Exception e) {
             log.error("Failed to generate summary preview", e);
@@ -423,7 +507,8 @@ public class AgentSessionService {
     /**
      * 处理背景材料，生成背景摘要
      */
-    private String processBackgroundMaterials(List<BackgroundTextItem> backgroundTexts,
+    private String processBackgroundMaterials(long tenantId,
+                                              List<BackgroundTextItem> backgroundTexts,
                                               List<Long> attachmentIds) {
         StringBuilder allMaterials = new StringBuilder();
         int totalChars = 0;
@@ -448,7 +533,7 @@ public class AgentSessionService {
         if (attachmentIds != null && totalChars < maxChars) {
             for (Long attachmentId : attachmentIds) {
                 try {
-                    String desc = processAttachment(attachmentId);
+                    String desc = processAttachment(tenantId, attachmentId);
                     if (desc != null && !desc.isEmpty()) {
                         String text = "[附件 " + attachmentId + " 描述]\n" + desc;
                         if (totalChars + text.length() > maxChars) {
@@ -476,8 +561,13 @@ public class AgentSessionService {
                 "背景材料：\n" + allMaterials.toString();
 
         try {
-            Map<String, Object> result = deepSeekClient.chatWithUsage(
-                    "你是一个专业的项目分析师，擅长从杂乱的背景材料中提炼关键信息。", null, prompt);
+            Map<String, Object> result = chatDeepSeek(
+                    tenantId,
+                    "你是一个专业的项目分析师，擅长从杂乱的背景材料中提炼关键信息。",
+                    null,
+                    prompt,
+                    false,
+                    8192);
             return (String) result.get("content");
         } catch (Exception e) {
             log.error("Failed to generate background summary", e);
@@ -488,7 +578,7 @@ public class AgentSessionService {
     /**
      * 处理单个附件
      */
-    private String processAttachment(Long attachmentId) {
+    private String processAttachment(long tenantId, Long attachmentId) {
         // 查询附件信息
         BizAttachment attachment = attachmentMapper.findById(attachmentId);
         if (attachment == null) {
@@ -502,8 +592,22 @@ public class AgentSessionService {
         // 如果是图片，调用 Qwen VL 生成描述
         if (isImageFile(fileName)) {
             try {
+                AiAnalysisConfig qCfg = requireQwenConfig(tenantId);
+                if (qCfg == null) {
+                    log.warn("Qwen 未配置，无法描述图片: tenantId={}", tenantId);
+                    return "[图片附件，未配置通义 API Key]";
+                }
                 String imageUrl = minioService.generatePresignedUrl(storageKey, 3600);
-                return qwenClient.describeImage(imageUrl);
+                String model = qCfg.getModel() != null && !qCfg.getModel().isBlank() ? qCfg.getModel() : "qwen-vl-plus";
+                List<QwenClient.ChatMessage> msgs = List.of(new QwenClient.ChatMessage(
+                        "user",
+                        "请用中文简要描述这张图片的内容与关键信息，用于项目需求沟通上下文（约 200 字以内）。",
+                        List.of(imageUrl)));
+                QwenClient.ChatResult qr = qwenClient.chat(qCfg.getApiKey(), model, msgs, false);
+                if (qr == null || qr.isError()) {
+                    return "[图片附件，AI 描述失败: " + (qr != null ? qr.getErrorMessage() : "null") + "]";
+                }
+                return qr.getContent();
             } catch (Exception e) {
                 log.error("Failed to describe image: attachmentId={}", attachmentId, e);
                 return "[图片附件，AI 描述生成失败]";
@@ -607,8 +711,13 @@ public class AgentSessionService {
                     "背景摘要：\n" + session.getBackgroundContext();
 
             try {
-                Map<String, Object> result = deepSeekClient.chatWithUsage(
-                        "你是一个专业的项目需求顾问 AI 助手。", null, prompt);
+                Map<String, Object> result = chatDeepSeek(
+                        session.getTenantId() != null ? session.getTenantId() : 1L,
+                        "你是一个专业的项目需求顾问 AI 助手。",
+                        null,
+                        prompt,
+                        false,
+                        null);
                 return (String) result.get("content");
             } catch (Exception e) {
                 log.error("Failed to generate personalized opening", e);
@@ -651,15 +760,21 @@ public class AgentSessionService {
     /**
      * 记录 token 用量
      */
-    private void recordTokenUsage(Long tenantId, String model, int inputTokens, int outputTokens) {
+    private void recordTokenUsage(Long tenantId, String model, String provider, int inputTokens, int outputTokens) {
         try {
-            Map<String, Object> usage = new HashMap<>();
-            usage.put("tenantId", tenantId);
-            usage.put("model", model);
-            usage.put("inputTokens", inputTokens);
-            usage.put("outputTokens", outputTokens);
-            usage.put("createdAt", LocalDateTime.now());
-            tokenUsageMapper.insert(usage);
+            int inTok = Math.max(0, inputTokens);
+            int outTok = Math.max(0, outputTokens);
+            int total = inTok + outTok;
+            tokenUsageMapper.insert(
+                    tenantId != null ? tenantId : 1L,
+                    LocalDateTime.now(),
+                    provider != null ? provider : PROVIDER_DEEPSEEK,
+                    model != null ? model : "unknown",
+                    inTok,
+                    outTok,
+                    total,
+                    null,
+                    null);
         } catch (Exception e) {
             log.warn("Failed to record token usage", e);
         }
