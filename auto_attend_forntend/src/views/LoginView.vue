@@ -14,7 +14,9 @@
       <div class="login-left-content">
         <!-- Logo -->
         <div class="brand-logo-row">
-          <div class="brand-icon-box">流</div>
+          <div class="brand-icon-box" aria-hidden="true">
+            <img class="brand-icon-img" src="/brand-logo.svg" width="40" height="40" alt="">
+          </div>
           <span class="brand-name">流帮 Project</span>
         </div>
 
@@ -349,13 +351,18 @@ export default {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-weight: 700;
-  font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.brand-icon-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .brand-name {

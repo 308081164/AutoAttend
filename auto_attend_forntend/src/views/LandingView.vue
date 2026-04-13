@@ -16,7 +16,9 @@
 
     <header class="landing-header">
       <div class="landing-brand">
-        <span class="landing-logo" aria-hidden="true">{{ $t('app.title').charAt(0) }}</span>
+        <span class="landing-logo" aria-hidden="true">
+          <img class="landing-logo-img" src="/brand-logo.svg" width="38" height="38" alt="">
+        </span>
         <div class="landing-brand-text">
           <strong>{{ $t('app.title') }}</strong>
           <span>{{ $t('app.slogan') }}</span>
@@ -388,14 +390,19 @@ export default {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
-  color: #fff;
-  font-weight: 700;
-  font-size: 16px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
   box-shadow: 0 4px 20px rgba(37, 99, 235, 0.35);
+}
+
+.landing-logo-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .landing-brand-text {

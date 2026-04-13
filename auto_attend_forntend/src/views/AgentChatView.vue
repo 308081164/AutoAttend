@@ -4,10 +4,7 @@
     <header class="chat-header">
       <div class="header-inner">
         <div class="header-left">
-          <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" fill="none">
-            <rect width="24" height="24" rx="6" fill="#3370ff" />
-            <path d="M7 8h10M7 12h7M7 16h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round" />
-          </svg>
+          <img class="logo-icon" src="/brand-logo.svg" width="28" height="28" alt="" aria-hidden="true">
           <span class="header-title">流帮 Project</span>
           <span v-if="tenantName" class="header-tenant">{{ tenantName }}</span>
         </div>
@@ -651,6 +648,9 @@ export default {
 
 .logo-icon {
   flex-shrink: 0;
+  display: block;
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .header-title {

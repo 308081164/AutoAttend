@@ -39,7 +39,9 @@
           <aside class="app-sidebar" :class="{ 'is-open': sidebarOpen, 'is-collapsed': sidebarCollapsed }">
             <!-- Logo area -->
             <div class="sidebar-logo">
-              <div class="logo-icon">流</div>
+              <div class="logo-icon" aria-hidden="true">
+                <img class="logo-icon-img" src="/brand-logo.svg" width="36" height="36" alt="">
+              </div>
               <div class="logo-text" v-show="!sidebarCollapsed">
                 <span class="logo-brand">流帮</span>
                 <span class="logo-project">Project</span>
@@ -108,7 +110,9 @@
           <div class="sidebar-footer">
             <div class="sidebar-user">
               <div class="user-avatar" :class="{ 'user-avatar--logo': isAdmin }">
-                <template v-if="isAdmin">流</template>
+                <template v-if="isAdmin">
+                  <img class="user-avatar-brand" src="/brand-logo.svg" alt="">
+                </template>
                 <template v-else>{{ (username || '?').charAt(0).toUpperCase() }}</template>
               </div>
               <span class="user-name" v-show="!sidebarCollapsed">{{ isAdmin ? ($t('app.adminLabel') || '管理员') : (username || '') }}</span>
@@ -151,7 +155,9 @@
                 <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
               <div class="topbar-avatar" :class="{ 'topbar-avatar--logo': isAdmin }">
-                <template v-if="isAdmin">流</template>
+                <template v-if="isAdmin">
+                  <img class="user-avatar-brand" src="/brand-logo.svg" alt="">
+                </template>
                 <template v-else>{{ (username || '?').charAt(0).toUpperCase() }}</template>
               </div>
             </div>
@@ -430,14 +436,19 @@ body {
   width: 36px;
   height: 36px;
   min-width: 36px;
-  background: var(--brand-blue, #1456F0);
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.logo-icon-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .logo-text {
@@ -643,8 +654,15 @@ body {
 
 .user-avatar--logo {
   border-radius: 8px;
-  font-size: 14px;
-  font-weight: 700;
+  padding: 0;
+  overflow: hidden;
+}
+
+.user-avatar-brand {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .user-name {
@@ -807,8 +825,8 @@ body {
 
 .topbar-avatar--logo {
   border-radius: 8px;
-  font-size: 15px;
-  font-weight: 700;
+  padding: 0;
+  overflow: hidden;
 }
 
 /* ========== MAIN CONTENT ========== */

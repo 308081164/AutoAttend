@@ -2,6 +2,7 @@
   <div id="app" class="root">
     <header class="top">
       <div class="left">
+        <img class="brand-logo" src="/brand-logo.svg" width="28" height="28" alt="" aria-hidden="true" />
         <span class="brand">AutoAttend 监测台</span>
         <nav v-if="hasToken" class="nav">
           <router-link :to="{ name: 'dashboard' }" class="nav-link" exact-active-class="active">看板</router-link>
@@ -63,6 +64,11 @@ body {
   display: flex;
   align-items: center;
   gap: 18px;
+}
+.brand-logo {
+  border-radius: 7px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 .brand {
   font-weight: 600;

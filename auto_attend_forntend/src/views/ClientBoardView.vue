@@ -18,7 +18,9 @@
       <nav class="lb-nav">
         <div class="lb-nav-inner">
           <div class="lb-nav-left">
-            <div class="lb-nav-logo">流</div>
+            <div class="lb-nav-logo" aria-hidden="true">
+              <img class="lb-nav-logo-img" src="/brand-logo.svg" width="24" height="24" alt="">
+            </div>
             <span class="lb-nav-title">流帮 Project</span>
           </div>
           <div class="lb-nav-right">
@@ -422,7 +424,9 @@
         <!-- ===== Footer ===== -->
         <footer class="lb-footer">
           <span class="lb-footer-brand">
-            <span class="lb-footer-icon">流</span>
+            <span class="lb-footer-icon" aria-hidden="true">
+              <img class="lb-footer-icon-img" src="/brand-logo.svg" width="16" height="16" alt="">
+            </span>
             流帮 Project
           </span>
           <span class="lb-footer-sep">·</span>
@@ -908,7 +912,8 @@ export default {
 .lb-nav { background: var(--lb-bg-card); border-bottom: 1px solid var(--lb-border); position: sticky; top: 0; z-index: 100; }
 .lb-nav-inner { max-width: 1120px; margin: 0 auto; padding: 0 32px; height: 52px; display: flex; align-items: center; justify-content: space-between; }
 .lb-nav-left { display: flex; align-items: center; gap: 10px; }
-.lb-nav-logo { width: 28px; height: 28px; background: var(--lb-blue); color: #fff; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+.lb-nav-logo { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.lb-nav-logo-img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .lb-nav-title { font-size: 15px; font-weight: 600; color: var(--lb-text-1); }
 .lb-nav-tenant { font-size: 13px; color: var(--lb-text-2); padding: 4px 12px; background: var(--lb-bg); border-radius: 100px; }
 
@@ -1104,7 +1109,8 @@ export default {
 /* --- Footer --- */
 .lb-footer { text-align: center; padding: 32px 0 24px; font-size: 12px; color: var(--lb-text-3); display: flex; align-items: center; justify-content: center; gap: 8px; }
 .lb-footer-brand { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--lb-text-2); }
-.lb-footer-icon { width: 16px; height: 16px; background: var(--lb-blue); color: #fff; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+.lb-footer-icon { width: 16px; height: 16px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+.lb-footer-icon-img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .lb-footer-sep { color: var(--lb-text-4); }
 
 /* --- Responsive --- */
