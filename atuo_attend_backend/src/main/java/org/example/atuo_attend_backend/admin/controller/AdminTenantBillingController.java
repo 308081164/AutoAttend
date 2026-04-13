@@ -53,6 +53,11 @@ public class AdminTenantBillingController {
         data.put("subscriptionEndsAt", t.getSubscriptionEndsAt());
         data.put("teamPriceCents", TenantBillingService.PRICE_TEAM_CENTS);
         data.put("proPriceCents", TenantBillingService.PRICE_PRO_CENTS);
+        Map<String, Object> quotas = new HashMap<>();
+        quotas.put("free", planQuotaMap(TenantPlanCatalog.FREE));
+        quotas.put("team", planQuotaMap(TenantPlanCatalog.TEAM));
+        quotas.put("pro", planQuotaMap(TenantPlanCatalog.PRO));
+        data.put("planQuotas", quotas);
         return ApiResponse.ok(data);
     }
 
@@ -78,5 +83,12 @@ public class AdminTenantBillingController {
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());
         }
+    }
+
+    private static Map<String, Object> planQuotaMap(TenantPlanCatalog.TenantPlan p) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("maxMembers", p.maxMembers());
+        m.put("maxGithubRepos", p.maxGithubRepos());
+        return m;
     }
 }
