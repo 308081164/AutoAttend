@@ -8,10 +8,12 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.example.atuo_attend_backend.tenant.domain.AdminSession;
+import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.domain.TenantAdminUser;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -28,10 +30,14 @@ public class AdminAuthFilter implements Filter {
 
     private final AdminSessionMapper adminSessionMapper;
     private final TenantAdminUserMapper tenantAdminUserMapper;
+    private final TenantMapper tenantMapper;
 
-    public AdminAuthFilter(AdminSessionMapper adminSessionMapper, TenantAdminUserMapper tenantAdminUserMapper) {
+    public AdminAuthFilter(AdminSessionMapper adminSessionMapper,
+                           TenantAdminUserMapper tenantAdminUserMapper,
+                           TenantMapper tenantMapper) {
         this.adminSessionMapper = adminSessionMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
+        this.tenantMapper = tenantMapper;
     }
 
     @Override
@@ -87,6 +93,12 @@ public class AdminAuthFilter implements Filter {
             return;
         }
 
+        Tenant tenant = tenantMapper.findById(session.getTenantId());
+        if (tenant != null && "suspended".equalsIgnoreCase(tenant.getStatus())) {
+            writeForbidden(resp);
+            return;
+        }
+
         req.setAttribute(ATTR_USER_ID, session.getUserId());
         req.setAttribute(ATTR_TENANT_ID, session.getTenantId());
         TenantAdminUser tau = tenantAdminUserMapper.findById(session.getUserId());
@@ -103,5 +115,11 @@ public class AdminAuthFilter implements Filter {
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         resp.setContentType("application/json;charset=UTF-8");
         resp.getWriter().write("{\"code\":40101,\"message\":\"未登录或登录已过期\"}");
+    }
+
+    private void writeForbidden(HttpServletResponse resp) throws IOException {
+        resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        resp.setContentType("application/json;charset=UTF-8");
+        resp.getWriter().write("{\"code\":40301,\"message\":\"组织已暂停服务，请联系平台支持\"}");
     }
 }

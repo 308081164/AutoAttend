@@ -67,6 +67,10 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">团队管理</span>
               </router-link>
+              <router-link to="/subscription" class="nav-item" :class="{ 'is-active': isNavActive('/subscription') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('subscriptionPage.navTitle') }}</span>
+              </router-link>
             </div>
 
             <!-- Smart tools -->
@@ -203,6 +207,7 @@ export default {
         '/quote/config': '报价配置',
         '/collab/projects': '项目管理',
         '/team': '团队管理',
+        '/subscription': this.$t('subscriptionPage.navTitle'),
         '/tenant-admins': '租户管理',
         '/api-config': 'API 配置',
         '/prototype': '快原型',

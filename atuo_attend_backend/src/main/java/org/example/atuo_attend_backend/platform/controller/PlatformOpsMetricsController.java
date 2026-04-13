@@ -3,6 +3,8 @@ package org.example.atuo_attend_backend.platform.controller;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.platform.mapper.PlatformComponentEventMapper;
 import org.example.atuo_attend_backend.platform.mapper.PlatformOpsMetricsMapper;
+import org.example.atuo_attend_backend.tenant.mapper.SubscriptionOrderMapper;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,11 +22,17 @@ public class PlatformOpsMetricsController {
 
     private final PlatformOpsMetricsMapper metricsMapper;
     private final PlatformComponentEventMapper componentEventMapper;
+    private final SubscriptionOrderMapper subscriptionOrderMapper;
+    private final TenantMapper tenantMapper;
 
     public PlatformOpsMetricsController(PlatformOpsMetricsMapper metricsMapper,
-                                        PlatformComponentEventMapper componentEventMapper) {
+                                        PlatformComponentEventMapper componentEventMapper,
+                                        SubscriptionOrderMapper subscriptionOrderMapper,
+                                        TenantMapper tenantMapper) {
         this.metricsMapper = metricsMapper;
         this.componentEventMapper = componentEventMapper;
+        this.subscriptionOrderMapper = subscriptionOrderMapper;
+        this.tenantMapper = tenantMapper;
     }
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -55,6 +63,10 @@ public class PlatformOpsMetricsController {
         double apiKeyRatio = totalTenants > 0 ? (configuredApiKeyTenants * 100.0d / totalTenants) : 0d;
         double githubTokenRatio = totalTenants > 0 ? (configuredGithubTokenTenants * 100.0d / totalTenants) : 0d;
 
+        long mockRevenueCents30d = subscriptionOrderMapper.sumAmountCentsLast30Days();
+        long activePaidSubscriptions = tenantMapper.countActivePaidSubscriptions();
+        long suspendedTenants = tenantMapper.countSuspendedTenants();
+
         Map<String, Object> data = new HashMap<>();
         data.put("dauToday", dauToday);
         data.put("mauMonth", mauMonth);
@@ -64,6 +76,10 @@ public class PlatformOpsMetricsController {
         data.put("apiKeyConfiguredRatioPercent", apiKeyRatio);
         data.put("githubTokenConfiguredTenants", configuredGithubTokenTenants);
         data.put("githubTokenConfiguredRatioPercent", githubTokenRatio);
+        data.put("mockRevenueCents30d", mockRevenueCents30d);
+        data.put("mrrApproxCents", mockRevenueCents30d);
+        data.put("activePaidSubscriptions", activePaidSubscriptions);
+        data.put("suspendedTenants", suspendedTenants);
         return ApiResponse.ok(data);
     }
 

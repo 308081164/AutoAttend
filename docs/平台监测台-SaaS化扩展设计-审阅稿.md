@@ -151,4 +151,16 @@
 
 ---
 
+## 七、落地实现记录（与本文档对齐）
+
+| 文档 §3 能力 | 当前实现 |
+|--------------|----------|
+| 订阅与套餐视图、MRR 近似 | 租户表增加 `billing_baseline_plan_code`、`subscription_ends_at`；`aa_subscription_order` 记录模拟支付；监测台 KPI 含 `mrrApproxCents`、有效订阅窗口租户数；租户列表/详情展示套餐与截止时间 |
+| 模拟支付（不跳转真实收银台） | `POST /api/admin/billing/mock-pay`：续期 24 小时所选 team/pro 权益，叠加取较高档位 |
+| 配额与用量 | 仍由 `TenantQuotaService` + `plan_code`；过期由定时任务与读路径 `TenantBillingService.ensureCurrent` 回退基线档位 |
+| 租户详情页（报表全字段） | 监测台 `/tenants/:id` 只读详情；列表支持搜索、排序、全列 |
+| 运维动作 + 审计 | `POST .../suspend|resume|revoke-admin-sessions`；`aa_platform_ops_audit` 记平台操作 |
+| 暂停租户 | `AdminAuthFilter` 拦截已暂停租户除登录外全部 `/api/admin/*`；登录返回 403 |
+| 错误率 / 任务队列 / 风控高级能力 | 未接 APM；Webhook/AI 失败日报、异地登录等仍为后续迭代 |
+
 *审阅意见请直接批注本文件或另附 PR 讨论；定稿后可删除「审阅稿」字样并升版号。*

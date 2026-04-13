@@ -49,6 +49,7 @@ public class TenantPlatformSeed implements ApplicationRunner {
                 t.setName("默认组织");
                 t.setSlug(DEFAULT_SLUG);
                 t.setPlanCode("free");
+                t.setBillingBaselinePlanCode("free");
                 t.setStatus("active");
                 tenantMapper.insert(t);
                 log.info("Seeded default tenant slug={}", DEFAULT_SLUG);

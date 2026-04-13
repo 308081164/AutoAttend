@@ -32,6 +32,7 @@ schema_nexus_migration.sql
 schema_nexus_memory_metric_migration.sql
 schema_nexus_phase2_migration.sql
 schema_nexus_instance_bt_panel_url_migration.sql
+schema_subscription_billing_migration.sql
 schema_ui_prototype_mysql.sql
 schema_ui_prototype_generate_job.sql
 schema_quote_ai_acceptance_test_cases_job.sql

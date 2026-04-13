@@ -164,6 +164,29 @@ export default {
     failedBackend: '登录失败，请检查后端服务',
     backHome: '返回首页'
   },
+  subscriptionPage: {
+    navTitle: '会员与计费',
+    eyebrow: 'SaaS 订阅',
+    title: '会员与模拟支付',
+    lead:
+      '以下为演示用计费：点击「模拟支付」不会跳转任何第三方支付页，也不会产生真实扣款；成功后在 24 小时内获得所选档位的成员与仓库配额权益（与团队版/专业版一致）。',
+    statusTitle: '当前权益',
+    currentPlan: '当前档位',
+    baseline: '到期后回退档位',
+    endsAt: '权益截止时间',
+    teamCard: '团队版（team）',
+    proCard: '专业版（pro）',
+    teamDesc: '适合中小团队：更高的协作成员与 GitHub 仓库绑定上限。',
+    proDesc: '适合规模化交付：大幅提升成员与仓库上限。',
+    mockPay: '模拟支付（24 小时）',
+    paying: '处理中…',
+    success: '模拟支付成功',
+    footnote:
+      '定价与权益为初版占位，后续可接入真实支付与发票；到期后自动回退到「到期后回退档位」。',
+    planFree: '免费版',
+    planTeam: '团队版',
+    planPro: '专业版'
+  },
   dashboard: {
     workbenchEyebrow: '运营指挥中心',
     workbenchTitle: '工作台',

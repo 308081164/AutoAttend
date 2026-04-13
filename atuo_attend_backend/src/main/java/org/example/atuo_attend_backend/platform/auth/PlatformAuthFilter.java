@@ -16,6 +16,8 @@ import java.io.IOException;
 @Component
 public class PlatformAuthFilter implements Filter {
 
+    public static final String ATTR_PLATFORM_SESSION_ID = "platformSessionId";
+
     private final PlatformSessionMapper platformSessionMapper;
 
     public PlatformAuthFilter(PlatformSessionMapper platformSessionMapper) {
@@ -64,6 +66,8 @@ public class PlatformAuthFilter implements Filter {
             writeUnauthorized(resp);
             return;
         }
+
+        req.setAttribute(ATTR_PLATFORM_SESSION_ID, session.getId());
 
         chain.doFilter(request, response);
     }

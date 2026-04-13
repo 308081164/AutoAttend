@@ -12,6 +12,8 @@ public class PlatformTenantOpsRow {
     private String slug;
     private String adminPhone;
     private String planCode;
+    private String billingBaselinePlanCode;
+    private LocalDateTime subscriptionEndsAt;
     private String status;
     private LocalDateTime tenantCreatedAt;
     private Long memberCount;
@@ -61,6 +63,22 @@ public class PlatformTenantOpsRow {
 
     public void setPlanCode(String planCode) {
         this.planCode = planCode;
+    }
+
+    public String getBillingBaselinePlanCode() {
+        return billingBaselinePlanCode;
+    }
+
+    public void setBillingBaselinePlanCode(String billingBaselinePlanCode) {
+        this.billingBaselinePlanCode = billingBaselinePlanCode;
+    }
+
+    public LocalDateTime getSubscriptionEndsAt() {
+        return subscriptionEndsAt;
+    }
+
+    public void setSubscriptionEndsAt(LocalDateTime subscriptionEndsAt) {
+        this.subscriptionEndsAt = subscriptionEndsAt;
     }
 
     public String getStatus() {

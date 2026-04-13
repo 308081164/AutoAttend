@@ -7,8 +7,12 @@ public class Tenant {
     private Long id;
     private String name;
     private String slug;
-    /** 套餐档位：free / team / pro */
+    /** 套餐档位：free / team / pro（当前权益档位；付费窗口内为已购档位） */
     private String planCode;
+    /** 无付费/试用窗口时的回退档位（通常为 free，或由升级链决定） */
+    private String billingBaselinePlanCode;
+    /** 当前付费或模拟付费权益截止时间；过期后回退到 billingBaselinePlanCode */
+    private LocalDateTime subscriptionEndsAt;
     /** active：正常；suspended：暂停（后续可在 Filter 中拦截） */
     private String status;
     private LocalDateTime createdAt;
@@ -43,6 +47,22 @@ public class Tenant {
 
     public void setPlanCode(String planCode) {
         this.planCode = planCode;
+    }
+
+    public String getBillingBaselinePlanCode() {
+        return billingBaselinePlanCode;
+    }
+
+    public void setBillingBaselinePlanCode(String billingBaselinePlanCode) {
+        this.billingBaselinePlanCode = billingBaselinePlanCode;
+    }
+
+    public LocalDateTime getSubscriptionEndsAt() {
+        return subscriptionEndsAt;
+    }
+
+    public void setSubscriptionEndsAt(LocalDateTime subscriptionEndsAt) {
+        this.subscriptionEndsAt = subscriptionEndsAt;
     }
 
     public String getStatus() {

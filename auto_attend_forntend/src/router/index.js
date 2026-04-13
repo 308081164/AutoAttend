@@ -22,6 +22,7 @@ import LabView from '../views/LabView.vue'
 import CloudDevHubView from '../views/CloudDevHubView.vue'
 import ClientBoardView from '../views/ClientBoardView.vue'
 import AgentChatView from '../views/AgentChatView.vue'
+import SubscriptionBillingView from '../views/SubscriptionBillingView.vue'
 
 Vue.use(VueRouter)
 
@@ -48,6 +49,11 @@ const routes = [
     path: '/console',
     name: 'dashboard',
     component: DashboardView
+  },
+  {
+    path: '/subscription',
+    name: 'subscription-billing',
+    component: SubscriptionBillingView
   },
   {
     path: '/member',

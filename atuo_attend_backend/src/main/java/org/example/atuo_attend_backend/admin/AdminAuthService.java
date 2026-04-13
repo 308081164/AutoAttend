@@ -71,6 +71,10 @@ public class AdminAuthService {
         if (!passwordService.verify(password, user.getPasswordHash())) {
             return null;
         }
+        Tenant tenant = tenantMapper.findById(user.getTenantId());
+        if (tenant != null && "suspended".equalsIgnoreCase(tenant.getStatus())) {
+            throw new IllegalStateException("组织已暂停服务，请联系平台支持");
+        }
         collabAuthService.ensureBizUserForTenantAdmin(phone, password);
         return createSessionOutcome(user);
     }
@@ -103,6 +107,7 @@ public class AdminAuthService {
         tenant.setName(req.getOrgName().trim());
         tenant.setSlug(slug);
         tenant.setPlanCode("free");
+        tenant.setBillingBaselinePlanCode("free");
         tenant.setStatus("active");
         tenantMapper.insert(tenant);
 

@@ -33,11 +33,15 @@ public class AdminAuthController {
     @PostMapping("/login")
     public ApiResponse<AdminLoginResponse> login(@RequestBody AdminLoginRequest request) {
         String account = request.resolveLoginAccount();
-        AdminAuthOutcome out = adminAuthService.login(account, request.getPassword());
-        if (out == null) {
-            return ApiResponse.error(40100, "invalid phone or password");
+        try {
+            AdminAuthOutcome out = adminAuthService.login(account, request.getPassword());
+            if (out == null) {
+                return ApiResponse.error(40100, "invalid phone or password");
+            }
+            return ApiResponse.ok(buildLoginResponse(out));
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(40301, e.getMessage());
         }
-        return ApiResponse.ok(buildLoginResponse(out));
     }
 
     @PostMapping("/logout")

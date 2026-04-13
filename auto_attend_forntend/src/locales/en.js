@@ -164,6 +164,29 @@ export default {
     failedBackend: 'Login failed. Please check the backend.',
     backHome: 'Back to Home'
   },
+  subscriptionPage: {
+    navTitle: 'Billing',
+    eyebrow: 'SaaS subscription',
+    title: 'Membership (mock checkout)',
+    lead:
+      'This is a demo billing flow: “Mock pay” does not open any real payment page and does not charge real money. On success, your org gets the selected plan quotas for 24 hours (same limits as team/pro).',
+    statusTitle: 'Current entitlement',
+    currentPlan: 'Effective plan',
+    baseline: 'Falls back to',
+    endsAt: 'Entitlement ends at',
+    teamCard: 'Team',
+    proCard: 'Pro',
+    teamDesc: 'Higher member and GitHub-linked repo limits for growing teams.',
+    proDesc: 'Much higher limits for larger organizations.',
+    mockPay: 'Mock pay (24h)',
+    paying: 'Working…',
+    success: 'Mock payment succeeded',
+    footnote:
+      'Pricing is placeholder; real payments/invoicing can be wired later. After expiry, the plan falls back to the baseline tier.',
+    planFree: 'Free',
+    planTeam: 'Team',
+    planPro: 'Pro'
+  },
   dashboard: {
     workbenchEyebrow: 'Operations hub',
     workbenchTitle: 'Workbench',

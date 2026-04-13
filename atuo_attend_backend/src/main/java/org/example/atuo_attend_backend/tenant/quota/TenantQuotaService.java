@@ -3,6 +3,7 @@ package org.example.atuo_attend_backend.tenant.quota;
 import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
+import org.example.atuo_attend_backend.tenant.billing.TenantBillingService;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.example.atuo_attend_backend.tenant.plan.TenantPlanCatalog;
 import org.springframework.stereotype.Service;
@@ -18,15 +19,18 @@ public class TenantQuotaService {
     private final BizUserMapper bizUserMapper;
     private final QuoteProjectMapper quoteProjectMapper;
     private final SystemConfigService systemConfigService;
+    private final TenantBillingService tenantBillingService;
 
     public TenantQuotaService(TenantMapper tenantMapper,
                               BizUserMapper bizUserMapper,
                               QuoteProjectMapper quoteProjectMapper,
-                              SystemConfigService systemConfigService) {
+                              SystemConfigService systemConfigService,
+                              TenantBillingService tenantBillingService) {
         this.tenantMapper = tenantMapper;
         this.bizUserMapper = bizUserMapper;
         this.quoteProjectMapper = quoteProjectMapper;
         this.systemConfigService = systemConfigService;
+        this.tenantBillingService = tenantBillingService;
     }
 
     public void assertCanAddMember(long tenantId) {
@@ -37,7 +41,7 @@ public class TenantQuotaService {
     }
 
     public QuotaDecision checkCanAddMember(long tenantId) {
-        var t = tenantMapper.findById(tenantId);
+        var t = tenantBillingService.ensureCurrent(tenantId);
         if (t == null) {
             return new QuotaDecision(false, "租户不存在", 0, 0);
         }
@@ -60,7 +64,7 @@ public class TenantQuotaService {
     }
 
     public QuotaDecision checkCanLinkGithubRepo(long tenantId) {
-        var t = tenantMapper.findById(tenantId);
+        var t = tenantBillingService.ensureCurrent(tenantId);
         if (t == null) {
             return new QuotaDecision(false, "租户不存在", 0, 0);
         }

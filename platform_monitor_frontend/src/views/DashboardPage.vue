@@ -35,6 +35,15 @@
           </div>
           <div class="card-sub">{{ formatRatio(overview && overview.githubTokenConfiguredRatioPercent != null ? overview.githubTokenConfiguredRatioPercent : null) }}</div>
         </div>
+        <div class="card">
+          <div class="card-label">MRR 近似（模拟，近30天）</div>
+          <div class="card-value">{{ formatMoney(overview && overview.mrrApproxCents) }}</div>
+          <div class="card-sub">有效订阅窗口租户：{{ overview && overview.activePaidSubscriptions != null ? overview.activePaidSubscriptions : '—' }}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">已暂停租户</div>
+          <div class="card-value">{{ overview && overview.suspendedTenants != null ? overview.suspendedTenants : '—' }}</div>
+        </div>
       </section>
 
       <section class="section">
@@ -160,6 +169,11 @@ export default {
       const n = Number(v)
       return `${n.toFixed(2)}%`
     },
+    formatMoney (cents) {
+      if (cents == null || Number.isNaN(Number(cents))) return '—'
+      const n = Number(cents)
+      return `¥${(n / 100).toFixed(2)}`
+    },
     async load () {
       this.loading = true
       this.error = ''
@@ -220,7 +234,7 @@ export default {
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }

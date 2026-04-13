@@ -19,4 +19,7 @@ public interface AdminSessionMapper {
 
     @Delete("DELETE FROM aa_admin_session WHERE token = #{token}")
     int deleteByToken(@Param("token") String token);
+
+    @Delete("DELETE FROM aa_admin_session WHERE tenant_id = #{tenantId}")
+    int deleteByTenantId(@Param("tenantId") long tenantId);
 }
