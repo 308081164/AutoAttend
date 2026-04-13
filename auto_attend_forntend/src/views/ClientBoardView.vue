@@ -582,9 +582,17 @@ export default {
         if (this.showProgress) purposes.push({ value: 'issue_tracking', label: '项目调整' })
         if (this.showFeatures) purposes.push({ value: 'feature_backlog', label: '需求 Backlog' })
         this.tablePurposes = purposes
-        this.$nextTick(() => this.renderCharts())
       } catch (e) { this.error = '加载失败，请稍后重试' }
-      finally { this.loading = false }
+      finally {
+        this.loading = false
+        // 须在 loading=false 之后渲染：首屏时 v-if="loading" 会卸载主内容，若在仍 loading 时 $nextTick，
+        // canvas 尚未挂载，$refs.pieRef 等为 undefined，Chart 不会创建；切换 tab 会再次 renderCharts 才正常。
+        if (!this.error) {
+          this.$nextTick(() => {
+            this.$nextTick(() => this.renderCharts())
+          })
+        }
+      }
     },
 
     // ===== Charts =====
