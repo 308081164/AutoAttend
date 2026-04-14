@@ -228,7 +228,8 @@ public class PublicClientBoardController {
             att.setFileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
             att.setFileSize(file.getSize());
             att.setStorageKey(key);
-            att.setUploadedBy(0L);
+            // 公开看板上传无登录用户；NULL 表示匿名，勿用 0（无 id=0 的 biz_user，会触发外键错误）
+            att.setUploadedBy(null);
             attachmentMapper.insert(att);
             Map<String, Object> data = new HashMap<>();
             data.put("id", att.getId());
