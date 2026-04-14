@@ -71,7 +71,31 @@
       <div class="login-form-area">
         <div class="login-form-card">
           <h1 class="form-heading">{{ $t('login.title') }}</h1>
-          <p class="form-subtitle">{{ $t('login.subtitle') }}</p>
+          <p class="form-subtitle">{{ loginSubtitle }}</p>
+
+          <!-- 登录方式：短信开启时二选一；未开启时仅密码 -->
+          <div v-if="smsEnabled" class="login-method-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="loginMethod === 'password'"
+              class="method-tab"
+              :class="{ active: loginMethod === 'password' }"
+              @click="setLoginMethod('password')"
+            >
+              {{ $t('login.tabPassword') }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="loginMethod === 'sms'"
+              class="method-tab"
+              :class="{ active: loginMethod === 'sms' }"
+              @click="setLoginMethod('sms')"
+            >
+              {{ $t('login.tabSms') }}
+            </button>
+          </div>
 
           <form @submit.prevent="onSubmit" class="login-form">
             <!-- Phone -->
@@ -90,93 +114,65 @@
               </div>
             </div>
 
-            <!-- SMS (when backend enables Aliyun SMS) -->
-            <div v-if="smsEnabled" class="field-group">
-              <label class="field-label">{{ $t('login.smsCode') }}</label>
-              <div class="sms-row">
-                <input
-                  v-model="form.smsCode"
-                  type="text"
-                  inputmode="numeric"
-                  maxlength="6"
-                  autocomplete="one-time-code"
-                  class="sms-input"
-                  :placeholder="$t('login.smsCodeHint')"
-                >
-                <button
-                  type="button"
-                  class="sms-send-btn"
-                  :disabled="smsCooldown > 0 || smsSending"
-                  @click="sendLoginSms"
-                >
-                  {{ smsCooldown > 0 ? $t('login.sendSmsWait', { n: smsCooldown }) : (smsSending ? '…' : $t('login.sendSms')) }}
-                </button>
+            <!-- 密码登录：仅手机号 + 密码 -->
+            <template v-if="!smsEnabled || loginMethod === 'password'">
+              <div class="field-group">
+                <label class="field-label">{{ $t('login.password') }}</label>
+                <div class="password-input-wrap">
+                  <input
+                    v-model="form.password"
+                    :type="showPassword ? 'text' : 'password'"
+                    class="password-input"
+                    autocomplete="current-password"
+                    required
+                  >
+                  <button
+                    type="button"
+                    class="eye-toggle"
+                    @click="showPassword = !showPassword"
+                    tabindex="-1"
+                    :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                  >
+                    <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </div>
+            </template>
 
-            <!-- Password（未启用短信时必填；启用短信时可选，用于协作密码登录兼容） -->
-            <div v-if="!smsEnabled" class="field-group">
-              <label class="field-label">{{ $t('login.password') }}</label>
-              <div class="password-input-wrap">
-                <input
-                  v-model="form.password"
-                  :type="showPassword ? 'text' : 'password'"
-                  class="password-input"
-                  autocomplete="current-password"
-                  required
-                >
-                <button
-                  type="button"
-                  class="eye-toggle"
-                  @click="showPassword = !showPassword"
-                  tabindex="-1"
-                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
-                >
-                  <!-- Eye open icon -->
-                  <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  <!-- Eye closed icon -->
-                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                </button>
+            <!-- 短信登录：仅手机号 + 验证码 -->
+            <template v-else>
+              <div class="field-group">
+                <label class="field-label">{{ $t('login.smsCode') }}</label>
+                <div class="sms-row">
+                  <input
+                    v-model="form.smsCode"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                    class="sms-input"
+                    :placeholder="$t('login.smsCodeHint')"
+                  >
+                  <button
+                    type="button"
+                    class="sms-send-btn"
+                    :disabled="smsCooldown > 0 || smsSending"
+                    @click="sendLoginSms"
+                  >
+                    {{ smsCooldown > 0 ? $t('login.sendSmsWait', { n: smsCooldown }) : (smsSending ? '…' : $t('login.sendSms')) }}
+                  </button>
+                </div>
               </div>
-            </div>
-            <div v-else class="field-group field-group--optional-pwd">
-              <label class="field-label">{{ $t('login.passwordOptional') }}</label>
-              <div class="password-input-wrap">
-                <input
-                  v-model="form.password"
-                  :type="showPassword ? 'text' : 'password'"
-                  class="password-input"
-                  autocomplete="current-password"
-                >
-                <button
-                  type="button"
-                  class="eye-toggle"
-                  @click="showPassword = !showPassword"
-                  tabindex="-1"
-                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
-                >
-                  <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                </button>
-              </div>
-              <p class="field-hint">{{ $t('login.passwordOptionalHint') }}</p>
-            </div>
+            </template>
 
             <!-- Error -->
             <div v-if="error" class="error-msg">{{ error }}</div>
@@ -236,16 +232,30 @@ export default {
       smsResendInterval: 60,
       smsCooldown: 0,
       smsSending: false,
-      smsTimer: null
+      smsTimer: null,
+      /** password | sms；仅 smsEnabled 时使用 */
+      loginMethod: 'password'
     }
   },
   computed: {
     brandInitial () {
       const t = this.$t('app.title')
       return t && t.length ? t.charAt(0) : '—'
+    },
+    loginSubtitle () {
+      if (!this.smsEnabled) {
+        return this.$t('login.subtitlePasswordOnly')
+      }
+      return this.loginMethod === 'sms'
+        ? this.$t('login.subtitleSmsMode')
+        : this.$t('login.subtitlePasswordMode')
     }
   },
   mounted () {
+    const q = this.$route && this.$route.query
+    if (q && String(q.login || '').toLowerCase() === 'sms') {
+      this.loginMethod = 'sms'
+    }
     this.loadSmsConfig()
   },
   beforeDestroy () {
@@ -260,9 +270,23 @@ export default {
           if (resp.data.data.resendIntervalSeconds != null) {
             this.smsResendInterval = Number(resp.data.data.resendIntervalSeconds) || 60
           }
+          if (!this.smsEnabled) {
+            this.loginMethod = 'password'
+          }
         }
       } catch (e) {
         this.smsEnabled = false
+        this.loginMethod = 'password'
+      }
+    },
+    setLoginMethod (m) {
+      if (m === this.loginMethod) return
+      this.loginMethod = m
+      this.error = ''
+      if (m === 'password') {
+        this.form.smsCode = ''
+      } else {
+        this.form.password = ''
       }
     },
     sendLoginSms () {
@@ -305,10 +329,17 @@ export default {
     },
     async onSubmit () {
       this.error = ''
-      if (this.smsEnabled) {
+      const useSms = this.smsEnabled && this.loginMethod === 'sms'
+      if (useSms) {
         const sc = (this.form.smsCode || '').trim()
         if (!/^\d{6}$/.test(sc)) {
           this.error = this.$t('login.smsRequired')
+          return
+        }
+      } else {
+        const pwd = (this.form.password || '').trim()
+        if (!pwd) {
+          this.error = this.$t('login.passwordRequired')
           return
         }
       }
@@ -316,12 +347,10 @@ export default {
       const phone = this.form.phone.trim()
       try {
         const payload = { phone }
-        const pwd = (this.form.password || '').trim()
-        if (this.smsEnabled) {
+        if (useSms) {
           payload.smsCode = (this.form.smsCode || '').trim()
-          if (pwd) payload.password = pwd
         } else {
-          payload.password = pwd
+          payload.password = (this.form.password || '').trim()
         }
         const adminResp = await this.$http.post('/admin/auth/login', payload)
         if (adminResp.data && adminResp.data.code === 0) {
@@ -630,7 +659,36 @@ export default {
   font-size: var(--font-size-sm);
   line-height: 1.6;
   color: var(--text-secondary);
-  margin: 0 0 32px;
+  margin: 0 0 20px;
+}
+
+.login-method-tabs {
+  display: flex;
+  margin: 0 0 20px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-page);
+}
+.method-tab {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.method-tab:hover {
+  color: var(--text-primary);
+  background: rgba(20, 86, 240, 0.04);
+}
+.method-tab.active {
+  background: var(--bg-card);
+  color: var(--brand-blue);
+  box-shadow: inset 0 -2px 0 var(--brand-blue);
 }
 
 /* Form */
@@ -641,15 +699,6 @@ export default {
 
 .field-group {
   margin-bottom: 20px;
-}
-.field-hint {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--text-tertiary);
-}
-.field-group--optional-pwd .password-input-wrap {
-  margin-top: 0;
 }
 
 .field-label {
