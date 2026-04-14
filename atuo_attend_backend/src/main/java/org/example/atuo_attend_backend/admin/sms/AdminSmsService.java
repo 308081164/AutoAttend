@@ -3,6 +3,7 @@ package org.example.atuo_attend_backend.admin.sms;
 import org.example.atuo_attend_backend.admin.PhoneNormalizer;
 import org.example.atuo_attend_backend.admin.domain.AdminSmsCode;
 import org.example.atuo_attend_backend.admin.mapper.AdminSmsCodeMapper;
+import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,8 @@ public class AdminSmsService {
 
     public static final String PURPOSE_LOGIN = "login";
     public static final String PURPOSE_REGISTER = "register";
+    /** 协作成员绑定手机号 */
+    public static final String PURPOSE_BIND_PHONE = "bind_phone";
 
     private static final int CODE_LENGTH = 6;
     private static final int MAX_VERIFY_ATTEMPTS = 5;
@@ -30,15 +33,18 @@ public class AdminSmsService {
     private final AliyunSmsClient aliyunSmsClient;
     private final AdminSmsCodeMapper smsCodeMapper;
     private final TenantAdminUserMapper tenantAdminUserMapper;
+    private final BizUserMapper bizUserMapper;
 
     public AdminSmsService(AdminSmsProperties props,
                            AliyunSmsClient aliyunSmsClient,
                            AdminSmsCodeMapper smsCodeMapper,
-                           TenantAdminUserMapper tenantAdminUserMapper) {
+                           TenantAdminUserMapper tenantAdminUserMapper,
+                           BizUserMapper bizUserMapper) {
         this.props = props;
         this.aliyunSmsClient = aliyunSmsClient;
         this.smsCodeMapper = smsCodeMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
+        this.bizUserMapper = bizUserMapper;
     }
 
     public boolean smsLoginEnabled() {
@@ -59,13 +65,24 @@ public class AdminSmsService {
             throw new IllegalArgumentException("手机号格式不正确");
         }
         if (PURPOSE_LOGIN.equals(purposeNorm)) {
-            if (tenantAdminUserMapper.findByPhone(phone) == null) {
-                throw new IllegalArgumentException("该手机号未注册");
+            if (tenantAdminUserMapper.findByPhone(phone) != null) {
+                // 管理员登录
+            } else {
+                long n = bizUserMapper.countByPhoneE164(phone);
+                if (n == 1) {
+                    // 已绑定手机的协作成员登录
+                } else if (n == 0) {
+                    throw new IllegalArgumentException("该手机号未注册或未绑定成员账号");
+                } else {
+                    throw new IllegalArgumentException("该手机号存在多条成员记录，请联系管理员处理");
+                }
             }
         } else if (PURPOSE_REGISTER.equals(purposeNorm)) {
             if (tenantAdminUserMapper.countByPhone(phone) > 0) {
                 throw new IllegalArgumentException("该手机号已注册");
             }
+        } else if (PURPOSE_BIND_PHONE.equals(purposeNorm)) {
+            // 由业务层预先校验；此处仅发送验证码
         } else {
             throw new IllegalArgumentException("无效的用途");
         }
@@ -147,6 +164,9 @@ public class AdminSmsService {
         String p = purpose.trim().toLowerCase();
         if (PURPOSE_REGISTER.equals(p) || "reg".equals(p)) {
             return PURPOSE_REGISTER;
+        }
+        if (PURPOSE_BIND_PHONE.equals(p) || "bind-phone".equals(p) || "bindphone".equals(p)) {
+            return PURPOSE_BIND_PHONE;
         }
         return PURPOSE_LOGIN;
     }

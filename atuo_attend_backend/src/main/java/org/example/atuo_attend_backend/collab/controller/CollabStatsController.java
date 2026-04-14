@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
@@ -50,7 +51,7 @@ public class CollabStatsController {
             return ApiResponse.error(40400, "用户不存在");
         }
 
-        List<BizProject> projects = projectService.listProjectsForUser(userId);
+        List<BizProject> projects = projectService.listProjectsForUser(userId, CollabAuthFilter.projectScopeFrom(req));
         long projectCount = projects.size();
         String email = user.getEmail();
         long commitCountTotal = commitService.countByAuthorEmail(email);

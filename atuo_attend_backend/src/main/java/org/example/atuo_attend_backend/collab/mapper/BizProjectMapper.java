@@ -26,4 +26,15 @@ public interface BizProjectMapper {
 
     @Select("SELECT COUNT(*) FROM biz_project WHERE tenant_id = #{tenantId}")
     long countByTenant(@Param("tenantId") long tenantId);
+
+    @Select({
+            "<script>",
+            "SELECT id, tenant_id AS tenantId, name, description, repo_id AS repoId, status, created_at AS createdAt, updated_at AS updatedAt FROM biz_project WHERE id IN",
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>",
+            "#{id}",
+            "</foreach>",
+            "ORDER BY id",
+            "</script>"
+    })
+    List<BizProject> listByIds(@Param("ids") List<Long> ids);
 }

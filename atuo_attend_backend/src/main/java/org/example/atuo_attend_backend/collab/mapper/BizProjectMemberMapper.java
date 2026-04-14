@@ -17,6 +17,16 @@ public interface BizProjectMemberMapper {
     @Select("SELECT project_id FROM biz_project_member WHERE user_id = #{userId}")
     List<Long> listProjectIdsByUserId(@Param("userId") long userId);
 
+    @Select({
+            "<script>",
+            "SELECT DISTINCT project_id FROM biz_project_member WHERE user_id IN",
+            "<foreach collection='userIds' item='id' open='(' separator=',' close=')'>",
+            "#{id}",
+            "</foreach>",
+            "</script>"
+    })
+    List<Long> listProjectIdsByUserIds(@Param("userIds") List<Long> userIds);
+
     @Select("SELECT id, project_id AS projectId, user_id AS userId, role, source, created_at AS createdAt FROM biz_project_member WHERE user_id = #{userId}")
     List<BizProjectMember> listByUserId(@Param("userId") long userId);
 

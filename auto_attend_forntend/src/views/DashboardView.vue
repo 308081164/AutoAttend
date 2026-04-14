@@ -68,6 +68,20 @@
             </div>
           </div>
 
+          <div v-if="bindPhonePanelVisible" class="dash-bind-phone-panel console-elevated">
+            <h3 class="dash-bind-phone-title">{{ $t('dashboard.bindPhoneTitle') }}</h3>
+            <p class="dash-bind-phone-desc">{{ $t('dashboard.bindPhoneDesc') }}</p>
+            <div class="dash-bind-phone-row">
+              <input v-model="bindPhoneForm.phone" type="text" class="dash-bind-phone-input" :placeholder="$t('dashboard.bindPhonePlaceholder')">
+              <input v-model="bindPhoneForm.smsCode" type="text" maxlength="6" class="dash-bind-phone-input dash-bind-phone-code" :placeholder="$t('dashboard.bindPhoneCodePlaceholder')">
+              <button type="button" class="secondary-button" :disabled="bindPhoneSending || bindPhoneCooldown > 0" @click="sendBindPhoneSms">
+                {{ bindPhoneCooldown > 0 ? $t('login.sendSmsWait', { n: bindPhoneCooldown }) : $t('login.sendSms') }}
+              </button>
+              <button type="button" class="primary-button" :disabled="bindPhoneSaving" @click="submitBindPhone">{{ $t('dashboard.bindPhoneSubmit') }}</button>
+            </div>
+            <p v-if="bindPhoneMsg" class="dash-bind-phone-msg">{{ bindPhoneMsg }}</p>
+          </div>
+
           <div class="dash-kpi-grid" role="list">
             <div class="dash-kpi" role="listitem">
               <span class="dash-kpi-value">{{ kpiRepoCount }}</span>
@@ -1010,7 +1024,16 @@ export default {
       ],
 
       /** 当前版本默认视为已认证；后续可对接企业认证接口 */
-      enterpriseVerified: true
+      enterpriseVerified: true,
+
+      smsConfigForBind: { enabled: false, resendIntervalSeconds: 60 },
+      collabMemberProfile: null,
+      bindPhoneForm: { phone: '', smsCode: '' },
+      bindPhoneMsg: '',
+      bindPhoneSaving: false,
+      bindPhoneSending: false,
+      bindPhoneCooldown: 0,
+      bindPhoneTimer: null
     }
   },
   watch: {
@@ -1118,6 +1141,12 @@ export default {
       if (s.startsWith('http://') || s.startsWith('https://')) return s
       const base = this.$http && this.$http.defaults && this.$http.defaults.baseURL ? this.$http.defaults.baseURL : '/api'
       return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
+    },
+    bindPhonePanelVisible () {
+      if (!this.smsConfigForBind || !this.smsConfigForBind.enabled) return false
+      const p = this.collabMemberProfile
+      if (!p) return false
+      return p.phoneBound !== true
     },
     enterpriseLogoPreviewUrl () {
       const key = this.subjectEditLegal && this.subjectEditLegal.enterpriseLogo
@@ -1286,6 +1315,10 @@ export default {
     })
   },
   beforeDestroy () {
+    if (this.bindPhoneTimer) {
+      clearInterval(this.bindPhoneTimer)
+      this.bindPhoneTimer = null
+    }
     document.body.style.overflow = ''
     if (this._onEscape) {
       document.removeEventListener('keydown', this._onEscape)
@@ -1327,6 +1360,87 @@ export default {
       this.loadAiHub()
       this.loadNexusHub()
       this.loadPartyBProfileForHeader()
+      this.loadCollabBindContext()
+    },
+    async loadCollabBindContext () {
+      try {
+        const r1 = await this.$http.get('/admin/auth/sms/config')
+        if (r1.data && r1.data.code === 0 && r1.data.data) {
+          this.smsConfigForBind = {
+            enabled: !!r1.data.data.enabled,
+            resendIntervalSeconds: Number(r1.data.data.resendIntervalSeconds) || 60
+          }
+        }
+      } catch (e) { /* ignore */ }
+      try {
+        const r2 = await this.$http.get('/admin/auth/collab-token')
+        if (r2.data && r2.data.code === 0 && r2.data.data && r2.data.data.collabToken) {
+          window.localStorage.setItem('autoattend_collab_token', r2.data.data.collabToken)
+        }
+        const r3 = await this.$http.get('/collab/auth/me')
+        if (r3.data && r3.data.code === 0 && r3.data.data) {
+          this.collabMemberProfile = r3.data.data
+        }
+      } catch (e) {
+        this.collabMemberProfile = null
+      }
+    },
+    startBindPhoneCooldown () {
+      this.bindPhoneCooldown = this.smsConfigForBind.resendIntervalSeconds || 60
+      if (this.bindPhoneTimer) clearInterval(this.bindPhoneTimer)
+      this.bindPhoneTimer = setInterval(() => {
+        this.bindPhoneCooldown--
+        if (this.bindPhoneCooldown <= 0) {
+          clearInterval(this.bindPhoneTimer)
+          this.bindPhoneTimer = null
+          this.bindPhoneCooldown = 0
+        }
+      }, 1000)
+    },
+    async sendBindPhoneSms () {
+      if (this.bindPhoneCooldown > 0 || this.bindPhoneSending) return
+      const phone = (this.bindPhoneForm.phone || '').trim()
+      if (!phone) {
+        this.bindPhoneMsg = this.$t('dashboard.bindPhoneNeedPhone')
+        return
+      }
+      this.bindPhoneMsg = ''
+      this.bindPhoneSending = true
+      try {
+        const r = await this.$http.post('/admin/auth/sms/send-bind-phone', { phone, purpose: 'bind_phone' })
+        if (r.data && r.data.code === 0) {
+          this.startBindPhoneCooldown()
+        } else {
+          this.bindPhoneMsg = (r.data && r.data.message) || this.$t('login.smsSendFailed')
+        }
+      } catch (e) {
+        this.bindPhoneMsg = (e.response && e.response.data && e.response.data.message) || this.$t('login.smsSendFailed')
+      } finally {
+        this.bindPhoneSending = false
+      }
+    },
+    async submitBindPhone () {
+      const phone = (this.bindPhoneForm.phone || '').trim()
+      const code = (this.bindPhoneForm.smsCode || '').trim()
+      if (!phone || !/^\d{6}$/.test(code)) {
+        this.bindPhoneMsg = this.$t('dashboard.bindPhoneNeedCode')
+        return
+      }
+      this.bindPhoneSaving = true
+      this.bindPhoneMsg = ''
+      try {
+        const r = await this.$http.post('/admin/auth/bind-phone', { phone, smsCode: code })
+        if (r.data && r.data.code === 0) {
+          this.bindPhoneMsg = this.$t('dashboard.bindPhoneOk')
+          await this.loadCollabBindContext()
+        } else {
+          this.bindPhoneMsg = (r.data && r.data.message) || this.$t('dashboard.bindPhoneFail')
+        }
+      } catch (e) {
+        this.bindPhoneMsg = (e.response && e.response.data && e.response.data.message) || this.$t('dashboard.bindPhoneFail')
+      } finally {
+        this.bindPhoneSaving = false
+      }
     },
     async loadNexusHub () {
       this.nexusHub.loading = true
@@ -2336,6 +2450,47 @@ export default {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.6) inset,
     0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+.dash-bind-phone-panel {
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  background: rgba(255, 255, 255, 0.85);
+}
+.dash-bind-phone-title {
+  margin: 0 0 var(--space-sm);
+  font-size: 15px;
+  font-weight: 600;
+}
+.dash-bind-phone-desc {
+  margin: 0 0 var(--space-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.dash-bind-phone-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.dash-bind-phone-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  font-size: 14px;
+  min-width: 160px;
+}
+.dash-bind-phone-code {
+  width: 100px;
+  min-width: 100px;
+}
+.dash-bind-phone-msg {
+  margin: var(--space-sm) 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .dash-command-bg {

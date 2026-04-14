@@ -99,17 +99,6 @@ public class AdminTeamService {
         userMapper.update(user);
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public void resetPassword(long id, String newPassword) {
-        if (newPassword == null || newPassword.isBlank()) {
-            throw new IllegalArgumentException("新密码不能为空");
-        }
-        BizUser user = getMember(id);
-        if (user == null) throw new IllegalArgumentException("用户不存在");
-        user.setPasswordHash(passwordService.hash(newPassword));
-        userMapper.update(user);
-    }
-
     public List<BizProjectMember> getMemberProjects(long userId) {
         return projectMemberMapper.listByUserId(userId);
     }

@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
+
 import org.example.atuo_attend_backend.collab.dto.CollabCsvChunkRequest;
 import org.example.atuo_attend_backend.collab.dto.CollabCsvQuickImportRequest;
 import org.example.atuo_attend_backend.collab.service.CollabCsvAiImportService;
@@ -40,7 +42,7 @@ public class CollabCsvAiImportController {
                                                           @RequestParam("file") MultipartFile file,
                                                           HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId)) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         try {
@@ -61,7 +63,7 @@ public class CollabCsvAiImportController {
                                                          @RequestBody(required = false) CollabCsvChunkRequest body,
                                                          HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId)) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         if (body == null) {
@@ -84,7 +86,7 @@ public class CollabCsvAiImportController {
                                                                @RequestParam("file") MultipartFile file,
                                                                HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId)) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         try {
@@ -104,7 +106,7 @@ public class CollabCsvAiImportController {
                                                               @RequestBody(required = false) CollabCsvQuickImportRequest body,
                                                               HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId)) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         try {
@@ -123,7 +125,7 @@ public class CollabCsvAiImportController {
                                                  @PathVariable String sessionId,
                                                  HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId)) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         csvAiImportService.discardSession(userId, projectId, sessionId);
@@ -135,7 +137,7 @@ public class CollabCsvAiImportController {
                                             @PathVariable String sessionId,
                                             HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId)) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         csvAiImportService.discardSession(userId, projectId, sessionId);

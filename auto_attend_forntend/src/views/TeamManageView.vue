@@ -33,7 +33,6 @@
             <td>{{ roleLabel(u.role) }}</td>
             <td>
               <button class="link-button" @click="openEdit(u)">{{ $t('teamManage.editMember') }}</button>
-              <button class="link-button" @click="openResetPassword(u)">{{ $t('teamManage.resetPassword') }}</button>
               <button class="link-button" @click="openProjectPermissions(u)">{{ $t('teamManage.projectPermissions') }}</button>
             </td>
           </tr>
@@ -101,19 +100,6 @@
       </div>
     </div>
 
-    <!-- 重置密码 -->
-    <div v-if="showPasswordModal" class="modal-mask" @click.self="showPasswordModal = false">
-      <div class="modal-card">
-        <h3>{{ $t('teamManage.resetPassword') }}</h3>
-        <p class="form-hint">{{ passwordTarget ? passwordTarget.email : '' }}</p>
-        <div class="form-row"><label>{{ $t('teamManage.newPassword') }}</label><input v-model="passwordForm.newPassword" type="password" required></div>
-        <div class="modal-actions">
-          <button class="primary-button" @click="saveResetPassword" :disabled="saving">{{ $t('teamManage.save') }}</button>
-          <button class="secondary-button" @click="showPasswordModal = false">{{ $t('teamManage.cancel') }}</button>
-        </div>
-      </div>
-    </div>
-
     <!-- 项目权限 -->
     <div v-if="showProjectsModal" class="modal-mask" @click.self="showProjectsModal = false">
       <div class="modal-card modal-card-wide">
@@ -154,13 +140,10 @@ export default {
       saving: false,
       showCreateModal: false,
       showEditModal: false,
-      showPasswordModal: false,
       showProjectsModal: false,
       createForm: { email: '', name: '', password: '', remarkName: '', jobTitle: '开发工程师' },
       editTarget: null,
       editForm: { name: '', remarkName: '', jobTitle: '开发工程师', avatar: '', role: 'member' },
-      passwordTarget: null,
-      passwordForm: { newPassword: '' },
       projectsTarget: null,
       projectSelection: [],
       projectRoles: {},
@@ -288,27 +271,6 @@ export default {
         }
       } catch (e) {
         alert(e.response && e.response.data && e.response.data.message ? e.response.data.message : '保存失败')
-      } finally {
-        this.saving = false
-      }
-    },
-    openResetPassword (u) {
-      this.passwordTarget = u
-      this.passwordForm = { newPassword: '' }
-      this.showPasswordModal = true
-    },
-    async saveResetPassword () {
-      if (!this.passwordTarget || !this.passwordForm.newPassword || !this.passwordForm.newPassword.trim()) return
-      this.saving = true
-      try {
-        const r = await this.$http.put('/admin/team/members/' + this.passwordTarget.id + '/password', { newPassword: this.passwordForm.newPassword })
-        if (r.data && r.data.code === 0) {
-          this.showPasswordModal = false
-        } else {
-          alert(r.data.message || '重置失败')
-        }
-      } catch (e) {
-        alert(e.response && e.response.data && e.response.data.message ? e.response.data.message : '重置失败')
       } finally {
         this.saving = false
       }

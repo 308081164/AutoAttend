@@ -155,16 +155,6 @@ public class AdminTeamController {
         }
     }
 
-    @PutMapping("/members/{id}/password")
-    public ApiResponse<Void> resetPassword(@PathVariable long id, @RequestBody ResetPasswordRequest req) {
-        try {
-            teamService.resetPassword(id, req.getNewPassword());
-            return ApiResponse.ok(null);
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(40000, e.getMessage());
-        }
-    }
-
     @GetMapping("/members/{id}/projects")
     public ApiResponse<Map<String, Object>> getMemberProjects(@PathVariable long id) {
         BizUser user = teamService.getMember(id);

@@ -69,9 +69,10 @@ axios.interceptors.response.use(
         
         // 延迟跳转到登录页面，避免在Vue实例创建前调用router
         setTimeout(() => {
-          if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-            window.location.href = '/login'
-          }
+          const p = window.location.pathname || ''
+          if (p === '/login' || p === '/register' || p === '/member-login') return
+          const memberArea = p.indexOf('/collab') === 0 || p === '/member'
+          window.location.href = memberArea ? '/member-login' : '/login'
         }, 100)
       }
       

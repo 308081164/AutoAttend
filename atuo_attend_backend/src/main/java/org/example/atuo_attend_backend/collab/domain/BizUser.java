@@ -12,6 +12,10 @@ public class BizUser {
     private String avatar;
     private String remarkName;
     private String jobTitle;
+    /** E.164 手机号；未填写表示未绑定手机 */
+    private String phoneE164;
+    /** 绑定的租户管理员账号（同手机号自动关联） */
+    private Long linkedTenantAdminUserId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -33,6 +37,10 @@ public class BizUser {
     public void setRemarkName(String remarkName) { this.remarkName = remarkName; }
     public String getJobTitle() { return jobTitle; }
     public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
+    public String getPhoneE164() { return phoneE164; }
+    public void setPhoneE164(String phoneE164) { this.phoneE164 = phoneE164; }
+    public Long getLinkedTenantAdminUserId() { return linkedTenantAdminUserId; }
+    public void setLinkedTenantAdminUserId(Long linkedTenantAdminUserId) { this.linkedTenantAdminUserId = linkedTenantAdminUserId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

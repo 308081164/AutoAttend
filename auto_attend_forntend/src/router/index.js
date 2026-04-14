@@ -9,6 +9,7 @@ import AiConfigView from '../views/AiConfigView.vue'
 import CollabProjectListView from '../views/CollabProjectListView.vue'
 import CollabTableView from '../views/CollabTableView.vue'
 import MemberHomeView from '../views/MemberHomeView.vue'
+import MemberLoginView from '../views/MemberLoginView.vue'
 import TeamManageView from '../views/TeamManageView.vue'
 import TenantAdminManageView from '../views/TenantAdminManageView.vue'
 import CommitAnalysisView from '../views/CommitAnalysisView.vue'
@@ -31,6 +32,12 @@ const routes = [
     path: '/login',
     name: 'login',
     component: LoginView,
+    meta: { bareLayout: true }
+  },
+  {
+    path: '/member-login',
+    name: 'member-login',
+    component: MemberLoginView,
     meta: { bareLayout: true }
   },
   {
@@ -178,9 +185,13 @@ router.beforeEach(async (to, from, next) => {
   const adminToken = window.localStorage.getItem('autoattend_token')
   const collabToken = window.localStorage.getItem('autoattend_collab_token')
 
-  if (to.name === 'login' || to.name === 'register') {
-    if (adminToken) { next({ name: 'dashboard' }); return }
-    if (collabToken) { next({ name: 'member-home' }); return }
+  if (to.name === 'login' || to.name === 'register' || to.name === 'member-login') {
+    if (to.name === 'member-login' && adminToken) { next({ name: 'dashboard' }); return }
+    if (to.name === 'member-login' && collabToken) { next({ name: 'member-home' }); return }
+    if (to.name === 'login' || to.name === 'register') {
+      if (adminToken) { next({ name: 'dashboard' }); return }
+      if (collabToken) { next({ name: 'member-home' }); return }
+    }
     next()
     return
   }
@@ -209,7 +220,7 @@ router.beforeEach(async (to, from, next) => {
       return
     }
     if (!collabToken) {
-      next({ name: 'login' })
+      next({ name: 'member-login' })
       return
     }
     next()
@@ -225,7 +236,7 @@ router.beforeEach(async (to, from, next) => {
       return
     }
   }
-  if (to.name !== 'login' && to.name !== 'register' && to.name !== 'landing' && !adminToken) {
+  if (to.name !== 'login' && to.name !== 'register' && to.name !== 'member-login' && to.name !== 'landing' && !adminToken) {
     next({ name: 'login' })
   } else {
     next()

@@ -18,6 +18,12 @@ import java.io.IOException;
 @Component
 public class CollabAuthFilter implements Filter {
 
+    public static final String ATTR_COLLAB_USER_ID = "collabUserId";
+    public static final String ATTR_COLLAB_JWT_MODE = "collabJwtMode";
+    public static final String ATTR_COLLAB_PROJECT_SCOPE = "collabProjectScope";
+
+    private static final String ROLE_SUPER_ADMIN = "super_admin";
+
     private final CollabJwtService jwtService;
     private final BizUserMapper bizUserMapper;
 
@@ -33,7 +39,8 @@ public class CollabAuthFilter implements Filter {
 
         String path = req.getRequestURI();
         boolean isAnonymousAuth = "POST".equalsIgnoreCase(req.getMethod()) && path != null
-                && (path.contains("/auth/login") || path.contains("/auth/register-invite"));
+                && (path.contains("/auth/login") || path.contains("/auth/register-invite")
+                || path.contains("/auth/sms/send-login") || path.contains("/auth/sms/config"));
 
         String auth = req.getHeader("Authorization");
         String token = null;
@@ -42,10 +49,19 @@ public class CollabAuthFilter implements Filter {
         }
         Long userId = token != null ? jwtService.getUserIdFromToken(token) : null;
         if (userId != null) {
-            req.setAttribute("collabUserId", userId);
+            req.setAttribute(ATTR_COLLAB_USER_ID, userId);
+            String mode = token != null ? jwtService.getModeFromToken(token) : null;
+            String projectScope = token != null ? jwtService.getProjectScopeFromToken(token) : null;
+            req.setAttribute(ATTR_COLLAB_JWT_MODE, mode);
+            req.setAttribute(ATTR_COLLAB_PROJECT_SCOPE, projectScope);
             BizUser u = bizUserMapper.findById(userId);
-            if (u != null && u.getTenantId() != null) {
-                TenantContext.setTenantId(u.getTenantId());
+            if (u != null) {
+                boolean useTenantContext = shouldSetTenantContext(mode, projectScope, u);
+                if (useTenantContext && u.getTenantId() != null) {
+                    TenantContext.setTenantId(u.getTenantId());
+                } else {
+                    TenantContext.clear();
+                }
             }
         } else if (!isAnonymousAuth) {
             resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -55,5 +71,32 @@ public class CollabAuthFilter implements Filter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private static boolean shouldSetTenantContext(String mode, String projectScope, BizUser u) {
+        if (CollabJwtService.PROJECT_SCOPE_ALL.equals(projectScope)) {
+            return false;
+        }
+        if (CollabJwtService.JWT_MODE_ADMIN.equals(mode)) {
+            return true;
+        }
+        if (CollabJwtService.PROJECT_SCOPE_TENANT.equals(projectScope)) {
+            return true;
+        }
+        // 旧 JWT 无 mode/scope：超级管理员按单租户；普通成员不设置（跨租户列表）
+        return mode == null && projectScope == null && ROLE_SUPER_ADMIN.equals(u.getRole());
+    }
+
+    public static long requireCollabUserId(HttpServletRequest req) {
+        Object v = req.getAttribute(ATTR_COLLAB_USER_ID);
+        if (!(v instanceof Long)) {
+            throw new IllegalStateException("unauthorized");
+        }
+        return (Long) v;
+    }
+
+    public static String projectScopeFrom(HttpServletRequest req) {
+        Object v = req.getAttribute(ATTR_COLLAB_PROJECT_SCOPE);
+        return v != null ? v.toString() : null;
     }
 }

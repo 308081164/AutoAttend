@@ -21,11 +21,28 @@ public class CollabJwtService {
         this.expireMs = expireSeconds * 1000;
     }
 
+    public static final String JWT_MODE_ADMIN = "admin";
+    public static final String JWT_MODE_MEMBER = "member";
+    /** 仅本租户协作项目（管理员工作台项目管理） */
+    public static final String PROJECT_SCOPE_TENANT = "tenant";
+    /** 用户参与的全部租户项目（成员首页） */
+    public static final String PROJECT_SCOPE_ALL = "all";
+
     public String createToken(long userId, String email, String role) {
+        return createToken(userId, email, role, JWT_MODE_MEMBER, PROJECT_SCOPE_ALL);
+    }
+
+    /**
+     * @param mode admin=管理员会话（仅 tenant 内协作）；member=成员会话
+     * @param projectScope tenant=仅当前租户项目；all=跨租户参与项目
+     */
+    public String createToken(long userId, String email, String role, String mode, String projectScope) {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("email", email)
                 .claim("role", role)
+                .claim("mode", mode != null ? mode : JWT_MODE_MEMBER)
+                .claim("projectScope", projectScope != null ? projectScope : PROJECT_SCOPE_ALL)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expireMs))
                 .signWith(key)
@@ -48,5 +65,19 @@ public class CollabJwtService {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    public String getModeFromToken(String token) {
+        Claims c = parseToken(token);
+        if (c == null) return null;
+        Object m = c.get("mode");
+        return m != null ? m.toString() : null;
+    }
+
+    public String getProjectScopeFromToken(String token) {
+        Claims c = parseToken(token);
+        if (c == null) return null;
+        Object s = c.get("projectScope");
+        return s != null ? s.toString() : null;
     }
 }

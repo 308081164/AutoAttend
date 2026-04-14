@@ -194,6 +194,8 @@
           <!-- Register link -->
           <div class="alt-action">
             <router-link to="/register" class="register-link">{{ $t('login.registerLink') }}</router-link>
+            <span class="alt-sep"> · </span>
+            <router-link :to="{ name: 'member-login' }" class="register-link">{{ $t('login.memberLoginLink') }}</router-link>
           </div>
 
           <!-- Back to landing -->
@@ -361,15 +363,6 @@ export default {
             window.localStorage.setItem('autoattend_collab_token', data.collabToken)
           }
           this.$router.push({ name: 'dashboard' })
-          return
-        }
-        const collabResp = await this.$http.post('/collab/auth/login', {
-          email: phone,
-          password: this.form.password
-        })
-        if (collabResp.data && collabResp.data.code === 0) {
-          window.localStorage.setItem('autoattend_collab_token', collabResp.data.data.token)
-          this.$router.push({ name: 'member-home' })
           return
         }
         this.error = (adminResp.data && adminResp.data.message) || this.$t('login.failed')

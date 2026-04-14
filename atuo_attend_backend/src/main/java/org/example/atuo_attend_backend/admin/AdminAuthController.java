@@ -1,6 +1,7 @@
 package org.example.atuo_attend_backend.admin;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.example.atuo_attend_backend.admin.PhoneNormalizer;
 import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.admin.dto.*;
 import org.example.atuo_attend_backend.admin.model.AdminUser;
@@ -10,6 +11,7 @@ import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
+import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,19 +28,22 @@ public class AdminAuthController {
     private final AdminSessionMapper adminSessionMapper;
     private final AdminSmsService adminSmsService;
     private final AdminSmsProperties adminSmsProperties;
+    private final TenantAdminUserMapper tenantAdminUserMapper;
 
     public AdminAuthController(AdminAuthService adminAuthService,
                                CollabAuthService collabAuthService,
                                TenantMapper tenantMapper,
                                AdminSessionMapper adminSessionMapper,
                                AdminSmsService adminSmsService,
-                               AdminSmsProperties adminSmsProperties) {
+                               AdminSmsProperties adminSmsProperties,
+                               TenantAdminUserMapper tenantAdminUserMapper) {
         this.adminAuthService = adminAuthService;
         this.collabAuthService = collabAuthService;
         this.tenantMapper = tenantMapper;
         this.adminSessionMapper = adminSessionMapper;
         this.adminSmsService = adminSmsService;
         this.adminSmsProperties = adminSmsProperties;
+        this.tenantAdminUserMapper = tenantAdminUserMapper;
     }
 
     /** 是否启用短信验证码（前端据此展示验证码输入框） */
@@ -63,6 +68,40 @@ public class AdminAuthController {
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : "短信发送失败";
             return ApiResponse.error(50001, msg);
+        }
+    }
+
+    /** 绑定/校验协作侧手机号（需已登录管理员） */
+    @PostMapping("/sms/send-bind-phone")
+    public ApiResponse<Void> sendBindPhoneSms(@RequestBody AdminSmsSendRequest body, HttpServletRequest request) {
+        try {
+            String phone = PhoneNormalizer.normalize(body.getPhone());
+            if (phone == null) {
+                return ApiResponse.error(40001, "手机号格式不正确");
+            }
+            if (tenantAdminUserMapper.findByPhone(phone) == null) {
+                return ApiResponse.error(40001, "该手机号未注册管理员账号，无法完成关联绑定");
+            }
+            adminSmsService.sendCode(body.getPhone(), AdminSmsService.PURPOSE_BIND_PHONE);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40001, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(40002, e.getMessage());
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "短信发送失败";
+            return ApiResponse.error(50001, msg);
+        }
+    }
+
+    @PostMapping("/bind-phone")
+    public ApiResponse<Void> bindPhone(@RequestBody AdminBindPhoneRequest body, HttpServletRequest request) {
+        String phone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        try {
+            collabAuthService.bindPhoneForAdminSession(phone, body.getPhone(), body.getSmsCode());
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
         }
     }
 

@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
+
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectMember;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
@@ -40,10 +42,13 @@ public class CollabProjectController {
     @GetMapping
     public ApiResponse<?> list(HttpServletRequest req) {
         long userId = requireUserId(req);
-        List<BizProject> list = projectService.listProjectsForUser(userId);
+        String scope = CollabAuthFilter.projectScopeFrom(req);
+        List<BizProject> list = projectService.listProjectsForUser(userId, scope);
         List<Map<String, Object>> items = list.stream().map(p -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", p.getId());
+            m.put("tenantId", p.getTenantId());
+            m.put("tenantName", projectService.tenantNameForProject(p));
             m.put("name", p.getName());
             m.put("description", p.getDescription());
             m.put("repoId", p.getRepoId());
@@ -59,13 +64,15 @@ public class CollabProjectController {
     @GetMapping("/{id}")
     public ApiResponse<?> get(@PathVariable long id, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, id)) {
+        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         BizProject p = projectService.getById(id);
         if (p == null) return ApiResponse.error(40400, "项目不存在");
         Map<String, Object> data = new HashMap<>();
         data.put("id", p.getId());
+        data.put("tenantId", p.getTenantId());
+        data.put("tenantName", projectService.tenantNameForProject(p));
         data.put("name", p.getName());
         data.put("description", p.getDescription());
         data.put("repoId", p.getRepoId());
@@ -77,7 +84,7 @@ public class CollabProjectController {
     @GetMapping("/{id}/members")
     public ApiResponse<?> listMembers(@PathVariable long id, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, id)) {
+        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         List<BizProjectMember> members = memberMapper.listByProjectId(id);

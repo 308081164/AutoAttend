@@ -7,10 +7,30 @@
         <button class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </div>
-    <p class="page-desc">{{ $t('collab.selectProject') }}</p>
+    <div v-if="isAdmin" class="collab-tabs" role="tablist">
+      <button
+        type="button"
+        class="collab-tab"
+        :class="{ active: projectTab === 'tenant' }"
+        role="tab"
+        @click="projectTab = 'tenant'"
+      >
+        {{ $t('collab.tabTenantProjects') }}
+      </button>
+      <button
+        type="button"
+        class="collab-tab"
+        :class="{ active: projectTab === 'external' }"
+        role="tab"
+        @click="projectTab = 'external'"
+      >
+        {{ $t('collab.tabExternalProjects') }}
+      </button>
+    </div>
+    <p class="page-desc">{{ activeTabDesc }}</p>
     <div v-if="loading" class="placeholder">{{ $t('collab.loading') }}</div>
-    <div v-else-if="!projects.length" class="placeholder">
-      {{ $t('collab.noProjects') }}
+    <div v-else-if="!displayProjects.length" class="placeholder">
+      {{ emptyTabMessage }}
     </div>
     <template v-else>
       <div class="project-search-wrap">
@@ -29,6 +49,7 @@
       <ul v-else class="project-list">
       <li v-for="p in filteredProjects" :key="p.id" class="project-item">
         <router-link :to="{ name: 'collab-table', params: { projectId: p.id } }" class="project-link">
+          <span v-if="p.tenantName" class="project-tenant">{{ $t('collab.tenantLabel') }}：{{ p.tenantName }}</span>
           <span class="project-name">{{ p.name }}</span>
           <span v-if="p.description" class="project-desc">{{ p.description }}</span>
           <span class="project-repo">{{ $t('collab.repoLabel') }}：{{ p.repoId }}</span>
@@ -45,26 +66,53 @@ export default {
   data () {
     return {
       projects: [],
+      externalProjects: [],
+      projectTab: 'tenant',
       projectSearch: '',
       loading: true,
       userEmail: ''
     }
   },
   computed: {
+    isAdmin () {
+      return !!window.localStorage.getItem('autoattend_token')
+    },
+    displayProjects () {
+      return this.projectTab === 'external' ? this.externalProjects : this.projects
+    },
+    activeTabDesc () {
+      if (this.projectTab === 'external') {
+        return this.$t('collab.selectProjectExternal')
+      }
+      return this.$t('collab.selectProject')
+    },
+    emptyTabMessage () {
+      if (this.projectTab === 'external') {
+        return this.$t('collab.noExternalProjects')
+      }
+      return this.$t('collab.noProjects')
+    },
     filteredProjects () {
       const q = (this.projectSearch || '').trim().toLowerCase()
-      if (!q) return this.projects
-      return this.projects.filter(p => {
+      if (!q) return this.displayProjects
+      return this.displayProjects.filter(p => {
         const name = String(p.name != null ? p.name : '').toLowerCase()
         const desc = String(p.description != null ? p.description : '').toLowerCase()
         const repo = String(p.repoId != null ? p.repoId : '').toLowerCase()
-        return name.includes(q) || desc.includes(q) || repo.includes(q)
+        const tenant = String(p.tenantName != null ? p.tenantName : '').toLowerCase()
+        return name.includes(q) || desc.includes(q) || repo.includes(q) || tenant.includes(q)
       })
+    }
+  },
+  watch: {
+    projectTab () {
+      this.projectSearch = ''
     }
   },
   created () {
     this.loadMe()
     this.loadProjects()
+    this.loadExternalIfAdmin()
   },
   methods: {
     async loadMe () {
@@ -74,7 +122,9 @@ export default {
           this.userEmail = resp.data.data.email || ''
         }
       } catch (e) {
-        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
+        if (e.response && e.response.status === 401) {
+          this.$router.push(this.isAdmin ? { name: 'login' } : { name: 'member-login' })
+        }
       }
     },
     async loadProjects () {
@@ -85,10 +135,21 @@ export default {
           this.projects = resp.data.data.items || []
         }
       } catch (e) {
-        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
+        if (e.response && e.response.status === 401) {
+          this.$router.push(this.isAdmin ? { name: 'login' } : { name: 'member-login' })
+        }
       } finally {
         this.loading = false
       }
+    },
+    async loadExternalIfAdmin () {
+      if (!this.isAdmin) return
+      try {
+        const resp = await this.$http.get('/admin/collab/external-projects')
+        if (resp.data && resp.data.code === 0) {
+          this.externalProjects = resp.data.data.items || []
+        }
+      } catch (e) { /* ignore */ }
     },
     logout () {
       window.localStorage.removeItem('autoattend_collab_token')
@@ -219,6 +280,33 @@ export default {
   border-color: var(--brand-blue);
   background: #F0F5FF;
   box-shadow: var(--shadow-md);
+}
+
+.project-tenant {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-blue);
+  margin-bottom: 4px;
+}
+
+.collab-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+}
+.collab-tab {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-card);
+  cursor: pointer;
+  font-size: 14px;
+}
+.collab-tab.active {
+  border-color: var(--brand-blue);
+  background: #f0f5ff;
+  color: var(--brand-blue);
 }
 
 .project-name {
