@@ -52,6 +52,7 @@ public class AdminAuthController {
         Map<String, Object> m = new HashMap<>();
         m.put("enabled", adminSmsService.smsLoginEnabled());
         m.put("resendIntervalSeconds", adminSmsProperties.getResendIntervalSeconds());
+        m.put("maxSendsPerPhonePerDay", adminSmsProperties.getMaxSendsPerPhonePerDay());
         return ApiResponse.ok(m);
     }
 

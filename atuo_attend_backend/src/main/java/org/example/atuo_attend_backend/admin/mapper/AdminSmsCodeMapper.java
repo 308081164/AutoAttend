@@ -46,6 +46,13 @@ public interface AdminSmsCodeMapper {
             """)
     LocalDateTime findLastSendTime(@Param("phone") String phone, @Param("purpose") String purpose);
 
+    /** 统计某号码自某时刻起已发送次数（成功写入库的均计数，含未使用记录） */
+    @Select("""
+            SELECT COUNT(*) FROM aa_admin_sms_code
+            WHERE phone = #{phone} AND created_at >= #{since}
+            """)
+    long countSendsSince(@Param("phone") String phone, @Param("since") LocalDateTime since);
+
     @Delete("""
             DELETE FROM aa_admin_sms_code
             WHERE phone = #{phone} AND purpose = #{purpose} AND used_at IS NULL

@@ -11,7 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HexFormat;
 
 /**
@@ -94,6 +96,14 @@ public class AdminSmsService {
             if (elapsed < props.getResendIntervalSeconds()) {
                 throw new IllegalStateException("发送过于频繁，请稍后再试");
             }
+        }
+
+        ZoneId zone = props.getSmsRateLimitZone();
+        LocalDateTime dayStart = LocalDate.now(zone).atStartOfDay();
+        long sentToday = smsCodeMapper.countSendsSince(phone, dayStart);
+        int dailyCap = props.getMaxSendsPerPhonePerDay();
+        if (dailyCap > 0 && sentToday >= dailyCap) {
+            throw new IllegalStateException("今日验证码发送次数已达上限，请明日再试");
         }
 
         String code = randomDigits(random, CODE_LENGTH);
