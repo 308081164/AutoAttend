@@ -44,3 +44,4 @@ schema_agent_session_migration.sql
 schema_admin_sms_migration.sql
 schema_referral_invite_migration.sql
 schema_invite_code_uses_migration.sql
+schema_invite_code_platform_global_migration.sql

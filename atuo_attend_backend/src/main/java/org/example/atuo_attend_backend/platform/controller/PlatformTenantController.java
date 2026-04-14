@@ -10,13 +10,10 @@ import org.example.atuo_attend_backend.platform.mapper.PlatformOpsAuditMapper;
 import org.example.atuo_attend_backend.platform.mapper.PlatformOpsReportMapper;
 import org.example.atuo_attend_backend.tenant.billing.TenantBillingService;
 import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
-import org.example.atuo_attend_backend.tenant.referral.InviteCodeService;
 import org.example.atuo_attend_backend.tenant.mapper.SubscriptionOrderMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,7 +30,6 @@ public class PlatformTenantController {
     private final PlatformOpsAuditMapper platformOpsAuditMapper;
     private final SubscriptionOrderMapper subscriptionOrderMapper;
     private final TenantBillingService tenantBillingService;
-    private final InviteCodeService inviteCodeService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PlatformTenantController(PlatformOpsReportMapper platformOpsReportMapper,
@@ -41,15 +37,13 @@ public class PlatformTenantController {
                                     AdminSessionMapper adminSessionMapper,
                                     PlatformOpsAuditMapper platformOpsAuditMapper,
                                     SubscriptionOrderMapper subscriptionOrderMapper,
-                                    TenantBillingService tenantBillingService,
-                                    InviteCodeService inviteCodeService) {
+                                    TenantBillingService tenantBillingService) {
         this.platformOpsReportMapper = platformOpsReportMapper;
         this.tenantMapper = tenantMapper;
         this.adminSessionMapper = adminSessionMapper;
         this.platformOpsAuditMapper = platformOpsAuditMapper;
         this.subscriptionOrderMapper = subscriptionOrderMapper;
         this.tenantBillingService = tenantBillingService;
-        this.inviteCodeService = inviteCodeService;
     }
 
     private Long sessionId(HttpServletRequest request) {
@@ -143,53 +137,4 @@ public class PlatformTenantController {
         }
     }
 
-    /**
-     * 为指定租户生成平台邀请码（可设过期；用于引流）。
-     */
-    @PostMapping("/{tenantId}/invite-code")
-    public ApiResponse<Map<String, Object>> createPlatformInviteCode(
-            @PathVariable("tenantId") long tenantId,
-            @RequestBody(required = false) Map<String, Object> body,
-            HttpServletRequest request) {
-        if (tenantMapper.findById(tenantId) == null) {
-            return ApiResponse.error(40400, "租户不存在");
-        }
-        LocalDateTime expiresAt = null;
-        Integer maxUses = 1;
-        if (body != null) {
-            Object iso = body.get("expiresAt");
-            if (iso != null && !String.valueOf(iso).isBlank()) {
-                try {
-                    expiresAt = LocalDateTime.parse(String.valueOf(iso).trim().replace(" ", "T"));
-                } catch (DateTimeParseException e) {
-                    return ApiResponse.error(40000, "expiresAt 格式无效，使用 ISO 日期时间");
-                }
-            } else if (body.get("validDays") instanceof Number n) {
-                int d = n.intValue();
-                if (d > 0 && d <= 3650) {
-                    expiresAt = LocalDateTime.now().plusDays(d);
-                }
-            }
-            if (body.get("maxUses") instanceof Number n) {
-                maxUses = n.intValue();
-            }
-        }
-        if (maxUses == null || maxUses < 1 || maxUses > 1_000_000) {
-            return ApiResponse.error(40000, "maxUses 须为 1～1000000 的整数");
-        }
-        try {
-            var inv = inviteCodeService.createPlatformCode(tenantId, expiresAt, maxUses);
-            audit(request, "tenant.invite_code_platform", tenantId,
-                    Map.of("code", inv.getCode(),
-                            "expiresAt", inv.getExpiresAt() != null ? inv.getExpiresAt().toString() : "",
-                            "maxUses", String.valueOf(inv.getMaxUses())));
-            Map<String, Object> data = new HashMap<>();
-            data.put("code", inv.getCode());
-            data.put("expiresAt", inv.getExpiresAt());
-            data.put("maxUses", inv.getMaxUses());
-            return ApiResponse.ok(data);
-        } catch (Exception e) {
-            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "生成失败");
-        }
-    }
 }

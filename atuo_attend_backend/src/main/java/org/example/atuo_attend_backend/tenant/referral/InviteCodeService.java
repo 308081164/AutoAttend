@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -88,10 +89,11 @@ public class InviteCodeService {
     }
 
     /**
-     * 平台官方邀请码：必须设置可使用次数；未传过期时间时默认自现在起 30 天。
+     * 平台官方邀请码（与任何租户无关，类似全局激活码）：必须设置可使用次数；未传过期时间时默认自现在起 30 天。
+     * {@code referrer_tenant_id} 存为 {@code null}。
      */
     @Transactional
-    public InviteCode createPlatformCode(long referrerTenantId, LocalDateTime expiresAt, Integer maxUses) {
+    public InviteCode createGlobalPlatformCode(LocalDateTime expiresAt, Integer maxUses) {
         if (maxUses == null || maxUses < 1) {
             throw new IllegalArgumentException("官方邀请码必须设置可使用次数（≥1）");
         }
@@ -104,7 +106,7 @@ public class InviteCodeService {
                 InviteCode row = new InviteCode();
                 row.setCode(code);
                 row.setCreatedBy(BY_PLATFORM);
-                row.setReferrerTenantId(referrerTenantId);
+                row.setReferrerTenantId(null);
                 row.setCreatorUserId(null);
                 row.setExpiresAt(expiresAt);
                 row.setMaxUses(maxUses);
@@ -116,6 +118,11 @@ public class InviteCodeService {
         throw new IllegalStateException("生成邀请码失败");
     }
 
+    public List<InviteCode> listGlobalPlatformCodes(int limit) {
+        int lim = Math.min(Math.max(limit, 1), 200);
+        return inviteCodeMapper.listGlobalPlatformCodes(lim);
+    }
+
     /**
      * 注册成功后：绑定推荐关系并给推荐方 +1 积分（每成功注册一次）。
      */
@@ -125,15 +132,17 @@ public class InviteCodeService {
         if (inv == null) {
             return;
         }
-        long ref = inv.getReferrerTenantId();
-        if (ref == newTenantId) {
+        Long ref = inv.getReferrerTenantId();
+        if (ref != null && ref == newTenantId) {
             return;
         }
         if (!tryConsumeUse(inv)) {
             return;
         }
-        tenantMapper.updateReferrerIfNull(newTenantId, ref);
-        tenantMapper.addMemberPoints(ref, 1);
+        if (ref != null) {
+            tenantMapper.updateReferrerIfNull(newTenantId, ref);
+            tenantMapper.addMemberPoints(ref, 1);
+        }
     }
 
     /**
@@ -152,17 +161,19 @@ public class InviteCodeService {
         if (inv == null) {
             throw new IllegalArgumentException("邀请码无效或已过期");
         }
-        long ref = inv.getReferrerTenantId();
-        if (ref == tenantId) {
+        Long ref = inv.getReferrerTenantId();
+        if (ref != null && ref == tenantId) {
             throw new IllegalArgumentException("不能使用自己的邀请码");
         }
         if (!tryConsumeUse(inv)) {
             throw new IllegalArgumentException("邀请码已用尽或暂时不可用，请稍后再试");
         }
         tenantBillingService.grantPlanWindow(tenantId, "team", 30);
-        tenantMapper.updateReferrerIfNull(tenantId, ref);
+        if (ref != null) {
+            tenantMapper.updateReferrerIfNull(tenantId, ref);
+            tenantMapper.addMemberPoints(ref, 1);
+        }
         tenantMapper.markInviteRedeemed(tenantId);
-        tenantMapper.addMemberPoints(ref, 1);
     }
 
     /** 占用一次使用额度（与 DB 原子校验并发、过期、次数）。 */

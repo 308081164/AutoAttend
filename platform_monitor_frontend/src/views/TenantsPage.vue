@@ -1,5 +1,6 @@
 <template>
   <div>
+    <PlatformOfficialInvitePanel />
     <h2 class="title">租户列表</h2>
     <div class="toolbar">
       <input v-model.trim="q" type="search" class="search" placeholder="搜索名称、slug、手机…" aria-label="filter">
@@ -64,9 +65,11 @@
 
 <script>
 import { http } from '../api/http'
+import PlatformOfficialInvitePanel from '../components/PlatformOfficialInvitePanel.vue'
 
 export default {
   name: 'TenantsPage',
+  components: { PlatformOfficialInvitePanel },
   data () {
     return {
       rows: [],

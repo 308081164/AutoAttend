@@ -213,6 +213,11 @@ export default {
     pointsRule:
       '1 point offsets ¥1 on mock list price; referrals and redemptions earn points; referred org spending in year 1 gives referrer 10% in points.',
     myInviteCode: 'My invite code',
+    myInviteCodeHint:
+      'Your permanent org invite code for referrals. Platform-issued codes are managed separately.',
+    copyInvite: 'Copy',
+    inviteCopied: 'Copied',
+    inviteCopyFail: 'Copy failed',
     inviteRedeemTitle: 'Redeem invite code',
     inviteRedeemHint: 'Valid code grants 30 days Team (trial); once per organization',
     inviteRedeemBtn: 'Redeem',

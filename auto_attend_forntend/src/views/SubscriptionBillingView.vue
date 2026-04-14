@@ -51,9 +51,20 @@
       </div>
       <p v-if="status.inviteCodeRedeemed" class="sub-muted">{{ $t('subscriptionPage.inviteRedeemedNote') }}</p>
       <h3 class="sub-h3 sub-h3--sm">{{ $t('subscriptionPage.myInviteCode') }}</h3>
+      <p class="sub-invite-user-hint">{{ $t('subscriptionPage.myInviteCodeHint') }}</p>
       <p v-if="myInviteLoading" class="sub-muted">…</p>
       <template v-else>
-        <p class="sub-mono">{{ myInviteCode || '—' }}</p>
+        <div class="sub-my-code-box">
+          <span class="sub-my-code-text">{{ myInviteCode || '—' }}</span>
+          <button
+            v-if="myInviteCode"
+            type="button"
+            class="sub-btn sub-btn-copy"
+            @click="copyMyInvite"
+          >
+            {{ copyInviteLabel }}
+          </button>
+        </div>
         <button type="button" class="sub-btn secondary small" @click="loadMyInvite">{{ $t('subscriptionPage.refreshInvite') }}</button>
       </template>
     </section>
@@ -199,6 +210,7 @@ export default {
       redeeming: false,
       myInviteCode: '',
       myInviteLoading: false,
+      copyInviteHintKey: '',
       status: {
         planCode: 'free',
         billingBaselinePlanCode: 'free',
@@ -237,6 +249,11 @@ export default {
       if (code === 'pro') return this.quotaPro
       if (code === 'pro_plus' || code === 'enterprise') return this.quotaProPlus
       return this.quotaFree
+    },
+    copyInviteLabel () {
+      if (this.copyInviteHintKey === 'copied') return this.$t('subscriptionPage.inviteCopied')
+      if (this.copyInviteHintKey === 'fail') return this.$t('subscriptionPage.inviteCopyFail')
+      return this.$t('subscriptionPage.copyInvite')
     },
     usageSlashRows () {
       const u = this.status.usage || {}
@@ -307,6 +324,18 @@ export default {
       const m = this.formatMoney(cents)
       if (m === '—') return '—'
       return this.$t('subscriptionPage.pricePerYear', { price: m })
+    },
+    async copyMyInvite () {
+      const t = (this.myInviteCode || '').trim()
+      if (!t) return
+      try {
+        await navigator.clipboard.writeText(t)
+        this.copyInviteHintKey = 'copied'
+        setTimeout(() => { this.copyInviteHintKey = '' }, 2500)
+      } catch (e) {
+        this.copyInviteHintKey = 'fail'
+        setTimeout(() => { this.copyInviteHintKey = '' }, 3500)
+      }
     },
     async load () {
       this.loading = true
@@ -516,6 +545,46 @@ export default {
 .sub-h3--sm {
   margin-top: 12px;
   font-size: 15px;
+}
+.sub-invite-user-hint {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--sub-on-panel-muted);
+}
+.sub-my-code-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.sub-my-code-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #f8fafc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  word-break: break-all;
+}
+.sub-btn-copy {
+  flex-shrink: 0;
+  width: auto;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #334155;
+  border: 1px solid #64748b;
+  color: #f1f5f9;
+}
+.sub-btn-copy:hover {
+  background: #475569;
 }
 .sub-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

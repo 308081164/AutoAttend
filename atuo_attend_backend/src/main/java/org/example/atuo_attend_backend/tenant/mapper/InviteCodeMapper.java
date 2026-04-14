@@ -48,6 +48,18 @@ public interface InviteCodeMapper {
             """)
     List<InviteCode> listPlatformCodesForTenant(@Param("tenantId") long tenantId);
 
+    /** 平台全局官方码（与租户无关） */
+    @Select("""
+            SELECT id, code, created_by AS createdBy, referrer_tenant_id AS referrerTenantId,
+                   creator_user_id AS creatorUserId, expires_at AS expiresAt,
+                   max_uses AS maxUses, used_count AS usedCount, disabled, created_at AS createdAt
+            FROM aa_invite_code
+            WHERE created_by = 'platform' AND referrer_tenant_id IS NULL
+            ORDER BY id DESC
+            LIMIT #{limit}
+            """)
+    List<InviteCode> listGlobalPlatformCodes(@Param("limit") int limit);
+
     /**
      * 成功使用一次（注册绑定或兑换）：原子递增，防止超额。
      */
