@@ -147,6 +147,7 @@ npm run dev
 - **推送即自动部署（推荐）**：向 **`main`/`master` push** 后，GitHub Actions 会构建 backend/frontend 镜像并推送到 **ghcr.io**，再通过 SSH **同步** `docker-compose.prod.yml` 与 **`atuo_attend_backend`**（含 `db` 与 **`migrate_manifest.txt`**），最后在服务器 **`docker compose pull` → `up -d` → 强制重建 backend**。因此**无需在服务器上 `git pull`**；线上版本 = 本次流水线构建的镜像 + SCP 过去的迁移脚本。前提：在仓库 **Actions Secrets** 中配置 `SSH_*`（及可选 `DEPLOY_PATH`、私有镜像时的 **`GHCR_USERNAME` + `GHCR_READ_TOKEN`**）。**一键对照清单与常见问题**见 [**docs/Docker推送后自动部署说明.md**](docs/Docker推送后自动部署说明.md)。
 - **数据库迁移**：后端容器 entrypoint 按挂载的 **`migrate_manifest.txt`** 执行 SQL；详见 [docs/Docker与CI-CD-数据库迁移.md](docs/Docker与CI-CD-数据库迁移.md)。
 - **部署路径**：默认 `/mnt/newdisk/app/AutoAttend`（Secret `DEPLOY_PATH` 可覆盖）。
+- **阿里云短信（登录/注册验证码）**：`docker-compose.yml` / `docker-compose.prod.yml` 已将 `ALIYUN_*` 传入 **backend 容器**（`${...}` 替换）。在**部署目录**（与 compose 同级）放置 `.env`，内容见仓库根目录 **`.env.example`**；`docker compose` 会自动读取 `.env` 用于变量替换。**勿将 `.env` 提交 Git**（已在 `.gitignore`）。仅配置在宿主机 shell 而不写入 `.env` 或未传入 compose，容器内仍无短信配置。
 - **更多**：Secrets 细节、首次起 MySQL、502/反代排查见 [docs/CI-CD-部署说明.md](docs/CI-CD-部署说明.md)。
 
 部署后：

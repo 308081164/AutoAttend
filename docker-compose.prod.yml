@@ -77,6 +77,11 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: autoattend-attachments
       PLATFORM_OPS_PASSWORD: liubangproject
+      # 阿里云短信（登录/注册验证码）：与部署目录下 .env 或宿主机 export 配合，须传入容器
+      ALIYUN_ACCESS_KEY_ID: ${ALIYUN_ACCESS_KEY_ID:-}
+      ALIYUN_ACCESS_KEY_SECRET: ${ALIYUN_ACCESS_KEY_SECRET:-}
+      ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
+      ALIYUN_SMS_TEMPLATE_CODE: ${ALIYUN_SMS_TEMPLATE_CODE:-}
     volumes:
       # 与仓库同步的迁移清单与 SQL（deploy workflow 会 scp atuo_attend_backend 到本目录）
       - ./atuo_attend_backend/src/main/resources/db:/app/db:ro
