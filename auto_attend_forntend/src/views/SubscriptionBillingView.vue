@@ -1,5 +1,17 @@
 <template>
   <div class="sub-page sub-page--billing">
+    <transition name="sub-toast-fade">
+      <div
+        v-if="toastMessage"
+        class="sub-toast-bubble"
+        :class="'sub-toast-bubble--' + toastKind"
+        role="status"
+        aria-live="polite"
+      >
+        {{ toastMessage }}
+      </div>
+    </transition>
+
     <section class="sub-hero">
       <p class="sub-eyebrow">{{ $t('subscriptionPage.eyebrow') }}</p>
       <h1 class="sub-title">{{ $t('subscriptionPage.title') }}</h1>
@@ -183,7 +195,6 @@
       </article>
     </section>
 
-    <p v-if="toast" class="sub-toast">{{ toast }}</p>
     <p class="sub-footnote">{{ $t('subscriptionPage.footnote') }}</p>
   </div>
 </template>
@@ -235,7 +246,9 @@ export default {
       loading: true,
       error: '',
       paying: '',
-      toast: '',
+      toastMessage: '',
+      toastKind: 'success',
+      toastDismissTimer: null,
       redeemCode: '',
       redeeming: false,
       officialRedeemCode: '',
@@ -314,7 +327,29 @@ export default {
   async mounted () {
     await this.load()
   },
+  beforeDestroy () {
+    if (this.toastDismissTimer) {
+      clearTimeout(this.toastDismissTimer)
+      this.toastDismissTimer = null
+    }
+  },
   methods: {
+    showToast (message, kind = 'success') {
+      const k = kind === 'error' ? 'error' : 'success'
+      const text = (message != null && String(message).trim() !== '') ? String(message).trim() : (
+        k === 'error' ? this.$t('subscriptionPage.toastGenericError') : this.$t('subscriptionPage.toastGenericOk')
+      )
+      if (this.toastDismissTimer) {
+        clearTimeout(this.toastDismissTimer)
+        this.toastDismissTimer = null
+      }
+      this.toastKind = k
+      this.toastMessage = text
+      this.toastDismissTimer = setTimeout(() => {
+        this.toastMessage = ''
+        this.toastDismissTimer = null
+      }, 3800)
+    },
     num (v) {
       const n = Number(v)
       return Number.isFinite(n) ? n : 0
@@ -411,19 +446,18 @@ export default {
       const c = (this.officialRedeemCode || '').trim()
       if (!c) return
       this.officialRedeeming = true
-      this.toast = ''
       try {
         const { data } = await this.$http.post('/admin/billing/official-api/redeem', { code: c })
         if (data.code === 0) {
-          this.toast = (data.data && data.data.message) || '兑换成功'
+          this.showToast((data.data && data.data.message) || this.$t('subscriptionPage.officialApiRedeemOk'), 'success')
           this.officialRedeemCode = ''
           await this.load()
         } else {
-          this.toast = (data && data.message) || '兑换失败'
+          this.showToast((data && data.message) || this.$t('subscriptionPage.toastRedeemFail'), 'error')
         }
       } catch (e) {
         const msg = e.response && e.response.data && e.response.data.message
-        this.toast = msg || '兑换失败'
+        this.showToast(msg || this.$t('subscriptionPage.toastRedeemFail'), 'error')
       } finally {
         this.officialRedeeming = false
       }
@@ -432,36 +466,34 @@ export default {
       const c = (this.redeemCode || '').trim()
       if (!c || this.status.inviteCodeRedeemed) return
       this.redeeming = true
-      this.toast = ''
       try {
         const { data } = await this.$http.post('/admin/billing/invite/redeem', { inviteCode: c })
         if (data.code === 0) {
-          this.toast = (data.data && data.data.message) || this.$t('subscriptionPage.inviteRedeemOk')
+          this.showToast((data.data && data.data.message) || this.$t('subscriptionPage.inviteRedeemOk'), 'success')
           await this.load()
         } else {
-          this.toast = (data && data.message) || '兑换失败'
+          this.showToast((data && data.message) || this.$t('subscriptionPage.toastRedeemFail'), 'error')
         }
       } catch (e) {
         const msg = e.response && e.response.data && e.response.data.message
-        this.toast = msg || '兑换失败'
+        this.showToast(msg || this.$t('subscriptionPage.toastRedeemFail'), 'error')
       } finally {
         this.redeeming = false
       }
     },
     async mockPay (planCode) {
       this.paying = planCode
-      this.toast = ''
       try {
         const { data } = await this.$http.post('/admin/billing/mock-pay', { planCode, useMemberPoints: true })
         if (data.code === 0 && data.data) {
-          this.toast = data.data.message || this.$t('subscriptionPage.success')
+          this.showToast(data.data.message || this.$t('subscriptionPage.success'), 'success')
           await this.load()
         } else {
-          this.toast = (data && data.message) || '操作失败'
+          this.showToast((data && data.message) || this.$t('subscriptionPage.toastPayFail'), 'error')
         }
       } catch (e) {
         const msg = e.response && e.response.data && e.response.data.message
-        this.toast = msg || '请求失败'
+        this.showToast(msg || this.$t('subscriptionPage.toastRequestFail'), 'error')
       } finally {
         this.paying = ''
       }
@@ -811,10 +843,40 @@ export default {
   opacity: 0.6;
   cursor: not-allowed;
 }
-.sub-toast {
-  margin-top: 14px;
-  color: #4ade80;
+.sub-toast-bubble {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10050;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border-radius: 999px;
   font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  pointer-events: none;
+}
+.sub-toast-bubble--success {
+  background: linear-gradient(145deg, #14532d, #166534);
+  color: #ecfdf5;
+  border: 1px solid rgba(74, 222, 128, 0.45);
+}
+.sub-toast-bubble--error {
+  background: linear-gradient(145deg, #7f1d1d, #991b1b);
+  color: #fef2f2;
+  border: 1px solid rgba(252, 165, 165, 0.45);
+}
+.sub-toast-fade-enter-active,
+.sub-toast-fade-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.sub-toast-fade-enter,
+.sub-toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
 }
 .sub-footnote {
   margin-top: 20px;
