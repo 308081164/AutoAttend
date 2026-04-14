@@ -21,6 +21,11 @@ server {
   root /usr/share/nginx/html;
   index index.html;
 
+  # 浏览器默认请求 /favicon.ico；勿回退到 SPA，否则标签页会显示错误图标
+  location = /favicon.ico {
+    return 302 /brand-logo.svg;
+  }
+
   location / {
     try_files $uri $uri/ /index.html;
   }

@@ -10,6 +10,15 @@ module.exports = defineConfig({
   },
   devServer: {
     port: 8849,
+    // 避免 /favicon.ico 落到 index.html（浏览器默认请求 .ico 时会误显示为 Vue 页图标）
+    setupMiddlewares: (middlewares, devServer) => {
+      if (devServer && devServer.app) {
+        devServer.app.get('/favicon.ico', (req, res) => {
+          res.redirect(302, '/brand-logo.svg')
+        })
+      }
+      return middlewares
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8848',
