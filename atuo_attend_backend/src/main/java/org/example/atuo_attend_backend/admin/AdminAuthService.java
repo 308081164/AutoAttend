@@ -59,16 +59,10 @@ public class AdminAuthService {
     }
 
     /**
-     * @param smsCode 短信验证码；未启用短信时可传 null
+     * @param smsCode 短信验证码；启用短信时仅需手机号+验证码（密码可空）；未启用短信时为密码登录
      * @return 凭证；账号或密码错误时返回 null
      */
     public AdminAuthOutcome login(String phoneRaw, String password, String smsCode) {
-        if (password == null || password.isEmpty()) {
-            return null;
-        }
-        if (password.length() > 24) {
-            return null;
-        }
         String phone = PhoneNormalizer.normalize(phoneRaw);
         if (phone == null) {
             return null;
@@ -77,18 +71,34 @@ public class AdminAuthService {
         if (user == null) {
             return null;
         }
-        if (!passwordService.verify(password, user.getPasswordHash())) {
-            return null;
-        }
         Tenant tenant = tenantMapper.findById(user.getTenantId());
         if (tenant != null && "suspended".equalsIgnoreCase(tenant.getStatus())) {
             throw new IllegalStateException("组织已暂停服务，请联系平台支持");
         }
+
         if (adminSmsService.smsLoginEnabled()) {
             String err = adminSmsService.verifyAndConsume(phoneRaw, AdminSmsService.PURPOSE_LOGIN, smsCode);
             if (err != null) {
                 throw new IllegalArgumentException(err);
             }
+            // 仅短信登录：不校验密码；协作影子账号无明文密码时与管理员表哈希对齐
+            collabAuthService.ensureBizUserForTenantAdmin(phone,
+                    password != null && !password.isBlank() ? password : null);
+            if (!Boolean.TRUE.equals(user.getSmsLoginOnboarded())) {
+                tenantAdminUserMapper.updateSmsLoginOnboarded(user.getId(), true);
+            }
+            return createSessionOutcome(user);
+        }
+
+        // 未启用短信：必须密码登录
+        if (password == null || password.isEmpty()) {
+            return null;
+        }
+        if (password.length() > 24) {
+            return null;
+        }
+        if (!passwordService.verify(password, user.getPasswordHash())) {
+            return null;
         }
         collabAuthService.ensureBizUserForTenantAdmin(phone, password);
         return createSessionOutcome(user);

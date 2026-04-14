@@ -46,3 +46,4 @@ schema_referral_invite_migration.sql
 schema_invite_code_uses_migration.sql
 schema_invite_code_platform_global_migration.sql
 schema_platform_mail_config_migration.sql
+schema_tenant_admin_sms_onboarded_migration.sql

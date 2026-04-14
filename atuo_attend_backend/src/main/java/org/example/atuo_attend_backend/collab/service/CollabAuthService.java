@@ -71,10 +71,45 @@ public class CollabAuthService {
         return jwtService.createToken(user.getId(), user.getEmail(), user.getRole());
     }
 
+    /**
+     * 同步协作侧超级管理员影子账号。{@code rawPassword} 为空时仅将 {@code biz_user.password_hash} 与租户管理员表对齐（用于仅短信登录）。
+     */
     public void ensureBizUserForTenantAdmin(String phoneE164, String rawPassword) {
+        if (rawPassword == null || rawPassword.isBlank()) {
+            syncBizUserShadowPasswordFromTau(phoneE164);
+            return;
+        }
         TenantAdminUser tau = tenantAdminUserMapper.findByPhone(phoneE164);
         long t = tau != null ? tau.getTenantId() : TenantConstants.DEFAULT_TENANT_ID;
         ensureBizUserForTenantAdminInternal(phoneE164, rawPassword, t);
+    }
+
+    /** 无明文密码时：以租户管理员密码哈希为准更新协作账号（用于短信验证码登录） */
+    private void syncBizUserShadowPasswordFromTau(String phoneE164) {
+        TenantAdminUser tau = tenantAdminUserMapper.findByPhone(phoneE164);
+        if (tau == null) {
+            return;
+        }
+        long tid = tau.getTenantId();
+        String tauHash = tau.getPasswordHash();
+        BizUser user = userMapper.findByTenantAndEmail(tid, phoneE164);
+        if (user == null) {
+            user = new BizUser();
+            user.setTenantId(tid);
+            user.setEmail(phoneE164);
+            user.setName("管理员");
+            user.setPasswordHash(tauHash);
+            user.setRole(ROLE_SUPER_ADMIN);
+            userMapper.insert(user);
+        } else {
+            if (!ROLE_SUPER_ADMIN.equals(user.getRole())) {
+                user.setRole(ROLE_SUPER_ADMIN);
+            }
+            if (tauHash != null && !tauHash.equals(user.getPasswordHash())) {
+                user.setPasswordHash(tauHash);
+            }
+            userMapper.update(user);
+        }
     }
 
     public String issueCollabTokenForPhone(String phoneE164) {

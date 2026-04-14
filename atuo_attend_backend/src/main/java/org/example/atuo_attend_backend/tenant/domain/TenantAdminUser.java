@@ -8,6 +8,8 @@ public class TenantAdminUser {
     private Long tenantId;
     private String phone;
     private String passwordHash;
+    /** 是否已完成至少一次短信验证码登录（与仅验证码登录流程对齐） */
+    private Boolean smsLoginOnboarded;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -40,6 +42,14 @@ public class TenantAdminUser {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public Boolean getSmsLoginOnboarded() {
+        return smsLoginOnboarded;
+    }
+
+    public void setSmsLoginOnboarded(Boolean smsLoginOnboarded) {
+        this.smsLoginOnboarded = smsLoginOnboarded;
     }
 
     public LocalDateTime getCreatedAt() {
