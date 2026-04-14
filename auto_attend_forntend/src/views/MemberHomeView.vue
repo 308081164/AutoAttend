@@ -1,68 +1,99 @@
 <template>
   <div class="member-home">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('memberHome.title') }}</h1>
-      <div class="header-actions">
-        <span class="user-info">{{ userEmail }}</span>
-        <button class="link-button" @click="logout">{{ $t('app.logout') }}</button>
+    <section class="mh-hero">
+      <div class="mh-hero-text">
+        <p class="mh-eyebrow">{{ $t('memberHome.heroEyebrow') }}</p>
+        <h1 class="mh-title">{{ $t('memberHome.heroTitle') }}</h1>
+        <p class="mh-lead">{{ $t('memberHome.heroLead') }}</p>
       </div>
+      <div class="mh-hero-meta">
+        <div class="mh-email-pill">
+          <span class="mh-email-label">{{ userEmail || '—' }}</span>
+        </div>
+        <button type="button" class="mh-logout" @click="logout">{{ $t('app.logout') }}</button>
+      </div>
+    </section>
+
+    <div class="mh-grid">
+      <section class="mh-card mh-card--account">
+        <div class="mh-card-head">
+          <h2 class="mh-card-title">{{ $t('memberHome.accountSettings') }}</h2>
+        </div>
+        <div class="mh-account-inner">
+          <div class="mh-phone-row">
+            <span class="mh-muted">{{ $t('memberHome.phoneStatus') }}</span>
+            <span v-if="phoneBound" class="mh-badge mh-badge--ok">{{ $t('memberHome.phoneBound') }}</span>
+            <span v-else class="mh-badge mh-badge--warn">{{ $t('memberHome.phoneNotBound') }}</span>
+          </div>
+          <template v-if="smsEnabled && !phoneBound">
+            <p class="mh-hint">{{ $t('memberHome.bindPhoneHint') }}</p>
+            <div class="mh-form-row">
+              <input v-model="bindForm.phone" type="text" class="mh-input" :placeholder="$t('dashboard.bindPhonePlaceholder')">
+              <input v-model="bindForm.smsCode" type="text" maxlength="6" class="mh-input mh-input--code" :placeholder="$t('dashboard.bindPhoneCodePlaceholder')">
+              <button type="button" class="mh-btn mh-btn--ghost" :disabled="bindCooldown > 0 || bindSending" @click="sendBindSms">
+                {{ bindCooldown > 0 ? $t('login.sendSmsWait', { n: bindCooldown }) : $t('login.sendSms') }}
+              </button>
+              <button type="button" class="mh-btn mh-btn--primary" :disabled="bindSaving" @click="submitBind">{{ $t('dashboard.bindPhoneSubmit') }}</button>
+            </div>
+            <p v-if="bindMsg" class="mh-msg">{{ bindMsg }}</p>
+          </template>
+          <div class="mh-divider" />
+          <h3 class="mh-subtitle">{{ $t('memberHome.changePassword') }}</h3>
+          <div class="mh-form-row mh-form-row--pwd">
+            <input v-model="pwdForm.current" type="password" class="mh-input" :placeholder="$t('memberHome.currentPassword')">
+            <input v-model="pwdForm.next" type="password" class="mh-input" :placeholder="$t('memberHome.newPassword')">
+            <button type="button" class="mh-btn mh-btn--primary" :disabled="pwdSaving" @click="changePassword">{{ $t('memberHome.savePassword') }}</button>
+          </div>
+          <p v-if="pwdMsg" class="mh-msg">{{ pwdMsg }}</p>
+        </div>
+      </section>
+
+      <section class="mh-card mh-card--stats">
+        <div class="mh-card-head">
+          <h2 class="mh-card-title">{{ $t('memberHome.myStats') }}</h2>
+          <p class="mh-card-sub">{{ $t('memberHome.statsHint') }}</p>
+        </div>
+        <div v-if="statsLoading" class="mh-placeholder">{{ $t('collab.loading') }}</div>
+        <div v-else class="mh-stat-grid">
+          <div class="mh-stat">
+            <div class="mh-stat-icon mh-stat-icon--a" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            </div>
+            <div class="mh-stat-body">
+              <div class="mh-stat-value">{{ overview.projectCount ?? 0 }}</div>
+              <div class="mh-stat-label">{{ $t('memberHome.projectCount') }}</div>
+            </div>
+          </div>
+          <div class="mh-stat">
+            <div class="mh-stat-icon mh-stat-icon--b" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </div>
+            <div class="mh-stat-body">
+              <div class="mh-stat-value">{{ overview.commitCountTotal ?? 0 }}</div>
+              <div class="mh-stat-label">{{ $t('memberHome.commitCountTotal') }}</div>
+            </div>
+          </div>
+          <div class="mh-stat">
+            <div class="mh-stat-icon mh-stat-icon--c" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            </div>
+            <div class="mh-stat-body">
+              <div class="mh-stat-value">{{ overview.commitCountLast7Days ?? 0 }}</div>
+              <div class="mh-stat-label">{{ $t('memberHome.commitCountLast7Days') }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <section class="section account-section">
-      <h2 class="section-title">{{ $t('memberHome.accountSettings') }}</h2>
-      <div class="account-card">
-        <div class="account-row">
-          <span class="account-label">{{ $t('memberHome.phoneStatus') }}</span>
-          <span v-if="phoneBound" class="account-value account-ok">{{ $t('memberHome.phoneBound') }}</span>
-          <span v-else class="account-value account-warn">{{ $t('memberHome.phoneNotBound') }}</span>
+    <section class="mh-cta">
+      <div class="mh-cta-inner">
+        <div>
+          <h2 class="mh-cta-title">{{ $t('memberHome.projectsCardTitle') }}</h2>
+          <p class="mh-cta-desc">{{ $t('memberHome.projectsCardDesc') }}</p>
         </div>
-        <template v-if="smsEnabled && !phoneBound">
-          <p class="section-desc">{{ $t('memberHome.bindPhoneHint') }}</p>
-          <div class="bind-row">
-            <input v-model="bindForm.phone" type="text" class="bind-input" :placeholder="$t('dashboard.bindPhonePlaceholder')">
-            <input v-model="bindForm.smsCode" type="text" maxlength="6" class="bind-input bind-code" :placeholder="$t('dashboard.bindPhoneCodePlaceholder')">
-            <button type="button" class="secondary-btn" :disabled="bindCooldown > 0 || bindSending" @click="sendBindSms">
-              {{ bindCooldown > 0 ? $t('login.sendSmsWait', { n: bindCooldown }) : $t('login.sendSms') }}
-            </button>
-            <button type="button" class="primary-btn" :disabled="bindSaving" @click="submitBind">{{ $t('dashboard.bindPhoneSubmit') }}</button>
-          </div>
-          <p v-if="bindMsg" class="bind-msg">{{ bindMsg }}</p>
-        </template>
-        <div class="pwd-block">
-          <h3 class="pwd-title">{{ $t('memberHome.changePassword') }}</h3>
-          <div class="pwd-row">
-            <input v-model="pwdForm.current" type="password" class="bind-input" :placeholder="$t('memberHome.currentPassword')">
-            <input v-model="pwdForm.next" type="password" class="bind-input" :placeholder="$t('memberHome.newPassword')">
-            <button type="button" class="primary-btn" :disabled="pwdSaving" @click="changePassword">{{ $t('memberHome.savePassword') }}</button>
-          </div>
-          <p v-if="pwdMsg" class="bind-msg">{{ pwdMsg }}</p>
-        </div>
+        <router-link to="/collab/projects" class="mh-btn mh-btn--light">{{ $t('memberHome.goToProjects') }}</router-link>
       </div>
-    </section>
-
-    <section class="section stats-section">
-      <h2 class="section-title">{{ $t('memberHome.myStats') }}</h2>
-      <div v-if="statsLoading" class="placeholder">{{ $t('collab.loading') }}</div>
-      <div v-else class="stats-cards">
-        <div class="stat-card">
-          <div class="stat-value">{{ overview.projectCount ?? 0 }}</div>
-          <div class="stat-label">{{ $t('memberHome.projectCount') }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ overview.commitCountTotal ?? 0 }}</div>
-          <div class="stat-label">{{ $t('memberHome.commitCountTotal') }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ overview.commitCountLast7Days ?? 0 }}</div>
-          <div class="stat-label">{{ $t('memberHome.commitCountLast7Days') }}</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <h2 class="section-title">{{ $t('memberHome.myProjects') }}</h2>
-      <p class="section-desc">{{ $t('collab.selectProject') }}</p>
-      <router-link to="/collab/projects" class="primary-button">{{ $t('memberHome.goToProjects') }}</router-link>
     </section>
   </div>
 </template>
@@ -225,178 +256,347 @@ export default {
 
 <style scoped>
 .member-home {
-  max-width: 640px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: var(--space-xl);
-  background: var(--bg-page);
-  min-height: 100vh;
+  padding: 24px 20px 48px;
   box-sizing: border-box;
 }
 
-.page-header {
+.mh-hero {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: var(--space-xxl);
+  gap: 20px;
+  margin-bottom: 28px;
+  padding: 28px 28px 24px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 45%, #172554 100%);
+  color: #f8fafc;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(148, 163, 184, 0.15);
 }
 
-.page-title {
+.mh-eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+  opacity: 0.95;
+}
+
+.mh-title {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.mh-lead {
   margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
-
-.user-info {
-  font-size: 13px;
-  color: var(--text-tertiary);
-}
-
-.link-button {
-  border: none;
-  background: transparent;
-  color: var(--brand-blue);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 4px var(--space-sm);
-  transition: opacity 0.2s;
-}
-
-.link-button:hover {
-  opacity: 0.75;
-  text-decoration: underline;
-}
-
-.section {
-  margin-bottom: var(--space-xxl);
-}
-
-.section-title {
-  margin: 0 0 var(--space-md);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.section-desc {
-  margin: 0 0 var(--space-md);
+  max-width: 560px;
   font-size: 14px;
-  color: var(--text-secondary);
+  line-height: 1.65;
+  color: #cbd5e1;
 }
 
-.account-card {
-  padding: var(--space-lg);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-}
-.account-row {
+.mh-hero-meta {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.mh-email-pill {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 13px;
+  max-width: 280px;
+  word-break: break-all;
+  text-align: right;
+}
+
+.mh-email-label {
+  color: #e2e8f0;
+}
+
+.mh-logout {
+  border: 1px solid rgba(248, 250, 252, 0.35);
+  background: transparent;
+  color: #f1f5f9;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.mh-logout:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mh-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+@media (min-width: 960px) {
+  .mh-grid {
+    grid-template-columns: 1.15fr 0.85fr;
+    align-items: stretch;
+  }
+}
+
+.mh-card {
+  border-radius: 16px;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-primary, #e2e8f0);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.mh-card-head {
+  padding: 18px 20px 0;
+}
+
+.mh-card-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+.mh-card-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-tertiary, #64748b);
+  line-height: 1.45;
+}
+
+.mh-account-inner {
+  padding: 16px 20px 22px;
+}
+
+.mh-phone-row {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 8px;
 }
-.account-label {
+
+.mh-muted {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #475569);
 }
-.account-value { font-size: 14px; }
-.account-ok { color: #0a7a2f; }
-.account-warn { color: #b45309; }
-.bind-row, .pwd-row {
+
+.mh-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+.mh-badge--ok {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.mh-badge--warn {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.mh-hint {
+  margin: 10px 0 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary, #475569);
+}
+
+.mh-form-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  margin-top: 8px;
-}
-.bind-input {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-primary);
-  font-size: 14px;
-}
-.bind-code { width: 100px; }
-.primary-btn, .secondary-btn {
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-  border: 1px solid var(--brand-blue);
-}
-.primary-btn {
-  background: var(--brand-blue);
-  color: #fff;
-}
-.secondary-btn {
-  background: #fff;
-  color: var(--brand-blue);
-}
-.bind-msg { margin: 8px 0 0; font-size: 13px; color: var(--text-secondary); }
-.pwd-block { margin-top: var(--space-lg); padding-top: var(--space-lg); border-top: 1px solid var(--border-primary); }
-.pwd-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
-
-.stats-cards {
-  display: flex;
-  gap: var(--space-lg);
-  flex-wrap: wrap;
 }
 
-.stat-card {
+.mh-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary, #e2e8f0);
+  font-size: 14px;
+  min-width: 160px;
   flex: 1;
-  min-width: 120px;
-  padding: var(--space-lg);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.2s;
+}
+.mh-input--code {
+  min-width: 100px;
+  flex: 0 0 100px;
 }
 
-.stat-card:hover {
-  box-shadow: var(--shadow-md);
+.mh-form-row--pwd .mh-input {
+  max-width: 220px;
 }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  margin-top: 4px;
-}
-
-.primary-button {
+.mh-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-sm) var(--space-xl);
-  border-radius: var(--radius-md);
-  background: var(--brand-blue);
-  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
   text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: opacity 0.2s;
-  box-shadow: var(--shadow-sm);
+  transition: opacity 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.mh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.mh-btn--primary {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+.mh-btn--ghost {
+  background: #fff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+.mh-btn--light {
+  background: #fff;
+  color: #1e3a8a;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.mh-btn--light:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
 }
 
-.primary-button:hover {
-  opacity: 0.85;
+.mh-msg {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary, #64748b);
 }
 
-.placeholder {
-  padding: var(--space-lg);
-  color: var(--text-tertiary);
+.mh-divider {
+  height: 1px;
+  background: var(--border-primary, #e2e8f0);
+  margin: 20px 0;
+}
+
+.mh-subtitle {
+  margin: 0 0 12px;
   font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+
+.mh-card--stats .mh-card-head {
+  padding-bottom: 4px;
+}
+
+.mh-placeholder {
+  padding: 24px 20px;
+  color: var(--text-tertiary, #94a3b8);
+  font-size: 14px;
+}
+
+.mh-stat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 22px;
+}
+
+.mh-stat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f8fafc, #f1f5f9);
+  border: 1px solid #e2e8f0;
+}
+
+.mh-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mh-stat-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.mh-stat-icon--a {
+  background: linear-gradient(145deg, #dbeafe, #bfdbfe);
+  color: #1d4ed8;
+}
+.mh-stat-icon--b {
+  background: linear-gradient(145deg, #e0e7ff, #c7d2fe);
+  color: #4338ca;
+}
+.mh-stat-icon--c {
+  background: linear-gradient(145deg, #d1fae5, #a7f3d0);
+  color: #047857;
+}
+
+.mh-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.mh-stat-label {
+  font-size: 12px;
+  color: var(--text-tertiary, #64748b);
+  margin-top: 2px;
+}
+
+.mh-cta {
+  margin-top: 24px;
+  border-radius: 16px;
+  padding: 2px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1, #8b5cf6);
+  box-shadow: 0 12px 40px rgba(79, 70, 229, 0.25);
+}
+
+.mh-cta-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f1f5f9;
+}
+
+.mh-cta-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.mh-cta-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #cbd5e1;
+  max-width: 560px;
 }
 </style>

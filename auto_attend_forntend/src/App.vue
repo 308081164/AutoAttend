@@ -15,6 +15,16 @@
     <!-- Normal mode: sidebar + header + content -->
     <template v-else>
       <div class="app-layout">
+        <transition name="app-toast-fade">
+          <div
+            v-if="appToastMessage"
+            class="app-global-toast"
+            :class="'app-global-toast--' + appToastKind"
+            role="status"
+          >
+            {{ appToastMessage }}
+          </div>
+        </transition>
         <!-- Mobile hamburger toggle -->
         <button
           class="sidebar-toggle"
@@ -50,6 +60,41 @@
 
           <!-- Navigation groups -->
           <nav class="sidebar-nav">
+            <!-- 成员账号：精简导航 -->
+            <template v-if="memberLayout">
+              <div class="nav-group">
+                <div class="nav-group-label" v-show="!sidebarCollapsed">{{ $t('app.sidebarGroupCore') }}</div>
+                <router-link to="/member" class="nav-item" :class="{ 'is-active': isNavActive('/member') }" @click.native="onNavClick">
+                  <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+                  <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('app.sidebarMemberHome') }}</span>
+                </router-link>
+                <router-link to="/collab/projects" class="nav-item" :class="{ 'is-active': isNavActive('/collab/projects') }" @click.native="onNavClick">
+                  <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></span>
+                  <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('app.sidebarProjects') }}</span>
+                </router-link>
+              </div>
+              <div class="nav-group">
+                <div class="nav-group-label" v-show="!sidebarCollapsed">{{ $t('app.sidebarGroupTools') }}</div>
+                <router-link to="/cloud-dev" class="nav-item" :class="{ 'is-active': isNavActive('/cloud-dev') }" @click.native="onNavClick">
+                  <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
+                  <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('cloudDev.navTitle') }}</span>
+                </router-link>
+              </div>
+              <div class="nav-group">
+                <div class="nav-group-label" v-show="!sidebarCollapsed">{{ $t('app.sidebarGroupOps') }}</div>
+                <button type="button" class="nav-item nav-item--btn" @click="onMemberNexusClick">
+                  <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span>
+                  <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('app.sidebarNexus') }}</span>
+                </button>
+                <router-link to="/lab" class="nav-item" :class="{ 'is-active': isNavActive('/lab') }" @click.native="onNavClick">
+                  <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg></span>
+                  <span class="nav-label" v-show="!sidebarCollapsed">{{ $t('app.sidebarLab') }}</span>
+                </router-link>
+              </div>
+            </template>
+
+            <!-- 管理员：完整导航 -->
+            <template v-else>
             <!-- Core features -->
             <div class="nav-group">
               <div class="nav-group-label" v-show="!sidebarCollapsed">核心功能</div>
@@ -104,6 +149,7 @@
                 <span class="nav-label" v-show="!sidebarCollapsed">增效实验室</span>
               </router-link>
             </div>
+            </template>
           </nav>
 
           <!-- Sidebar footer -->
@@ -115,7 +161,7 @@
                 </template>
                 <template v-else>{{ (username || '?').charAt(0).toUpperCase() }}</template>
               </div>
-              <span class="user-name" v-show="!sidebarCollapsed">{{ isAdmin ? ($t('app.adminLabel') || '管理员') : (username || '') }}</span>
+              <span class="user-name" v-show="!sidebarCollapsed">{{ sidebarUserLabel }}</span>
             </div>
             <button v-if="username && !sidebarCollapsed" class="sidebar-logout" @click="logout">
               {{ $t('app.logout') }}
@@ -186,7 +232,10 @@ export default {
       sidebarOpen: false,
       sidebarCollapsed: false,
       /** 云开发「站内嵌入」开启时由 CloudDevHubView 通知，用于隐藏主导航侧栏、放大 iframe 区域 */
-      cloudDevEmbedActive: false
+      cloudDevEmbedActive: false,
+      appToastMessage: '',
+      appToastKind: 'info',
+      appToastTimer: null
     }
   },
   computed: {
@@ -198,6 +247,15 @@ export default {
     },
     isAdmin () {
       return !!window.localStorage.getItem('autoattend_token')
+    },
+    /** 仅成员 JWT、无管理员 JWT：侧栏与路由走精简模式 */
+    memberLayout () {
+      return !!window.localStorage.getItem('autoattend_collab_token') && !window.localStorage.getItem('autoattend_token')
+    },
+    sidebarUserLabel () {
+      if (this.isAdmin) return this.$t('app.adminLabel') || '管理员'
+      if (this.memberLayout) return this.$t('app.memberLabel')
+      return this.username || ''
     },
     bareLayout () {
       return !!(this.$route.meta && this.$route.meta.bareLayout)
@@ -211,15 +269,15 @@ export default {
         '/console': '工作台',
         '/quote': '报价系统',
         '/quote/config': '报价配置',
-        '/collab/projects': '项目管理',
+        '/collab/projects': this.memberLayout ? this.$t('app.sidebarProjects') : '项目管理',
         '/team': '团队管理',
         '/subscription': this.$t('subscriptionPage.navTitle'),
         '/tenant-admins': '租户管理',
         '/api-config': 'API 配置',
         '/prototype': '快原型',
         '/nexus': '快捷运维',
-        '/lab': '增效实验室',
-        '/member': '成员首页'
+        '/lab': this.memberLayout ? this.$t('app.sidebarLab') : '增效实验室',
+        '/member': this.$t('memberHome.title')
       }
       for (const [prefix, name] of Object.entries(map)) {
         if (path === prefix || path.startsWith(prefix + '/')) return name
@@ -241,8 +299,31 @@ export default {
     if (this._onCloudDevEmbed) {
       window.removeEventListener('autoattend-clouddev-embed', this._onCloudDevEmbed)
     }
+    if (this.appToastTimer) {
+      clearTimeout(this.appToastTimer)
+      this.appToastTimer = null
+    }
   },
   methods: {
+    showAppToast (message, kind = 'info') {
+      const k = kind === 'error' ? 'error' : 'info'
+      if (this.appToastTimer) {
+        clearTimeout(this.appToastTimer)
+        this.appToastTimer = null
+      }
+      this.appToastKind = k
+      this.appToastMessage = message || ''
+      this.appToastTimer = setTimeout(() => {
+        this.appToastMessage = ''
+        this.appToastTimer = null
+      }, 3200)
+    },
+    onMemberNexusClick () {
+      if (window.innerWidth < 768) {
+        this.sidebarOpen = false
+      }
+      this.showAppToast(this.$t('app.memberNexusDesigningToast'), 'info')
+    },
     initSidebarState () {
       if (window.innerWidth < 1024) {
         this.sidebarCollapsed = false
@@ -267,11 +348,13 @@ export default {
       setLocale(this.currentLocale)
     },
     async logout () {
+      const adminTok = window.localStorage.getItem('autoattend_token')
+      const collabTok = window.localStorage.getItem('autoattend_collab_token')
+      const memberOnly = !!collabTok && !adminTok
       try {
-        const token = window.localStorage.getItem('autoattend_token')
-        if (token) {
+        if (adminTok) {
           await this.$http.post('/admin/auth/logout', null, {
-            headers: { Authorization: 'Bearer ' + token }
+            headers: { Authorization: 'Bearer ' + adminTok }
           })
         }
       } catch (e) {
@@ -280,7 +363,11 @@ export default {
         window.localStorage.removeItem('autoattend_token')
         window.localStorage.removeItem('autoattend_username')
         window.localStorage.removeItem('autoattend_collab_token')
-        this.$router.push({ name: 'login' })
+        if (memberOnly) {
+          this.$router.push({ name: 'member-login' })
+        } else {
+          this.$router.push({ name: 'login' })
+        }
       }
     },
     isNavActive (route) {
@@ -548,6 +635,12 @@ body {
   transition: background 0.2s, color 0.2s;
   position: relative;
   cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .app-sidebar.is-collapsed .nav-item {
@@ -609,6 +702,42 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.app-global-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10060;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.35);
+  pointer-events: none;
+}
+.app-global-toast--info {
+  background: linear-gradient(145deg, #1e3a5f, #1e293b);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+.app-global-toast--error {
+  background: linear-gradient(145deg, #7f1d1d, #991b1b);
+  color: #fef2f2;
+  border: 1px solid rgba(252, 165, 165, 0.45);
+}
+.app-toast-fade-enter-active,
+.app-toast-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.app-toast-fade-enter,
+.app-toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
 }
 
 /* ========== Sidebar Footer ========== */

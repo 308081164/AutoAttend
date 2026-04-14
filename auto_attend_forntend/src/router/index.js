@@ -65,7 +65,8 @@ const routes = [
   {
     path: '/member',
     name: 'member-home',
-    component: MemberHomeView
+    component: MemberHomeView,
+    meta: { memberArea: true }
   },
   {
     path: '/test',
@@ -122,12 +123,14 @@ const routes = [
   {
     path: '/collab/projects',
     name: 'collab-projects',
-    component: CollabProjectListView
+    component: CollabProjectListView,
+    meta: { memberArea: true }
   },
   {
     path: '/collab/projects/:projectId/table',
     name: 'collab-table',
-    component: CollabTableView
+    component: CollabTableView,
+    meta: { memberArea: true }
   },
   {
     path: '/prototype',
@@ -147,12 +150,14 @@ const routes = [
   {
     path: '/lab',
     name: 'lab',
-    component: LabView
+    component: LabView,
+    meta: { memberArea: true }
   },
   {
     path: '/cloud-dev',
     name: 'cloud-dev-hub',
-    component: CloudDevHubView
+    component: CloudDevHubView,
+    meta: { memberArea: true }
   },
   {
     path: '/client-board/:token',
@@ -179,11 +184,28 @@ router.beforeEach(async (to, from, next) => {
     next()
     return
   }
+  const adminToken = window.localStorage.getItem('autoattend_token')
+  const collabToken = window.localStorage.getItem('autoattend_collab_token')
+  const memberOnly = !!collabToken && !adminToken
+  if (memberOnly) {
+    const p = to.path
+    if (
+      p === '/console' || p.startsWith('/console/') ||
+      p.startsWith('/quote') ||
+      p === '/team' || p.startsWith('/team/') ||
+      p === '/subscription' || p.startsWith('/subscription/') ||
+      p.startsWith('/api-config') || p.startsWith('/ai-config') ||
+      p.startsWith('/prototype') ||
+      p.startsWith('/nexus') ||
+      p.startsWith('/tenant-admins')
+    ) {
+      next({ name: 'member-home' })
+      return
+    }
+  }
   const isCollabPath = to.path.indexOf('/collab') === 0
   const isMemberHome = to.name === 'member-home'
   const isCollabLoginPath = to.path === '/collab-login'
-  const adminToken = window.localStorage.getItem('autoattend_token')
-  const collabToken = window.localStorage.getItem('autoattend_collab_token')
 
   if (to.name === 'login' || to.name === 'register' || to.name === 'member-login') {
     if (to.name === 'member-login' && adminToken) { next({ name: 'dashboard' }); return }
