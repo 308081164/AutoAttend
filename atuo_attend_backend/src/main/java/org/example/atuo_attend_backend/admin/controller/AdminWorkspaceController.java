@@ -2,6 +2,8 @@ package org.example.atuo_attend_backend.admin.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
+import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
+import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.billing.TenantBillingService;
 import org.example.atuo_attend_backend.tenant.plan.TenantPlanCatalog;
@@ -10,7 +12,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,11 +26,17 @@ public class AdminWorkspaceController {
 
     private final TenantBillingService tenantBillingService;
     private final TenantResourceQuotaService tenantResourceQuotaService;
+    private final OfficialAiPoolService officialAiPoolService;
+    private final AiTokenUsageMapper aiTokenUsageMapper;
 
     public AdminWorkspaceController(TenantBillingService tenantBillingService,
-                                    TenantResourceQuotaService tenantResourceQuotaService) {
+                                    TenantResourceQuotaService tenantResourceQuotaService,
+                                    OfficialAiPoolService officialAiPoolService,
+                                    AiTokenUsageMapper aiTokenUsageMapper) {
         this.tenantBillingService = tenantBillingService;
         this.tenantResourceQuotaService = tenantResourceQuotaService;
+        this.officialAiPoolService = officialAiPoolService;
+        this.aiTokenUsageMapper = aiTokenUsageMapper;
     }
 
     private static long tenantId(HttpServletRequest request) {
@@ -53,6 +63,12 @@ public class AdminWorkspaceController {
         data.put("status", t.getStatus());
         data.put("limits", quotaMap(plan));
         data.put("usage", tenantResourceQuotaService.usageSnapshot(tid));
+        data.put("officialApiCnyBalance", t.getOfficialApiCnyBalance());
+        data.put("officialAiPoolEnabled", officialAiPoolService.isFeatureEnabled());
+        LocalDateTime since30 = LocalDateTime.now().minusDays(30);
+        data.put("officialAiCostYuan30d", aiTokenUsageMapper.sumOfficialCostSince(tid, since30));
+        List<Map<String, Object>> personalByModel = aiTokenUsageMapper.sumByModelPersonalSince(tid, since30);
+        data.put("personalAiByModel30d", personalByModel != null ? personalByModel : List.of());
         return ApiResponse.ok(data);
     }
 

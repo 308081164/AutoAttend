@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.platform.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -24,6 +25,8 @@ public class PlatformTenantOpsRow {
     private Long dauEmails24h;
     /** aa_commit_diff 按租户汇总，作存储占用近似 */
     private Long storageDiffBytesApprox;
+    /** 官方 API 池余额（元） */
+    private BigDecimal officialApiCnyBalance;
 
     public Long getTenantId() {
         return tenantId;
@@ -143,5 +146,13 @@ public class PlatformTenantOpsRow {
 
     public void setStorageDiffBytesApprox(Long storageDiffBytesApprox) {
         this.storageDiffBytesApprox = storageDiffBytesApprox;
+    }
+
+    public BigDecimal getOfficialApiCnyBalance() {
+        return officialApiCnyBalance;
+    }
+
+    public void setOfficialApiCnyBalance(BigDecimal officialApiCnyBalance) {
+        this.officialApiCnyBalance = officialApiCnyBalance;
     }
 }

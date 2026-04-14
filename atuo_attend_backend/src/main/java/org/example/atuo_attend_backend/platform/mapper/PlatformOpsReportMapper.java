@@ -38,7 +38,8 @@ public interface PlatformOpsReportMapper {
                    AND c3.author_email IS NOT NULL
                    AND TRIM(c3.author_email) <> '') AS dauEmails24h,
               (SELECT COALESCE(SUM(diff_size_bytes), 0) FROM aa_commit_diff d
-                 WHERE d.tenant_id = t.id) AS storageDiffBytesApprox
+                 WHERE d.tenant_id = t.id) AS storageDiffBytesApprox,
+              COALESCE(t.official_api_cny_balance, 0) AS officialApiCnyBalance
             FROM aa_tenant t
             ORDER BY t.id
             """)
@@ -72,7 +73,8 @@ public interface PlatformOpsReportMapper {
                    AND c3.author_email IS NOT NULL
                    AND TRIM(c3.author_email) <> '') AS dauEmails24h,
               (SELECT COALESCE(SUM(diff_size_bytes), 0) FROM aa_commit_diff d
-                 WHERE d.tenant_id = t.id) AS storageDiffBytesApprox
+                 WHERE d.tenant_id = t.id) AS storageDiffBytesApprox,
+              COALESCE(t.official_api_cny_balance, 0) AS officialApiCnyBalance
             FROM aa_tenant t
             WHERE t.id = #{tenantId}
             """)

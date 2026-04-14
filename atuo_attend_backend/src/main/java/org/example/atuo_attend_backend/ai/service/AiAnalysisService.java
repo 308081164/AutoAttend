@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.domain.ProjectAiLinkageConfig;
-import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
+import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisJob;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisResult;
 import org.example.atuo_attend_backend.ai.mapper.AiAnalysisJobMapper;
@@ -45,7 +45,7 @@ public class AiAnalysisService {
     private final AiAnalysisConfigService configService;
     private final AiAnalysisJobMapper jobMapper;
     private final AiAnalysisResultMapper resultMapper;
-    private final AiTokenUsageMapper tokenUsageMapper;
+    private final OfficialAiPoolService officialAiPoolService;
     private final CommitService commitService;
     private final DeepSeekClient deepSeekClient;
     private final BizProjectMapper projectMapper;
@@ -55,7 +55,8 @@ public class AiAnalysisService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AiAnalysisService(AiAnalysisConfigService configService, AiAnalysisJobMapper jobMapper,
-                             AiAnalysisResultMapper resultMapper, AiTokenUsageMapper tokenUsageMapper,
+                             AiAnalysisResultMapper resultMapper,
+                             OfficialAiPoolService officialAiPoolService,
                              CommitService commitService, DeepSeekClient deepSeekClient,
                              BizProjectMapper projectMapper, CollabTableService collabTableService,
                              CollabRecordService collabRecordService,
@@ -63,7 +64,7 @@ public class AiAnalysisService {
         this.configService = configService;
         this.jobMapper = jobMapper;
         this.resultMapper = resultMapper;
-        this.tokenUsageMapper = tokenUsageMapper;
+        this.officialAiPoolService = officialAiPoolService;
         this.commitService = commitService;
         this.deepSeekClient = deepSeekClient;
         this.projectMapper = projectMapper;
@@ -74,17 +75,6 @@ public class AiAnalysisService {
 
     private static long tid() {
         return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
-    }
-
-    private void recordTokenUsage(DeepSeekClient.ChatResult chatResult, String repoFullName, String commitSha) {
-        if (chatResult == null || tokenUsageMapper == null) return;
-        try {
-            int total = chatResult.getInputTokens() + chatResult.getOutputTokens();
-            tokenUsageMapper.insert(tid(), LocalDateTime.now(), PROVIDER_DEEPSEEK, chatResult.getModel(),
-                chatResult.getInputTokens(), chatResult.getOutputTokens(), total, repoFullName, commitSha);
-        } catch (Exception e) {
-            log.warn("Record token usage failed: {}", e.getMessage());
-        }
     }
 
     public Optional<AiAnalysisResult> getResult(String repoFullName, String commitSha) {
@@ -102,8 +92,8 @@ public class AiAnalysisService {
             return Optional.of(existing);
         }
         AiAnalysisConfig config = configService.getConfig();
-        if (!Boolean.TRUE.equals(config.getEnabled()) || config.getApiKey() == null || config.getApiKey().isBlank()) {
-            log.debug("AI analysis disabled or no API key");
+        if (!Boolean.TRUE.equals(config.getEnabled())) {
+            log.debug("AI analysis disabled");
             return Optional.empty();
         }
         Optional<CommitRecord> commitOpt = commitService.findCommit(repoFullName, commitSha);
@@ -152,14 +142,16 @@ public class AiAnalysisService {
         List<DeepSeekClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new DeepSeekClient.ChatMessage("system", systemPrompt));
         messages.add(new DeepSeekClient.ChatMessage("user", userContent));
-        DeepSeekClient.ChatResult chatResult = deepSeekClient.chatWithUsage(config.getApiKey(), config.getModel(), messages, true);
+        OfficialAiPoolService.DeepSeekChatOutcome chatOut = officialAiPoolService.chatDeepSeek(
+                deepSeekClient, tid(), config.getApiKey(), config.getModel(), messages, true, null);
+        DeepSeekClient.ChatResult chatResult = chatOut != null ? chatOut.result() : null;
         if (chatResult == null || chatResult.getContent() == null || chatResult.getContent().isBlank()) {
             job.setStatus("failed");
             job.setLastError("DeepSeek API 返回为空或调用失败");
             jobMapper.update(job);
             return Optional.empty();
         }
-        recordTokenUsage(chatResult, repoFullName, commitSha);
+        officialAiPoolService.recordDeepSeekUsage(tid(), chatResult, chatOut.officialPool(), repoFullName, commitSha);
         String response = chatResult.getContent();
         AiAnalysisResult result = parseResult(repoFullName, commitSha, config.getPromptVersion(), response);
         if (result == null) {

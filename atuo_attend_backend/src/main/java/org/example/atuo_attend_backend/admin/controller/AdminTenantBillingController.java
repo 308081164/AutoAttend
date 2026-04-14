@@ -8,12 +8,15 @@ import org.example.atuo_attend_backend.tenant.domain.SubscriptionOrder;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.SubscriptionOrderMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
+import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
+import org.example.atuo_attend_backend.ai.service.OfficialAiTokenRedeemService;
 import org.example.atuo_attend_backend.tenant.referral.InviteCodeService;
 import org.example.atuo_attend_backend.tenant.referral.ReferralCommissionService;
 import org.example.atuo_attend_backend.tenant.plan.TenantPlanCatalog;
 import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,19 +34,25 @@ public class AdminTenantBillingController {
     private final TenantResourceQuotaService tenantResourceQuotaService;
     private final ReferralCommissionService referralCommissionService;
     private final InviteCodeService inviteCodeService;
+    private final OfficialAiTokenRedeemService officialAiTokenRedeemService;
+    private final OfficialAiPoolService officialAiPoolService;
 
     public AdminTenantBillingController(TenantMapper tenantMapper,
                                         TenantBillingService tenantBillingService,
                                         SubscriptionOrderMapper subscriptionOrderMapper,
                                         TenantResourceQuotaService tenantResourceQuotaService,
                                         ReferralCommissionService referralCommissionService,
-                                        InviteCodeService inviteCodeService) {
+                                        InviteCodeService inviteCodeService,
+                                        OfficialAiTokenRedeemService officialAiTokenRedeemService,
+                                        OfficialAiPoolService officialAiPoolService) {
         this.tenantMapper = tenantMapper;
         this.tenantBillingService = tenantBillingService;
         this.subscriptionOrderMapper = subscriptionOrderMapper;
         this.tenantResourceQuotaService = tenantResourceQuotaService;
         this.referralCommissionService = referralCommissionService;
         this.inviteCodeService = inviteCodeService;
+        this.officialAiTokenRedeemService = officialAiTokenRedeemService;
+        this.officialAiPoolService = officialAiPoolService;
     }
 
     private static long tenantId(HttpServletRequest request) {
@@ -83,6 +92,8 @@ public class AdminTenantBillingController {
         var eff = tenantResourceQuotaService.planForTenant(tid);
         data.put("effectivePlan", planQuotaMap(eff));
         data.put("usage", tenantResourceQuotaService.usageSnapshot(tid));
+        data.put("officialApiCnyBalance", t.getOfficialApiCnyBalance());
+        data.put("officialAiPoolEnabled", officialAiPoolService.isFeatureEnabled());
         return ApiResponse.ok(data);
     }
 
@@ -147,6 +158,27 @@ public class AdminTenantBillingController {
             return tenantBillingService.teamPurchaseListPriceCents(t);
         }
         return tenantBillingService.priceCentsForPlan(purchasedNorm);
+    }
+
+    @PostMapping("/official-api/redeem")
+    public ApiResponse<Map<String, Object>> redeemOfficialApiCode(@RequestBody(required = false) Map<String, String> body,
+                                                                    HttpServletRequest request) {
+        long tid = tenantId(request);
+        if (tid <= 0) {
+            return ApiResponse.error(40101, "未登录");
+        }
+        String code = body != null ? body.get("code") : null;
+        try {
+            BigDecimal added = officialAiTokenRedeemService.redeemForTenant(tid, code != null ? code : "");
+            Tenant t = tenantMapper.findById(tid);
+            Map<String, Object> data = new HashMap<>();
+            data.put("addedCny", added);
+            data.put("officialApiCnyBalance", t != null ? t.getOfficialApiCnyBalance() : null);
+            data.put("message", "兑换成功，官方 API 额度已入账");
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
     }
 
     @PostMapping("/invite/redeem")

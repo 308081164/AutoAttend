@@ -50,6 +50,36 @@
         </button>
       </div>
       <p v-if="status.inviteCodeRedeemed" class="sub-muted">{{ $t('subscriptionPage.inviteRedeemedNote') }}</p>
+    </section>
+
+    <section v-if="!loading && !error" class="sub-official sub-card sub-card--panel">
+      <h2 class="sub-h2">{{ $t('subscriptionPage.officialApiTitle') }}</h2>
+      <p class="sub-desc">{{ $t('subscriptionPage.officialApiHint') }}</p>
+      <dl class="sub-dl">
+        <div>
+          <dt>{{ $t('subscriptionPage.officialApiBalance') }}</dt>
+          <dd class="sub-dd-strong">{{ formatOfficialYuan(status.officialApiCnyBalance) }}</dd>
+        </div>
+      </dl>
+      <div class="sub-invite-row">
+        <input
+          v-model="officialRedeemCode"
+          type="text"
+          class="sub-invite-input"
+          :placeholder="$t('subscriptionPage.officialApiPlaceholder')"
+        >
+        <button
+          type="button"
+          class="sub-btn primary"
+          :disabled="officialRedeeming"
+          @click="redeemOfficialApi"
+        >
+          {{ officialRedeeming ? $t('subscriptionPage.paying') : $t('subscriptionPage.officialApiRedeemBtn') }}
+        </button>
+      </div>
+    </section>
+
+    <section v-if="!loading && !error" class="sub-invite sub-card sub-card--panel">
       <h3 class="sub-h3 sub-h3--sm">{{ $t('subscriptionPage.myInviteCode') }}</h3>
       <p class="sub-invite-user-hint">{{ $t('subscriptionPage.myInviteCodeHint') }}</p>
       <p v-if="myInviteLoading" class="sub-muted">…</p>
@@ -208,6 +238,8 @@ export default {
       toast: '',
       redeemCode: '',
       redeeming: false,
+      officialRedeemCode: '',
+      officialRedeeming: false,
       myInviteCode: '',
       myInviteLoading: false,
       copyInviteHintKey: '',
@@ -223,7 +255,9 @@ export default {
         proPlusAnnualPriceCents: 0,
         planQuotas: null,
         usage: null,
-        effectivePlan: null
+        effectivePlan: null,
+        officialApiCnyBalance: null,
+        officialAiPoolEnabled: false
       }
     }
   },
@@ -325,6 +359,12 @@ export default {
       if (m === '—') return '—'
       return this.$t('subscriptionPage.pricePerYear', { price: m })
     },
+    formatOfficialYuan (v) {
+      if (v == null || v === '') return '—'
+      const n = Number(v)
+      if (!Number.isFinite(n)) return '—'
+      return `¥${n.toFixed(2)}`
+    },
     async copyMyInvite () {
       const t = (this.myInviteCode || '').trim()
       if (!t) return
@@ -365,6 +405,27 @@ export default {
         this.myInviteCode = ''
       } finally {
         this.myInviteLoading = false
+      }
+    },
+    async redeemOfficialApi () {
+      const c = (this.officialRedeemCode || '').trim()
+      if (!c) return
+      this.officialRedeeming = true
+      this.toast = ''
+      try {
+        const { data } = await this.$http.post('/admin/billing/official-api/redeem', { code: c })
+        if (data.code === 0) {
+          this.toast = (data.data && data.data.message) || '兑换成功'
+          this.officialRedeemCode = ''
+          await this.load()
+        } else {
+          this.toast = (data && data.message) || '兑换失败'
+        }
+      } catch (e) {
+        const msg = e.response && e.response.data && e.response.data.message
+        this.toast = msg || '兑换失败'
+      } finally {
+        this.officialRedeeming = false
       }
     },
     async redeemInvite () {

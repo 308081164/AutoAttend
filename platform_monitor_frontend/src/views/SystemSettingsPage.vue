@@ -1,7 +1,7 @@
 <template>
   <div class="wrap">
     <h2 class="title">系统配置</h2>
-    <p class="lead">平台级设置（与租户无关）：SMTP 发信、日报邮件定时任务。租户控制台不再提供邮件表单；未配置 SMTP 时相关能力不可用，不影响其他功能。</p>
+    <p class="lead">平台级设置（与租户无关）：SMTP 发信、日报邮件定时任务、官方 API 池。租户控制台不再提供邮件表单；未配置 SMTP 时相关能力不可用，不影响其他功能。</p>
 
     <section class="panel">
       <h3>SMTP 发信</h3>
@@ -55,6 +55,76 @@
         </div>
       </form>
     </section>
+
+    <section class="panel">
+      <h3>官方 API 池</h3>
+      <p class="muted small">为租户代付 DeepSeek / 通义（DashScope）调用：开启后，在租户有余额时优先走平台密钥；计费按下方单价从租户「官方额度」扣减。新用户注册默认赠送额度见应用配置 <code class="mono">app.official-ai.registration-grant-cny</code>。</p>
+      <div v-if="aiPoolLoading" class="muted">加载中…</div>
+      <form v-else class="form" @submit.prevent="saveAiPool">
+        <label class="chk"><input v-model="aiPoolForm.platformPoolEnabled" type="checkbox"> 启用平台官方代付（总开关，与后端 <code class="mono">app.official-ai.enabled</code> 同时生效）</label>
+        <label>DeepSeek API Key（平台）</label>
+        <input v-model="aiPoolForm.deepseekApiKey" type="password" class="inp mono" autocomplete="off" placeholder="留空则不修改已保存密钥">
+        <p v-if="aiPool.deepseekApiKeyMasked" class="hint">已设置：{{ aiPool.deepseekApiKeyMasked }}</p>
+        <label>通义 / DashScope API Key（平台）</label>
+        <input v-model="aiPoolForm.qwenApiKey" type="password" class="inp mono" autocomplete="off" placeholder="留空则不修改已保存密钥">
+        <p v-if="aiPool.qwenApiKeyMasked" class="hint">已设置：{{ aiPool.qwenApiKeyMasked }}</p>
+        <div class="btn-row">
+          <button type="submit" class="btn primary" :disabled="aiPoolSaving">{{ aiPoolSaving ? '保存中…' : '保存官方池' }}</button>
+          <span v-if="aiPoolMsg" :class="aiPoolOk ? 'ok' : 'err'">{{ aiPoolMsg }}</span>
+        </div>
+      </form>
+
+      <h4 class="subh">生成额度兑换码</h4>
+      <p class="muted small">生成后仅显示一次明文码；租户在控制台「会员与计费」中兑换。</p>
+      <form class="form form-row" @submit.prevent="generateRedeemCode">
+        <label>面额（元）</label>
+        <input v-model.number="redeemForm.grantCny" type="number" step="0.01" min="0.01" class="inp narrow">
+        <label>最大使用次数</label>
+        <input v-model.number="redeemForm.maxUses" type="number" min="1" class="inp narrow">
+        <label>过期时间（ISO，可空）</label>
+        <input v-model="redeemForm.expiresAt" type="text" class="inp mono" placeholder="2026-12-31T23:59:59">
+        <label>备注</label>
+        <input v-model="redeemForm.note" type="text" class="inp">
+        <div class="btn-row">
+          <button type="submit" class="btn" :disabled="redeemGenerating">{{ redeemGenerating ? '生成中…' : '生成兑换码' }}</button>
+        </div>
+      </form>
+      <p v-if="lastPlainCode" class="ok mono">明文码（请立即复制）：{{ lastPlainCode }}</p>
+
+      <h4 class="subh">租户官方消耗排行（近 {{ usageDays }} 天）</h4>
+      <div class="btn-row">
+        <button type="button" class="btn" @click="loadUsageByTenant">刷新排行</button>
+      </div>
+      <table v-if="usageByTenant.length" class="tbl">
+        <thead>
+          <tr><th>租户 ID</th><th>官方消耗（元）</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in usageByTenant" :key="row.tenantId">
+            <td>{{ row.tenantId }}</td>
+            <td>{{ formatYuan(row.officialCostYuan) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="muted small">暂无数据或尚未产生官方池调用。</p>
+
+      <h4 class="subh">最近兑换码（脱敏）</h4>
+      <table v-if="redeemCodes.length" class="tbl">
+        <thead>
+          <tr><th>ID</th><th>面额</th><th>已用/上限</th><th>过期</th><th>创建时间</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in redeemCodes" :key="c.id">
+            <td>{{ c.id }}</td>
+            <td>{{ c.grantCny }}</td>
+            <td>{{ c.usedCount }} / {{ c.maxUses }}</td>
+            <td>{{ c.expiresAt || '—' }}</td>
+            <td>{{ c.createdAt }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="muted small">暂无记录。</p>
+    </section>
   </div>
 </template>
 
@@ -91,7 +161,28 @@ export default {
         enabled: true,
         cron: '0 30 4 * * *',
         timezone: 'Asia/Shanghai'
-      }
+      },
+      aiPoolLoading: true,
+      aiPoolSaving: false,
+      aiPoolMsg: '',
+      aiPoolOk: true,
+      aiPool: {},
+      aiPoolForm: {
+        platformPoolEnabled: true,
+        deepseekApiKey: '',
+        qwenApiKey: ''
+      },
+      redeemForm: {
+        grantCny: 20,
+        maxUses: 1,
+        expiresAt: '',
+        note: ''
+      },
+      redeemGenerating: false,
+      lastPlainCode: '',
+      redeemCodes: [],
+      usageByTenant: [],
+      usageDays: 30
     }
   },
   mounted () {
@@ -99,7 +190,7 @@ export default {
   },
   methods: {
     async loadAll () {
-      await Promise.all([this.loadMail(), this.loadReportMail()])
+      await Promise.all([this.loadMail(), this.loadReportMail(), this.loadAiPool(), this.loadRedeemCodes(), this.loadUsageByTenant()])
     },
     async loadMail () {
       this.mailLoading = true
@@ -197,6 +288,104 @@ export default {
         this.rmLoading = false
       }
     },
+    async loadAiPool () {
+      this.aiPoolLoading = true
+      try {
+        const { data } = await http.get('/platform/official-ai/pool')
+        if (data.code === 0 && data.data) {
+          this.aiPool = data.data
+          this.aiPoolForm.platformPoolEnabled = data.data.platformPoolEnabled !== false
+          this.aiPoolForm.deepseekApiKey = ''
+          this.aiPoolForm.qwenApiKey = ''
+        }
+      } catch (e) {
+        this.aiPoolMsg = '官方池加载失败'
+        this.aiPoolOk = false
+      } finally {
+        this.aiPoolLoading = false
+      }
+    },
+    async saveAiPool () {
+      this.aiPoolSaving = true
+      this.aiPoolMsg = ''
+      try {
+        const payload = {
+          platformPoolEnabled: this.aiPoolForm.platformPoolEnabled
+        }
+        if (this.aiPoolForm.deepseekApiKey && !this.aiPoolForm.deepseekApiKey.includes('****')) {
+          payload.deepseekApiKey = this.aiPoolForm.deepseekApiKey
+        }
+        if (this.aiPoolForm.qwenApiKey && !this.aiPoolForm.qwenApiKey.includes('****')) {
+          payload.qwenApiKey = this.aiPoolForm.qwenApiKey
+        }
+        const { data } = await http.put('/platform/official-ai/pool', payload)
+        if (data.code === 0) {
+          this.aiPoolMsg = '已保存'
+          this.aiPoolOk = true
+          this.aiPoolForm.deepseekApiKey = ''
+          this.aiPoolForm.qwenApiKey = ''
+          await this.loadAiPool()
+        } else {
+          this.aiPoolMsg = data.message || '保存失败'
+          this.aiPoolOk = false
+        }
+      } catch (e) {
+        this.aiPoolMsg = '请求失败'
+        this.aiPoolOk = false
+      } finally {
+        this.aiPoolSaving = false
+      }
+    },
+    async loadRedeemCodes () {
+      try {
+        const { data } = await http.get('/platform/official-ai/redeem-codes', { params: { limit: 30 } })
+        if (data.code === 0 && Array.isArray(data.data)) {
+          this.redeemCodes = data.data
+        }
+      } catch (e) { /* ignore */ }
+    },
+    async generateRedeemCode () {
+      this.redeemGenerating = true
+      this.lastPlainCode = ''
+      try {
+        const body = {
+          grantCny: this.redeemForm.grantCny,
+          maxUses: this.redeemForm.maxUses,
+          note: this.redeemForm.note || ''
+        }
+        if ((this.redeemForm.expiresAt || '').trim()) {
+          body.expiresAt = this.redeemForm.expiresAt.trim()
+        }
+        const { data } = await http.post('/platform/official-ai/redeem-codes', body)
+        if (data.code === 0 && data.data && data.data.code) {
+          this.lastPlainCode = data.data.code
+          await this.loadRedeemCodes()
+        } else {
+          this.lastPlainCode = ''
+          alert((data && data.message) || '生成失败')
+        }
+      } catch (e) {
+        alert('请求失败')
+      } finally {
+        this.redeemGenerating = false
+      }
+    },
+    async loadUsageByTenant () {
+      try {
+        const { data } = await http.get('/platform/official-ai/usage/by-tenant', { params: { days: this.usageDays, limit: 50 } })
+        if (data.code === 0 && Array.isArray(data.data)) {
+          this.usageByTenant = data.data
+        }
+      } catch (e) {
+        this.usageByTenant = []
+      }
+    },
+    formatYuan (v) {
+      if (v == null || v === '') return '—'
+      const n = Number(v)
+      if (!Number.isFinite(n)) return '—'
+      return n.toFixed(4)
+    },
     async saveReportMail () {
       this.rmSaving = true
       this.rmMsg = ''
@@ -273,4 +462,8 @@ export default {
 .chk { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .test-block { margin-top: 18px; padding-top: 14px; border-top: 1px solid #1e293b; }
 .test-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+.subh { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.tbl th, .tbl td { padding: 6px 8px; border-bottom: 1px solid #1e293b; text-align: left; }
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; align-items: end; }
 </style>

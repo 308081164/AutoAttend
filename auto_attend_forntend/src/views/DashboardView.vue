@@ -82,6 +82,42 @@
             <p v-if="bindPhoneMsg" class="dash-bind-phone-msg">{{ bindPhoneMsg }}</p>
           </div>
 
+          <div v-if="officialAiPanelVisible" class="dash-official-ai-panel console-elevated">
+            <h3 class="dash-official-ai-title">{{ $t('dashboard.officialAiTitle') }}</h3>
+            <p class="dash-official-ai-desc">{{ $t('dashboard.officialAiDesc') }}</p>
+            <div class="dash-official-ai-metrics">
+              <div class="dash-official-ai-metric">
+                <span class="dash-official-ai-metric-label">{{ $t('dashboard.officialBalance') }}</span>
+                <span class="dash-official-ai-metric-value">{{ formatOfficialYuan(workspaceSummary && workspaceSummary.officialApiCnyBalance) }}</span>
+              </div>
+              <div class="dash-official-ai-metric">
+                <span class="dash-official-ai-metric-label">{{ $t('dashboard.officialCost30d') }}</span>
+                <span class="dash-official-ai-metric-value">{{ formatOfficialYuan(workspaceSummary && workspaceSummary.officialAiCostYuan30d) }}</span>
+              </div>
+            </div>
+            <p class="dash-official-ai-hint">
+              {{ (workspaceSummary && workspaceSummary.officialAiPoolEnabled) ? $t('dashboard.officialAiOn') : $t('dashboard.officialAiOff') }}
+            </p>
+            <h4 class="dash-official-ai-sub">{{ $t('dashboard.personalAiByModel30d') }}</h4>
+            <div v-if="!personalAiRows.length" class="dash-official-ai-empty">{{ $t('dashboard.personalAiEmpty') }}</div>
+            <table v-else class="dash-official-ai-table">
+              <thead>
+                <tr>
+                  <th>{{ $t('dashboard.aiColModel') }}</th>
+                  <th>{{ $t('dashboard.aiColTokens') }}</th>
+                  <th>{{ $t('dashboard.aiColCalls') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, idx) in personalAiRows" :key="'pam-' + idx">
+                  <td class="mono">{{ row.model || '—' }}</td>
+                  <td>{{ num(row.totalTokens) }}</td>
+                  <td>{{ num(row.callCount) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
           <div class="dash-kpi-grid" role="list">
             <div class="dash-kpi" role="listitem">
               <span class="dash-kpi-value">{{ kpiRepoCount }}</span>
@@ -1148,6 +1184,14 @@ export default {
       if (!p) return false
       return p.phoneBound !== true
     },
+    officialAiPanelVisible () {
+      return !this.collabDataBoardOnly && !this.workspaceSummaryLoading && !!this.workspaceSummary
+    },
+    personalAiRows () {
+      const ws = this.workspaceSummary
+      const raw = ws && ws.personalAiByModel30d
+      return Array.isArray(raw) ? raw : []
+    },
     enterpriseLogoPreviewUrl () {
       const key = this.subjectEditLegal && this.subjectEditLegal.enterpriseLogo
       if (!key) return ''
@@ -1333,6 +1377,16 @@ export default {
     })
   },
   methods: {
+    num (v) {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : 0
+    },
+    formatOfficialYuan (v) {
+      if (v == null || v === '') return '—'
+      const n = Number(v)
+      if (!Number.isFinite(n)) return '—'
+      return `¥${n.toFixed(2)}`
+    },
     coerceBoolHub (v) {
       return v === true || v === 'true' || v === 1 || v === '1'
     },
@@ -2491,6 +2545,79 @@ export default {
   margin: var(--space-sm) 0 0;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.dash-official-ai-panel {
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  background: rgba(248, 250, 252, 0.95);
+}
+.dash-official-ai-title {
+  margin: 0 0 var(--space-sm);
+  font-size: 15px;
+  font-weight: 600;
+}
+.dash-official-ai-desc {
+  margin: 0 0 var(--space-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.dash-official-ai-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-sm);
+}
+.dash-official-ai-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dash-official-ai-metric-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.dash-official-ai-metric-value {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.dash-official-ai-hint {
+  margin: 0 0 var(--space-md);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.dash-official-ai-sub {
+  margin: 0 0 var(--space-sm);
+  font-size: 13px;
+  font-weight: 600;
+}
+.dash-official-ai-empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+.dash-official-ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.dash-official-ai-table th,
+.dash-official-ai-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-primary);
+  text-align: left;
+}
+.dash-official-ai-table th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.dash-official-ai-table .mono {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
 }
 
 .dash-command-bg {

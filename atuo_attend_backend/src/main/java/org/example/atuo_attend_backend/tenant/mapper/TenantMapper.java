@@ -3,6 +3,7 @@ package org.example.atuo_attend_backend.tenant.mapper;
 import org.apache.ibatis.annotations.*;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Mapper
@@ -11,19 +12,22 @@ public interface TenantMapper {
     @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
-            + "subscription_ends_at AS subscriptionEndsAt, status, created_at AS createdAt FROM aa_tenant WHERE id = #{id}")
+            + "subscription_ends_at AS subscriptionEndsAt, status, "
+            + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant WHERE id = #{id}")
     Tenant findById(@Param("id") long id);
 
     @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
-            + "subscription_ends_at AS subscriptionEndsAt, status, created_at AS createdAt FROM aa_tenant WHERE slug = #{slug}")
+            + "subscription_ends_at AS subscriptionEndsAt, status, "
+            + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant WHERE slug = #{slug}")
     Tenant findBySlug(@Param("slug") String slug);
 
     @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
-            + "subscription_ends_at AS subscriptionEndsAt, status, created_at AS createdAt FROM aa_tenant ORDER BY id")
+            + "subscription_ends_at AS subscriptionEndsAt, status, "
+            + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant ORDER BY id")
     List<Tenant> listAll();
 
     @Insert("INSERT INTO aa_tenant (name, slug, plan_code, billing_baseline_plan_code, status) "
@@ -88,4 +92,12 @@ public interface TenantMapper {
 
     @Update("UPDATE aa_tenant SET team_first_month_used = 1 WHERE id = #{id}")
     int markTeamFirstMonthUsed(@Param("id") long id);
+
+    @Update("UPDATE aa_tenant SET official_api_cny_balance = COALESCE(official_api_cny_balance, 0) + #{delta} WHERE id = #{id}")
+    int addOfficialApiCnyBalance(@Param("id") long id, @Param("delta") BigDecimal delta);
+
+    /** 扣减官方额度，不低于 0（实际扣 min(成本, 当前余额)） */
+    @Update("UPDATE aa_tenant SET official_api_cny_balance = COALESCE(official_api_cny_balance, 0) "
+            + "- LEAST(#{cost}, COALESCE(official_api_cny_balance, 0)) WHERE id = #{id}")
+    int deductOfficialApiCnyCapped(@Param("id") long id, @Param("cost") BigDecimal cost);
 }

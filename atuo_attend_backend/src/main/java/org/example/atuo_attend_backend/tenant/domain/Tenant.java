@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.tenant.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class Tenant {
@@ -23,6 +24,8 @@ public class Tenant {
     private LocalDateTime subscriptionEndsAt;
     /** active：正常；suspended：暂停（后续可在 Filter 中拦截） */
     private String status;
+    /** 官方 API 池余额（元），注册赠送与兑换码增加，调用扣减 */
+    private BigDecimal officialApiCnyBalance;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -111,6 +114,14 @@ public class Tenant {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public BigDecimal getOfficialApiCnyBalance() {
+        return officialApiCnyBalance;
+    }
+
+    public void setOfficialApiCnyBalance(BigDecimal officialApiCnyBalance) {
+        this.officialApiCnyBalance = officialApiCnyBalance;
     }
 
     public LocalDateTime getCreatedAt() {

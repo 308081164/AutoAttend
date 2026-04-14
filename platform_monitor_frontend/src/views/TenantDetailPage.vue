@@ -34,6 +34,7 @@
           <tr><td>状态</td><td>{{ tenant.status }}</td></tr>
           <tr><td>管理员手机</td><td>{{ tenant.adminPhone || '—' }}</td></tr>
           <tr><td>创建时间</td><td>{{ tenant.tenantCreatedAt || '—' }}</td></tr>
+          <tr><td>官方 API 额度（元）</td><td>{{ formatOfficialYuan(tenant.officialApiCnyBalance) }}</td></tr>
         </table>
       </section>
 
@@ -98,6 +99,12 @@ export default {
       const n = Number(cents)
       if (!Number.isFinite(n)) return '—'
       return `¥${(n / 100).toFixed(2)}`
+    },
+    formatOfficialYuan (v) {
+      if (v == null || v === '') return '—'
+      const n = Number(v)
+      if (!Number.isFinite(n)) return '—'
+      return `¥${n.toFixed(2)}`
     },
     formatBytes (b) {
       if (b == null) return '—'

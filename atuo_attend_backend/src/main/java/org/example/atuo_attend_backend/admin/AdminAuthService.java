@@ -5,6 +5,7 @@ import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.admin.dto.AdminAuthOutcome;
 import org.example.atuo_attend_backend.admin.dto.AdminRegisterRequest;
 import org.example.atuo_attend_backend.admin.sms.AdminSmsService;
+import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
 import org.example.atuo_attend_backend.tenant.referral.InviteCodeService;
 import org.example.atuo_attend_backend.admin.model.AdminUser;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
@@ -41,6 +42,7 @@ public class AdminAuthService {
     private final CollabAuthService collabAuthService;
     private final AdminSmsService adminSmsService;
     private final InviteCodeService inviteCodeService;
+    private final OfficialAiPoolService officialAiPoolService;
 
     public AdminAuthService(TenantMapper tenantMapper,
                             TenantAdminUserMapper tenantAdminUserMapper,
@@ -48,7 +50,8 @@ public class AdminAuthService {
                             CollabPasswordService passwordService,
                             CollabAuthService collabAuthService,
                             AdminSmsService adminSmsService,
-                            InviteCodeService inviteCodeService) {
+                            InviteCodeService inviteCodeService,
+                            OfficialAiPoolService officialAiPoolService) {
         this.tenantMapper = tenantMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
         this.adminSessionMapper = adminSessionMapper;
@@ -56,6 +59,7 @@ public class AdminAuthService {
         this.collabAuthService = collabAuthService;
         this.adminSmsService = adminSmsService;
         this.inviteCodeService = inviteCodeService;
+        this.officialAiPoolService = officialAiPoolService;
     }
 
     /**
@@ -143,6 +147,7 @@ public class AdminAuthService {
         tenant.setBillingBaselinePlanCode("free");
         tenant.setStatus("active");
         tenantMapper.insert(tenant);
+        officialAiPoolService.grantRegistrationBonus(tenant.getId());
 
         TenantAdminUser user = new TenantAdminUser();
         user.setTenantId(tenant.getId());

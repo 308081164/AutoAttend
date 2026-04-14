@@ -44,6 +44,13 @@ public class SystemConfigService {
     /** BCrypt 哈希：导出敏感配置前须验证的二级密钥；未设置则禁止导出明文密钥 */
     public static final String KEY_EXPORT_SECONDARY_PASSWORD_HASH = "security.export_secondary_password.bcrypt";
 
+    /** 官方 API 池总开关（tenant_id=0） */
+    public static final String KEY_OFFICIAL_AI_POOL_ENABLED = "official_ai.pool.enabled";
+    /** 平台代付 DeepSeek API Key（tenant_id=0） */
+    public static final String KEY_OFFICIAL_DEEPSEEK_API_KEY = "official_ai.deepseek.api_key";
+    /** 平台代付 Qwen/DashScope API Key（tenant_id=0） */
+    public static final String KEY_OFFICIAL_QWEN_API_KEY = "official_ai.qwen.api_key";
+
     /** 日报邮件定时任务（存于平台配置 tenant_id=0，由监测台维护） */
     public static final String KEY_REPORT_MAIL_ENABLED = "app.report_mail.enabled";
     public static final String KEY_REPORT_MAIL_CRON = "app.report_mail.cron";
@@ -64,6 +71,52 @@ public class SystemConfigService {
 
     private static long platformTenantId() {
         return PLATFORM_SYSTEM_CONFIG_TENANT_ID;
+    }
+
+    public boolean isOfficialAiPoolEnabled() {
+        String v = mapper.findByKey(platformTenantId(), KEY_OFFICIAL_AI_POOL_ENABLED);
+        if (v == null || v.isBlank()) {
+            return true;
+        }
+        return "true".equalsIgnoreCase(v.trim()) || "1".equals(v.trim());
+    }
+
+    public void setOfficialAiPoolEnabled(boolean enabled) {
+        mapper.upsert(platformTenantId(), KEY_OFFICIAL_AI_POOL_ENABLED, enabled ? "true" : "false");
+    }
+
+    public String getOfficialDeepseekApiKey() {
+        String v = mapper.findByKey(platformTenantId(), KEY_OFFICIAL_DEEPSEEK_API_KEY);
+        return (v != null && !v.isBlank()) ? v.trim() : null;
+    }
+
+    public String getOfficialDeepseekApiKeyMasked() {
+        String v = getOfficialDeepseekApiKey();
+        if (v == null || v.length() <= 8) return v != null && !v.isBlank() ? "****" : null;
+        return v.substring(0, 4) + "****" + v.substring(v.length() - 4);
+    }
+
+    public void setOfficialDeepseekApiKey(String key) {
+        if (key != null && key.contains("****")) return;
+        String value = key == null ? "" : key.trim();
+        mapper.upsert(platformTenantId(), KEY_OFFICIAL_DEEPSEEK_API_KEY, value);
+    }
+
+    public String getOfficialQwenApiKey() {
+        String v = mapper.findByKey(platformTenantId(), KEY_OFFICIAL_QWEN_API_KEY);
+        return (v != null && !v.isBlank()) ? v.trim() : null;
+    }
+
+    public String getOfficialQwenApiKeyMasked() {
+        String v = getOfficialQwenApiKey();
+        if (v == null || v.length() <= 8) return v != null && !v.isBlank() ? "****" : null;
+        return v.substring(0, 4) + "****" + v.substring(v.length() - 4);
+    }
+
+    public void setOfficialQwenApiKey(String key) {
+        if (key != null && key.contains("****")) return;
+        String value = key == null ? "" : key.trim();
+        mapper.upsert(platformTenantId(), KEY_OFFICIAL_QWEN_API_KEY, value);
     }
 
     /** 获取 GitHub Token 原始值（供拉取 Diff 使用）；未配置返回 null。 */

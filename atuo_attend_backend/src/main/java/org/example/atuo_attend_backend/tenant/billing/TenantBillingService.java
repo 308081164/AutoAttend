@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.tenant.billing;
 
+import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.example.atuo_attend_backend.tenant.plan.TenantPlanCatalog;
@@ -26,9 +27,11 @@ public class TenantBillingService {
     public static final int PRICE_PRO_PLUS_ANNUAL_CENTS = 79_900;
 
     private final TenantMapper tenantMapper;
+    private final OfficialAiPoolService officialAiPoolService;
 
-    public TenantBillingService(TenantMapper tenantMapper) {
+    public TenantBillingService(TenantMapper tenantMapper, OfficialAiPoolService officialAiPoolService) {
         this.tenantMapper = tenantMapper;
+        this.officialAiPoolService = officialAiPoolService;
     }
 
     private static int rank(String planCode) {
@@ -90,6 +93,7 @@ public class TenantBillingService {
             return null;
         }
         ensureCurrent(t);
+        officialAiPoolService.ensureWelcomeOfficialBalance(tenantId);
         return tenantMapper.findById(tenantId);
     }
 
