@@ -9,7 +9,7 @@ public class AdminLoginRequest {
     private String phone;
     private String username;
     private String password;
-    /** 短信验证码（启用短信登录时必填） */
+    /** 短信验证码；有值则走短信登录，空则走密码登录（与前端「短信/密码」标签一致） */
     private String smsCode;
 
     public String getPhone() {
