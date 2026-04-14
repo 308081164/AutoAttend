@@ -696,7 +696,13 @@
       <div class="section-header">
         <h2 class="section-title dash-section-title">{{ $t('dashboard.dailySummaryTitle') }}</h2>
         <div class="daily-summary-toolbar">
-          <button type="button" class="link-button primary-action" @click="runDailySummaryForRepo" :disabled="dailySummaryRunLoading || dailySummaryLoading">
+          <button
+            v-if="!memberEmbeddedDataBoard"
+            type="button"
+            class="link-button primary-action"
+            @click="runDailySummaryForRepo"
+            :disabled="dailySummaryRunLoading || dailySummaryLoading"
+          >
             {{ dailySummaryRunLoading ? '…' : $t('dashboard.dailySummaryGenerateYesterday') }}
           </button>
           <button type="button" class="link-button" @click="loadDailySummaries" :disabled="dailySummaryLoading">{{ $t('dashboard.refresh') }}</button>
@@ -946,6 +952,13 @@ export default {
     suppressBoardHeader: {
       type: Boolean,
       default: false
+    },
+    /**
+     * 嵌入协作页「开发与数据看板」时传入项目 ID；纯成员会话将走 /collab/data-board/projects/{id}/*，避免请求 /admin/* 产生 401。
+     */
+    collabProjectId: {
+      type: [Number, String],
+      default: null
     }
   },
   data () {
@@ -1103,6 +1116,20 @@ export default {
     }
   },
   computed: {
+    collabProjectIdNum () {
+      const v = this.collabProjectId
+      if (v == null || v === '') return null
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    },
+    hasAdminSession () {
+      if (typeof localStorage === 'undefined') return false
+      return !!(localStorage.getItem('autoattend_token') || '').trim()
+    },
+    /** 协作表内嵌看板 + 仅有成员 JWT：使用 collab 数据接口，不请求管理员 API */
+    memberEmbeddedDataBoard () {
+      return this.collabDataBoardOnly && this.collabProjectIdNum != null && !this.hasAdminSession
+    },
     developerListText () {
       const list = this.authors || []
       if (!list.length) return '—'
@@ -1342,8 +1369,10 @@ export default {
     this.loadStatsOverview()
     this.loadStatsCommitsByDay()
     this.loadStatsAuthors()
-    this.loadConsoleHub()
-    this.loadWorkspaceSummary()
+    if (!this.memberEmbeddedDataBoard) {
+      this.loadConsoleHub()
+      this.loadWorkspaceSummary()
+    }
     this.loadRepos().then(() => {
       if (this.selectedRepo) {
         this.loadRepoInfo()
@@ -1377,6 +1406,14 @@ export default {
     })
   },
   methods: {
+    /** 数据看板相关接口：管理员用 /admin/*，嵌入协作且纯成员用 /collab/data-board/projects/{id}/* */
+    adminApi (suffix) {
+      const s = (suffix && String(suffix).startsWith('/')) ? String(suffix) : ('/' + suffix)
+      if (this.memberEmbeddedDataBoard) {
+        return '/collab/data-board/projects/' + this.collabProjectIdNum + s
+      }
+      return '/admin' + s
+    },
     num (v) {
       const n = Number(v)
       return Number.isFinite(n) ? n : 0
@@ -1942,7 +1979,7 @@ export default {
     },
     async loadStatsOverview () {
       try {
-        const resp = await this.$http.get('/admin/stats/overview', {
+        const resp = await this.$http.get(this.adminApi('/stats/overview'), {
           params: { repoFullName: this.selectedRepo || undefined }
         })
         if (resp.data && resp.data.code === 0) this.statsOverview = resp.data.data
@@ -1953,7 +1990,7 @@ export default {
       this.repoInfoLoading = true
       this.repoInfo = {}
       try {
-        const resp = await this.$http.get('/admin/stats/repo-info', {
+        const resp = await this.$http.get(this.adminApi('/stats/repo-info'), {
           params: { repoFullName: this.selectedRepo }
         })
         if (resp.data && resp.data.code === 0 && resp.data.data) this.repoInfo = resp.data.data
@@ -1962,7 +1999,7 @@ export default {
     },
     async loadStatsCommitsByDay () {
       try {
-        const resp = await this.$http.get('/admin/stats/commits-by-day', {
+        const resp = await this.$http.get(this.adminApi('/stats/commits-by-day'), {
           params: { range: this.trendRange, repoFullName: this.selectedRepo || undefined }
         })
         if (resp.data && resp.data.code === 0) this.commitsByDay = resp.data.data || []
@@ -1979,7 +2016,7 @@ export default {
         if (this.authorRankPeriod === 'total') {
           params.offset = 0
         }
-        const resp = await this.$http.get('/admin/stats/authors', { params })
+        const resp = await this.$http.get(this.adminApi('/stats/authors'), { params })
         const raw = resp.data && resp.data.data
         if (resp.data && resp.data.code === 0 && raw) {
           if (Array.isArray(raw.items)) {
@@ -2122,7 +2159,7 @@ export default {
     },
     async loadRepos () {
       try {
-        const resp = await this.$http.get('/admin/repos')
+        const resp = await this.$http.get(this.adminApi('/repos'))
         if (resp.data && resp.data.code === 0) {
           this.repos = resp.data.data.items || []
         }
@@ -2149,7 +2186,7 @@ export default {
     },
     async loadDashboard () {
       try {
-        const resp = await this.$http.get('/admin/dashboard', {
+        const resp = await this.$http.get(this.adminApi('/dashboard'), {
           params: { range: '24h', repoFullName: this.selectedRepo || undefined }
         })
         const d = resp.data
@@ -2166,7 +2203,7 @@ export default {
     async loadCommits () {
       this.commitsLoading = true
       try {
-        const resp = await this.$http.get('/admin/commits', {
+        const resp = await this.$http.get(this.adminApi('/commits'), {
           params: {
             page: this.commitsPage,
             pageSize: this.commitsPageSize,
@@ -2219,7 +2256,7 @@ export default {
       }
       this.dailySummaryLoading = true
       try {
-        const resp = await this.$http.get('/admin/ai-analysis/daily-summaries', {
+        const resp = await this.$http.get(this.adminApi('/ai-analysis/daily-summaries'), {
           params: {
             repoFullName: this.selectedRepo,
             page: this.dailySummaryPage,
@@ -2267,7 +2304,7 @@ export default {
       this.dailySummaryRunLoading = true
       this.dailySummaryRunMessage = ''
       try {
-        const resp = await this.$http.post('/admin/ai-analysis/daily-summary/run', null, {
+        const resp = await this.$http.post(this.adminApi('/ai-analysis/daily-summary/run'), null, {
           params: { repoFullName: this.selectedRepo }
         })
         if (resp.data && resp.data.code === 0 && resp.data.data) {
@@ -2299,7 +2336,7 @@ export default {
         content: ''
       }
       try {
-        const resp = await this.$http.get('/admin/ai-analysis/daily-summaries/' + id)
+        const resp = await this.$http.get(this.adminApi('/ai-analysis/daily-summaries/' + id))
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.dailySummaryDetail = resp.data.data
         }
@@ -2362,7 +2399,7 @@ export default {
       try {
         const params = {}
         if (this.selectedCommit.repoFullName) params.repoFullName = this.selectedCommit.repoFullName
-        const resp = await this.$http.get(`/admin/ai-analysis/commits/${this.selectedCommit.commitSha}/result`, { params })
+        const resp = await this.$http.get(this.adminApi(`/ai-analysis/commits/${this.selectedCommit.commitSha}/result`), { params })
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.aiAnalysisResult = resp.data.data
         }
@@ -2379,11 +2416,11 @@ export default {
         const params = {}
         if (this.selectedCommit.repoFullName) params.repoFullName = this.selectedCommit.repoFullName
         // 组件点击埋点：由“运行 AI 分析”触发
-        this.$http.post('/admin/ops/events/component-click', {
+        this.$http.post(this.adminApi('/ops/events/component-click'), {
           componentKey: 'ai_commit_analysis',
           coreApiKey: 'ai_analysis_run'
         }).catch(() => {})
-        const resp = await this.$http.post(`/admin/ai-analysis/commits/${this.selectedCommit.commitSha}/run`, null, { params })
+        const resp = await this.$http.post(this.adminApi(`/ai-analysis/commits/${this.selectedCommit.commitSha}/run`), null, { params })
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.aiAnalysisResult = resp.data.data
         } else {
@@ -2403,7 +2440,7 @@ export default {
       try {
         const params = { mode: 'raw' }
         if (item.repoFullName) params.repoFullName = item.repoFullName
-        const resp = await this.$http.get(`/admin/commits/${item.commitSha}/diff`, { params })
+        const resp = await this.$http.get(this.adminApi(`/commits/${item.commitSha}/diff`), { params })
         if (resp.data && resp.data.code === 0) {
           const d = resp.data.data
           this.diffText = (d && d.diffText) || ''

@@ -311,6 +311,7 @@
           <div class="home-data-embed">
             <DashboardView
               :fixedRepoFullName="projectRepoId"
+              :collab-project-id="projectId"
               :collab-data-board-only="true"
               :embedded-compact="true"
               :suppress-board-header="true"
