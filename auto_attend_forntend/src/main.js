@@ -77,7 +77,7 @@ axios.interceptors.response.use(
         setTimeout(() => {
           const p = window.location.pathname || ''
           if (p === '/login' || p === '/register' || p === '/member-login') return
-          const memberArea = p.indexOf('/collab') === 0 || p === '/member'
+          const memberArea = p.indexOf('/collab') === 0 || p === '/member' || p.startsWith('/lab') || p.startsWith('/cloud-dev')
           window.location.href = memberArea ? '/member-login' : '/login'
         }, 100)
       }

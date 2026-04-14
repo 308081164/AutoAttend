@@ -120,6 +120,7 @@
             <h3 class="home-settings-heading">{{ $t('collabTable.homeBoardSettings') }}</h3>
           </div>
           <div class="home-settings-grid">
+      <template v-if="hasAdminSession">
       <article class="home-setting-card mail-notify-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">邮件通知</div>
@@ -215,6 +216,7 @@
           </template>
         </div>
       </article>
+      </template>
       <article class="home-setting-card mail-notify-panel client-board-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">客户项目阅览看板</div>
@@ -1279,6 +1281,10 @@ export default {
         : ['重要程度', '当前状态', '验收结果']
       return Array.isArray(this.columns) ? this.columns.filter(c => allowed.includes(c.name)) : []
     },
+    /** 仅管理员 JWT 存在时调用 /admin/* 配置接口；纯成员会话无此 token，避免 401 触发全局登出 */
+    hasAdminSession () {
+      return !!window.localStorage.getItem('autoattend_token')
+    },
     selectedCount () {
       return Object.keys(this.rowSelection).length
     },
@@ -1326,8 +1332,10 @@ export default {
     this.loadTable()
     this.loadRecords()
     this.loadProjectMembers()
-    this.loadMailNotifyConfig()
-    this.loadAiLinkageConfig()
+    if (this.hasAdminSession) {
+      this.loadMailNotifyConfig()
+      this.loadAiLinkageConfig()
+    }
     this.loadPortalLinks()
     this.loadClientBoard()
   },
