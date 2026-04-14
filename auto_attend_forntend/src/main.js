@@ -38,10 +38,16 @@ Vue.config.productionTip = false
 // 统一使用相对路径 /api，方便本地 devServer 代理和容器内 Nginx 反代
 axios.defaults.baseURL = '/api'
 
-// 请求拦截器：自动添加token
+// 请求拦截器：自动添加 token（仅 /collab/* 协作 API 用协作 JWT；勿用 url.indexOf('collab')，否则会误匹配 /admin/auth/collab-token）
+function isCollabApiPath (url) {
+  if (!url) return false
+  const p = String(url).split('?')[0]
+  return p.startsWith('/collab/') || p.startsWith('collab/')
+}
+
 axios.interceptors.request.use(config => {
   const url = config.url || ''
-  const token = url.indexOf('/collab') !== -1
+  const token = isCollabApiPath(url)
     ? window.localStorage.getItem('autoattend_collab_token')
     : window.localStorage.getItem('autoattend_token')
   if (token) {
