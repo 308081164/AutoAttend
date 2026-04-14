@@ -93,7 +93,8 @@ public class AdminSmsService {
         LocalDateTime last = smsCodeMapper.findLastSendTime(phone, purposeNorm);
         if (last != null) {
             long elapsed = java.time.Duration.between(last, now).getSeconds();
-            if (elapsed < props.getResendIntervalSeconds()) {
+            // 若数据库服务器时间快于应用服务器（时钟偏差），elapsed 可能为负，误触发「过于频繁」；负值时不做间隔拦截
+            if (elapsed >= 0 && elapsed < props.getResendIntervalSeconds()) {
                 throw new IllegalStateException("发送过于频繁，请稍后再试");
             }
         }
