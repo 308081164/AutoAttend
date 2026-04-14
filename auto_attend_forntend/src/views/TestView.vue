@@ -104,25 +104,6 @@
       </div>
     </section>
 
-    <section class="test-section">
-      <div class="test-header">
-        <h2 class="test-title">{{ $t('test.emailTitle') }}</h2>
-        <button class="primary-button" :disabled="emailLoading" @click="runEmailTest">
-          {{ emailLoading ? $t('test.testing') : $t('test.runTest') }}
-        </button>
-      </div>
-      <p class="test-desc">{{ $t('test.emailDesc') }}</p>
-      <div v-if="emailResult" class="test-result" :class="emailResult.available ? 'success' : 'fail'">
-        <div class="result-row">
-          <span class="result-label">{{ $t('test.result') }}：</span>
-          <span>{{ emailResult.message }}</span>
-        </div>
-        <div v-if="emailResult.latencyMs" class="result-row">
-          <span class="result-label">{{ $t('test.latency') }}：</span>
-          <span>{{ emailResult.latencyMs }} ms</span>
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 
@@ -137,8 +118,6 @@ export default {
       aiResult: null,
       qwenLoading: false,
       qwenResult: null,
-      emailLoading: false,
-      emailResult: null,
       planLoading: false,
       planSaving: false,
       planMessage: '',
@@ -215,26 +194,6 @@ export default {
         }
       } finally {
         this.qwenLoading = false
-      }
-    },
-    async runEmailTest () {
-      this.emailResult = null
-      this.emailLoading = true
-      try {
-        const resp = await this.$http.get('/admin/test/email')
-        if (resp.data && resp.data.code === 0) {
-          this.emailResult = resp.data.data
-        } else {
-          this.emailResult = { available: false, message: (resp.data && resp.data.message) || '请求失败', latencyMs: 0 }
-        }
-      } catch (e) {
-        this.emailResult = {
-          available: false,
-          message: (e.response && e.response.data && e.response.data.message) || '网络或后端错误',
-          latencyMs: 0
-        }
-      } finally {
-        this.emailLoading = false
       }
     },
     async loadPlanConfig () {

@@ -4,6 +4,7 @@ import LoginPage from '../views/LoginPage.vue'
 import DashboardPage from '../views/DashboardPage.vue'
 import TenantsPage from '../views/TenantsPage.vue'
 import TenantDetailPage from '../views/TenantDetailPage.vue'
+import SystemSettingsPage from '../views/SystemSettingsPage.vue'
 
 Vue.use(VueRouter)
 
@@ -16,7 +17,8 @@ const router = new VueRouter({
     { path: '/login', name: 'login', component: LoginPage, meta: { public: true } },
     { path: '/', name: 'dashboard', component: DashboardPage },
     { path: '/tenants', name: 'tenants', component: TenantsPage },
-    { path: '/tenants/:id', name: 'tenant-detail', component: TenantDetailPage }
+    { path: '/tenants/:id', name: 'tenant-detail', component: TenantDetailPage },
+    { path: '/system', name: 'system-settings', component: SystemSettingsPage }
   ]
 })
 

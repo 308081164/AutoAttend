@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.report.service;
 
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.example.atuo_attend_backend.config.SystemConfigService;
@@ -31,6 +33,28 @@ public class MailSenderService {
         return systemConfigService.getMailSmtpHost() != null
                 && systemConfigService.getMailSmtpPort() != null
                 && systemConfigService.getMailFromAddress() != null;
+    }
+
+    /**
+     * 仅验证 SMTP 连接（不发信），供能力测试使用。
+     */
+    public void verifySmtpConnection() throws Exception {
+        JavaMailSenderImpl sender = buildSender();
+        Session session = sender.getSession();
+        Transport transport = session.getTransport("smtp");
+        try {
+            String host = systemConfigService.getMailSmtpHost();
+            Integer port = systemConfigService.getMailSmtpPort();
+            String username = systemConfigService.getMailSmtpUsername();
+            String password = systemConfigService.getMailSmtpPassword();
+            if (username != null && !username.isBlank()) {
+                transport.connect(host, port, username, password);
+            } else {
+                transport.connect();
+            }
+        } finally {
+            transport.close();
+        }
     }
 
     /**

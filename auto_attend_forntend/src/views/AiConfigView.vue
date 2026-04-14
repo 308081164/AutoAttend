@@ -393,67 +393,6 @@
       </form>
     </div>
     </section>
-
-    <section class="ai-section" aria-labelledby="ai-mail-heading" v-if="mailConfig !== undefined">
-      <div class="ai-section-head">
-        <h2 id="ai-mail-heading" class="ai-section-title">{{ $t('aiConfig.sectionMailTitle') }}</h2>
-        <p class="ai-section-desc">{{ $t('aiConfig.sectionMailDesc') }}</p>
-        <p class="ai-inline-hint">{{ $t('aiConfig.smtpVendorHint') }}</p>
-      </div>
-      <div class="config-card mail-config-card ai-section-card">
-      <h3 class="config-card-title config-card-title--sub">{{ $t('mailConfig.title') }}</h3>
-      <p class="config-card-desc">{{ $t('mailConfig.desc') }}</p>
-      <form @submit.prevent="saveMailConfig">
-        <div class="form-row">
-          <label class="form-label">{{ $t('mailConfig.publicBaseUrl') }}</label>
-          <input
-            v-model="mailForm.publicBaseUrl"
-            type="text"
-            autocomplete="off"
-            :placeholder="$t('mailConfig.publicBaseUrlPh')"
-            class="form-input"
-          >
-          <p class="form-hint">{{ $t('mailConfig.publicBaseUrlHint') }}</p>
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('mailConfig.smtpHost') }}</label>
-          <input v-model="mailForm.smtpHost" type="text" autocomplete="off" class="form-input" placeholder="smtp.example.com">
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('mailConfig.smtpPort') }}</label>
-          <input v-model.number="mailForm.smtpPort" type="number" autocomplete="off" class="form-input" placeholder="587">
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('mailConfig.smtpUsername') }}</label>
-          <input v-model="mailForm.smtpUsername" type="text" autocomplete="off" class="form-input" placeholder="user@example.com">
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('mailConfig.smtpPassword') }}</label>
-          <p v-if="mailConfig.smtpPasswordMasked" class="api-key-set">{{ $t('mailConfig.passwordSetHint') }}</p>
-          <input
-            v-model="mailForm.smtpPassword"
-            type="password"
-            autocomplete="off"
-            :placeholder="mailConfig.smtpPasswordMasked ? $t('mailConfig.passwordKeepPh') : $t('mailConfig.passwordPh')"
-            class="form-input"
-          >
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('mailConfig.fromAddress') }}</label>
-          <input v-model="mailForm.fromAddress" type="text" autocomplete="off" class="form-input" placeholder="noreply@example.com">
-        </div>
-        <div class="form-row">
-          <label class="form-label">{{ $t('mailConfig.fromName') }}</label>
-          <input v-model="mailForm.fromName" type="text" autocomplete="off" class="form-input" :placeholder="$t('mailConfig.fromNamePh')">
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="primary-button" :disabled="mailSaving">{{ mailSaving ? $t('mailConfig.saving') : $t('mailConfig.save') }}</button>
-          <span v-if="mailSaveMessage" class="save-message" :class="mailSaveSuccess ? 'success' : 'error'">{{ mailSaveMessage }}</span>
-          <span v-if="mailConfig && mailConfig.configured" class="save-message success">{{ $t('mailConfig.configured') }}</span>
-        </div>
-      </form>
-    </div>
-    </section>
   </div>
 </template>
 
@@ -498,19 +437,6 @@ export default {
       githubSaving: false,
       githubSaveMessage: '',
       githubSaveSuccess: false,
-      mailConfig: undefined,
-      mailForm: {
-        publicBaseUrl: '',
-        smtpHost: '',
-        smtpPort: 587,
-        smtpUsername: '',
-        smtpPassword: '',
-        fromAddress: '',
-        fromName: ''
-      },
-      mailSaving: false,
-      mailSaveMessage: '',
-      mailSaveSuccess: false,
       usage: null,
       usageLoading: false,
       usageDays: 30,
@@ -550,7 +476,6 @@ export default {
     this.loadConfig()
     this.loadQwenConfig()
     this.loadGitHubConfig()
-    this.loadMailConfig()
     this.loadExportGuard()
     this.loadUsage()
     this.loadUsageQwen()
@@ -759,27 +684,6 @@ export default {
       } catch (e) {
         if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
         else this.githubConfig = {}
-      }
-    },
-    async loadMailConfig () {
-      try {
-        const resp = await this.$http.get('/admin/config/mail')
-        if (resp.data && resp.data.code === 0 && resp.data.data) {
-          const d = resp.data.data
-          this.mailConfig = d
-          this.mailForm.publicBaseUrl = d.publicBaseUrl || ''
-          this.mailForm.smtpHost = d.smtpHost || ''
-          this.mailForm.smtpPort = d.smtpPort != null ? Number(d.smtpPort) : 587
-          this.mailForm.smtpUsername = d.smtpUsername || ''
-          this.mailForm.smtpPassword = ''
-          this.mailForm.fromAddress = d.fromAddress || ''
-          this.mailForm.fromName = d.fromName || ''
-        } else {
-          this.mailConfig = {}
-        }
-      } catch (e) {
-        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
-        else this.mailConfig = {}
       }
     },
     async loadUsage () {
@@ -1128,39 +1032,6 @@ export default {
         this.githubSaveSuccess = false
       } finally {
         this.githubSaving = false
-      }
-    }
-    ,
-    async saveMailConfig () {
-      this.mailSaving = true
-      this.mailSaveMessage = ''
-      try {
-        const payload = {
-          publicBaseUrl: this.mailForm.publicBaseUrl || '',
-          smtpHost: this.mailForm.smtpHost || '',
-          smtpPort: this.mailForm.smtpPort != null ? Number(this.mailForm.smtpPort) : null,
-          smtpUsername: this.mailForm.smtpUsername || '',
-          fromAddress: this.mailForm.fromAddress || '',
-          fromName: this.mailForm.fromName || ''
-        }
-        if (this.mailForm.smtpPassword && !this.mailForm.smtpPassword.includes('****')) {
-          payload.smtpPassword = this.mailForm.smtpPassword
-        }
-        const resp = await this.$http.put('/admin/config/mail', payload)
-        if (resp.data && resp.data.code === 0) {
-          this.mailSaveMessage = this.$t('mailConfig.saveSuccess')
-          this.mailSaveSuccess = true
-          this.loadMailConfig()
-          this.mailForm.smtpPassword = ''
-        } else {
-          this.mailSaveMessage = (resp.data && resp.data.message) || this.$t('mailConfig.saveFailed')
-          this.mailSaveSuccess = false
-        }
-      } catch (e) {
-        this.mailSaveMessage = (e.response && e.response.data && e.response.data.message) || this.$t('mailConfig.saveFailed')
-        this.mailSaveSuccess = false
-      } finally {
-        this.mailSaving = false
       }
     }
   }
@@ -1746,8 +1617,7 @@ export default {
 .placeholder.small {
   padding: var(--space-md);
 }
-.github-config-card,
-.mail-config-card {
+.github-config-card {
   margin-top: 0;
 }
 .config-card-title {

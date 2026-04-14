@@ -6,6 +6,7 @@ import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.commit.GithubDiffFetcher;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,15 +28,18 @@ public class AdminTestController {
     private final AiAnalysisConfigService aiAnalysisConfigService;
     private final DeepSeekClient deepSeekClient;
     private final QwenClient qwenClient;
+    private final MailSenderService mailSenderService;
 
     public AdminTestController(GithubDiffFetcher githubDiffFetcher,
                                AiAnalysisConfigService aiAnalysisConfigService,
                                DeepSeekClient deepSeekClient,
-                               QwenClient qwenClient) {
+                               QwenClient qwenClient,
+                               MailSenderService mailSenderService) {
         this.githubDiffFetcher = githubDiffFetcher;
         this.aiAnalysisConfigService = aiAnalysisConfigService;
         this.deepSeekClient = deepSeekClient;
         this.qwenClient = qwenClient;
+        this.mailSenderService = mailSenderService;
     }
 
     /**
@@ -148,14 +152,27 @@ public class AdminTestController {
     }
 
     /**
-     * 邮件发送可用性测试（占位，后续接入邮件服务后实现）。
+     * 邮件发送可用性测试：SMTP 由平台监测台「系统配置」维护（tenant_id=0）。
      */
     @GetMapping("/email")
     public ApiResponse<Map<String, Object>> testEmail() {
         Map<String, Object> data = new HashMap<>();
-        data.put("available", false);
-        data.put("message", "邮件功能尚未接入，请参考《工作日报邮件自动推送-功能设计文档》实现后再测试。");
-        data.put("latencyMs", 0);
+        long start = System.currentTimeMillis();
+        if (!mailSenderService.isConfigured()) {
+            data.put("available", false);
+            data.put("message", "SMTP 未在平台侧配置完整，请在监测台「系统配置」中填写发信参数。");
+            data.put("latencyMs", 0L);
+            return ApiResponse.ok(data);
+        }
+        try {
+            mailSenderService.verifySmtpConnection();
+            data.put("available", true);
+            data.put("message", "SMTP 连接验证成功（未实际发信）。");
+        } catch (Exception e) {
+            data.put("available", false);
+            data.put("message", e.getMessage() != null ? e.getMessage() : "SMTP 连接失败");
+        }
+        data.put("latencyMs", System.currentTimeMillis() - start);
         return ApiResponse.ok(data);
     }
 }

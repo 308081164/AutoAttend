@@ -47,38 +47,6 @@ public class AdminConfigController {
         return ApiResponse.ok(null);
     }
 
-    @GetMapping("/mail")
-    public ApiResponse<Map<String, Object>> getMailConfig() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("publicBaseUrl", systemConfigService.getPublicBaseUrl());
-        data.put("smtpHost", systemConfigService.getMailSmtpHost());
-        data.put("smtpPort", systemConfigService.getMailSmtpPort());
-        data.put("smtpUsername", systemConfigService.getMailSmtpUsername());
-        data.put("smtpPasswordMasked", systemConfigService.getMailSmtpPasswordMasked());
-        data.put("fromAddress", systemConfigService.getMailFromAddress());
-        data.put("fromName", systemConfigService.getMailFromName());
-        data.put("configured", systemConfigService.getMailSmtpHost() != null
-                && systemConfigService.getMailSmtpPort() != null
-                && systemConfigService.getMailFromAddress() != null);
-        return ApiResponse.ok(data);
-    }
-
-    @PutMapping("/mail")
-    public ApiResponse<Void> updateMailConfig(@RequestBody Map<String, Object> body) {
-        String publicBaseUrl = body != null ? asString(body.get("publicBaseUrl")) : null;
-        String host = body != null ? asString(body.get("smtpHost")) : null;
-        Integer port = body != null ? asInt(body.get("smtpPort")) : null;
-        String username = body != null ? asString(body.get("smtpUsername")) : null;
-        String password = body != null ? asString(body.get("smtpPassword")) : null;
-        String fromAddress = body != null ? asString(body.get("fromAddress")) : null;
-        String fromName = body != null ? asString(body.get("fromName")) : null;
-        if (publicBaseUrl != null) {
-            systemConfigService.setPublicBaseUrl(publicBaseUrl);
-        }
-        systemConfigService.saveMailSmtpConfig(host, port, username, password, fromAddress, fromName);
-        return ApiResponse.ok(null);
-    }
-
     @GetMapping("/membership-plans")
     public ApiResponse<Map<String, Object>> getMembershipPlans() {
         Map<String, Object> data = new HashMap<>();

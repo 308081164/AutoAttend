@@ -18,6 +18,9 @@ import java.util.Objects;
 @Service
 public class SystemConfigService {
 
+    /** 平台级系统配置（SMTP、公网地址、日报调度等），与租户控制台解耦 */
+    public static final long PLATFORM_SYSTEM_CONFIG_TENANT_ID = 0L;
+
     private static final String KEY_GITHUB_TOKEN = "github.token";
     private static final String KEY_GITHUB_API_PROXY = "github.api.proxy";
     // ===== Mail (SMTP) =====
@@ -41,6 +44,11 @@ public class SystemConfigService {
     /** BCrypt 哈希：导出敏感配置前须验证的二级密钥；未设置则禁止导出明文密钥 */
     public static final String KEY_EXPORT_SECONDARY_PASSWORD_HASH = "security.export_secondary_password.bcrypt";
 
+    /** 日报邮件定时任务（存于平台配置 tenant_id=0，由监测台维护） */
+    public static final String KEY_REPORT_MAIL_ENABLED = "app.report_mail.enabled";
+    public static final String KEY_REPORT_MAIL_CRON = "app.report_mail.cron";
+    public static final String KEY_REPORT_MAIL_TIMEZONE = "app.report_mail.timezone";
+
     private final SystemConfigMapper mapper;
     private final CollabPasswordService passwordHasher;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -52,6 +60,10 @@ public class SystemConfigService {
 
     private static long tenantId() {
         return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
+    }
+
+    private static long platformTenantId() {
+        return PLATFORM_SYSTEM_CONFIG_TENANT_ID;
     }
 
     /** 获取 GitHub Token 原始值（供拉取 Diff 使用）；未配置返回 null。 */
@@ -84,40 +96,40 @@ public class SystemConfigService {
         mapper.upsert(tenantId(), KEY_GITHUB_API_PROXY, value != null ? value : "");
     }
 
-    // ===== Mail (SMTP) config stored in aa_system_config =====
+    // ===== Mail (SMTP) — 平台级 tenant_id=0（监测台维护）=====
     public String getMailSmtpHost() {
-        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_HOST);
+        String v = mapper.findByKey(platformTenantId(), KEY_MAIL_SMTP_HOST);
         return (v != null && !v.isBlank()) ? v.trim() : null;
     }
 
     public Integer getMailSmtpPort() {
-        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_PORT);
+        String v = mapper.findByKey(platformTenantId(), KEY_MAIL_SMTP_PORT);
         if (v == null || v.isBlank()) return null;
         try { return Integer.parseInt(v.trim()); } catch (Exception e) { return null; }
     }
 
     public String getMailSmtpUsername() {
-        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_USERNAME);
+        String v = mapper.findByKey(platformTenantId(), KEY_MAIL_SMTP_USERNAME);
         return (v != null && !v.isBlank()) ? v.trim() : null;
     }
 
     public String getMailSmtpPassword() {
-        String v = mapper.findByKey(tenantId(), KEY_MAIL_SMTP_PASSWORD);
+        String v = mapper.findByKey(platformTenantId(), KEY_MAIL_SMTP_PASSWORD);
         return (v != null && !v.isBlank()) ? v : null;
     }
 
     public String getMailFromAddress() {
-        String v = mapper.findByKey(tenantId(), KEY_MAIL_FROM_ADDRESS);
+        String v = mapper.findByKey(platformTenantId(), KEY_MAIL_FROM_ADDRESS);
         return (v != null && !v.isBlank()) ? v.trim() : null;
     }
 
     public String getMailFromName() {
-        String v = mapper.findByKey(tenantId(), KEY_MAIL_FROM_NAME);
+        String v = mapper.findByKey(platformTenantId(), KEY_MAIL_FROM_NAME);
         return (v != null && !v.isBlank()) ? v.trim() : null;
     }
 
     public String getPublicBaseUrl() {
-        String v = mapper.findByKey(tenantId(), KEY_PUBLIC_BASE_URL);
+        String v = mapper.findByKey(platformTenantId(), KEY_PUBLIC_BASE_URL);
         if (v == null || v.isBlank()) return null;
         String s = v.trim();
         // 去掉尾部 /
@@ -127,22 +139,54 @@ public class SystemConfigService {
 
     /** 写入 SMTP 配置；password 若包含 **** 则视为未修改。 */
     public void saveMailSmtpConfig(String host, Integer port, String username, String password, String fromAddress, String fromName) {
-        if (host != null) mapper.upsert(tenantId(), KEY_MAIL_SMTP_HOST, host.trim());
-        if (port != null) mapper.upsert(tenantId(), KEY_MAIL_SMTP_PORT, String.valueOf(port));
-        if (username != null) mapper.upsert(tenantId(), KEY_MAIL_SMTP_USERNAME, username.trim());
-        if (password != null && !password.contains("****")) mapper.upsert(tenantId(), KEY_MAIL_SMTP_PASSWORD, password);
-        if (fromAddress != null) mapper.upsert(tenantId(), KEY_MAIL_FROM_ADDRESS, fromAddress.trim());
-        if (fromName != null) mapper.upsert(tenantId(), KEY_MAIL_FROM_NAME, fromName.trim());
+        long tid = platformTenantId();
+        if (host != null) mapper.upsert(tid, KEY_MAIL_SMTP_HOST, host.trim());
+        if (port != null) mapper.upsert(tid, KEY_MAIL_SMTP_PORT, String.valueOf(port));
+        if (username != null) mapper.upsert(tid, KEY_MAIL_SMTP_USERNAME, username.trim());
+        if (password != null && !password.contains("****")) mapper.upsert(tid, KEY_MAIL_SMTP_PASSWORD, password);
+        if (fromAddress != null) mapper.upsert(tid, KEY_MAIL_FROM_ADDRESS, fromAddress.trim());
+        if (fromName != null) mapper.upsert(tid, KEY_MAIL_FROM_NAME, fromName.trim());
     }
 
     public void setPublicBaseUrl(String baseUrl) {
         if (baseUrl == null) return;
-        mapper.upsert(tenantId(), KEY_PUBLIC_BASE_URL, baseUrl.trim());
+        mapper.upsert(platformTenantId(), KEY_PUBLIC_BASE_URL, baseUrl.trim());
     }
 
     public String getMailSmtpPasswordMasked() {
         String v = getMailSmtpPassword();
         return v != null && !v.isBlank() ? "****" : null;
+    }
+
+    public boolean getPlatformReportMailEnabled() {
+        String v = mapper.findByKey(platformTenantId(), KEY_REPORT_MAIL_ENABLED);
+        if (v == null || v.isBlank()) {
+            return true;
+        }
+        return Boolean.parseBoolean(v.trim());
+    }
+
+    public String getPlatformReportMailCron() {
+        String v = mapper.findByKey(platformTenantId(), KEY_REPORT_MAIL_CRON);
+        return (v != null && !v.isBlank()) ? v.trim() : "0 30 4 * * *";
+    }
+
+    public String getPlatformReportMailTimezone() {
+        String v = mapper.findByKey(platformTenantId(), KEY_REPORT_MAIL_TIMEZONE);
+        return (v != null && !v.isBlank()) ? v.trim() : "Asia/Shanghai";
+    }
+
+    public void savePlatformReportMailSettings(Boolean enabled, String cron, String timezone) {
+        long tid = platformTenantId();
+        if (enabled != null) {
+            mapper.upsert(tid, KEY_REPORT_MAIL_ENABLED, enabled ? "true" : "false");
+        }
+        if (cron != null && !cron.isBlank()) {
+            mapper.upsert(tid, KEY_REPORT_MAIL_CRON, cron.trim());
+        }
+        if (timezone != null && !timezone.isBlank()) {
+            mapper.upsert(tid, KEY_REPORT_MAIL_TIMEZONE, timezone.trim());
+        }
     }
 
     // ===== 二级密钥：敏感配置导出保护 =====

@@ -53,14 +53,14 @@
 ### 1.5 平台监测台（运维专用）
 
 - 代码目录：**`platform_monitor_frontend`**（独立前端工程，与主站 Vue 应用分离）。
-- 能力概览：租户列表顶部 **官方邀请码**（全局发放，与租户无关）、按租户查看用量与订阅、**暂停 / 恢复**、清除管理员会话、**一键开通专业增强版（pro+）** 指定期限权益。
+- 能力概览：租户列表顶部 **官方邀请码**（全局发放，与租户无关）、**系统配置**（全局 SMTP、日报邮件定时 Cron/时区/开关）、按租户查看用量与订阅、**暂停 / 恢复**、清除管理员会话、**一键开通专业增强版（pro+）** 指定期限权益。
 - 鉴权：后端为 `/api/platform/*`；需配置环境变量 **`PLATFORM_OPS_PASSWORD`**（未配置则平台登录不可用）。部署方式可与主站同源反代或单独子域，视运维环境而定。
 
 ### 1.6 接口与鉴权
 
 - **租户管理员 API**：`/api/admin/*`（登录/注册、看板、仓库、提交、Diff、报价与合同、Nexus、Agent、客户看板配置、**会员与计费与邀请码**等），登录后返回 token，请求头带 `Authorization: Bearer <token>`。
 - **协作 API**：`/api/collab/*`（登录、项目、表、记录、讨论、附件列表/上传/预览/下载），JWT 鉴权；租户管理员登录后台时一并下发 `collabToken`，员工通过协作登录页获取。
-- **平台监测 API**：`/api/platform/*`（需平台运维密码登录后的 token）；官方邀请码为 **`GET/POST /api/platform/invite-codes`**（与租户无关）。
+- **平台监测 API**：`/api/platform/*`（需平台运维密码登录后的 token）；官方邀请码 **`GET/POST /api/platform/invite-codes`**；系统配置（SMTP、日报调度）**`GET/PUT /api/platform/settings/mail`**、**`GET/PUT /api/platform/settings/report-mail`**、**`POST /api/platform/settings/mail/test`**。
 - **Webhook**：`POST /api/webhooks/github`，签名校验与幂等去重。
 - **国际化**：前端支持中文、English、Русский、日本語、Français，页头下拉切换，语言偏好存入 localStorage。
 
@@ -130,7 +130,7 @@ npm run serve
 
 ### 4.4 仅本地跑平台监测台前端
 
-需已启动后端（默认 `8848`），并在后端配置 `PLATFORM_OPS_PASSWORD` 以便登录 `/api/platform/*`。
+需已启动后端（默认 `8848`），并在后端配置 `PLATFORM_OPS_PASSWORD` 以便登录 `/api/platform/*`。导航含 **系统配置**（`/system`），用于维护全局 SMTP 与日报邮件调度。
 
 ```bash
 cd platform_monitor_frontend

@@ -7,6 +7,7 @@
         <nav v-if="hasToken" class="nav">
           <router-link :to="{ name: 'dashboard' }" class="nav-link" exact-active-class="active">看板</router-link>
           <router-link :to="{ name: 'tenants' }" class="nav-link" exact-active-class="active">租户</router-link>
+          <router-link :to="{ name: 'system-settings' }" class="nav-link" exact-active-class="active">系统配置</router-link>
         </nav>
       </div>
       <button v-if="hasToken" type="button" class="link" @click="logout">退出</button>

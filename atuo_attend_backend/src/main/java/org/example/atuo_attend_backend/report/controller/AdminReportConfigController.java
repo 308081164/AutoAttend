@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * 全局日报邮件配置（总开关、企业名称、附加信息）。
  *
- * 发信 SMTP 配置在 /api/admin/config/mail 中维护。
+ * 发信 SMTP 由平台监测台 /api/platform/settings/mail 维护（全局 tenant_id=0）。
  */
 @RestController
 @RequestMapping("/api/admin/report")
