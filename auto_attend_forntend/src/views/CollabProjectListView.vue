@@ -152,9 +152,11 @@ export default {
       } catch (e) { /* ignore */ }
     },
     logout () {
+      const admin = this.isAdmin
       window.localStorage.removeItem('autoattend_collab_token')
       window.localStorage.removeItem('autoattend_token')
-      this.$router.push({ name: 'login' })
+      window.localStorage.removeItem('autoattend_username')
+      this.$router.push({ name: admin ? 'login' : 'member-login' })
     }
   }
 }

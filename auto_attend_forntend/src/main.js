@@ -3,6 +3,7 @@ import App from './App.vue'
 import router from './router'
 import axios from 'axios'
 import { i18n } from './locales'
+import { isCollabApiRequestUrl, shouldHandleUnauthorizedSession } from './utils/httpAuth'
 
 Vue.config.productionTip = false
 
@@ -65,20 +66,28 @@ axios.interceptors.response.use(
     if (error.response) {
       const { status } = error.response
       
-      // 处理401未授权错误
-      if (status === 401) {
-        console.warn('检测到401未授权错误，跳转到登录页面')
-        
-        // 清除本地存储的token
-        window.localStorage.removeItem('autoattend_token')
-        window.localStorage.removeItem('autoattend_collab_token')
-        
-        // 延迟跳转到登录页面，避免在Vue实例创建前调用router
+      // 处理401：仅当本次请求实际携带了 Bearer 时才视为「当前身份失效」
+      // 未带凭证的 401（如成员误调 /admin/*）不清空协作 token，避免被踢出成员会话
+      if (status === 401 && shouldHandleUnauthorizedSession(error)) {
+        const reqUrl = (error.config && error.config.url) || ''
+        const collabReq = isCollabApiRequestUrl(reqUrl)
+        console.warn('401 未授权，清理对应凭证并跳转登录', collabReq ? 'collab' : 'admin')
+
+        if (collabReq) {
+          window.localStorage.removeItem('autoattend_collab_token')
+        } else {
+          window.localStorage.removeItem('autoattend_token')
+          window.localStorage.removeItem('autoattend_username')
+        }
+
         setTimeout(() => {
           const p = window.location.pathname || ''
           if (p === '/login' || p === '/register' || p === '/member-login') return
-          const memberArea = p.indexOf('/collab') === 0 || p === '/member' || p.startsWith('/lab') || p.startsWith('/cloud-dev')
-          window.location.href = memberArea ? '/member-login' : '/login'
+          if (collabReq) {
+            window.location.href = '/member-login'
+            return
+          }
+          window.location.href = '/login'
         }, 100)
       }
       

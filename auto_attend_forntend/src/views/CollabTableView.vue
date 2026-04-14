@@ -1092,6 +1092,7 @@
 import { Chart as ChartJS, registerables } from 'chart.js'
 import { compressImageFile, IMAGE_COMPRESS_PRESETS, shouldCompressAsRasterImage } from '@/utils/imageCompress'
 import { buildWordCloudItems } from '@/utils/collabDashboardText'
+import { redirectCollabUnauthorized } from '@/utils/httpAuth'
 import DashboardView from './DashboardView.vue'
 
 ChartJS.register(...registerables)
@@ -1365,6 +1366,7 @@ export default {
       if (this.mailNotifyOpen && !this.mailNotifyConfig) this.loadMailNotifyConfig()
     },
     async loadMailNotifyConfig () {
+      if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.mailNotifyLoading = true
       try {
@@ -1388,6 +1390,7 @@ export default {
       }
     },
     async saveMailNotifyConfig () {
+      if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.mailNotifySaving = true
       this.mailNotifyMessage = ''
@@ -1418,6 +1421,7 @@ export default {
       }
     },
     async sendMailNotifyTest () {
+      if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.mailNotifySendingTest = true
       this.mailNotifyMessage = ''
@@ -1444,6 +1448,7 @@ export default {
       if (this.aiLinkageOpen) this.loadAiLinkageConfig()
     },
     async loadAiLinkageConfig () {
+      if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.aiLinkageLoading = true
       try {
@@ -1461,6 +1466,7 @@ export default {
       }
     },
     async saveAiLinkageConfig () {
+      if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.aiLinkageSaving = true
       this.aiLinkageMessage = ''
@@ -2379,7 +2385,7 @@ export default {
           this.projectRepoId = resp.data.data.repoId != null ? String(resp.data.data.repoId) : ''
         }
       } catch (e) {
-        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
+        if (e.response && e.response.status === 401) redirectCollabUnauthorized(this.$router)
       }
     },
     async loadPortalLinks () {
@@ -2526,7 +2532,7 @@ export default {
           this.columns = (d.columns || []).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
         }
       } catch (e) {
-        if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
+        if (e.response && e.response.status === 401) redirectCollabUnauthorized(this.$router)
       } finally {
         this.tableLoading = false
       }
