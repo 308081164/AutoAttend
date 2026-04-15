@@ -431,8 +431,27 @@
             <div v-if="aiDrafts.length" class="lb-drafts">
               <div class="lb-drafts-head">AI 草稿（{{ aiDrafts.length }} 条）</div>
               <div v-for="(d, i) in aiDrafts" :key="'d-' + i" class="lb-draft">
-                <strong>{{ d.title || '—' }}</strong>
-                <p>{{ d.description }}</p>
+                <div class="lb-draft-toolbar">
+                  <span class="lb-draft-index">{{ i + 1 }}</span>
+                  <button
+                    type="button"
+                    class="lb-draft-remove"
+                    title="删除此条草稿"
+                    @click="removeAiDraft(i)"
+                  >×</button>
+                </div>
+                <input
+                  v-model="d.title"
+                  type="text"
+                  class="lb-draft-input"
+                  placeholder="标题"
+                >
+                <textarea
+                  v-model="d.description"
+                  class="lb-draft-textarea"
+                  rows="3"
+                  placeholder="描述（可在此修改后再提交）"
+                />
               </div>
               <div class="lb-drafts-foot">
                 <button type="button" class="lb-btn" :disabled="aiCommitting" @click="commitAi">
@@ -866,6 +885,10 @@ export default {
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
       return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
     },
+    removeAiDraft (idx) {
+      if (idx < 0 || idx >= this.aiDrafts.length) return
+      this.aiDrafts.splice(idx, 1)
+    },
     async runAiPreview () {
       const raw = (this.aiText || '').trim()
       if (!raw && !this.aiSelectedAttIds.length) return
@@ -1162,8 +1185,14 @@ export default {
 .lb-drafts-head { font-size: 13px; font-weight: 600; color: var(--lb-text-1); margin-bottom: 12px; }
 .lb-draft { margin-bottom: 8px; padding: 12px 14px; background: var(--lb-bg); border-radius: var(--lb-radius); border: 1px solid transparent; transition: border-color .15s; }
 .lb-draft:hover { border-color: var(--lb-blue); }
-.lb-draft strong { font-size: 14px; color: var(--lb-text-1); }
-.lb-draft p { margin: 4px 0 0; font-size: 13px; color: var(--lb-text-2); white-space: pre-wrap; line-height: 1.6; }
+.lb-draft-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.lb-draft-index { font-size: 12px; font-weight: 600; color: var(--lb-text-3); }
+.lb-draft-remove { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--lb-text-4); border-radius: 6px; font-size: 18px; line-height: 1; cursor: pointer; flex-shrink: 0; }
+.lb-draft-remove:hover { background: #fdecee; color: var(--lb-red); }
+.lb-draft-input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--lb-border); border-radius: 8px; font-size: 14px; font-weight: 600; color: var(--lb-text-1); background: var(--lb-bg-card); margin-bottom: 8px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.lb-draft-input:focus { border-color: var(--lb-blue); box-shadow: 0 0 0 2px rgba(51,112,255,.12); }
+.lb-draft-textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--lb-border); border-radius: 8px; font-size: 13px; color: var(--lb-text-2); background: var(--lb-bg-card); resize: vertical; min-height: 72px; line-height: 1.6; white-space: pre-wrap; font-family: inherit; outline: none; transition: border-color .15s, box-shadow .15s; }
+.lb-draft-textarea:focus { border-color: var(--lb-blue); box-shadow: 0 0 0 2px rgba(51,112,255,.12); }
 .lb-drafts-foot { margin-top: 12px; display: flex; justify-content: flex-end; }
 
 /* --- Button --- */

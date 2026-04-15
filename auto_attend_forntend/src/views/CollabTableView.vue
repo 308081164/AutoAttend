@@ -414,13 +414,20 @@
                 <div class="list-thumbs">
                   <template v-for="aid in getAttachmentIdsFromField(row['c' + col.id])">
                     <div v-if="getListAttachmentById(row.id, aid)" :key="aid" class="list-thumb-wrap">
-                      <img
-                        v-if="getListAttachmentById(row.id, aid).isImage && listAttachmentPreviewUrls[aid]"
-                        :src="listAttachmentPreviewUrls[aid]"
-                        class="list-thumb-img list-thumb-img-clickable"
-                        alt=""
-                        @click.stop="openImagePreview(getListAttachmentById(row.id, aid), listAttachmentPreviewUrls[aid])"
-                      >
+                      <template v-if="getListAttachmentById(row.id, aid).isImage">
+                        <div
+                          class="list-thumb-slot list-thumb-slot--image"
+                          :class="{ 'list-thumb-slot--loading': !listAttachmentPreviewUrls[aid] }"
+                        >
+                          <img
+                            v-if="listAttachmentPreviewUrls[aid]"
+                            :src="listAttachmentPreviewUrls[aid]"
+                            class="list-thumb-img list-thumb-img-clickable"
+                            alt=""
+                            @click.stop="openImagePreview(getListAttachmentById(row.id, aid), listAttachmentPreviewUrls[aid])"
+                          >
+                        </div>
+                      </template>
                       <span v-else class="list-thumb-name">{{ getListAttachmentById(row.id, aid).fileName }}</span>
                     </div>
                   </template>
@@ -559,13 +566,20 @@
                   <div class="attachment-thumb-list">
                     <template v-for="aid in getAttachmentIdsFromField(drawerEditValues['c' + col.id])">
                       <div v-if="getAttachmentById(aid)" :key="aid" class="thumb-wrap">
-                        <img
-                          v-if="getAttachmentById(aid).isImage && attachmentPreviewUrls[aid]"
-                          :src="attachmentPreviewUrls[aid]"
-                          class="thumb-img thumb-img-clickable"
-                          alt=""
-                          @click.stop="openImagePreview(getAttachmentById(aid), attachmentPreviewUrls[aid])"
-                        >
+                        <template v-if="getAttachmentById(aid).isImage">
+                          <div
+                            class="thumb-slot thumb-slot--image"
+                            :class="{ 'thumb-slot--loading': !attachmentPreviewUrls[aid] }"
+                          >
+                            <img
+                              v-if="attachmentPreviewUrls[aid]"
+                              :src="attachmentPreviewUrls[aid]"
+                              class="thumb-img thumb-img-clickable"
+                              alt=""
+                              @click.stop="openImagePreview(getAttachmentById(aid), attachmentPreviewUrls[aid])"
+                            >
+                          </div>
+                        </template>
                         <span v-else class="thumb-name">{{ getAttachmentById(aid).fileName }}</span>
                       </div>
                     </template>
@@ -3827,9 +3841,13 @@ export default {
   max-width: 380px;
 }
 
+/* 图像列：固定宽度 = 预览缩略图(56px) × 3.5，避免图片异步加载时表格横向跳动 */
 .data-table th.col-attachment,
 .data-table td.cell-attachment {
-  width: 120px;
+  width: 196px;
+  min-width: 196px;
+  max-width: 196px;
+  box-sizing: border-box;
 }
 
 .data-table th.col-check,
@@ -3896,7 +3914,10 @@ export default {
 
 .cell-attachment {
   white-space: normal;
-  width: 120px;
+  width: 196px;
+  min-width: 196px;
+  max-width: 196px;
+  box-sizing: border-box;
   vertical-align: middle;
 }
 
@@ -4045,11 +4066,34 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xs);
-  align-items: center;
+  align-items: flex-start;
+  max-width: 100%;
 }
 
 .list-thumb-wrap {
   flex-shrink: 0;
+}
+
+/* 占位与缩略图同尺寸，图片未加载完成时仍保留布局，减轻「跳跃」感 */
+.list-thumb-slot {
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-page);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.list-thumb-slot--loading {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bg-page),
+    var(--bg-page) 4px,
+    var(--bg-hover) 4px,
+    var(--bg-hover) 8px
+  );
 }
 
 .list-thumb-img {
@@ -4058,7 +4102,7 @@ export default {
   object-fit: cover;
   border-radius: var(--radius-xs);
   display: block;
-  border: 1px solid var(--border-primary);
+  border: none;
 }
 
 .list-thumb-name {
@@ -4406,6 +4450,8 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .attachment-thumb-list {
@@ -4418,13 +4464,34 @@ export default {
   flex-shrink: 0;
 }
 
+.thumb-slot {
+  box-sizing: border-box;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-page);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.thumb-slot--loading {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bg-page),
+    var(--bg-page) 4px,
+    var(--bg-hover) 4px,
+    var(--bg-hover) 8px
+  );
+}
+
 .thumb-img {
   width: 56px;
   height: 56px;
   object-fit: cover;
   border-radius: var(--radius-md);
   display: block;
-  border: 1px solid var(--border-primary);
+  border: none;
 }
 
 .thumb-name {
