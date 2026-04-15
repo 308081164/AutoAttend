@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -90,19 +91,54 @@ public class CollabAuthService {
         if (rows.isEmpty()) {
             return null;
         }
+        // 管理员协作影子账号：email 与 phone_e164 同为 E.164，与真实成员账号共用一号时需排除，否则与成员行邮箱不一致会拦截登录
+        List<BizUser> memberRows = new ArrayList<>();
+        for (BizUser u : rows) {
+            if (!isAdminBizUserShadowForBoundPhone(u)) {
+                memberRows.add(u);
+            }
+        }
+        if (memberRows.isEmpty()) {
+            return null;
+        }
         String err = adminSmsService.verifyAndConsume(phoneE164, AdminSmsService.PURPOSE_LOGIN, smsCode);
         if (err != null) {
             return null;
         }
-        BizUser canonical = rows.get(0);
+        BizUser canonical = pickCanonicalForMemberPhoneLogin(memberRows);
         String emailNorm = normalizeEmailKey(canonical.getEmail());
-        for (BizUser u : rows) {
+        for (BizUser u : memberRows) {
             if (!Objects.equals(normalizeEmailKey(u.getEmail()), emailNorm)) {
                 return null;
             }
         }
         return jwtService.createToken(canonical.getId(), canonical.getEmail(), canonical.getRole(),
                 CollabJwtService.JWT_MODE_MEMBER, CollabJwtService.PROJECT_SCOPE_ALL);
+    }
+
+    /**
+     * 租户管理员在协作侧的「影子」行：用手机号作 email，与 {@link #issueCollabTokenForPhone} 一致。
+     * 成员绑定同一号码时会与该行共存，不应参与「邮箱必须一致」的占用校验与成员短信登录的邮箱对齐。
+     */
+    private boolean isAdminBizUserShadowForBoundPhone(BizUser u) {
+        if (u == null || !ROLE_SUPER_ADMIN.equals(u.getRole())) {
+            return false;
+        }
+        String phone = u.getPhoneE164();
+        String em = u.getEmail();
+        if (phone == null || phone.isBlank() || em == null || em.isBlank()) {
+            return false;
+        }
+        return normalizeEmailKey(em).equals(normalizeEmailKey(phone));
+    }
+
+    private static BizUser pickCanonicalForMemberPhoneLogin(List<BizUser> memberRows) {
+        for (BizUser u : memberRows) {
+            if (ROLE_MEMBER.equals(u.getRole())) {
+                return u;
+            }
+        }
+        return memberRows.get(0);
     }
 
     private static String normalizeEmailKey(String email) {
@@ -288,6 +324,9 @@ public class CollabAuthService {
         List<BizUser> existing = userMapper.listByPhoneE164(phone);
         String emailKey = normalizeEmailKey(email);
         for (BizUser o : existing) {
+            if (isAdminBizUserShadowForBoundPhone(o)) {
+                continue;
+            }
             if (!normalizeEmailKey(o.getEmail()).equals(emailKey)) {
                 throw new IllegalArgumentException("该手机号已被其他成员占用");
             }
