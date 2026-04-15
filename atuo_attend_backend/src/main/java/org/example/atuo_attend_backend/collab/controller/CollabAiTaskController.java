@@ -43,7 +43,7 @@ public class CollabAiTaskController {
                                   @RequestBody CollabAiTaskModels.AiTaskPreviewRequest body,
                                   HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         return ingestService.preview(tid(), projectId, purpose, body);
@@ -55,7 +55,7 @@ public class CollabAiTaskController {
                                  @RequestBody CollabAiTaskModels.AiTaskCommitRequest body,
                                  HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         return ingestService.commit(tid(), projectId, purpose, userId, null, body);

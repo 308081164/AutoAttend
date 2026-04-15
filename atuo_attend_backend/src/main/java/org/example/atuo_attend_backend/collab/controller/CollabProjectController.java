@@ -43,7 +43,8 @@ public class CollabProjectController {
     public ApiResponse<?> list(HttpServletRequest req) {
         long userId = requireUserId(req);
         String scope = CollabAuthFilter.projectScopeFrom(req);
-        List<BizProject> list = projectService.listProjectsForUser(userId, scope);
+        List<Long> phoneMemberIds = CollabAuthFilter.phoneMemberIdsFrom(req);
+        List<BizProject> list = projectService.listProjectsForUser(userId, scope, phoneMemberIds);
         List<Map<String, Object>> items = list.stream().map(p -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", p.getId());
@@ -64,7 +65,7 @@ public class CollabProjectController {
     @GetMapping("/{id}")
     public ApiResponse<?> get(@PathVariable long id, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req))) {
+        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         BizProject p = projectService.getById(id);
@@ -84,7 +85,7 @@ public class CollabProjectController {
     @GetMapping("/{id}/members")
     public ApiResponse<?> listMembers(@PathVariable long id, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req))) {
+        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         List<BizProjectMember> members = memberMapper.listByProjectId(id);

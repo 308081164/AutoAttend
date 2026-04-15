@@ -40,7 +40,7 @@ public class CollabClientBoardController {
     @GetMapping("/{projectId}/client-board")
     public ApiResponse<?> get(@PathVariable long projectId, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         return ApiResponse.ok(shareService.getBoardConfig(projectId));
@@ -51,7 +51,7 @@ public class CollabClientBoardController {
                               @RequestBody(required = false) Map<String, Object> body,
                               HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         try {

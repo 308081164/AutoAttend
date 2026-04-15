@@ -1,6 +1,9 @@
 package org.example.atuo_attend_backend.collab.service;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.JwtBuilder;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -8,6 +11,8 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class CollabJwtService {
@@ -27,6 +32,12 @@ public class CollabJwtService {
     public static final String PROJECT_SCOPE_TENANT = "tenant";
     /** 用户参与的全部租户项目（成员首页） */
     public static final String PROJECT_SCOPE_ALL = "all";
+    /** 成员邮箱密码登录：仅当前 biz_user 所在租户内、该账号参与的项目（严格单账号） */
+    public static final String PROJECT_SCOPE_EMAIL = "email";
+    /** 成员手机登录：同号下最多 10 个成员账号可访问项目的并集 */
+    public static final String PROJECT_SCOPE_PHONE_MEMBERS = "phone_members";
+    /** 管理员协作 JWT：本租户全部项目 + 同手机号下其它成员账号参与的项目（继承成员权限） */
+    public static final String PROJECT_SCOPE_ADMIN_MERGED = "admin_merged";
 
     public String createToken(long userId, String email, String role) {
         return createToken(userId, email, role, JWT_MODE_MEMBER, PROJECT_SCOPE_ALL);
@@ -37,16 +48,26 @@ public class CollabJwtService {
      * @param projectScope tenant=仅当前租户项目；all=跨租户参与项目
      */
     public String createToken(long userId, String email, String role, String mode, String projectScope) {
-        return Jwts.builder()
+        return createToken(userId, email, role, mode, projectScope, null);
+    }
+
+    /**
+     * @param phoneMemberIds 仅当 projectScope={@link #PROJECT_SCOPE_PHONE_MEMBERS} 时使用：同号成员 biz_user.id 列表（含 subject）
+     */
+    public String createToken(long userId, String email, String role, String mode, String projectScope, List<Long> phoneMemberIds) {
+        JwtBuilder b = Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("email", email)
                 .claim("role", role)
                 .claim("mode", mode != null ? mode : JWT_MODE_MEMBER)
                 .claim("projectScope", projectScope != null ? projectScope : PROJECT_SCOPE_ALL)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expireMs))
-                .signWith(key)
-                .compact();
+                .expiration(new Date(System.currentTimeMillis() + expireMs));
+        if (PROJECT_SCOPE_PHONE_MEMBERS.equals(projectScope) && phoneMemberIds != null && !phoneMemberIds.isEmpty()) {
+            String joined = phoneMemberIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+            b.claim("pm", joined);
+        }
+        return b.signWith(key).compact();
     }
 
     public Claims parseToken(String token) {
@@ -79,5 +100,26 @@ public class CollabJwtService {
         if (c == null) return null;
         Object s = c.get("projectScope");
         return s != null ? s.toString() : null;
+    }
+
+    /** 成员手机登录：同号关联的成员 userId 列表（含当前 subject） */
+    public List<Long> getPhoneMemberIdsFromToken(String token) {
+        Claims c = parseToken(token);
+        if (c == null) return List.of();
+        Object pm = c.get("pm");
+        if (pm == null) return List.of();
+        String s = pm.toString().trim();
+        if (s.isEmpty()) return List.of();
+        List<Long> out = new java.util.ArrayList<>();
+        for (String part : s.split(",")) {
+            String t = part.trim();
+            if (t.isEmpty()) continue;
+            try {
+                out.add(Long.parseLong(t));
+            } catch (NumberFormatException ignored) {
+                // skip
+            }
+        }
+        return out;
     }
 }

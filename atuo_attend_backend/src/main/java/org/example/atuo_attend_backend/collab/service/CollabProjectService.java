@@ -10,8 +10,10 @@ import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,6 +23,7 @@ public class CollabProjectService {
 
     private static final String ROLE_SUPER_ADMIN = "super_admin";
     private static final String ROLE_SUB_ADMIN = "sub_admin";
+    private static final String ROLE_MEMBER = "member";
 
     private final BizProjectMapper projectMapper;
     private final BizProjectMemberMapper memberMapper;
@@ -38,14 +41,24 @@ public class CollabProjectService {
     }
 
     /**
-     * @param projectScope {@link CollabJwtService#PROJECT_SCOPE_ALL} 或 {@link CollabJwtService#PROJECT_SCOPE_TENANT}；null 时按角色推断（兼容无 claim 的旧 JWT）
+     * @param projectScope {@link CollabJwtService#PROJECT_SCOPE_ALL} 等；null 时按角色推断（兼容旧 JWT）
+     * @param phoneMemberIds 仅 {@link CollabJwtService#PROJECT_SCOPE_PHONE_MEMBERS}：同号成员 userId 列表（可含 subject）
      */
-    public List<BizProject> listProjectsForUser(long userId, String projectScope) {
+    public List<BizProject> listProjectsForUser(long userId, String projectScope, List<Long> phoneMemberIds) {
         BizUser user = userMapper.findById(userId);
         if (user == null) return List.of();
 
         String scope = resolveProjectScope(projectScope, user);
 
+        if (CollabJwtService.PROJECT_SCOPE_EMAIL.equals(scope)) {
+            return listMemberProjectsSingleAccount(user);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(scope)) {
+            return listMemberProjectsPhoneUnion(phoneMemberIds, userId);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope)) {
+            return listProjectsAdminMerged(user);
+        }
         if (CollabJwtService.PROJECT_SCOPE_ALL.equals(scope)) {
             return listProjectsAcrossTenantsForNaturalPerson(user);
         }
@@ -66,10 +79,97 @@ public class CollabProjectService {
                 .collect(Collectors.toList());
     }
 
+    public List<BizProject> listProjectsForUser(long userId, String projectScope) {
+        return listProjectsForUser(userId, projectScope, null);
+    }
+
     /** @deprecated 使用 {@link #listProjectsForUser(long, String)} */
     @Deprecated
     public List<BizProject> listProjectsForUser(long userId) {
         return listProjectsForUser(userId, null);
+    }
+
+    /** 成员邮箱登录：仅当前 biz_user 在本租户内参与的项目 */
+    private List<BizProject> listMemberProjectsSingleAccount(BizUser user) {
+        long tid = user.getTenantId() != null ? user.getTenantId() : TenantConstants.DEFAULT_TENANT_ID;
+        if (ROLE_SUPER_ADMIN.equals(user.getRole())) {
+            return projectMapper.listByTenant(tid);
+        }
+        if (ROLE_SUB_ADMIN.equals(user.getRole())) {
+            List<Long> projectIds = memberMapper.listProjectIdsByUserIdAndRole(user.getId(), "admin");
+            return projectMapper.listByTenant(tid).stream()
+                    .filter(p -> projectIds.contains(p.getId()))
+                    .collect(Collectors.toList());
+        }
+        List<Long> myProjectIds = memberMapper.listProjectIdsByUserId(user.getId());
+        return projectMapper.listByTenant(tid).stream()
+                .filter(p -> myProjectIds.contains(p.getId()))
+                .collect(Collectors.toList());
+    }
+
+    /** 成员手机登录：同号下多个成员账号参与项目的并集 */
+    private List<BizProject> listMemberProjectsPhoneUnion(List<Long> phoneMemberIds, long fallbackUserId) {
+        Set<Long> uid = new LinkedHashSet<>();
+        if (phoneMemberIds != null) {
+            for (Long id : phoneMemberIds) {
+                if (id != null) uid.add(id);
+            }
+        }
+        if (uid.isEmpty()) {
+            uid.add(fallbackUserId);
+        }
+        List<Long> pids = memberMapper.listProjectIdsByUserIds(new ArrayList<>(uid));
+        if (pids == null || pids.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> uniq = new LinkedHashSet<>(pids);
+        return projectMapper.listByIds(new ArrayList<>(uniq));
+    }
+
+    /**
+     * 管理员协作 JWT：本租户全部项目 + 同手机号下其它成员账号（不含本租户）参与的项目，后者仅成员权限范围。
+     */
+    private List<BizProject> listProjectsAdminMerged(BizUser adminBiz) {
+        if (adminBiz == null || !ROLE_SUPER_ADMIN.equals(adminBiz.getRole())) {
+            return List.of();
+        }
+        Long homeTid = adminBiz.getTenantId();
+        if (homeTid == null) {
+            return List.of();
+        }
+        String phone = adminBiz.getEmail() != null ? adminBiz.getEmail().trim() : "";
+        if (phone.isEmpty() || !phone.startsWith("+")) {
+            return projectMapper.listByTenant(homeTid);
+        }
+        List<BizProject> home = projectMapper.listByTenant(homeTid);
+        List<BizUser> samePhone = userMapper.listByPhoneE164(phone);
+        List<Long> siblingMemberIds = samePhone.stream()
+                .filter(u -> ROLE_MEMBER.equals(u.getRole()))
+                .map(BizUser::getId)
+                .collect(Collectors.toList());
+        if (siblingMemberIds.isEmpty()) {
+            return home;
+        }
+        List<Long> extPids = memberMapper.listProjectIdsByUserIds(siblingMemberIds);
+        if (extPids == null || extPids.isEmpty()) {
+            return home;
+        }
+        Set<Long> uniq = new LinkedHashSet<>(extPids);
+        List<BizProject> fromMembers = projectMapper.listByIds(new ArrayList<>(uniq)).stream()
+                .filter(p -> p.getTenantId() != null && !p.getTenantId().equals(homeTid))
+                .collect(Collectors.toList());
+        return mergeById(home, fromMembers);
+    }
+
+    private static List<BizProject> mergeById(List<BizProject> a, List<BizProject> b) {
+        Map<Long, BizProject> map = new LinkedHashMap<>();
+        for (BizProject p : a) {
+            if (p != null && p.getId() != null) map.put(p.getId(), p);
+        }
+        for (BizProject p : b) {
+            if (p != null && p.getId() != null) map.putIfAbsent(p.getId(), p);
+        }
+        return new ArrayList<>(map.values());
     }
 
     private static String resolveProjectScope(String projectScope, BizUser user) {
@@ -83,7 +183,7 @@ public class CollabProjectService {
     }
 
     /**
-     * 同一自然人在各租户下的 biz_user 行通过相同 email 关联；聚合全部参与项目。
+     * 同一自然人在各租户下的 biz_user 行通过相同 email 关联；聚合全部参与项目（旧 JWT {@link CollabJwtService#PROJECT_SCOPE_ALL}）。
      */
     private List<BizProject> listProjectsAcrossTenantsForNaturalPerson(BizUser primary) {
         List<Long> userIds = userMapper.listIdsByEmailNormalized(primary.getEmail());
@@ -95,20 +195,28 @@ public class CollabProjectService {
             return List.of();
         }
         Set<Long> uniq = new LinkedHashSet<>(projectIds);
-        List<Long> idList = new ArrayList<>(uniq);
-        return projectMapper.listByIds(idList);
+        return projectMapper.listByIds(new ArrayList<>(uniq));
     }
 
     public BizProject getById(long projectId) {
         return projectMapper.findById(projectId);
     }
 
-    public boolean canAccessProject(long userId, long projectId, String projectScope) {
+    public boolean canAccessProject(long userId, long projectId, String projectScope, List<Long> phoneMemberIds) {
         BizUser user = userMapper.findById(userId);
         if (user == null) return false;
 
         String scope = resolveProjectScope(projectScope, user);
 
+        if (CollabJwtService.PROJECT_SCOPE_EMAIL.equals(scope)) {
+            return canAccessMemberSingleAccount(user, projectId);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(scope)) {
+            return canAccessMemberPhoneUnion(phoneMemberIds, userId, projectId);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope)) {
+            return canAccessAdminMerged(user, projectId);
+        }
         if (CollabJwtService.PROJECT_SCOPE_ALL.equals(scope)) {
             List<Long> userIds = userMapper.listIdsByEmailNormalized(user.getEmail());
             if (userIds == null || userIds.isEmpty()) return false;
@@ -119,6 +227,68 @@ public class CollabProjectService {
         if (ROLE_SUPER_ADMIN.equals(user.getRole())) return true;
         List<Long> ids = memberMapper.listProjectIdsByUserId(userId);
         return ids.contains(projectId);
+    }
+
+    public boolean canAccessProject(long userId, long projectId, String projectScope) {
+        return canAccessProject(userId, projectId, projectScope, null);
+    }
+
+    private boolean canAccessMemberSingleAccount(BizUser user, long projectId) {
+        if (ROLE_SUPER_ADMIN.equals(user.getRole())) {
+            BizProject p = projectMapper.findById(projectId);
+            return p != null && p.getTenantId() != null && p.getTenantId().equals(
+                    user.getTenantId() != null ? user.getTenantId() : TenantConstants.DEFAULT_TENANT_ID);
+        }
+        List<Long> ids = memberMapper.listProjectIdsByUserId(user.getId());
+        return ids.contains(projectId);
+    }
+
+    private boolean canAccessMemberPhoneUnion(List<Long> phoneMemberIds, long fallbackUserId, long projectId) {
+        Set<Long> uid = new LinkedHashSet<>();
+        if (phoneMemberIds != null) {
+            for (Long id : phoneMemberIds) {
+                if (id != null) uid.add(id);
+            }
+        }
+        if (uid.isEmpty()) {
+            uid.add(fallbackUserId);
+        }
+        for (Long id : uid) {
+            List<Long> pids = memberMapper.listProjectIdsByUserId(id);
+            if (pids != null && pids.contains(projectId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canAccessAdminMerged(BizUser adminBiz, long projectId) {
+        if (!ROLE_SUPER_ADMIN.equals(adminBiz.getRole())) {
+            return false;
+        }
+        Long homeTid = adminBiz.getTenantId();
+        if (homeTid == null) return false;
+        BizProject p = projectMapper.findById(projectId);
+        if (p == null) return false;
+        if (p.getTenantId() != null && p.getTenantId().equals(homeTid)) {
+            return true;
+        }
+        String phone = adminBiz.getEmail() != null ? adminBiz.getEmail().trim() : "";
+        if (phone.isEmpty() || !phone.startsWith("+")) {
+            return false;
+        }
+        List<BizUser> samePhone = userMapper.listByPhoneE164(phone);
+        List<Long> siblingMemberIds = samePhone.stream()
+                .filter(u -> ROLE_MEMBER.equals(u.getRole()))
+                .map(BizUser::getId)
+                .collect(Collectors.toList());
+        for (Long mid : siblingMemberIds) {
+            List<Long> pids = memberMapper.listProjectIdsByUserId(mid);
+            if (pids != null && pids.contains(projectId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @deprecated 使用 {@link #canAccessProject(long, long, String)} */
@@ -134,22 +304,22 @@ public class CollabProjectService {
     }
 
     /**
-     * 管理员以成员身份参与的其它团队项目（不含本租户）。
+     * 管理员以成员身份参与的其它团队项目（不含本租户）。用于仅展示「外部」列表的接口。
      */
     public List<BizProject> listExternalProjectsForAdmin(long homeTenantId, String adminPhoneE164) {
         if (adminPhoneE164 == null || adminPhoneE164.isBlank()) {
             return List.of();
         }
         String phone = adminPhoneE164.trim();
-        BizUser homeShadow = userMapper.findByTenantAndEmail(homeTenantId, phone);
-        if (homeShadow == null) {
+        List<BizUser> samePhone = userMapper.listByPhoneE164(phone);
+        List<Long> memberIds = samePhone.stream()
+                .filter(u -> ROLE_MEMBER.equals(u.getRole()))
+                .map(BizUser::getId)
+                .collect(Collectors.toList());
+        if (memberIds.isEmpty()) {
             return List.of();
         }
-        List<Long> userIds = userMapper.listIdsByEmailNormalized(homeShadow.getEmail());
-        if (userIds == null || userIds.isEmpty()) {
-            return List.of();
-        }
-        List<Long> projectIds = memberMapper.listProjectIdsByUserIds(userIds);
+        List<Long> projectIds = memberMapper.listProjectIdsByUserIds(memberIds);
         if (projectIds == null || projectIds.isEmpty()) {
             return List.of();
         }

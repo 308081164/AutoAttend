@@ -10,6 +10,7 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * 对 /api/collab/* 请求校验 JWT，将 userId 放入 request 属性 "collabUserId"。
@@ -21,6 +22,8 @@ public class CollabAuthFilter implements Filter {
     public static final String ATTR_COLLAB_USER_ID = "collabUserId";
     public static final String ATTR_COLLAB_JWT_MODE = "collabJwtMode";
     public static final String ATTR_COLLAB_PROJECT_SCOPE = "collabProjectScope";
+    /** 成员手机登录 JWT 中同号关联的成员 userId（含当前用户） */
+    public static final String ATTR_COLLAB_PHONE_MEMBER_IDS = "collabPhoneMemberIds";
 
     private static final String ROLE_SUPER_ADMIN = "super_admin";
 
@@ -54,6 +57,12 @@ public class CollabAuthFilter implements Filter {
             String projectScope = token != null ? jwtService.getProjectScopeFromToken(token) : null;
             req.setAttribute(ATTR_COLLAB_JWT_MODE, mode);
             req.setAttribute(ATTR_COLLAB_PROJECT_SCOPE, projectScope);
+            if (token != null) {
+                List<Long> pm = jwtService.getPhoneMemberIdsFromToken(token);
+                if (pm != null && !pm.isEmpty()) {
+                    req.setAttribute(ATTR_COLLAB_PHONE_MEMBER_IDS, pm);
+                }
+            }
             BizUser u = bizUserMapper.findById(userId);
             if (u != null) {
                 boolean useTenantContext = shouldSetTenantContext(mode, projectScope, u);
@@ -77,6 +86,15 @@ public class CollabAuthFilter implements Filter {
         if (CollabJwtService.PROJECT_SCOPE_ALL.equals(projectScope)) {
             return false;
         }
+        if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(projectScope)) {
+            return false;
+        }
+        if (CollabJwtService.PROJECT_SCOPE_EMAIL.equals(projectScope)) {
+            return true;
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(projectScope)) {
+            return true;
+        }
         if (CollabJwtService.JWT_MODE_ADMIN.equals(mode)) {
             return true;
         }
@@ -98,5 +116,14 @@ public class CollabAuthFilter implements Filter {
     public static String projectScopeFrom(HttpServletRequest req) {
         Object v = req.getAttribute(ATTR_COLLAB_PROJECT_SCOPE);
         return v != null ? v.toString() : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<Long> phoneMemberIdsFrom(HttpServletRequest req) {
+        Object v = req.getAttribute(ATTR_COLLAB_PHONE_MEMBER_IDS);
+        if (v instanceof List) {
+            return (List<Long>) v;
+        }
+        return null;
     }
 }

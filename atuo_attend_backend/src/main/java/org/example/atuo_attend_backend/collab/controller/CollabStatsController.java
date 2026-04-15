@@ -51,7 +51,8 @@ public class CollabStatsController {
             return ApiResponse.error(40400, "用户不存在");
         }
 
-        List<BizProject> projects = projectService.listProjectsForUser(userId, CollabAuthFilter.projectScopeFrom(req));
+        List<BizProject> projects = projectService.listProjectsForUser(userId, CollabAuthFilter.projectScopeFrom(req),
+                CollabAuthFilter.phoneMemberIdsFrom(req));
         long projectCount = projects.size();
         String email = user.getEmail();
         long commitCountTotal = commitService.countByAuthorEmail(email);

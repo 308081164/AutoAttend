@@ -16,8 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 协作模块登录：成员（邮箱/手机）；管理员协作 JWT 由 {@link #issueCollabTokenForPhone} 签发。
@@ -26,7 +30,10 @@ import java.util.Objects;
 public class CollabAuthService {
 
     private static final String ROLE_SUPER_ADMIN = "super_admin";
+    private static final String ROLE_SUB_ADMIN = "sub_admin";
     private static final String ROLE_MEMBER = "member";
+    /** 同一 E.164 下最多可关联的成员/子管理员账号数（不同邮箱） */
+    public static final int MAX_MEMBER_ACCOUNTS_PER_PHONE = 10;
 
     private final BizUserMapper userMapper;
     private final TenantAdminUserMapper tenantAdminUserMapper;
@@ -80,7 +87,7 @@ public class CollabAuthService {
             return null;
         }
         return jwtService.createToken(user.getId(), user.getEmail(), user.getRole(),
-                CollabJwtService.JWT_MODE_MEMBER, CollabJwtService.PROJECT_SCOPE_ALL);
+                CollabJwtService.JWT_MODE_MEMBER, CollabJwtService.PROJECT_SCOPE_EMAIL);
     }
 
     private String loginMemberByPhoneSms(String phoneE164, String smsCode) {
@@ -105,15 +112,20 @@ public class CollabAuthService {
         if (err != null) {
             return null;
         }
-        BizUser canonical = pickCanonicalForMemberPhoneLogin(memberRows);
-        String emailNorm = normalizeEmailKey(canonical.getEmail());
-        for (BizUser u : memberRows) {
-            if (!Objects.equals(normalizeEmailKey(u.getEmail()), emailNorm)) {
-                return null;
-            }
+        List<Long> memberIds = memberRows.stream()
+                .filter(u -> ROLE_MEMBER.equals(u.getRole()) || ROLE_SUB_ADMIN.equals(u.getRole()))
+                .map(BizUser::getId)
+                .sorted()
+                .collect(Collectors.toList());
+        if (memberIds.isEmpty()) {
+            return null;
         }
+        BizUser canonical = memberRows.stream()
+                .filter(u -> ROLE_MEMBER.equals(u.getRole()))
+                .min(Comparator.comparingLong(BizUser::getId))
+                .orElseGet(() -> memberRows.get(0));
         return jwtService.createToken(canonical.getId(), canonical.getEmail(), canonical.getRole(),
-                CollabJwtService.JWT_MODE_MEMBER, CollabJwtService.PROJECT_SCOPE_ALL);
+                CollabJwtService.JWT_MODE_MEMBER, CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS, memberIds);
     }
 
     /**
@@ -130,15 +142,6 @@ public class CollabAuthService {
             return false;
         }
         return normalizeEmailKey(em).equals(normalizeEmailKey(phone));
-    }
-
-    private static BizUser pickCanonicalForMemberPhoneLogin(List<BizUser> memberRows) {
-        for (BizUser u : memberRows) {
-            if (ROLE_MEMBER.equals(u.getRole())) {
-                return u;
-            }
-        }
-        return memberRows.get(0);
     }
 
     private static String normalizeEmailKey(String email) {
@@ -237,7 +240,10 @@ public class CollabAuthService {
             }
             userMapper.update(biz);
         }
-        return jwtService.createToken(biz.getId(), biz.getEmail(), biz.getRole(), mode, projectScope);
+        String scope = CollabJwtService.PROJECT_SCOPE_TENANT.equals(projectScope)
+                ? CollabJwtService.PROJECT_SCOPE_TENANT
+                : CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED;
+        return jwtService.createToken(biz.getId(), biz.getEmail(), biz.getRole(), mode, scope);
     }
 
     private BizUser ensureBizUserForTenantAdminInternal(String phoneE164, String rawPassword, long tenantId) {
@@ -331,6 +337,7 @@ public class CollabAuthService {
                 throw new IllegalArgumentException("该手机号已被其他成员占用");
             }
         }
+        enforceMemberPhoneCapacity(phone, emailKey);
         String err = adminSmsService.verifyAndConsume(phone, AdminSmsService.PURPOSE_BIND_PHONE, smsCode);
         if (err != null) {
             throw new IllegalArgumentException(err);
@@ -382,6 +389,23 @@ public class CollabAuthService {
         userMapper.insert(user);
         tenantInviteMapper.incrementUsed(inv.getId());
         return jwtService.createToken(user.getId(), user.getEmail(), user.getRole(),
-                CollabJwtService.JWT_MODE_MEMBER, CollabJwtService.PROJECT_SCOPE_ALL);
+                CollabJwtService.JWT_MODE_MEMBER, CollabJwtService.PROJECT_SCOPE_EMAIL);
+    }
+
+    private void enforceMemberPhoneCapacity(String phone, String bindingEmailKey) {
+        List<BizUser> rows = userMapper.listByPhoneE164(phone);
+        Set<String> distinct = new LinkedHashSet<>();
+        for (BizUser o : rows) {
+            if (isAdminBizUserShadowForBoundPhone(o)) {
+                continue;
+            }
+            if (!ROLE_MEMBER.equals(o.getRole()) && !ROLE_SUB_ADMIN.equals(o.getRole())) {
+                continue;
+            }
+            distinct.add(normalizeEmailKey(o.getEmail()));
+        }
+        if (!distinct.contains(bindingEmailKey) && distinct.size() >= MAX_MEMBER_ACCOUNTS_PER_PHONE) {
+            throw new IllegalArgumentException("该手机号已关联 " + MAX_MEMBER_ACCOUNTS_PER_PHONE + " 个成员账号，已达上限");
+        }
     }
 }

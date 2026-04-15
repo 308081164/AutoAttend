@@ -61,7 +61,7 @@ public class CollabDataBoardController {
     }
 
     private BizProject requireAccessibleProject(long userId, long projectId, HttpServletRequest req) {
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req))) {
+        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
             return null;
         }
         return projectService.getById(projectId);
