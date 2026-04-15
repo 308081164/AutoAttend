@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
@@ -30,7 +32,7 @@ public class CollabTableController {
     @GetMapping("/{projectId}/tables")
     public ApiResponse<?> listTables(@PathVariable long projectId, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         return ApiResponse.ok(tableService.listTableSummaries(projectId));
@@ -41,7 +43,7 @@ public class CollabTableController {
                                    @RequestParam(defaultValue = "issue_tracking") String purpose,
                                    HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         var table = tableService.getTableWithColumns(projectId, purpose);

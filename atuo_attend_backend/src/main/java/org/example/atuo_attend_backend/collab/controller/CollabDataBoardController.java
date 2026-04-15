@@ -1,9 +1,11 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
 import org.example.atuo_attend_backend.admin.GithubRepoInfoFetcher;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisResult;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisService;
 import org.example.atuo_attend_backend.ai.service.ProjectDailySummaryService;
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
@@ -61,7 +63,7 @@ public class CollabDataBoardController {
     }
 
     private BizProject requireAccessibleProject(long userId, long projectId, HttpServletRequest req) {
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return null;
         }
         return projectService.getById(projectId);

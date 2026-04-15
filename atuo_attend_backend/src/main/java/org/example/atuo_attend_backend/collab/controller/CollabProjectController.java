@@ -1,6 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
-import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
+import org.example.atuo_attend_backend.collab.service.CollabJwtService;
 
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectMember;
@@ -33,18 +34,13 @@ public class CollabProjectController {
         this.userMapper = userMapper;
     }
 
-    private Long requireUserId(HttpServletRequest req) {
-        Long id = (Long) req.getAttribute("collabUserId");
-        if (id == null) throw new IllegalStateException("unauthorized");
-        return id;
-    }
-
     @GetMapping
     public ApiResponse<?> list(HttpServletRequest req) {
-        long userId = requireUserId(req);
-        String scope = CollabAuthFilter.projectScopeFrom(req);
-        List<Long> phoneMemberIds = CollabAuthFilter.phoneMemberIdsFrom(req);
-        List<BizProject> list = projectService.listProjectsForUser(userId, scope, phoneMemberIds);
+        CollabAccessContext ctx = CollabAccessContext.from(req);
+        List<BizProject> list = projectService.listProjectsForAccess(ctx);
+        BizUser sessionUser = userMapper.findById(ctx.getSessionUserId());
+        Long homeTid = sessionUser != null ? sessionUser.getTenantId() : null;
+        String scope = ctx.getProjectScope();
         List<Map<String, Object>> items = list.stream().map(p -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", p.getId());
@@ -55,6 +51,7 @@ public class CollabProjectController {
             m.put("repoId", p.getRepoId());
             m.put("status", p.getStatus());
             m.put("createdAt", p.getCreatedAt());
+            m.put("projectParticipation", resolveParticipation(scope, homeTid, p));
             return m;
         }).collect(Collectors.toList());
         Map<String, Object> data = new HashMap<>();
@@ -62,10 +59,21 @@ public class CollabProjectController {
         return ApiResponse.ok(data);
     }
 
+    /** organization=本组织名下项目；participation=仅以成员身份参与 */
+    private static String resolveParticipation(String scope, Long adminHomeTenantId, BizProject p) {
+        if (scope == null || p == null || p.getTenantId() == null) {
+            return "participation";
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope) && adminHomeTenantId != null) {
+            return p.getTenantId().equals(adminHomeTenantId) ? "organization" : "participation";
+        }
+        return "participation";
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<?> get(@PathVariable long id, HttpServletRequest req) {
-        long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        CollabAccessContext ctx = CollabAccessContext.from(req);
+        if (!projectService.canAccessProject(ctx, id)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         BizProject p = projectService.getById(id);
@@ -84,8 +92,8 @@ public class CollabProjectController {
 
     @GetMapping("/{id}/members")
     public ApiResponse<?> listMembers(@PathVariable long id, HttpServletRequest req) {
-        long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, id, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        CollabAccessContext ctx = CollabAccessContext.from(req);
+        if (!projectService.canAccessProject(ctx, id)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         List<BizProjectMember> members = memberMapper.listByProjectId(id);

@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 
 import org.example.atuo_attend_backend.collab.domain.BizProjectTable;
@@ -49,7 +51,7 @@ public class CollabRecordController {
                                      @RequestParam(defaultValue = "issue_tracking") String purpose,
                                      HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         BizProjectTable table = tableService.getTableByProjectIdAndPurpose(projectId, purpose);
@@ -89,7 +91,7 @@ public class CollabRecordController {
                                       @RequestBody Map<String, Object> body,
                                       HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         BizProjectTable table = tableService.getTableByProjectIdAndPurpose(projectId, purpose);
@@ -111,7 +113,7 @@ public class CollabRecordController {
     public ApiResponse<?> getRecord(@PathVariable long recordId, HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         Map<String, Object> detail = recordService.getRecordDetail(recordId);
@@ -125,7 +127,7 @@ public class CollabRecordController {
                                       HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         @SuppressWarnings("unchecked")
@@ -138,7 +140,7 @@ public class CollabRecordController {
     public ApiResponse<?> deleteRecord(@PathVariable long recordId, HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         recordService.deleteRecordWithAudit(recordId, userId, "api");
@@ -152,7 +154,7 @@ public class CollabRecordController {
                                             HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         return ApiResponse.ok(recordService.listRecordHistory(recordId, page, pageSize));

@@ -7,6 +7,20 @@
         <button class="link-button" @click="logout">{{ $t('app.logout') }}</button>
       </div>
     </div>
+    <div v-if="showIdentitySwitcher" class="identity-bar">
+      <label class="identity-label" for="collab-acting-select">{{ $t('collab.identityLabel') }}</label>
+      <select
+        id="collab-acting-select"
+        v-model.number="actingUserId"
+        class="identity-select"
+        @change="onActingIdentityChange"
+      >
+        <option v-for="it in linkedIdentities" :key="it.id" :value="it.id">
+          {{ formatIdentityOption(it) }}
+        </option>
+      </select>
+      <span class="identity-hint">{{ $t('collab.identityHint') }}</span>
+    </div>
     <div v-if="isAdmin" class="collab-tabs" role="tablist">
       <button
         type="button"
@@ -15,7 +29,7 @@
         role="tab"
         @click="projectTab = 'tenant'"
       >
-        {{ $t('collab.tabTenantProjects') }}
+        {{ $t('collab.tabOrgProjects') }}
       </button>
       <button
         type="button"
@@ -24,7 +38,7 @@
         role="tab"
         @click="projectTab = 'external'"
       >
-        {{ $t('collab.tabExternalProjects') }}
+        {{ $t('collab.tabParticipationProjects') }}
       </button>
     </div>
     <p class="page-desc">{{ activeTabDesc }}</p>
@@ -49,6 +63,9 @@
       <ul v-else class="project-list">
       <li v-for="p in filteredProjects" :key="p.id" class="project-item">
         <router-link :to="{ name: 'collab-table', params: { projectId: p.id } }" class="project-link">
+          <span v-if="isAdmin && p.projectParticipation" class="project-part-badge" :class="'pp-' + p.projectParticipation">
+            {{ p.projectParticipation === 'organization' ? $t('collab.badgeOrganization') : $t('collab.badgeParticipation') }}
+          </span>
           <span v-if="p.tenantName" class="project-tenant">{{ $t('collab.tenantLabel') }}：{{ p.tenantName }}</span>
           <span class="project-name">{{ p.name }}</span>
           <span v-if="p.description" class="project-desc">{{ p.description }}</span>
@@ -61,36 +78,52 @@
 </template>
 
 <script>
+import { getStoredCollabActingUserId, setStoredCollabActingUserId } from '@/utils/collabActingUser'
+
 export default {
   name: 'CollabProjectListView',
   data () {
     return {
       projects: [],
-      externalProjects: [],
       projectTab: 'tenant',
       projectSearch: '',
       loading: true,
-      userEmail: ''
+      userEmail: '',
+      sessionUserId: null,
+      linkedIdentities: [],
+      actingUserId: null
     }
   },
   computed: {
     isAdmin () {
       return !!window.localStorage.getItem('autoattend_token')
     },
+    showIdentitySwitcher () {
+      return this.linkedIdentities.length > 1
+    },
     displayProjects () {
-      return this.projectTab === 'external' ? this.externalProjects : this.projects
+      if (!this.isAdmin) {
+        return this.projects
+      }
+      const org = this.projects.filter(p => p.projectParticipation === 'organization')
+      const part = this.projects.filter(p => p.projectParticipation === 'participation')
+      return this.projectTab === 'external' ? part : org
     },
     activeTabDesc () {
+      if (!this.isAdmin) return this.$t('collab.selectProject')
       if (this.projectTab === 'external') {
-        return this.$t('collab.selectProjectExternal')
+        return this.$t('collab.selectProjectParticipation')
       }
-      return this.$t('collab.selectProject')
+      return this.$t('collab.selectProjectOrg')
     },
     emptyTabMessage () {
-      if (this.projectTab === 'external') {
-        return this.$t('collab.noExternalProjects')
+      if (!this.isAdmin) {
+        return this.$t('collab.noProjects')
       }
-      return this.$t('collab.noProjects')
+      if (this.projectTab === 'external') {
+        return this.$t('collab.noParticipationProjects')
+      }
+      return this.$t('collab.noOrgProjects')
     },
     filteredProjects () {
       const q = (this.projectSearch || '').trim().toLowerCase()
@@ -111,15 +144,52 @@ export default {
   },
   created () {
     this.loadMe()
-    this.loadProjects()
-    this.loadExternalIfAdmin()
+      .then(() => this.loadLinkedIdentities())
+      .then(() => this.loadProjects())
   },
   methods: {
+    formatIdentityOption (it) {
+      const em = (it.email || '').trim()
+      const name = (it.name || '').trim()
+      if (name && em && name !== em) return `${name} (${em})`
+      return em || name || ('#' + it.id)
+    },
+    async loadLinkedIdentities () {
+      try {
+        const resp = await this.$http.get('/collab/auth/linked-identities')
+        if (resp.data && resp.data.code === 0) {
+          const d = resp.data.data || {}
+          this.linkedIdentities = Array.isArray(d.items) ? d.items : []
+          const apiActing = d.actingUserId != null ? Number(d.actingUserId) : null
+          const stored = getStoredCollabActingUserId()
+          const storedNum = stored != null ? Number(stored) : null
+          const ids = new Set(this.linkedIdentities.map(x => x.id))
+          if (storedNum != null && ids.has(storedNum)) {
+            this.actingUserId = storedNum
+          } else if (apiActing != null && ids.has(apiActing)) {
+            this.actingUserId = apiActing
+          } else if (this.sessionUserId != null && ids.has(this.sessionUserId)) {
+            this.actingUserId = this.sessionUserId
+          } else if (this.linkedIdentities.length) {
+            this.actingUserId = this.linkedIdentities[0].id
+          }
+          if (this.actingUserId != null) {
+            setStoredCollabActingUserId(this.actingUserId)
+          }
+        }
+      } catch (e) { /* ignore */ }
+    },
+    onActingIdentityChange () {
+      setStoredCollabActingUserId(this.actingUserId)
+      this.loadProjects()
+    },
     async loadMe () {
       try {
         const resp = await this.$http.get('/collab/auth/me')
         if (resp.data && resp.data.code === 0) {
-          this.userEmail = resp.data.data.email || ''
+          const d = resp.data.data || {}
+          this.userEmail = d.email || ''
+          this.sessionUserId = d.id != null ? Number(d.id) : null
         }
       } catch (e) {
         if (e.response && e.response.status === 401) {
@@ -141,15 +211,6 @@ export default {
       } finally {
         this.loading = false
       }
-    },
-    async loadExternalIfAdmin () {
-      if (!this.isAdmin) return
-      try {
-        const resp = await this.$http.get('/admin/collab/external-projects')
-        if (resp.data && resp.data.code === 0) {
-          this.externalProjects = resp.data.data.items || []
-        }
-      } catch (e) { /* ignore */ }
     },
     logout () {
       const admin = this.isAdmin
@@ -195,6 +256,57 @@ export default {
 .user-info {
   font-size: 13px;
   color: var(--text-tertiary);
+}
+
+.identity-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+}
+
+.identity-label {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.identity-select {
+  min-width: 220px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.identity-hint {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.project-part-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+}
+
+.project-part-badge.pp-organization {
+  background: rgba(20, 86, 240, 0.12);
+  color: var(--brand-blue, #1456f0);
+}
+
+.project-part-badge.pp-participation {
+  background: rgba(16, 185, 129, 0.14);
+  color: #059669;
 }
 
 .page-desc {

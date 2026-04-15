@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 
 import org.example.atuo_attend_backend.collab.domain.BizAttachment;
@@ -54,7 +56,7 @@ public class CollabAttachmentController {
     public ApiResponse<?> listAttachments(@PathVariable long recordId, HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         List<BizAttachment> list = attachmentMapper.listByRecordId(recordId);
@@ -78,7 +80,7 @@ public class CollabAttachmentController {
                                            HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         if (file == null || file.isEmpty()) {
@@ -110,7 +112,7 @@ public class CollabAttachmentController {
                                                   @RequestParam("file") MultipartFile file,
                                                   HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         if (file == null || file.isEmpty()) {
@@ -142,7 +144,7 @@ public class CollabAttachmentController {
     @GetMapping("/projects/{projectId}/attachments")
     public ApiResponse<?> listProjectAttachments(@PathVariable long projectId, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         List<BizAttachment> list = attachmentMapper.listByProjectId(projectId);
@@ -169,7 +171,7 @@ public class CollabAttachmentController {
         BizAttachment att = attachmentMapper.findById(id);
         if (att == null) return ResponseEntity.notFound().build();
         long projectId = att.getRecordId() != null ? recordService.getProjectIdByRecordId(att.getRecordId()) : (att.getProjectId() != null ? att.getProjectId() : -1);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ResponseEntity.status(403).build();
         }
         try {
@@ -197,7 +199,7 @@ public class CollabAttachmentController {
         BizAttachment att = attachmentMapper.findById(id);
         if (att == null) return ResponseEntity.notFound().build();
         long projectId = att.getRecordId() != null ? recordService.getProjectIdByRecordId(att.getRecordId()) : (att.getProjectId() != null ? att.getProjectId() : -1);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ResponseEntity.status(403).build();
         }
         try {
@@ -236,7 +238,7 @@ public class CollabAttachmentController {
         BizAttachment att = attachmentMapper.findById(id);
         if (att == null) return ApiResponse.error(40400, "附件不存在");
         long projectId = att.getRecordId() != null ? recordService.getProjectIdByRecordId(att.getRecordId()) : (att.getProjectId() != null ? att.getProjectId() : -1);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         try {

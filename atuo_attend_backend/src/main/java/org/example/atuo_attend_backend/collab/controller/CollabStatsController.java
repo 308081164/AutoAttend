@@ -1,7 +1,8 @@
 package org.example.atuo_attend_backend.collab.controller;
 
-import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
+import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.collab.service.CollabProjectService;
 import org.example.atuo_attend_backend.commit.CommitService;
@@ -34,35 +35,30 @@ public class CollabStatsController {
         this.commitService = commitService;
     }
 
-    private long requireUserId(HttpServletRequest req) {
-        Long id = (Long) req.getAttribute("collabUserId");
-        if (id == null) throw new IllegalStateException("unauthorized");
-        return id;
-    }
-
     /**
      * 当前用户工作概览：参与项目数、总提交数、近 7 天提交数。
      */
     @GetMapping("/overview")
     public ApiResponse<Map<String, Object>> overview(HttpServletRequest req) {
-        long userId = requireUserId(req);
-        var user = authService.getCurrentUser(userId);
-        if (user == null) {
+        CollabAccessContext ctx = CollabAccessContext.from(req);
+        BizUser statsUser = authService.getCurrentUser(ctx.getEffectiveUserId());
+        if (statsUser == null) {
             return ApiResponse.error(40400, "用户不存在");
         }
 
-        List<BizProject> projects = projectService.listProjectsForUser(userId, CollabAuthFilter.projectScopeFrom(req),
-                CollabAuthFilter.phoneMemberIdsFrom(req));
+        List<BizProject> projects = projectService.listProjectsForAccess(ctx);
         long projectCount = projects.size();
-        String email = user.getEmail();
-        long commitCountTotal = commitService.countByAuthorEmail(email);
+        String email = statsUser.getEmail();
+        long commitCountTotal = commitService.countByAuthorEmailInProjects(email, projects);
         OffsetDateTime since7d = OffsetDateTime.now().minus(7, ChronoUnit.DAYS);
-        long commitCount7d = commitService.countByAuthorEmailSince(email, since7d);
+        long commitCount7d = commitService.countByAuthorEmailSinceInProjects(email, projects, since7d);
 
         Map<String, Object> data = new HashMap<>();
         data.put("projectCount", projectCount);
         data.put("commitCountTotal", commitCountTotal);
         data.put("commitCountLast7Days", commitCount7d);
+        data.put("statsUserId", statsUser.getId());
+        data.put("statsEmail", email);
         return ApiResponse.ok(data);
     }
 }

@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 
 import org.example.atuo_attend_backend.collab.service.ClientBoardShareService;
@@ -40,7 +42,7 @@ public class CollabClientBoardController {
     @GetMapping("/{projectId}/client-board")
     public ApiResponse<?> get(@PathVariable long projectId, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         return ApiResponse.ok(shareService.getBoardConfig(projectId));
@@ -51,7 +53,7 @@ public class CollabClientBoardController {
                               @RequestBody(required = false) Map<String, Object> body,
                               HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         try {

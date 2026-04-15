@@ -53,6 +53,19 @@
           <h2 class="mh-card-title">{{ $t('memberHome.myStats') }}</h2>
           <p class="mh-card-sub">{{ $t('memberHome.statsHint') }}</p>
         </div>
+        <div v-if="linkedIdentities.length > 1" class="mh-identity-bar">
+          <label class="mh-identity-label" for="mh-acting-select">{{ $t('collab.identityLabel') }}</label>
+          <select
+            id="mh-acting-select"
+            v-model.number="actingUserId"
+            class="mh-identity-select"
+            @change="onActingIdentityChange"
+          >
+            <option v-for="it in linkedIdentities" :key="it.id" :value="it.id">
+              {{ formatIdentityOption(it) }}
+            </option>
+          </select>
+        </div>
         <div v-if="statsLoading" class="mh-placeholder">{{ $t('collab.loading') }}</div>
         <div v-else class="mh-stat-grid">
           <div class="mh-stat">
@@ -99,11 +112,16 @@
 </template>
 
 <script>
+import { getStoredCollabActingUserId, setStoredCollabActingUserId } from '@/utils/collabActingUser'
+
 export default {
   name: 'MemberHomeView',
   data () {
     return {
       userEmail: '',
+      sessionUserId: null,
+      linkedIdentities: [],
+      actingUserId: null,
       phoneBound: false,
       overview: {},
       statsLoading: true,
@@ -122,13 +140,49 @@ export default {
   },
   created () {
     this.loadSmsConfig()
-    this.loadMe()
-    this.loadOverview()
+    this.loadMe().then(() => {
+      this.loadLinkedIdentities().then(() => this.loadOverview())
+    })
   },
   beforeDestroy () {
     if (this.bindTimer) clearInterval(this.bindTimer)
   },
   methods: {
+    formatIdentityOption (it) {
+      const em = (it.email || '').trim()
+      const name = (it.name || '').trim()
+      if (name && em && name !== em) return `${name} (${em})`
+      return em || name || ('#' + it.id)
+    },
+    async loadLinkedIdentities () {
+      try {
+        const resp = await this.$http.get('/collab/auth/linked-identities')
+        if (resp.data && resp.data.code === 0) {
+          const d = resp.data.data || {}
+          this.linkedIdentities = Array.isArray(d.items) ? d.items : []
+          const apiActing = d.actingUserId != null ? Number(d.actingUserId) : null
+          const stored = getStoredCollabActingUserId()
+          const storedNum = stored != null ? Number(stored) : null
+          const ids = new Set(this.linkedIdentities.map(x => x.id))
+          if (storedNum != null && ids.has(storedNum)) {
+            this.actingUserId = storedNum
+          } else if (apiActing != null && ids.has(apiActing)) {
+            this.actingUserId = apiActing
+          } else if (this.sessionUserId != null && ids.has(this.sessionUserId)) {
+            this.actingUserId = this.sessionUserId
+          } else if (this.linkedIdentities.length) {
+            this.actingUserId = this.linkedIdentities[0].id
+          }
+          if (this.actingUserId != null) {
+            setStoredCollabActingUserId(this.actingUserId)
+          }
+        }
+      } catch (e) { /* ignore */ }
+    },
+    onActingIdentityChange () {
+      setStoredCollabActingUserId(this.actingUserId)
+      this.loadOverview()
+    },
     async loadSmsConfig () {
       try {
         const resp = await this.$http.get('/collab/auth/sms/config')
@@ -146,6 +200,7 @@ export default {
         if (resp.data && resp.data.code === 0) {
           const d = resp.data.data || {}
           this.userEmail = d.email || ''
+          this.sessionUserId = d.id != null ? Number(d.id) : null
           this.phoneBound = d.phoneBound === true
         }
       } catch (e) {
@@ -501,6 +556,29 @@ export default {
 
 .mh-card--stats .mh-card-head {
   padding-bottom: 4px;
+}
+
+.mh-identity-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 12px;
+  font-size: 13px;
+}
+
+.mh-identity-label {
+  color: var(--text-secondary, #64748b);
+  margin: 0;
+}
+
+.mh-identity-select {
+  min-width: 200px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary, #e2e8f0);
+  background: #fff;
+  color: var(--text-primary, #0f172a);
 }
 
 .mh-placeholder {

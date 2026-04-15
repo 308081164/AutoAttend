@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.collab.service;
 
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
@@ -38,6 +39,49 @@ public class CollabProjectService {
         this.memberMapper = memberMapper;
         this.userMapper = userMapper;
         this.tenantMapper = tenantMapper;
+    }
+
+    /**
+     * 推荐使用：按 JWT + 可选「当前身份」头解析后的上下文列项目。
+     */
+    public List<BizProject> listProjectsForAccess(CollabAccessContext ctx) {
+        BizUser session = userMapper.findById(ctx.getSessionUserId());
+        if (session == null) return List.of();
+        String scope = resolveProjectScope(ctx.getProjectScope(), session);
+
+        if (CollabJwtService.PROJECT_SCOPE_EMAIL.equals(scope)) {
+            BizUser eff = userMapper.findById(ctx.getEffectiveUserId());
+            return eff == null ? List.of() : listMemberProjectsSingleAccount(eff);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(scope)) {
+            return listMemberProjectsPhoneUnion(ctx.getPhoneMemberIds(), ctx.getEffectiveUserId());
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope)) {
+            if (ctx.getAdminMergedMemberFilterId() != null) {
+                BizUser eff = userMapper.findById(ctx.getEffectiveUserId());
+                return eff == null ? List.of() : listMemberProjectsSingleAccount(eff);
+            }
+            return listProjectsAdminMerged(session);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ALL.equals(scope)) {
+            return listProjectsAcrossTenantsForNaturalPerson(session);
+        }
+
+        long tid = session.getTenantId() != null ? session.getTenantId() : TenantConstants.DEFAULT_TENANT_ID;
+        long uid = ctx.getSessionUserId();
+        if (ROLE_SUPER_ADMIN.equals(session.getRole())) {
+            return projectMapper.listByTenant(tid);
+        }
+        if (ROLE_SUB_ADMIN.equals(session.getRole())) {
+            List<Long> projectIds = memberMapper.listProjectIdsByUserIdAndRole(uid, "admin");
+            return projectMapper.listByTenant(tid).stream()
+                    .filter(p -> projectIds.contains(p.getId()))
+                    .collect(Collectors.toList());
+        }
+        List<Long> myProjectIds = memberMapper.listProjectIdsByUserId(uid);
+        return projectMapper.listByTenant(tid).stream()
+                .filter(p -> myProjectIds.contains(p.getId()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -200,6 +244,37 @@ public class CollabProjectService {
 
     public BizProject getById(long projectId) {
         return projectMapper.findById(projectId);
+    }
+
+    public boolean canAccessProject(CollabAccessContext ctx, long projectId) {
+        BizUser session = userMapper.findById(ctx.getSessionUserId());
+        if (session == null) return false;
+        String scope = resolveProjectScope(ctx.getProjectScope(), session);
+
+        if (CollabJwtService.PROJECT_SCOPE_EMAIL.equals(scope)) {
+            BizUser eff = userMapper.findById(ctx.getEffectiveUserId());
+            return eff != null && canAccessMemberSingleAccount(eff, projectId);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(scope)) {
+            return canAccessMemberPhoneUnion(ctx.getPhoneMemberIds(), ctx.getEffectiveUserId(), projectId);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope)) {
+            if (ctx.getAdminMergedMemberFilterId() != null) {
+                BizUser eff = userMapper.findById(ctx.getEffectiveUserId());
+                return eff != null && canAccessMemberSingleAccount(eff, projectId);
+            }
+            return canAccessAdminMerged(session, projectId);
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ALL.equals(scope)) {
+            List<Long> userIds = userMapper.listIdsByEmailNormalized(session.getEmail());
+            if (userIds == null || userIds.isEmpty()) return false;
+            List<Long> pids = memberMapper.listProjectIdsByUserIds(userIds);
+            return pids != null && pids.stream().anyMatch(id -> Objects.equals(id, projectId));
+        }
+
+        if (ROLE_SUPER_ADMIN.equals(session.getRole())) return true;
+        List<Long> ids = memberMapper.listProjectIdsByUserId(ctx.getSessionUserId());
+        return ids.contains(projectId);
     }
 
     public boolean canAccessProject(long userId, long projectId, String projectScope, List<Long> phoneMemberIds) {

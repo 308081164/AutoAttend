@@ -138,6 +138,7 @@
 </template>
 
 <script>
+import { setStoredCollabActingUserId } from '@/utils/collabActingUser'
 import { localeOptions, setLocale } from '../locales'
 
 export default {
@@ -270,6 +271,7 @@ export default {
         const resp = await this.$http.post('/collab/auth/login', payload)
         if (resp.data && resp.data.code === 0) {
           window.localStorage.setItem('autoattend_collab_token', resp.data.data.token)
+          setStoredCollabActingUserId(null)
           window.localStorage.removeItem('autoattend_token')
           this.$router.push({ name: 'member-home' })
           return

@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 
 import org.example.atuo_attend_backend.collab.dto.CollabAiTaskModels;
@@ -43,7 +45,7 @@ public class CollabAiTaskController {
                                   @RequestBody CollabAiTaskModels.AiTaskPreviewRequest body,
                                   HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         return ingestService.preview(tid(), projectId, purpose, body);
@@ -55,7 +57,7 @@ public class CollabAiTaskController {
                                  @RequestBody CollabAiTaskModels.AiTaskCommitRequest body,
                                  HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         return ingestService.commit(tid(), projectId, purpose, userId, null, body);

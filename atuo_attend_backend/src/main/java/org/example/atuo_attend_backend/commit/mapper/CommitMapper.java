@@ -364,5 +364,38 @@ public interface CommitMapper {
             this.lastCommittedAt = lastCommittedAt;
         }
     }
+
+    /** 作者提交数，限定在指定 biz_project.id 集合（按仓库 JOIN） */
+    @Select("""
+            <script>
+            SELECT COUNT(1) FROM aa_commit c
+            INNER JOIN biz_project p ON p.repo_id = c.repo_full_name AND p.tenant_id = c.tenant_id
+            WHERE c.tenant_id = #{tenantId} AND c.author_email = #{authorEmail}
+            AND p.id IN
+            <foreach collection="projectIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+            </foreach>
+            </script>
+            """)
+    long countByAuthorEmailInProjectIds(@Param("tenantId") long tenantId,
+                                        @Param("authorEmail") String authorEmail,
+                                        @Param("projectIds") List<Long> projectIds);
+
+    @Select("""
+            <script>
+            SELECT COUNT(1) FROM aa_commit c
+            INNER JOIN biz_project p ON p.repo_id = c.repo_full_name AND p.tenant_id = c.tenant_id
+            WHERE c.tenant_id = #{tenantId} AND c.author_email = #{authorEmail}
+            AND c.committed_at >= #{since}
+            AND p.id IN
+            <foreach collection="projectIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+            </foreach>
+            </script>
+            """)
+    long countByAuthorEmailSinceInProjectIds(@Param("tenantId") long tenantId,
+                                            @Param("authorEmail") String authorEmail,
+                                            @Param("since") OffsetDateTime since,
+                                            @Param("projectIds") List<Long> projectIds);
 }
 

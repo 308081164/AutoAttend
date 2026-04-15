@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.commit;
 
+import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.commit.mapper.CommitDiffMapper;
 import org.example.atuo_attend_backend.commit.mapper.CommitMapper;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
@@ -18,8 +19,10 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -386,6 +389,41 @@ public class CommitService {
     public long countByAuthorEmailSince(String authorEmail, OffsetDateTime since) {
         if (authorEmail == null || authorEmail.isBlank() || since == null) return 0;
         return commitMapper.countByAuthorEmailSince(currentTenantId(), authorEmail.trim(), since);
+    }
+
+    /**
+     * 按作者邮箱统计提交，但仅计入给定协作项目列表对应仓库上的记录（跨租户时按租户分别计数再相加）。
+     */
+    public long countByAuthorEmailInProjects(String authorEmail, List<BizProject> projects) {
+        return countByAuthorEmailInProjects(authorEmail, projects, null);
+    }
+
+    public long countByAuthorEmailSinceInProjects(String authorEmail, List<BizProject> projects, OffsetDateTime since) {
+        if (since == null) return 0;
+        return countByAuthorEmailInProjects(authorEmail, projects, since);
+    }
+
+    private long countByAuthorEmailInProjects(String authorEmail, List<BizProject> projects, OffsetDateTime sinceOrNull) {
+        if (authorEmail == null || authorEmail.isBlank() || projects == null || projects.isEmpty()) {
+            return 0;
+        }
+        String em = authorEmail.trim();
+        Map<Long, List<Long>> byTenant = new HashMap<>();
+        for (BizProject p : projects) {
+            if (p == null || p.getId() == null || p.getTenantId() == null) continue;
+            byTenant.computeIfAbsent(p.getTenantId(), k -> new ArrayList<>()).add(p.getId());
+        }
+        long total = 0;
+        for (Map.Entry<Long, List<Long>> e : byTenant.entrySet()) {
+            List<Long> ids = e.getValue();
+            if (ids.isEmpty()) continue;
+            if (sinceOrNull == null) {
+                total += commitMapper.countByAuthorEmailInProjectIds(e.getKey(), em, ids);
+            } else {
+                total += commitMapper.countByAuthorEmailSinceInProjectIds(e.getKey(), em, sinceOrNull, ids);
+            }
+        }
+        return total;
     }
 
     /**

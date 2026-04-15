@@ -6,13 +6,17 @@ import org.example.atuo_attend_backend.admin.sms.AdminSmsService;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 import org.example.atuo_attend_backend.collab.domain.BizUser;
 import org.example.atuo_attend_backend.collab.dto.*;
+import org.example.atuo_attend_backend.collab.mapper.BizUserMapper;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
+import org.example.atuo_attend_backend.collab.service.CollabJwtService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -23,15 +27,18 @@ public class CollabAuthController {
     private final AdminSmsService adminSmsService;
     private final AdminSmsProperties adminSmsProperties;
     private final TenantAdminUserMapper tenantAdminUserMapper;
+    private final BizUserMapper bizUserMapper;
 
     public CollabAuthController(CollabAuthService authService,
                                 AdminSmsService adminSmsService,
                                 AdminSmsProperties adminSmsProperties,
-                                TenantAdminUserMapper tenantAdminUserMapper) {
+                                TenantAdminUserMapper tenantAdminUserMapper,
+                                BizUserMapper bizUserMapper) {
         this.authService = authService;
         this.adminSmsService = adminSmsService;
         this.adminSmsProperties = adminSmsProperties;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
+        this.bizUserMapper = bizUserMapper;
     }
 
     /**
@@ -146,6 +153,58 @@ public class CollabAuthController {
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());
         }
+    }
+
+    /**
+     * 可切换的「成员身份」列表：成员手机登录、或管理员合并视图。
+     */
+    @GetMapping("/linked-identities")
+    public ApiResponse<Map<String, Object>> linkedIdentities(HttpServletRequest req) {
+        long session = CollabAuthFilter.requireCollabUserId(req);
+        String scope = CollabAuthFilter.projectScopeFrom(req);
+        Object modeObj = req.getAttribute(CollabAuthFilter.ATTR_COLLAB_JWT_MODE);
+        String mode = modeObj != null ? modeObj.toString() : null;
+        List<CollabLinkedIdentityDto> items = new ArrayList<>();
+
+        if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(scope)) {
+            List<Long> ids = CollabAuthFilter.phoneMemberIdsFrom(req);
+            if (ids != null) {
+                for (Long id : ids) {
+                    BizUser u = authService.getCurrentUser(id);
+                    if (u != null) {
+                        items.add(toLinkedDto(u));
+                    }
+                }
+            }
+        } else if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope)
+                && CollabJwtService.JWT_MODE_ADMIN.equals(mode)) {
+            BizUser admin = authService.getCurrentUser(session);
+            if (admin != null) {
+                items.add(toLinkedDto(admin));
+                String phone = admin.getEmail();
+                if (phone != null && phone.startsWith("+")) {
+                    for (BizUser u : bizUserMapper.listByPhoneE164(phone.trim())) {
+                        if ("member".equals(u.getRole()) || "sub_admin".equals(u.getRole())) {
+                            items.add(toLinkedDto(u));
+                        }
+                    }
+                }
+            }
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("items", items);
+        data.put("actingUserId", CollabAuthFilter.effectiveUserId(req));
+        return ApiResponse.ok(data);
+    }
+
+    private static CollabLinkedIdentityDto toLinkedDto(BizUser u) {
+        CollabLinkedIdentityDto d = new CollabLinkedIdentityDto();
+        d.setId(u.getId());
+        d.setEmail(u.getEmail());
+        d.setName(u.getName());
+        d.setRole(u.getRole());
+        return d;
     }
 
     @GetMapping("/me")

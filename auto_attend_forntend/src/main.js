@@ -4,6 +4,7 @@ import router from './router'
 import axios from 'axios'
 import { i18n } from './locales'
 import { isCollabApiRequestUrl, shouldHandleUnauthorizedSession } from './utils/httpAuth'
+import { getStoredCollabActingUserId } from './utils/collabActingUser'
 
 Vue.config.productionTip = false
 
@@ -53,6 +54,12 @@ axios.interceptors.request.use(config => {
     : window.localStorage.getItem('autoattend_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  if (isCollabApiPath(url)) {
+    const acting = getStoredCollabActingUserId()
+    if (acting) {
+      config.headers['X-Collab-Acting-User-Id'] = acting
+    }
   }
   return config
 })

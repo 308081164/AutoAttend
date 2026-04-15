@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 
 import org.example.atuo_attend_backend.collab.domain.BizRecordComment;
@@ -48,7 +50,7 @@ public class CollabCommentController {
                                       HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         int offset = (page - 1) * pageSize;
@@ -77,7 +79,7 @@ public class CollabCommentController {
                                     HttpServletRequest req) {
         long userId = requireUserId(req);
         long projectId = recordService.getProjectIdByRecordId(recordId);
-        if (projectId < 0 || !projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (projectId < 0 || !projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问");
         }
         String content = body != null ? body.get("content") : null;

@@ -10,7 +10,9 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 对 /api/collab/* 请求校验 JWT，将 userId 放入 request 属性 "collabUserId"。
@@ -24,8 +26,15 @@ public class CollabAuthFilter implements Filter {
     public static final String ATTR_COLLAB_PROJECT_SCOPE = "collabProjectScope";
     /** 成员手机登录 JWT 中同号关联的成员 userId（含当前用户） */
     public static final String ATTR_COLLAB_PHONE_MEMBER_IDS = "collabPhoneMemberIds";
+    /** 统计/列表用的有效成员身份（默认同 JWT subject；可经 {@link #HEADER_ACTING_USER_ID} 切换为同号其它成员） */
+    public static final String ATTR_COLLAB_EFFECTIVE_USER_ID = "collabEffectiveUserId";
+
+    /** 请求头：切换「当前统计/看板」所代表的成员子账号（须为 JWT 允许范围内的 id） */
+    public static final String HEADER_ACTING_USER_ID = "X-Collab-Acting-User-Id";
 
     private static final String ROLE_SUPER_ADMIN = "super_admin";
+    private static final String ROLE_MEMBER = "member";
+    private static final String ROLE_SUB_ADMIN = "sub_admin";
 
     private final CollabJwtService jwtService;
     private final BizUserMapper bizUserMapper;
@@ -57,11 +66,22 @@ public class CollabAuthFilter implements Filter {
             String projectScope = token != null ? jwtService.getProjectScopeFromToken(token) : null;
             req.setAttribute(ATTR_COLLAB_JWT_MODE, mode);
             req.setAttribute(ATTR_COLLAB_PROJECT_SCOPE, projectScope);
+            List<Long> pmFromToken = null;
             if (token != null) {
-                List<Long> pm = jwtService.getPhoneMemberIdsFromToken(token);
-                if (pm != null && !pm.isEmpty()) {
-                    req.setAttribute(ATTR_COLLAB_PHONE_MEMBER_IDS, pm);
+                pmFromToken = jwtService.getPhoneMemberIdsFromToken(token);
+                if (pmFromToken != null && !pmFromToken.isEmpty()) {
+                    req.setAttribute(ATTR_COLLAB_PHONE_MEMBER_IDS, new ArrayList<>(pmFromToken));
                 }
+            }
+            Long effectiveUserId = resolveActingUserId(req, resp, userId, mode, projectScope, token, pmFromToken);
+            if (effectiveUserId == null) {
+                return;
+            }
+            req.setAttribute(ATTR_COLLAB_EFFECTIVE_USER_ID, effectiveUserId);
+            if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(projectScope)
+                    && !Objects.equals(effectiveUserId, userId)
+                    && pmFromToken != null && pmFromToken.contains(effectiveUserId)) {
+                req.setAttribute(ATTR_COLLAB_PHONE_MEMBER_IDS, List.of(effectiveUserId));
             }
             BizUser u = bizUserMapper.findById(userId);
             if (u != null) {
@@ -80,6 +100,85 @@ public class CollabAuthFilter implements Filter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    /**
+     * @return null 表示已写 403 响应
+     */
+    private Long resolveActingUserId(HttpServletRequest req, HttpServletResponse resp,
+                                    long sessionUserId, String mode, String projectScope, String token,
+                                    List<Long> phoneMemberIdsFromToken) throws IOException {
+        String raw = req.getHeader(HEADER_ACTING_USER_ID);
+        if (raw == null || raw.isBlank()) {
+            return sessionUserId;
+        }
+        long acting;
+        try {
+            acting = Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            resp.setContentType("application/json;charset=UTF-8");
+            resp.getWriter().write("{\"code\":40000,\"message\":\"无效的成员身份 id\"}");
+            return null;
+        }
+        if (acting == sessionUserId) {
+            return sessionUserId;
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ALL.equals(projectScope)) {
+            forbidden(resp, "请重新登录后再切换成员身份");
+            return null;
+        }
+        if (CollabJwtService.PROJECT_SCOPE_EMAIL.equals(projectScope)) {
+            forbidden(resp, "当前登录为邮箱会话，不可切换身份");
+            return null;
+        }
+        if (CollabJwtService.PROJECT_SCOPE_PHONE_MEMBERS.equals(projectScope)) {
+            if (phoneMemberIdsFromToken == null || !phoneMemberIdsFromToken.contains(acting)) {
+                forbidden(resp, "无权使用该成员身份");
+                return null;
+            }
+            return acting;
+        }
+        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(projectScope)
+                && CollabJwtService.JWT_MODE_ADMIN.equals(mode)) {
+            BizUser adminRow = bizUserMapper.findById(sessionUserId);
+            BizUser act = bizUserMapper.findById(acting);
+            if (adminRow == null || !ROLE_SUPER_ADMIN.equals(adminRow.getRole())) {
+                forbidden(resp, "仅管理员可切换查看成员子账号范围");
+                return null;
+            }
+            if (act == null || (!ROLE_MEMBER.equals(act.getRole()) && !ROLE_SUB_ADMIN.equals(act.getRole()))) {
+                forbidden(resp, "只能切换到成员或子管理员身份");
+                return null;
+            }
+            String phone = adminRow.getEmail() != null ? adminRow.getEmail().trim() : "";
+            if (phone.isEmpty() || !phone.startsWith("+")) {
+                forbidden(resp, "管理员账号未绑定手机，无法切换");
+                return null;
+            }
+            List<BizUser> same = bizUserMapper.listByPhoneE164(phone);
+            boolean ok = false;
+            for (BizUser s : same) {
+                if (s.getId() != null && s.getId().equals(acting)) {
+                    ok = true;
+                    break;
+                }
+            }
+            if (!ok) {
+                forbidden(resp, "该成员与当前管理员手机号未关联");
+                return null;
+            }
+            return acting;
+        }
+        forbidden(resp, "当前会话不支持切换成员身份");
+        return null;
+    }
+
+    private static void forbidden(HttpServletResponse resp, String msg) throws IOException {
+        resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        resp.setContentType("application/json;charset=UTF-8");
+        String m = msg != null ? msg.replace("\"", "\\\"") : "forbidden";
+        resp.getWriter().write("{\"code\":40300,\"message\":\"" + m + "\"}");
     }
 
     private static boolean shouldSetTenantContext(String mode, String projectScope, BizUser u) {
@@ -125,5 +224,33 @@ public class CollabAuthFilter implements Filter {
             return (List<Long>) v;
         }
         return null;
+    }
+
+    public static long effectiveUserId(HttpServletRequest req) {
+        Object v = req.getAttribute(ATTR_COLLAB_EFFECTIVE_USER_ID);
+        if (v instanceof Long) {
+            return (Long) v;
+        }
+        return requireCollabUserId(req);
+    }
+
+    /** 管理员合并视图下若切换为某成员子账号，返回该 id，否则 null */
+    public static Long adminMergedMemberFilterId(HttpServletRequest req) {
+        Object eff = req.getAttribute(ATTR_COLLAB_EFFECTIVE_USER_ID);
+        Object sess = req.getAttribute(ATTR_COLLAB_USER_ID);
+        String scope = projectScopeFrom(req);
+        String mode = req.getAttribute(ATTR_COLLAB_JWT_MODE) != null
+                ? req.getAttribute(ATTR_COLLAB_JWT_MODE).toString() : null;
+        if (!CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope)
+                || !CollabJwtService.JWT_MODE_ADMIN.equals(mode)) {
+            return null;
+        }
+        if (!(eff instanceof Long) || !(sess instanceof Long)) {
+            return null;
+        }
+        if (Objects.equals(eff, sess)) {
+            return null;
+        }
+        return (Long) eff;
     }
 }

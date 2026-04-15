@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.collab.controller;
 
+
+import org.example.atuo_attend_backend.collab.auth.CollabAccessContext;
 import org.example.atuo_attend_backend.collab.auth.CollabAuthFilter;
 
 import org.example.atuo_attend_backend.collab.domain.BizProjectPortalLink;
@@ -36,7 +38,7 @@ public class CollabPortalLinkController {
     @GetMapping("/projects/{projectId}/portal-links")
     public ApiResponse<?> list(@PathVariable long projectId, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         List<BizProjectPortalLink> list = linkMapper.listByProjectId(projectId);
@@ -57,7 +59,7 @@ public class CollabPortalLinkController {
     @PostMapping("/projects/{projectId}/portal-links")
     public ApiResponse<?> create(@PathVariable long projectId, @RequestBody Map<String, Object> body, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         String label = asString(body.get("label"));
@@ -81,7 +83,7 @@ public class CollabPortalLinkController {
     public ApiResponse<?> update(@PathVariable long projectId, @PathVariable long id,
                                  @RequestBody Map<String, Object> body, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         BizProjectPortalLink existing = linkMapper.findById(id);
@@ -104,7 +106,7 @@ public class CollabPortalLinkController {
     @DeleteMapping("/projects/{projectId}/portal-links/{id}")
     public ApiResponse<?> delete(@PathVariable long projectId, @PathVariable long id, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         BizProjectPortalLink existing = linkMapper.findById(id);
@@ -119,12 +121,12 @@ public class CollabPortalLinkController {
     @PostMapping("/projects/{projectId}/portal-links/import")
     public ApiResponse<?> importFromProject(@PathVariable long projectId, @RequestBody Map<String, Object> body, HttpServletRequest req) {
         long userId = requireUserId(req);
-        if (!projectService.canAccessProject(userId, projectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), projectId)) {
             return ApiResponse.error(40300, "无权限访问该项目");
         }
         Long fromProjectId = asLong(body.get("fromProjectId"));
         if (fromProjectId == null || fromProjectId <= 0) return ApiResponse.error(40000, "fromProjectId 缺失");
-        if (!projectService.canAccessProject(userId, fromProjectId, CollabAuthFilter.projectScopeFrom(req), CollabAuthFilter.phoneMemberIdsFrom(req))) {
+        if (!projectService.canAccessProject(CollabAccessContext.from(req), fromProjectId)) {
             return ApiResponse.error(40300, "无权限访问源项目");
         }
         List<BizProjectPortalLink> src = linkMapper.listByProjectId(fromProjectId);
