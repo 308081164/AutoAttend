@@ -457,10 +457,10 @@
       </div>
     </div>
 
-    <!-- 安全组（只读，实时查询） -->
+    <!-- 安全组（读 + 写，调用阿里云 ECS API） -->
     <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'sg'">
       <div class="nx-ext-head">
-        <h3 class="nx-panel-title">安全组规则（只读）</h3>
+        <h3 class="nx-panel-title">安全组规则</h3>
         <div class="nx-ext-actions">
           <button type="button" class="nx-btn nx-btn--secondary nx-btn--sm" :disabled="!selectedAccountId || sgLoading" @click="loadSecurityGroups">
             {{ sgLoading ? '加载中…' : '刷新列表' }}
@@ -468,7 +468,10 @@
           <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openAliyunConsole('ecsSg')">ECS 安全组控制台</button>
         </div>
       </div>
-      <p class="nx-alerts-desc">数据来自阿里云 ECS OpenAPI 实时查询；本平台仅展示，不提供增删改规则。修改规则请在阿里云控制台或使用具备写权限的 API/RAM 策略。</p>
+      <p class="nx-alerts-desc">
+        列表与规则由阿里云 ECS OpenAPI 实时查询；新增、修改、删除会直接调用阿里云接口。
+        若 AccessKey 的 RAM 策略仅有只读权限，将无法编辑——接口会返回明确说明（错误码 40302），请在 RAM 中补充写权限或更换密钥。
+      </p>
       <div v-if="sgLoading && !sgList.length" class="nx-ext-loading"><div class="nx-spinner"></div></div>
       <div v-else-if="sgError" class="nx-chart-error">{{ sgError }}</div>
       <div v-else class="nx-sg-layout">
@@ -484,7 +487,7 @@
             <div class="nx-sg-item-meta mono">{{ g.securityGroupId }}</div>
             <div class="nx-sg-item-meta">规则 {{ g.ruleCount != null ? g.ruleCount : '—' }} · 实例 {{ g.ecsCount != null ? g.ecsCount : '—' }}</div>
           </div>
-          <p v-if="!sgList.length && !sgLoading" class="nx-alerts-empty">暂无安全组或暂无权限列出。</p>
+          <p v-if="!sgList.length && !sgLoading" class="nx-alerts-empty">暂无安全组或暂无权限列出（请检查 RAM 是否包含 ecs:DescribeSecurityGroups）。</p>
           <div v-if="sgTotalPages > 1" class="nx-sg-pager">
             <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" :disabled="sgPage <= 1 || sgLoading" @click="sgPage--; loadSecurityGroups()">上一页</button>
             <span class="nx-sg-pager-info">{{ sgPage }} / {{ sgTotalPages }}</span>
@@ -495,7 +498,10 @@
           <template v-if="selectedSgId">
             <div class="nx-sg-detail-head">
               <span class="mono">{{ selectedSgId }}</span>
-              <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" :disabled="sgRulesLoading" @click="loadSgRules">{{ sgRulesLoading ? '加载中…' : '刷新规则' }}</button>
+              <div class="nx-sg-detail-actions">
+                <button type="button" class="nx-btn nx-btn--primary nx-btn--sm" :disabled="sgRulesLoading" @click="openSgAddModal">新增规则</button>
+                <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" :disabled="sgRulesLoading" @click="loadSgRules">{{ sgRulesLoading ? '加载中…' : '刷新规则' }}</button>
+              </div>
             </div>
             <div v-if="sgRulesLoading && !sgRules.length" class="nx-ext-loading small"><div class="nx-spinner"></div></div>
             <table v-else-if="sgRules.length" class="nx-ext-table compact nx-sg-rules-table">
@@ -508,10 +514,11 @@
                   <th>策略</th>
                   <th>优先级</th>
                   <th>网卡</th>
+                  <th class="nx-sg-actions-col">操作</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(r, ri) in sgRules" :key="'r-' + ri">
+                <tr v-for="(r, ri) in sgRules" :key="'r-' + ri + '-' + (r.securityGroupRuleId || ri)">
                   <td>{{ formatSgDirection(r.direction) }}</td>
                   <td>{{ r.ipProtocol || '—' }}</td>
                   <td class="mono">{{ r.portRange || '—' }}</td>
@@ -519,12 +526,84 @@
                   <td>{{ r.policy || '—' }}</td>
                   <td>{{ r.priority != null ? r.priority : '—' }}</td>
                   <td>{{ r.nicType || '—' }}</td>
+                  <td class="nx-sg-actions-col">
+                    <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openSgEditModal(r)">编辑</button>
+                    <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm nx-sg-del" @click="confirmDeleteSgRule(r)">删除</button>
+                  </td>
                 </tr>
               </tbody>
             </table>
             <p v-else-if="!sgRulesLoading" class="nx-alerts-empty">暂无规则或加载失败</p>
           </template>
           <p v-else class="nx-alerts-empty">请从左侧选择一个安全组查看规则</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 安全组：新增/编辑规则 -->
+    <div class="nx-modal-overlay" v-if="sgModalOpen" @click.self="closeSgModal">
+      <div class="nx-modal nx-modal--wide">
+        <div class="nx-modal-head">
+          <h4>{{ sgModalMode === 'add' ? '新增安全组规则' : '编辑安全组规则' }}</h4>
+          <button type="button" class="nx-icon-btn" @click="closeSgModal">×</button>
+        </div>
+        <div class="nx-modal-body nx-sg-modal-body">
+          <p v-if="sgModalHint" class="nx-sg-modal-hint">{{ sgModalHint }}</p>
+          <div class="nx-form-grid nx-sg-form-grid">
+            <div class="nx-form-item" v-if="sgModalMode === 'add'">
+              <label>方向 *</label>
+              <select v-model="sgForm.direction">
+                <option value="ingress">入方向</option>
+                <option value="egress">出方向</option>
+              </select>
+            </div>
+            <div class="nx-form-item" v-else>
+              <label>方向</label>
+              <input :value="sgForm.direction === 'ingress' ? '入方向' : '出方向'" disabled />
+            </div>
+            <div class="nx-form-item">
+              <label>协议 *</label>
+              <input v-model.trim="sgForm.ipProtocol" placeholder="tcp / udp / icmp / all" />
+            </div>
+            <div class="nx-form-item">
+              <label>端口范围 *</label>
+              <input v-model.trim="sgForm.portRange" placeholder="如 22/22 或 1/65535" />
+            </div>
+            <div class="nx-form-item" v-if="sgForm.direction === 'ingress'">
+              <label>授权对象 sourceCidrIp {{ sgModalMode === 'add' ? '*' : '' }}</label>
+              <input v-model.trim="sgForm.sourceCidrIp" placeholder="CIDR，如 0.0.0.0/0" />
+            </div>
+            <div class="nx-form-item" v-if="sgForm.direction === 'egress'">
+              <label>授权对象 destCidrIp {{ sgModalMode === 'add' ? '*' : '' }}</label>
+              <input v-model.trim="sgForm.destCidrIp" placeholder="CIDR，如 0.0.0.0/0" />
+            </div>
+            <div class="nx-form-item">
+              <label>策略</label>
+              <select v-model="sgForm.policy">
+                <option value="accept">accept</option>
+                <option value="drop">drop</option>
+              </select>
+            </div>
+            <div class="nx-form-item">
+              <label>优先级</label>
+              <input v-model.trim="sgForm.priority" placeholder="可选" />
+            </div>
+            <div class="nx-form-item">
+              <label>网卡类型</label>
+              <select v-model="sgForm.nicType">
+                <option value="internet">internet（公网）</option>
+                <option value="intranet">intranet（内网）</option>
+              </select>
+            </div>
+            <div class="nx-form-item full">
+              <label>备注</label>
+              <input v-model.trim="sgForm.description" placeholder="可选" />
+            </div>
+          </div>
+        </div>
+        <div class="nx-modal-actions">
+          <button type="button" class="nx-btn nx-btn--ghost" @click="closeSgModal">取消</button>
+          <button type="button" class="nx-btn nx-btn--primary" :disabled="sgModalSaving" @click="submitSgModal">{{ sgModalSaving ? '提交中…' : '确定' }}</button>
         </div>
       </div>
     </div>
@@ -660,7 +739,24 @@ export default {
       sgTotalCount: 0,
       selectedSgId: null,
       sgRules: [],
-      sgRulesLoading: false
+      sgRulesLoading: false,
+
+      sgModalOpen: false,
+      sgModalMode: 'add',
+      sgModalSaving: false,
+      sgModalHint: '',
+      sgEditingRuleId: null,
+      sgForm: {
+        direction: 'ingress',
+        ipProtocol: 'tcp',
+        portRange: '22/22',
+        sourceCidrIp: '',
+        destCidrIp: '',
+        policy: 'accept',
+        priority: '1',
+        nicType: 'internet',
+        description: ''
+      }
     }
   },
   created () {
@@ -980,6 +1076,135 @@ export default {
         return r.destCidrIp || r.destGroupId || '—'
       }
       return r.sourceCidrIp || r.sourceGroupId || '—'
+    },
+    normalizeSgDirection (d) {
+      const s = (d || '').toString().toLowerCase()
+      if (s === 'ingress' || s.includes('入')) return 'ingress'
+      if (s === 'egress' || s.includes('出')) return 'egress'
+      return 'ingress'
+    },
+    openSgAddModal () {
+      this.sgModalMode = 'add'
+      this.sgEditingRuleId = null
+      this.sgModalHint = ''
+      this.sgForm = {
+        direction: 'ingress',
+        ipProtocol: 'tcp',
+        portRange: '22/22',
+        sourceCidrIp: '',
+        destCidrIp: '',
+        policy: 'accept',
+        priority: '1',
+        nicType: 'internet',
+        description: ''
+      }
+      this.sgModalOpen = true
+    },
+    openSgEditModal (r) {
+      if (!r || !r.securityGroupRuleId) {
+        alert('该条规则缺少 securityGroupRuleId，无法通过 API 编辑，请在阿里云控制台操作。')
+        return
+      }
+      this.sgModalMode = 'edit'
+      this.sgEditingRuleId = r.securityGroupRuleId
+      this.sgModalHint = ''
+      const dir = this.normalizeSgDirection(r.direction)
+      this.sgForm = {
+        direction: dir,
+        ipProtocol: (r.ipProtocol || 'tcp').toString(),
+        portRange: (r.portRange || '').toString(),
+        sourceCidrIp: r.sourceCidrIp != null ? String(r.sourceCidrIp) : '',
+        destCidrIp: r.destCidrIp != null ? String(r.destCidrIp) : '',
+        policy: (r.policy && String(r.policy).trim()) ? String(r.policy).trim() : 'accept',
+        priority: r.priority != null ? String(r.priority) : '',
+        nicType: (r.nicType && String(r.nicType).trim()) ? String(r.nicType).trim() : 'internet',
+        description: r.description != null ? String(r.description) : ''
+      }
+      this.sgModalOpen = true
+    },
+    closeSgModal () {
+      this.sgModalOpen = false
+      this.sgModalHint = ''
+      this.sgModalSaving = false
+    },
+    buildSgRulePayload () {
+      const f = this.sgForm
+      const payload = {
+        direction: f.direction,
+        ipProtocol: (f.ipProtocol || '').trim(),
+        portRange: (f.portRange || '').trim(),
+        policy: f.policy || 'accept',
+        priority: (f.priority || '').trim() || null,
+        nicType: f.nicType || 'internet',
+        description: (f.description || '').trim() || null
+      }
+      const src = (f.sourceCidrIp || '').trim()
+      const dst = (f.destCidrIp || '').trim()
+      payload.sourceCidrIp = src || null
+      payload.destCidrIp = dst || null
+      return payload
+    },
+    async submitSgModal () {
+      if (!this.selectedAccountId || !this.selectedSgId) return
+      this.sgModalSaving = true
+      this.sgModalHint = ''
+      const body = this.buildSgRulePayload()
+      try {
+        if (this.sgModalMode === 'add') {
+          const resp = await this.$http.post(
+            `/admin/nexus/accounts/${this.selectedAccountId}/ecs/security-groups/${encodeURIComponent(this.selectedSgId)}/rules`,
+            body
+          )
+          if (resp.data && resp.data.code === 0) {
+            this.closeSgModal()
+            await this.loadSgRules()
+            await this.loadSecurityGroups()
+          } else {
+            this.sgModalHint = (resp.data && resp.data.message) || '保存失败'
+          }
+        } else {
+          const rid = this.sgEditingRuleId
+          const resp = await this.$http.put(
+            `/admin/nexus/accounts/${this.selectedAccountId}/ecs/security-groups/${encodeURIComponent(this.selectedSgId)}/rules/${encodeURIComponent(rid)}`,
+            body
+          )
+          if (resp.data && resp.data.code === 0) {
+            this.closeSgModal()
+            await this.loadSgRules()
+            await this.loadSecurityGroups()
+          } else {
+            this.sgModalHint = (resp.data && resp.data.message) || '保存失败'
+          }
+        }
+      } catch (e) {
+        const d = e.response && e.response.data
+        this.sgModalHint = (d && d.message) ? d.message : (e.message || '请求失败')
+      } finally {
+        this.sgModalSaving = false
+      }
+    },
+    async confirmDeleteSgRule (r) {
+      if (!r || !r.securityGroupRuleId) {
+        alert('该条规则缺少 securityGroupRuleId，无法通过 API 删除，请在阿里云控制台操作。')
+        return
+      }
+      if (!confirm('确定删除该条安全组规则？此操作将立即在阿里云生效。')) return
+      const dir = this.normalizeSgDirection(r.direction)
+      try {
+        const resp = await this.$http.delete(
+          `/admin/nexus/accounts/${this.selectedAccountId}/ecs/security-groups/${encodeURIComponent(this.selectedSgId)}/rules/${encodeURIComponent(r.securityGroupRuleId)}`,
+          { params: { direction: dir } }
+        )
+        if (resp.data && resp.data.code === 0) {
+          await this.loadSgRules()
+          await this.loadSecurityGroups()
+        } else {
+          alert((resp.data && resp.data.message) || '删除失败')
+        }
+      } catch (e) {
+        const d = e.response && e.response.data
+        alert((d && d.message) ? d.message : (e.message || '删除失败'))
+      }
     },
     async loadSmsMeta () {
       this.extensionLoading = true
@@ -1928,6 +2153,15 @@ export default {
   width: 100%;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
+.nx-modal--wide { max-width: 640px; }
+.nx-sg-modal-hint {
+  font-size: 12px;
+  color: #c45656;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.nx-sg-form-grid.nx-form-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.nx-sg-form-grid .nx-form-item.full { grid-column: 1 / -1; }
 .nx-modal-head {
   display: flex;
   align-items: center;
@@ -2079,7 +2313,10 @@ export default {
   font-size: 12px;
   word-break: break-all;
 }
+.nx-sg-detail-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nx-sg-rules-table { font-size: 11px; }
+.nx-sg-actions-col { white-space: nowrap; width: 1%; }
+.nx-sg-del { color: #c45656 !important; }
 .nx-sg-cidr { max-width: 220px; word-break: break-all; }
 .nx-alerts-head {
   display: flex;

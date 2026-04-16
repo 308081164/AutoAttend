@@ -22,16 +22,19 @@ import org.example.atuo_attend_backend.nexus.mapper.NexusMemoryMetricMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusOssBucketMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusSmsSignatureMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusSmsTemplateMapper;
+import org.example.atuo_attend_backend.nexus.aliyun.AliyunEcsOpenApiSupport;
 import org.example.atuo_attend_backend.nexus.service.NexusBssCostService;
 import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
 import org.example.atuo_attend_backend.nexus.service.NexusExtensionSyncService;
 import org.example.atuo_attend_backend.nexus.service.NexusSecurityGroupService;
+import org.example.atuo_attend_backend.nexus.service.NexusSecurityGroupWriteException;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.springframework.web.bind.annotation.*;
 
+import com.aliyun.tea.TeaException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.YearMonth;
@@ -293,6 +296,10 @@ public class NexusAdminController {
             Map<String, Object> data = securityGroupService.listSecurityGroups(ak, sk, acc.getRegionId(), page, pageSize);
             return ApiResponse.ok(data);
         } catch (Exception e) {
+            TeaException te = AliyunEcsOpenApiSupport.unwrapTea(e);
+            if (te != null) {
+                return ApiResponse.error(AliyunEcsOpenApiSupport.mapBusinessCode(te), AliyunEcsOpenApiSupport.friendlyMessage(te));
+            }
             return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "list security groups failed");
         }
     }
@@ -322,7 +329,100 @@ public class NexusAdminController {
             auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rules.read", "security_group", securityGroupId.trim(), "success", null);
             return ApiResponse.ok(rules);
         } catch (Exception e) {
+            TeaException te = AliyunEcsOpenApiSupport.unwrapTea(e);
+            if (te != null) {
+                return ApiResponse.error(AliyunEcsOpenApiSupport.mapBusinessCode(te), AliyunEcsOpenApiSupport.friendlyMessage(te));
+            }
             return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "list security group rules failed");
+        }
+    }
+
+    /** 新增安全组规则（调用阿里云 AuthorizeSecurityGroup / AuthorizeSecurityGroupEgress）。 */
+    @PostMapping("/accounts/{accountId}/ecs/security-groups/{securityGroupId}/rules")
+    public ApiResponse<Void> createSecurityGroupRule(
+            @PathVariable long accountId,
+            @PathVariable String securityGroupId,
+            @RequestBody NexusSecurityGroupRuleWriteRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (!"aliyun".equals(acc.getProvider())) {
+            return ApiResponse.error(40000, "provider not supported");
+        }
+        if (securityGroupId == null || securityGroupId.isBlank()) {
+            return ApiResponse.error(40000, "securityGroupId required");
+        }
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        try {
+            String ak = cryptoService.decrypt(acc.getAccessKeyIdEnc());
+            String sk = cryptoService.decrypt(acc.getAccessKeySecretEnc());
+            securityGroupService.addRule(ak, sk, acc.getRegionId(), securityGroupId.trim(), req);
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rule.create", "security_group", securityGroupId.trim(), "success", null);
+            return ApiResponse.ok(null);
+        } catch (NexusSecurityGroupWriteException e) {
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rule.create", "security_group", securityGroupId.trim(), "failed", e.getMessage());
+            return ApiResponse.error(e.getBusinessCode(), e.getMessage());
+        }
+    }
+
+    /** 修改安全组规则（ModifySecurityGroupRule / ModifySecurityGroupEgressRule）。 */
+    @PutMapping("/accounts/{accountId}/ecs/security-groups/{securityGroupId}/rules/{ruleId}")
+    public ApiResponse<Void> updateSecurityGroupRule(
+            @PathVariable long accountId,
+            @PathVariable String securityGroupId,
+            @PathVariable String ruleId,
+            @RequestBody NexusSecurityGroupRuleWriteRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (!"aliyun".equals(acc.getProvider())) {
+            return ApiResponse.error(40000, "provider not supported");
+        }
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        try {
+            String ak = cryptoService.decrypt(acc.getAccessKeyIdEnc());
+            String sk = cryptoService.decrypt(acc.getAccessKeySecretEnc());
+            securityGroupService.updateRule(ak, sk, acc.getRegionId(), securityGroupId.trim(), ruleId, req);
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rule.update", "security_group", securityGroupId.trim() + "/" + ruleId, "success", null);
+            return ApiResponse.ok(null);
+        } catch (NexusSecurityGroupWriteException e) {
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rule.update", "security_group", securityGroupId.trim() + "/" + ruleId, "failed", e.getMessage());
+            return ApiResponse.error(e.getBusinessCode(), e.getMessage());
+        }
+    }
+
+    /** 删除安全组规则（RevokeSecurityGroup / RevokeSecurityGroupEgress，按 ruleId）。 */
+    @DeleteMapping("/accounts/{accountId}/ecs/security-groups/{securityGroupId}/rules/{ruleId}")
+    public ApiResponse<Void> deleteSecurityGroupRule(
+            @PathVariable long accountId,
+            @PathVariable String securityGroupId,
+            @PathVariable String ruleId,
+            @RequestParam String direction,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (!"aliyun".equals(acc.getProvider())) {
+            return ApiResponse.error(40000, "provider not supported");
+        }
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        try {
+            String ak = cryptoService.decrypt(acc.getAccessKeyIdEnc());
+            String sk = cryptoService.decrypt(acc.getAccessKeySecretEnc());
+            securityGroupService.deleteRule(ak, sk, acc.getRegionId(), securityGroupId.trim(), ruleId, direction);
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rule.delete", "security_group", securityGroupId.trim() + "/" + ruleId, "success", null);
+            return ApiResponse.ok(null);
+        } catch (NexusSecurityGroupWriteException e) {
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rule.delete", "security_group", securityGroupId.trim() + "/" + ruleId, "failed", e.getMessage());
+            return ApiResponse.error(e.getBusinessCode(), e.getMessage());
         }
     }
 

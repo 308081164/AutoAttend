@@ -72,8 +72,8 @@
 - **清理旧表**：若曾创建 `aa_nexus_icp_site`，执行 `schema_nexus_drop_icp_site_migration.sql`。
 - **同步**：在 `NexusSyncService.syncAccount` 成功后调用 `NexusExtensionSyncService` 拉取 DNS / OSS / 短信元数据；亦可 `POST /api/admin/nexus/accounts/{id}/extension-sync` 单独拉取。
 - **API**：`dns/domains`、`dns/records`、`oss/buckets`、`sms/signatures`、`sms/templates`；**无** `icp/sites`。
-- **安全组（只读，实时）**：`GET /api/admin/nexus/accounts/{id}/ecs/security-groups`、`GET .../ecs/security-groups/{securityGroupId}/rules`（ECS OpenAPI：`DescribeSecurityGroups`、`DescribeSecurityGroupAttribute`）；RAM 需 `ecs:DescribeSecurityGroups`、`ecs:DescribeSecurityGroupAttribute`。
-- **前端**：`NexusConsoleView.vue` Tab：域名 DNS、OSS、**备案（跳转）**、短信、**安全组（只读）**。
+- **安全组（实时）**：`GET .../ecs/security-groups`、`GET .../ecs/security-groups/{securityGroupId}/rules`（`DescribeSecurityGroups`、`DescribeSecurityGroupAttribute`）；`POST/PUT/DELETE .../rules` 对应新增/修改/删除（`Authorize*`、`Modify*`、`Revoke*`）。**只读**仅需 Describe 类 Action；**编辑**需额外 RAM 写权限；权限不足时接口返回 **40302** 及中文说明（含建议 Action 列表）。
+- **前端**：`NexusConsoleView.vue` Tab：域名 DNS、OSS、**备案（跳转）**、短信、**安全组（读 + 编辑）**。
 - **RAM 建议**：云账号需授权云解析只读、OSS 列举、短信查询类 Action（以阿里云控制台策略为准）。
 
 ---
@@ -84,7 +84,7 @@
 
 | 优先级 | 能力 | 理由 |
 |--------|------|------|
-| **P1** | ~~**安全组规则只读**（§13 A7）~~ **已实现** | 与 SSH/公网排障强相关；**写入**规则见下文「平台内编辑」说明。 |
+| **P1** | ~~**安全组规则只读**（§13 A7）~~ **已扩展为可读可写** | 与 SSH/公网排障强相关；写操作依赖 RAM；**40302** 表示密钥权限不足。 |
 | **P1** | **EIP 列表与绑定关系只读**（§13 A8） | 与公网 IP、SSH 入口一致；便于核对「这台 ECS 绑了哪个 EIP」。 |
 | **P2** | **云盘 / 快照列表只读**（§13 A3～A4） | 日常运维高频；先做列表与容量，创建快照需二次确认。 |
 | **P2** | **云监控「系统事件」订阅或事件列表只读**（§13 A13） | 比阈值告警更贴近云平台运维事件；可与现有告警规则互补。 |

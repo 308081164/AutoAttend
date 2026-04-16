@@ -5,11 +5,17 @@ import com.aliyun.ecs20140526.models.DescribeInstanceMonitorDataRequest;
 import com.aliyun.ecs20140526.models.DescribeInstanceMonitorDataResponse;
 import com.aliyun.ecs20140526.models.DescribeInstancesRequest;
 import com.aliyun.ecs20140526.models.DescribeInstancesResponse;
+import com.aliyun.ecs20140526.models.AuthorizeSecurityGroupEgressRequest;
+import com.aliyun.ecs20140526.models.AuthorizeSecurityGroupRequest;
 import com.aliyun.ecs20140526.models.DescribeSecurityGroupAttributeRequest;
 import com.aliyun.ecs20140526.models.DescribeSecurityGroupAttributeResponse;
 import com.aliyun.ecs20140526.models.DescribeSecurityGroupsRequest;
 import com.aliyun.ecs20140526.models.DescribeSecurityGroupsResponse;
+import com.aliyun.ecs20140526.models.ModifySecurityGroupEgressRuleRequest;
+import com.aliyun.ecs20140526.models.ModifySecurityGroupRuleRequest;
 import com.aliyun.ecs20140526.models.RebootInstanceRequest;
+import com.aliyun.ecs20140526.models.RevokeSecurityGroupEgressRequest;
+import com.aliyun.ecs20140526.models.RevokeSecurityGroupRequest;
 import com.aliyun.ecs20140526.models.StartInstanceRequest;
 import com.aliyun.ecs20140526.models.StopInstanceRequest;
 import com.aliyun.teaopenapi.models.Config;
@@ -249,6 +255,202 @@ public class AliyunEcsAdapter {
             }
         }
         return merged;
+    }
+
+    public void authorizeIngressRule(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String securityGroupId,
+            String ipProtocol,
+            String portRange,
+            String sourceCidrIp,
+            String destCidrIp,
+            String policy,
+            String priority,
+            String nicType,
+            String description
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        AuthorizeSecurityGroupRequest req = new AuthorizeSecurityGroupRequest()
+                .setRegionId(regionId)
+                .setSecurityGroupId(securityGroupId)
+                .setIpProtocol(ipProtocol)
+                .setPortRange(portRange)
+                .setPolicy(policy != null ? policy : "accept");
+        if (sourceCidrIp != null && !sourceCidrIp.isBlank()) {
+            req.setSourceCidrIp(sourceCidrIp);
+        }
+        if (destCidrIp != null && !destCidrIp.isBlank()) {
+            req.setDestCidrIp(destCidrIp);
+        }
+        if (priority != null && !priority.isBlank()) {
+            req.setPriority(priority);
+        }
+        if (nicType != null && !nicType.isBlank()) {
+            req.setNicType(nicType);
+        }
+        if (description != null && !description.isBlank()) {
+            req.setDescription(description);
+        }
+        client.authorizeSecurityGroupWithOptions(req, runtime);
+    }
+
+    public void authorizeEgressRule(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String securityGroupId,
+            String ipProtocol,
+            String portRange,
+            String sourceCidrIp,
+            String destCidrIp,
+            String policy,
+            String priority,
+            String nicType,
+            String description
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        AuthorizeSecurityGroupEgressRequest req = new AuthorizeSecurityGroupEgressRequest()
+                .setRegionId(regionId)
+                .setSecurityGroupId(securityGroupId)
+                .setIpProtocol(ipProtocol)
+                .setPortRange(portRange)
+                .setPolicy(policy != null ? policy : "accept");
+        if (sourceCidrIp != null && !sourceCidrIp.isBlank()) {
+            req.setSourceCidrIp(sourceCidrIp);
+        }
+        if (destCidrIp != null && !destCidrIp.isBlank()) {
+            req.setDestCidrIp(destCidrIp);
+        }
+        if (priority != null && !priority.isBlank()) {
+            req.setPriority(priority);
+        }
+        if (nicType != null && !nicType.isBlank()) {
+            req.setNicType(nicType);
+        }
+        if (description != null && !description.isBlank()) {
+            req.setDescription(description);
+        }
+        client.authorizeSecurityGroupEgressWithOptions(req, runtime);
+    }
+
+    public void revokeIngressRule(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String securityGroupId,
+            String ruleId
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        RevokeSecurityGroupRequest req = new RevokeSecurityGroupRequest()
+                .setRegionId(regionId)
+                .setSecurityGroupId(securityGroupId)
+                .setSecurityGroupRuleId(java.util.List.of(ruleId));
+        client.revokeSecurityGroupWithOptions(req, runtime);
+    }
+
+    public void revokeEgressRule(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String securityGroupId,
+            String ruleId
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        RevokeSecurityGroupEgressRequest req = new RevokeSecurityGroupEgressRequest()
+                .setRegionId(regionId)
+                .setSecurityGroupId(securityGroupId)
+                .setSecurityGroupRuleId(java.util.List.of(ruleId));
+        client.revokeSecurityGroupEgressWithOptions(req, runtime);
+    }
+
+    public void modifyIngressRule(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String securityGroupId,
+            String securityGroupRuleId,
+            String ipProtocol,
+            String portRange,
+            String sourceCidrIp,
+            String destCidrIp,
+            String policy,
+            String priority,
+            String nicType,
+            String description
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        ModifySecurityGroupRuleRequest req = new ModifySecurityGroupRuleRequest()
+                .setRegionId(regionId)
+                .setSecurityGroupId(securityGroupId)
+                .setSecurityGroupRuleId(securityGroupRuleId)
+                .setIpProtocol(ipProtocol)
+                .setPortRange(portRange)
+                .setPolicy(policy != null ? policy : "accept");
+        if (sourceCidrIp != null && !sourceCidrIp.isBlank()) {
+            req.setSourceCidrIp(sourceCidrIp);
+        }
+        if (destCidrIp != null && !destCidrIp.isBlank()) {
+            req.setDestCidrIp(destCidrIp);
+        }
+        if (priority != null && !priority.isBlank()) {
+            req.setPriority(priority);
+        }
+        if (nicType != null && !nicType.isBlank()) {
+            req.setNicType(nicType);
+        }
+        if (description != null && !description.isBlank()) {
+            req.setDescription(description);
+        }
+        client.modifySecurityGroupRuleWithOptions(req, runtime);
+    }
+
+    public void modifyEgressRule(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String securityGroupId,
+            String securityGroupRuleId,
+            String ipProtocol,
+            String portRange,
+            String sourceCidrIp,
+            String destCidrIp,
+            String policy,
+            String priority,
+            String nicType,
+            String description
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        ModifySecurityGroupEgressRuleRequest req = new ModifySecurityGroupEgressRuleRequest()
+                .setRegionId(regionId)
+                .setSecurityGroupId(securityGroupId)
+                .setSecurityGroupRuleId(securityGroupRuleId)
+                .setIpProtocol(ipProtocol)
+                .setPortRange(portRange)
+                .setPolicy(policy != null ? policy : "accept");
+        if (sourceCidrIp != null && !sourceCidrIp.isBlank()) {
+            req.setSourceCidrIp(sourceCidrIp);
+        }
+        if (destCidrIp != null && !destCidrIp.isBlank()) {
+            req.setDestCidrIp(destCidrIp);
+        }
+        if (priority != null && !priority.isBlank()) {
+            req.setPriority(priority);
+        }
+        if (nicType != null && !nicType.isBlank()) {
+            req.setNicType(nicType);
+        }
+        if (description != null && !description.isBlank()) {
+            req.setDescription(description);
+        }
+        client.modifySecurityGroupEgressRuleWithOptions(req, runtime);
     }
 
     public void rebootInstance(String accessKeyId, String accessKeySecret, String regionId, String instanceId, boolean forceStop) throws Exception {
