@@ -5,10 +5,13 @@ import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.quote.dto.WorkspacePrefsUpdateRequest;
 import org.example.atuo_attend_backend.tenant.billing.TenantBillingService;
 import org.example.atuo_attend_backend.tenant.plan.TenantPlanCatalog;
 import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -70,6 +73,29 @@ public class AdminWorkspaceController {
         List<Map<String, Object>> personalByModel = aiTokenUsageMapper.sumByModelPersonalSince(tid, since30);
         data.put("personalAiByModel30d", personalByModel != null ? personalByModel : List.of());
         return ApiResponse.ok(data);
+    }
+
+    /**
+     * 工作台 UI 偏好（如侧栏是否展示「报价系统」）。
+     */
+    @GetMapping("/prefs")
+    public ApiResponse<Map<String, Object>> workspacePrefs(HttpServletRequest request) {
+        long tid = tenantId(request);
+        if (tid <= 0) {
+            return ApiResponse.error(40101, "未登录");
+        }
+        return ApiResponse.ok(tenantBillingService.getWorkspacePrefs(tid));
+    }
+
+    @PatchMapping("/prefs")
+    public ApiResponse<Map<String, Object>> patchWorkspacePrefs(HttpServletRequest request,
+                                                                @RequestBody(required = false) WorkspacePrefsUpdateRequest body) {
+        long tid = tenantId(request);
+        if (tid <= 0) {
+            return ApiResponse.error(40101, "未登录");
+        }
+        Map<String, Object> patch = body != null ? body.getPrefs() : null;
+        return ApiResponse.ok(tenantBillingService.mergeWorkspacePrefs(tid, patch));
     }
 
     private static Map<String, Object> quotaMap(TenantPlanCatalog.TenantPlan p) {

@@ -24,6 +24,8 @@ public class Tenant {
     private LocalDateTime subscriptionEndsAt;
     /** active：正常；suspended：暂停（后续可在 Filter 中拦截） */
     private String status;
+    /** 工作台偏好 JSON（侧栏是否展示报价等） */
+    private String workspacePrefsJson;
     /** 官方 API 池余额（元），注册赠送与兑换码增加，调用扣减 */
     private BigDecimal officialApiCnyBalance;
     private LocalDateTime createdAt;
@@ -114,6 +116,14 @@ public class Tenant {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getWorkspacePrefsJson() {
+        return workspacePrefsJson;
+    }
+
+    public void setWorkspacePrefsJson(String workspacePrefsJson) {
+        this.workspacePrefsJson = workspacePrefsJson;
     }
 
     public BigDecimal getOfficialApiCnyBalance() {

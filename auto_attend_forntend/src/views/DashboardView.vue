@@ -37,6 +37,12 @@
                   <template v-if="workspaceSummary.subscriptionEndsAt"> · {{ $t('dashboard.entitlementUntil', { date: formatWsDate(workspaceSummary.subscriptionEndsAt) }) }}</template>
                 </router-link>
               </div>
+              <div v-if="workspacePrefs" class="dash-workspace-prefs">
+                <label class="dash-pref-label">
+                  <input type="checkbox" v-model="workspacePrefs.quoteNavVisible" @change="saveWorkspacePrefs" />
+                  侧栏显示「报价系统」（自研团队可关闭以减少打扰）
+                </label>
+              </div>
             </div>
             <div class="dash-command-identity">
               <div class="dash-identity-avatar" aria-hidden="true">
@@ -1008,6 +1014,7 @@ export default {
       nexusHub: { loading: false, accountCount: 0 },
       workspaceSummary: null,
       workspaceSummaryLoading: false,
+      workspacePrefs: null,
       prototypeHub: { loading: false, items: [], total: 0 },
       prototypeHubFilter: '',
       teamHubCount: null,
@@ -1376,6 +1383,7 @@ export default {
     if (!this.memberEmbeddedDataBoard) {
       this.loadConsoleHub()
       this.loadWorkspaceSummary()
+      this.loadWorkspacePrefs()
     }
     this.loadRepos().then(() => {
       if (this.selectedRepo) {
@@ -1576,6 +1584,25 @@ export default {
       } finally {
         this.workspaceSummaryLoading = false
       }
+    },
+    async loadWorkspacePrefs () {
+      try {
+        const resp = await this.$http.get('/admin/workspace/prefs')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.workspacePrefs = { quoteNavVisible: resp.data.data.quoteNavVisible !== false }
+        } else {
+          this.workspacePrefs = { quoteNavVisible: true }
+        }
+      } catch (e) {
+        this.workspacePrefs = { quoteNavVisible: true }
+      }
+    },
+    async saveWorkspacePrefs () {
+      if (!this.workspacePrefs) return
+      try {
+        await this.$http.patch('/admin/workspace/prefs', { prefs: { quoteNavVisible: !!this.workspacePrefs.quoteNavVisible } })
+        window.dispatchEvent(new CustomEvent('autoattend-workspace-prefs-changed'))
+      } catch (e) { /* ignore */ }
     },
     openSubjectModal () {
       // partyBProfile 由 loadConsoleHub 拉取；若仍在加载，避免覆盖用户编辑
@@ -2723,6 +2750,18 @@ export default {
   line-height: 1.55;
   color: var(--text-secondary);
   max-width: 36rem;
+}
+
+.dash-workspace-prefs {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.dash-pref-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
 }
 
 .dash-status-strip {

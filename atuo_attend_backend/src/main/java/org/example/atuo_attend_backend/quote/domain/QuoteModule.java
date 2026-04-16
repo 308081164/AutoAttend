@@ -6,6 +6,10 @@ public class QuoteModule {
     private Long quoteProjectId;
     private String name;
     private int sortOrder;
+    /** 同一报价项目下多交付物分组（如 web、app、api） */
+    private String deliverableKey;
+    /** 交付物展示名 */
+    private String deliverableLabel;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -17,4 +21,8 @@ public class QuoteModule {
     public void setName(String name) { this.name = name; }
     public int getSortOrder() { return sortOrder; }
     public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
+    public String getDeliverableKey() { return deliverableKey; }
+    public void setDeliverableKey(String deliverableKey) { this.deliverableKey = deliverableKey; }
+    public String getDeliverableLabel() { return deliverableLabel; }
+    public void setDeliverableLabel(String deliverableLabel) { this.deliverableLabel = deliverableLabel; }
 }

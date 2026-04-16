@@ -138,6 +138,10 @@
         </div>
 
         <div v-show="moduleEntryMode === 'ai'" class="quote-ai-panel">
+          <label class="chk" style="display:block;margin-bottom:8px">
+            <input type="checkbox" v-model="aiMultiDeliverableMode" />
+            整套系统拆解（多交付物：由 AI 输出 Web / App / 后端等分组）
+          </label>
           <p class="hint">{{ $t('quote.aiModuleHint') }}</p>
           <label class="block">{{ $t('quote.aiModuleRequirementLabel') }}</label>
           <textarea v-model="aiRequirementText" class="textarea" rows="8" :placeholder="$t('quote.aiModulePlaceholder')"></textarea>
@@ -265,7 +269,13 @@
         </div>
 
         <div v-for="(mod, mi) in modules" :key="'m-' + mi" class="module-block">
-          <div class="mod-head">
+          <div class="mod-head mod-head--deliverable">
+            <label class="deliverable-field">交付物键
+              <input v-model="mod.deliverableKey" class="inp narrow" placeholder="web / app / api" title="同一键的模块在报价单中归为同一交付物分组" />
+            </label>
+            <label class="deliverable-field">交付物名称
+              <input v-model="mod.deliverableLabel" class="inp" placeholder="如：管理后台 Web（可选）" />
+            </label>
             <input v-model="mod.name" class="inp mod-name" placeholder="模块名称" />
             <select class="inp preset-select" @change="applyPresetToModule(mi, $event)">
               <option value="">{{ $t('quote.addFromPreset') }}</option>
@@ -326,6 +336,8 @@
                 role="tooltip"
               >{{ $t('quote.quantityHint') }}</div>
             </div>
+            <div class="item-col item-col-excl th" title="第三方固定成本等不参与商务等比例调价">不调价</div>
+            <div class="item-col item-col-lineamt th">金额</div>
             <div class="item-col item-col-actions th" aria-hidden="true"></div>
           </div>
           <div v-for="(it, ii) in mod.items" :key="'i-' + mi + '-' + ii" class="item-row">
@@ -338,6 +350,12 @@
               <option value="extreme">极复杂</option>
             </select>
             <input v-model.number="it.quantity" type="number" min="1" class="inp qty item-col-qty" />
+            <label class="item-col item-col-excl chk-inline">
+              <input type="checkbox" v-model="it.excludedFromScale" />
+            </label>
+            <div class="item-col item-col-lineamt hint">
+              {{ formatLineAmt(it) }}
+            </div>
             <div class="item-col-actions">
               <button type="button" class="btn-sm danger" @click="removeItem(mi, ii)">×</button>
             </div>
@@ -376,7 +394,18 @@
         <div v-if="calcResult" class="result-box">
           <h3>{{ $t('quote.resultTitle') }}</h3>
           <p>{{ $t('quote.totalDays') }}：{{ calcResult.totalDays }} &nbsp; {{ $t('quote.durationCoefficientUsed') }}：{{ formatCoeff(calcResult.durationCoefficientUsed) }} &nbsp; {{ $t('quote.estimatedDuration') }}：{{ calcResult.estimatedDurationDays != null ? calcResult.estimatedDurationDays : '—' }} {{ $t('quote.durationUnitDays') }} &nbsp; {{ $t('quote.baseAmount') }}：¥{{ calcResult.baseAmount }}</p>
-          <p>{{ $t('quote.riskPct') }}：{{ calcResult.riskPctTotal }} &nbsp; 风险金额：¥{{ calcResult.riskAmount }} &nbsp; {{ $t('quote.finalAmount') }}：<strong>¥{{ calcResult.finalAmount }}</strong></p>
+          <p>{{ $t('quote.riskPct') }}：{{ calcResult.riskPctTotal }} &nbsp; 风险金额：¥{{ calcResult.riskAmount }}</p>
+          <p>模型基线总价：¥{{ calcResult.baselineFinalAmount != null ? calcResult.baselineFinalAmount : calcResult.finalAmount }}
+            <template v-if="calcResult.priceScaleFactor != null && Number(calcResult.priceScaleFactor) !== 1"> &nbsp; 商务系数：{{ calcResult.priceScaleFactor }}</template>
+          </p>
+          <p>{{ $t('quote.finalAmount') }}（对外）：<strong>¥{{ calcResult.finalAmount }}</strong></p>
+          <p v-if="calcResult.priceAdjustNote" class="hint">调价说明：{{ calcResult.priceAdjustNote }}</p>
+          <div class="price-adjust-row">
+            <label>目标总价 ¥<input v-model.number="priceAdjustTarget" type="number" min="0" step="100" class="inp num narrow" placeholder="可选" /></label>
+            <label>或 系数 <input v-model.number="priceAdjustFactor" type="number" min="0.01" max="100" step="0.01" class="inp num narrow" placeholder="如0.92" /></label>
+            <label>说明 <input v-model="priceAdjustNote" class="inp" placeholder="可选，如客户预算区间" /></label>
+            <button type="button" class="btn secondary" :disabled="priceAdjusting" @click="runPriceAdjust">{{ priceAdjusting ? '应用中…' : '应用商务调价' }}</button>
+          </div>
           <p>{{ $t('quote.confidence') }}：{{ calcResult.confidenceScore }}（{{ calcResult.confidenceLevel }}）</p>
           <ul v-if="calcResult.riskHints && calcResult.riskHints.length"><li v-for="(h, i) in calcResult.riskHints" :key="i">{{ h }}</li></ul>
           <p class="hint">{{ $t('quote.quoteExportInSidebarHint') }}</p>
@@ -844,7 +873,13 @@
 import PartyBProfileEditModal from '../components/PartyBProfileEditModal.vue'
 
 function emptyModule () {
-  return { name: '', sortOrder: 0, items: [{ name: '', complexity: 'standard', quantity: 1 }] }
+  return {
+    name: '',
+    sortOrder: 0,
+    deliverableKey: 'default',
+    deliverableLabel: '',
+    items: [{ name: '', complexity: 'standard', quantity: 1, excludedFromScale: false }]
+  }
 }
 
 const DEFAULT_DISPUTE_RESOLUTION = '协商不成，提交被告住所地有管辖权的人民法院诉讼'
@@ -1064,6 +1099,10 @@ export default {
       },
       calcResult: null,
       calculating: false,
+      priceAdjusting: false,
+      priceAdjustTarget: null,
+      priceAdjustFactor: null,
+      priceAdjustNote: '',
       saving: false,
       saveMsg: '',
       saveOk: false,
@@ -1146,6 +1185,7 @@ export default {
       // 后端持久化保存的完整 AI 原文（append 模式下会追加到末尾）
       aiRequirementPersistedText: '',
       aiMergeMode: 'replace',
+      aiMultiDeliverableMode: false,
       aiModuleParsing: false,
       aiModuleMsg: '',
       aiModuleOk: false,
@@ -1566,10 +1606,15 @@ export default {
               this.modules = mods.map((m, idx) => ({
                 name: m.name,
                 sortOrder: m.sortOrder != null ? m.sortOrder : idx,
+                deliverableKey: m.deliverableKey || 'default',
+                deliverableLabel: m.deliverableLabel || '',
                 items: (m.items || []).map(it => ({
                   name: it.name,
                   complexity: it.complexity || 'standard',
-                  quantity: it.quantity || 1
+                  quantity: it.quantity || 1,
+                  excludedFromScale: !!it.excludedFromScale,
+                  linePriceSnap: it.linePriceSnap,
+                  linePriceAdjusted: it.linePriceAdjusted
                 }))
               }))
             }
@@ -1950,10 +1995,13 @@ export default {
         modules: this.modules.map((m, mi) => ({
           name: m.name,
           sortOrder: m.sortOrder != null ? m.sortOrder : mi,
+          deliverableKey: (m.deliverableKey && String(m.deliverableKey).trim()) ? String(m.deliverableKey).trim() : 'default',
+          deliverableLabel: m.deliverableLabel != null ? String(m.deliverableLabel).trim() : '',
           items: (m.items || []).filter(it => it.name && String(it.name).trim()).map(it => ({
             name: String(it.name).trim(),
             complexity: it.complexity || 'standard',
-            quantity: Math.max(1, Number(it.quantity) || 1)
+            quantity: Math.max(1, Number(it.quantity) || 1),
+            excludedFromScale: !!it.excludedFromScale
           }))
         })).filter(m => m.name && String(m.name).trim() && m.items.length),
         quoteCalcPrefs: this.buildQuoteCalcPrefsPayload(),
@@ -2102,13 +2150,18 @@ export default {
           return {
             name: String(it.name || '').trim(),
             complexity: cx,
-            quantity: Math.max(1, Number(it.quantity) || 1)
+            quantity: Math.max(1, Number(it.quantity) || 1),
+            excludedFromScale: false
           }
         }).filter(it => it.name)
+        const dk = (m.deliverableKey && String(m.deliverableKey).trim()) ? String(m.deliverableKey).trim() : 'default'
+        const dl = m.deliverableLabel != null ? String(m.deliverableLabel).trim() : ''
         return {
           name: String(m.name || '').trim(),
           sortOrder: typeof m.sortOrder === 'number' ? m.sortOrder : mi,
-          items: items.length ? items : [{ name: '', complexity: 'standard', quantity: 1 }]
+          deliverableKey: dk,
+          deliverableLabel: dl,
+          items: items.length ? items : [{ name: '', complexity: 'standard', quantity: 1, excludedFromScale: false }]
         }
       }).filter(m => m.name && m.items.some(it => it.name))
     },
@@ -2418,7 +2471,8 @@ export default {
           concurrency: this.form.concurrency,
           securityLevel: this.form.securityLevel,
           deployType: this.form.deployType,
-          prdSummary: this.form.prdSummary || ''
+          prdSummary: this.form.prdSummary || '',
+          multiDeliverableMode: !!this.aiMultiDeliverableMode
         }
         const resp = await this.$http.post('/admin/quote/ai/parse-modules', body)
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.modules) {
@@ -2463,7 +2517,46 @@ export default {
       this.modules.splice(mi, 1)
     },
     addItem (mi) {
-      this.modules[mi].items.push({ name: '', complexity: 'standard', quantity: 1 })
+      this.modules[mi].items.push({ name: '', complexity: 'standard', quantity: 1, excludedFromScale: false })
+    },
+    formatLineAmt (it) {
+      const a = it.linePriceAdjusted != null ? it.linePriceAdjusted : it.linePriceSnap
+      if (a == null || a === '') return '—'
+      const s = it.linePriceSnap != null ? it.linePriceSnap : a
+      if (it.excludedFromScale || Number(a) === Number(s)) return '¥' + a
+      return '¥' + a + '（基线 ¥' + s + '）'
+    },
+    async runPriceAdjust () {
+      const pid = this.projectId || (this.$route.params.id !== 'new' ? Number(this.$route.params.id) : null)
+      if (!pid) {
+        alert('请先保存项目')
+        return
+      }
+      const tgt = this.priceAdjustTarget
+      const fac = this.priceAdjustFactor
+      if ((tgt == null || tgt === '' || Number(tgt) <= 0) && (fac == null || fac === '' || Number(fac) <= 0)) {
+        alert('请填写目标总价或系数')
+        return
+      }
+      this.priceAdjusting = true
+      try {
+        const body = {}
+        if (tgt != null && tgt !== '' && Number(tgt) > 0) body.targetAmount = Number(tgt)
+        if ((!body.targetAmount) && fac != null && fac !== '' && Number(fac) > 0) body.scaleFactor = Number(fac)
+        const note = (this.priceAdjustNote || '').trim()
+        if (note) body.note = note
+        const resp = await this.$http.post('/admin/quote/projects/' + pid + '/price-adjust', body)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.calcResult = { ...this.calcResult, ...resp.data.data }
+          await this.loadProject(pid)
+        } else {
+          alert((resp.data && resp.data.message) || '调价失败')
+        }
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || '调价失败')
+      } finally {
+        this.priceAdjusting = false
+      }
     },
     removeItem (mi, ii) {
       if (this.modules[mi].items.length <= 1) return
@@ -2496,6 +2589,7 @@ export default {
         const resp = await this.$http.post('/admin/quote/projects/' + pid + '/calculate', body)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.calcResult = resp.data.data
+          await this.loadProject(pid)
           await this.loadContractIfAny()
           await this.syncArtifactReadyFromServer()
         } else {
@@ -3568,16 +3662,35 @@ label.block {
   align-items: center;
   margin-bottom: 10px;
 }
+.mod-head--deliverable .deliverable-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
 .mod-name {
   flex: 1;
   min-width: 200px;
+}
+.price-adjust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin: 10px 0;
+}
+.chk-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* --- Item Table (Module Items) --- */
 .item-table-head,
 .item-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(160px, 200px) 88px 44px;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 160px) 72px 52px 100px 44px;
   gap: 10px;
   align-items: center;
   margin-bottom: var(--space-sm);

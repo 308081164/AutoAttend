@@ -1,5 +1,7 @@
 package org.example.atuo_attend_backend.tenant.billing;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
@@ -8,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * 订阅权益：模拟支付窗口、到期回退基线档位；配额读取前应先 {@link #ensureCurrent(Tenant)}。
@@ -28,10 +32,56 @@ public class TenantBillingService {
 
     private final TenantMapper tenantMapper;
     private final OfficialAiPoolService officialAiPoolService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public TenantBillingService(TenantMapper tenantMapper, OfficialAiPoolService officialAiPoolService) {
         this.tenantMapper = tenantMapper;
         this.officialAiPoolService = officialAiPoolService;
+    }
+
+    /**
+     * 工作台偏好：默认侧栏展示报价；自研团队可将 quoteNavVisible 设为 false。
+     */
+    public Map<String, Object> getWorkspacePrefs(long tenantId) {
+        Tenant t = tenantMapper.findById(tenantId);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("quoteNavVisible", true);
+        if (t == null) {
+            return m;
+        }
+        String json = t.getWorkspacePrefsJson();
+        if (json == null || json.isBlank()) {
+            return m;
+        }
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            if (parsed != null) {
+                m.putAll(parsed);
+            }
+        } catch (Exception ignored) {
+            // keep defaults
+        }
+        return m;
+    }
+
+    @Transactional
+    public Map<String, Object> mergeWorkspacePrefs(long tenantId, Map<String, Object> patch) {
+        if (patch == null || patch.isEmpty()) {
+            return getWorkspacePrefs(tenantId);
+        }
+        Map<String, Object> cur = new LinkedHashMap<>(getWorkspacePrefs(tenantId));
+        for (Map.Entry<String, Object> e : patch.entrySet()) {
+            if (e.getKey() == null || e.getKey().isBlank()) {
+                continue;
+            }
+            cur.put(e.getKey(), e.getValue());
+        }
+        try {
+            tenantMapper.updateWorkspacePrefsJson(tenantId, objectMapper.writeValueAsString(cur));
+        } catch (Exception e) {
+            throw new IllegalStateException("无法保存工作台偏好");
+        }
+        return cur;
     }
 
     private static int rank(String planCode) {
