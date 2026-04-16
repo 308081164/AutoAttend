@@ -2,14 +2,13 @@ package org.example.atuo_attend_backend.prototype.domain;
 
 import java.time.LocalDateTime;
 
-public class UiPrototypeProject {
+public class UiPrototypePenpotJob {
     private Long id;
     private Long tenantId;
-    private String name;
-    private Integer currentSpecVersion;
-    /** Penpot 团队 UUID（方案 A：服务端账号隔离） */
-    private String penpotTeamId;
-    private String penpotProjectId;
+    private Long projectId;
+    private String status;
+    private String errorMessage;
+    private String promptSnapshot;
     private String penpotFileId;
     private String penpotPreviewUrl;
     private LocalDateTime createdAt;
@@ -21,17 +20,17 @@ public class UiPrototypeProject {
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
 
-    public Integer getCurrentSpecVersion() { return currentSpecVersion; }
-    public void setCurrentSpecVersion(Integer currentSpecVersion) { this.currentSpecVersion = currentSpecVersion; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
-    public String getPenpotTeamId() { return penpotTeamId; }
-    public void setPenpotTeamId(String penpotTeamId) { this.penpotTeamId = penpotTeamId; }
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
-    public String getPenpotProjectId() { return penpotProjectId; }
-    public void setPenpotProjectId(String penpotProjectId) { this.penpotProjectId = penpotProjectId; }
+    public String getPromptSnapshot() { return promptSnapshot; }
+    public void setPromptSnapshot(String promptSnapshot) { this.promptSnapshot = promptSnapshot; }
 
     public String getPenpotFileId() { return penpotFileId; }
     public void setPenpotFileId(String penpotFileId) { this.penpotFileId = penpotFileId; }
@@ -45,4 +44,3 @@ public class UiPrototypeProject {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }
-

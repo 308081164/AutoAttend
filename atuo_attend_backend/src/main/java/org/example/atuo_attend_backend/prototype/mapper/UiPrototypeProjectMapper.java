@@ -34,6 +34,10 @@ public interface UiPrototypeProjectMapper {
     @Select("""
             SELECT id, tenant_id AS tenantId, name,
                    current_spec_version AS currentSpecVersion,
+                   penpot_team_id AS penpotTeamId,
+                   penpot_project_id AS penpotProjectId,
+                   penpot_file_id AS penpotFileId,
+                   penpot_preview_url AS penpotPreviewUrl,
                    created_at AS createdAt, updated_at AS updatedAt
             FROM aa_ui_prototype_project
             WHERE tenant_id=#{tenantId}
@@ -44,11 +48,30 @@ public interface UiPrototypeProjectMapper {
     @Select("""
             SELECT id, tenant_id AS tenantId, name,
                    current_spec_version AS currentSpecVersion,
+                   penpot_team_id AS penpotTeamId,
+                   penpot_project_id AS penpotProjectId,
+                   penpot_file_id AS penpotFileId,
+                   penpot_preview_url AS penpotPreviewUrl,
                    created_at AS createdAt, updated_at AS updatedAt
             FROM aa_ui_prototype_project
             WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
     UiPrototypeProject findById(@Param("tenantId") long tenantId, @Param("id") long id);
+
+    @Update("""
+            UPDATE aa_ui_prototype_project
+            SET penpot_team_id=#{penpotTeamId},
+                penpot_project_id=#{penpotProjectId},
+                penpot_file_id=#{penpotFileId},
+                penpot_preview_url=#{penpotPreviewUrl},
+                updated_at=CURRENT_TIMESTAMP
+            WHERE tenant_id=#{tenantId} AND id=#{id}
+            """)
+    int updatePenpotBinding(@Param("tenantId") long tenantId, @Param("id") long id,
+                            @Param("penpotTeamId") String penpotTeamId,
+                            @Param("penpotProjectId") String penpotProjectId,
+                            @Param("penpotFileId") String penpotFileId,
+                            @Param("penpotPreviewUrl") String penpotPreviewUrl);
 
     @Delete("""
             DELETE FROM aa_ui_prototype_project
