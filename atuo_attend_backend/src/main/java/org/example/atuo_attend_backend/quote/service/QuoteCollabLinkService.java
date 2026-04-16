@@ -62,8 +62,10 @@ public class QuoteCollabLinkService {
 
     /**
      * 解析报价项目关联的协作项目 ID：优先 link_table_id，其次 github 仓库 full_name。
+     *
+     * @param tenantId 显式租户（管理端 {@link TenantContext} 可能已清空，勿仅依赖 ThreadLocal）
      */
-    public long resolveCollabProjectId(QuoteProject qp) {
+    public long resolveCollabProjectId(QuoteProject qp, long tenantId) {
         if (qp == null) {
             throw new IllegalArgumentException("报价项目不存在");
         }
@@ -72,12 +74,30 @@ public class QuoteCollabLinkService {
         }
         String repo = qp.getGithubRepoFullName();
         if (repo != null && !repo.isBlank()) {
-            BizProject bp = bizProjectMapper.findByTenantAndRepoId(tid(), repo.trim());
+            BizProject bp = bizProjectMapper.findByTenantAndRepoId(tenantId, repo.trim());
             if (bp != null) {
                 return bp.getId();
             }
         }
         throw new IllegalArgumentException("请先完成「创建仓库」或手动绑定协作项目（link_table_id / GitHub 仓库）");
+    }
+
+    /**
+     * 同 {@link #resolveCollabProjectId(QuoteProject, long)}，租户取自当前 {@link TenantContext}。
+     */
+    public long resolveCollabProjectId(QuoteProject qp) {
+        return resolveCollabProjectId(qp, tid());
+    }
+
+    /**
+     * 根据报价项目主键解析关联的协作项目 ID（校验租户归属）。
+     */
+    public long resolveCollabProjectIdForQuote(long tenantId, long quoteProjectId) {
+        QuoteProject qp = quoteProjectMapper.findById(tenantId, quoteProjectId);
+        if (qp == null) {
+            throw new IllegalArgumentException("报价项目不存在");
+        }
+        return resolveCollabProjectId(qp, tenantId);
     }
 
     /**

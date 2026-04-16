@@ -212,7 +212,7 @@
 
         <!-- 创建 Agent 会话弹窗 -->
         <div v-if="showCreateAgentModal" class="modal-overlay" @click.self="showCreateAgentModal = false">
-          <div class="modal-card" style="max-width:600px">
+          <div class="modal-card modal-card--agent-create">
             <h3>新建 Agent 会话</h3>
             <p class="hint" style="margin-bottom:12px">可选：导入前期与客户的沟通记录或附件，让 Agent 提前了解需求背景。</p>
             <div class="form-group">
@@ -221,7 +221,39 @@
             </div>
             <div class="form-group">
               <label>已有附件（可选）</label>
-              <p class="hint">暂不支持在此选择附件，请先在项目中上传附件后再创建会话。</p>
+              <p class="hint agent-bg-hint">
+                附件归属当前报价关联的协作项目，与多维表「项目附件」一致；可勾选已有文件或上传新文件（最多 12 个）。
+              </p>
+              <p v-if="agentBgAttachError" class="hint err" style="margin-top:6px">{{ agentBgAttachError }}</p>
+              <div v-if="agentBgAttachLoading" class="hint" style="margin-top:8px">加载附件列表…</div>
+              <div v-else-if="!agentBgCollabProjectId" class="hint">
+                尚未绑定协作项目：请先在项目中完成「创建仓库」或绑定 GitHub 仓库 / 多维表，再使用附件背景。
+              </div>
+              <template v-else>
+                <div class="agent-bg-upload-row">
+                  <input
+                    ref="agentBgFileInput"
+                    type="file"
+                    style="display:none"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                    @change="onAgentBgFileSelected"
+                  >
+                  <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput && $refs.agentBgFileInput.click()">
+                    {{ agentBgUploading ? '上传中…' : '上传文件' }}
+                  </button>
+                  <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
+                </div>
+                <div v-if="!agentBgAvailableAttachments.length" class="hint" style="margin-top:8px">暂无项目附件，请先上传。</div>
+                <ul v-else class="agent-bg-att-list">
+                  <li v-for="a in agentBgAvailableAttachments" :key="'abg-' + a.id" class="agent-bg-att-item">
+                    <label class="agent-bg-att-label">
+                      <input type="checkbox" :value="a.id" v-model="agentBgSelectedAttachmentIds">
+                      <span class="agent-bg-att-name" :title="a.fileName">{{ a.fileName }}</span>
+                      <span class="agent-bg-att-meta">{{ formatAgentBgSize(a.fileSize) }}</span>
+                    </label>
+                  </li>
+                </ul>
+              </template>
             </div>
             <div class="modal-actions">
               <button type="button" class="btn secondary" @click="showCreateAgentModal = false">取消</button>
@@ -1128,6 +1160,13 @@ export default {
       showCreateAgentModal: false,
       agentBgText: '',
       agentCreating: false,
+      /** 新建 Agent 会话：协作项目附件（与多维表项目级附件同源） */
+      agentBgAttachLoading: false,
+      agentBgAttachError: '',
+      agentBgCollabProjectId: null,
+      agentBgAvailableAttachments: [],
+      agentBgSelectedAttachmentIds: [],
+      agentBgUploading: false,
       deliverableOptions: [
         { k: 'source_code', l: '源代码' },
         { k: 'deploy_doc', l: '部署文档' },
@@ -1253,6 +1292,12 @@ export default {
     moduleEntryMode (val) {
       if (val === 'agent' && this.quoteProjectIdForApi) {
         this.fetchAgentSessions()
+      }
+    },
+    showCreateAgentModal (open) {
+      if (open && this.quoteProjectIdForApi) {
+        this.agentBgSelectedAttachmentIds = []
+        this.loadAgentBackgroundAttachments()
       }
     },
       // 依据用户在“报价抬头/主体模板”选择的主体名，同步到 AI 合同的“我方公司名”
@@ -2249,6 +2294,11 @@ export default {
         alert('请先保存报价项目（新建页需先保存以生成项目编号），再创建 Agent 会话。')
         return
       }
+      const idsRaw = (this.agentBgSelectedAttachmentIds || []).map(id => Number(id)).filter(id => !Number.isNaN(id) && id > 0)
+      if (idsRaw.length > 12) {
+        alert('背景附件最多选择 12 个，请取消部分勾选')
+        return
+      }
       this.agentCreating = true
       try {
         const body = {}
@@ -2256,16 +2306,93 @@ export default {
         if (text) {
           body.backgroundTexts = [{ label: '沟通记录', content: text }]
         }
+        const ids = idsRaw
+        if (ids.length) {
+          body.backgroundAttachmentIds = ids
+        }
         const resp = await this.$http.post(`/admin/agent/quote/projects/${qid}/agent-sessions`, body)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.showCreateAgentModal = false
           this.agentBgText = ''
+          this.agentBgSelectedAttachmentIds = []
           await this.fetchAgentSessions()
         } else {
           alert((resp.data && resp.data.message) || '创建失败')
         }
       } catch (e) { alert('创建失败，请稍后重试') }
       finally { this.agentCreating = false }
+    },
+    async loadAgentBackgroundAttachments () {
+      const qid = this.quoteProjectIdForApi
+      if (!qid) return
+      this.agentBgAttachLoading = true
+      this.agentBgAttachError = ''
+      try {
+        const resp = await this.$http.get(`/admin/agent/quote/projects/${qid}/agent-background-attachments`)
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.agentBgCollabProjectId = d.collabProjectId != null ? d.collabProjectId : null
+          this.agentBgAvailableAttachments = Array.isArray(d.items) ? d.items : []
+        } else {
+          this.agentBgCollabProjectId = null
+          this.agentBgAvailableAttachments = []
+          this.agentBgAttachError = (resp.data && resp.data.message) || '无法加载附件列表'
+        }
+      } catch (e) {
+        const msg = (e.response && e.response.data && e.response.data.message) || ''
+        this.agentBgCollabProjectId = null
+        this.agentBgAvailableAttachments = []
+        this.agentBgAttachError = msg || '无法加载附件列表（请先绑定协作项目）'
+      } finally {
+        this.agentBgAttachLoading = false
+      }
+    },
+    formatAgentBgSize (n) {
+      const b = Number(n)
+      if (!Number.isFinite(b) || b < 0) return ''
+      if (b < 1024) return b + ' B'
+      if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB'
+      return (b / (1024 * 1024)).toFixed(1) + ' MB'
+    },
+    async onAgentBgFileSelected (e) {
+      const input = e && e.target
+      const file = input && input.files && input.files[0]
+      const qid = this.quoteProjectIdForApi
+      if (!file || !qid) return
+      this.agentBgUploading = true
+      this.agentBgAttachError = ''
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const resp = await this.$http.post(
+          `/admin/agent/quote/projects/${qid}/agent-background-attachments`,
+          fd,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        )
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const row = resp.data.data
+          if (row.collabProjectId != null) this.agentBgCollabProjectId = row.collabProjectId
+          const item = {
+            id: row.id,
+            fileName: row.fileName || 'file',
+            fileSize: row.fileSize,
+            createdAt: row.createdAt,
+            isImage: row.isImage
+          }
+          const rest = this.agentBgAvailableAttachments.filter(a => a.id !== item.id)
+          this.agentBgAvailableAttachments = [item, ...rest]
+          const s = new Set((this.agentBgSelectedAttachmentIds || []).map(Number))
+          s.add(Number(item.id))
+          this.agentBgSelectedAttachmentIds = Array.from(s)
+        } else {
+          this.agentBgAttachError = (resp.data && resp.data.message) || '上传失败'
+        }
+      } catch (err) {
+        this.agentBgAttachError = (err.response && err.response.data && err.response.data.message) || '上传失败'
+      } finally {
+        this.agentBgUploading = false
+        if (input) input.value = ''
+      }
     },
     formatDate (d) {
       if (!d) return ''
@@ -4038,9 +4165,20 @@ label.block {
 .agent-ended-item span:first-child { flex: 1; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .modal-card { background: #fff; border-radius: 12px; padding: 24px; width: 90%; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+.modal-card--agent-create { max-width: 600px; }
 .modal-card h3 { margin: 0 0 16px; font-size: 16px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .btn.danger { background: #f54a45; color: #fff; }
 .btn.danger:hover { background: #d63530; }
 .btn.small { padding: 4px 10px; font-size: 12px; }
+.agent-bg-hint { line-height: 1.5; }
+.agent-bg-upload-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.agent-bg-upload-note { font-size: 12px; }
+.agent-bg-att-list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 220px; overflow-y: auto; border: 1px solid #e5e6eb; border-radius: 8px; }
+.agent-bg-att-item { border-bottom: 1px solid #f2f3f5; }
+.agent-bg-att-item:last-child { border-bottom: none; }
+.agent-bg-att-label { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; font-size: 13px; }
+.agent-bg-att-label:hover { background: #f7f8fa; }
+.agent-bg-att-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-bg-att-meta { flex-shrink: 0; font-size: 12px; color: #8f959e; }
 </style>
