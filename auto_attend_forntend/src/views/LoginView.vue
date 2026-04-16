@@ -215,6 +215,7 @@
 
 <script>
 import { localeOptions, setLocale } from '../locales'
+import { notifyAuthSessionChanged } from '@/utils/authSession'
 
 export default {
   name: 'LoginView',
@@ -362,6 +363,7 @@ export default {
           if (data.collabToken) {
             window.localStorage.setItem('autoattend_collab_token', data.collabToken)
           }
+          notifyAuthSessionChanged()
           this.$router.push({ name: 'dashboard' })
           return
         }

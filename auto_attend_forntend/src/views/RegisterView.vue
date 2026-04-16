@@ -57,6 +57,8 @@
 </template>
 
 <script>
+import { notifyAuthSessionChanged } from '@/utils/authSession'
+
 export default {
   name: 'RegisterView',
   data () {
@@ -165,6 +167,7 @@ export default {
           if (data.collabToken) {
             window.localStorage.setItem('autoattend_collab_token', data.collabToken)
           }
+          notifyAuthSessionChanged()
           this.$router.push({ name: 'dashboard' })
           return
         }

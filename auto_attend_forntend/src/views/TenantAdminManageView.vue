@@ -52,6 +52,8 @@
 </template>
 
 <script>
+import { notifyAuthSessionChanged } from '@/utils/authSession'
+
 export default {
   name: 'TenantAdminManageView',
   data () {
@@ -125,6 +127,7 @@ export default {
               const me = await this.$http.get('/admin/auth/me')
               if (me.data && me.data.code === 0 && me.data.data && me.data.data.phone) {
                 window.localStorage.setItem('autoattend_username', me.data.data.phone)
+                notifyAuthSessionChanged()
               }
             } catch (e) { /* ignore */ }
           }

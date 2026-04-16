@@ -1108,6 +1108,7 @@ import { Chart as ChartJS, registerables } from 'chart.js'
 import { compressImageFile, IMAGE_COMPRESS_PRESETS, shouldCompressAsRasterImage } from '@/utils/imageCompress'
 import { buildWordCloudItems } from '@/utils/collabDashboardText'
 import { redirectCollabUnauthorized } from '@/utils/httpAuth'
+import { subscribeAuthSession } from '@/utils/authSession'
 import DashboardView from './DashboardView.vue'
 
 ChartJS.register(...registerables)
@@ -1124,6 +1125,7 @@ export default {
       projectRepoId: '',
       showHomeDashboard: false,
       sidebarCollapsed: false,
+      authSessionTick: 0,
       tableBaseName: '',
       columns: [],
       records: [],
@@ -1299,7 +1301,8 @@ export default {
     },
     /** 仅管理员 JWT 存在时调用 /admin/* 配置接口；纯成员会话无此 token，避免 401 触发全局登出 */
     hasAdminSession () {
-      return !!window.localStorage.getItem('autoattend_token')
+      void this.authSessionTick
+      return !!(window.localStorage.getItem('autoattend_token') || '').trim()
     },
     selectedCount () {
       return Object.keys(this.rowSelection).length
@@ -1355,7 +1358,20 @@ export default {
     this.loadPortalLinks()
     this.loadClientBoard()
   },
+  mounted () {
+    this._unsubAuthSession = subscribeAuthSession(() => {
+      this.authSessionTick++
+      if (this.hasAdminSession) {
+        this.loadMailNotifyConfig()
+        this.loadAiLinkageConfig()
+      }
+    })
+  },
   beforeDestroy () {
+    if (this._unsubAuthSession) {
+      this._unsubAuthSession()
+      this._unsubAuthSession = null
+    }
     this.detachImagePreviewEscape()
     this.detachStatusPickerOutside()
     this.detachStatusPickerScrollClose()

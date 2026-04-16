@@ -139,6 +139,7 @@
 
 <script>
 import { setStoredCollabActingUserId } from '@/utils/collabActingUser'
+import { notifyAuthSessionChanged } from '@/utils/authSession'
 import { localeOptions, setLocale } from '../locales'
 
 export default {
@@ -273,6 +274,7 @@ export default {
           window.localStorage.setItem('autoattend_collab_token', resp.data.data.token)
           setStoredCollabActingUserId(null)
           window.localStorage.removeItem('autoattend_token')
+          notifyAuthSessionChanged()
           this.$router.push({ name: 'member-home' })
           return
         }
