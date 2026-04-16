@@ -9,12 +9,14 @@ import java.util.List;
 public interface TenantAdminUserMapper {
 
     @Select("SELECT id, tenant_id AS tenantId, phone, password_hash AS passwordHash, "
-            + "sms_login_onboarded AS smsLoginOnboarded, created_at AS createdAt "
+            + "sms_login_onboarded AS smsLoginOnboarded, "
+            + "can_publish_project_info AS canPublishProjectInfo, created_at AS createdAt "
             + "FROM aa_tenant_admin_user WHERE id = #{id}")
     TenantAdminUser findById(@Param("id") long id);
 
     @Select("SELECT id, tenant_id AS tenantId, phone, password_hash AS passwordHash, "
-            + "sms_login_onboarded AS smsLoginOnboarded, created_at AS createdAt "
+            + "sms_login_onboarded AS smsLoginOnboarded, "
+            + "can_publish_project_info AS canPublishProjectInfo, created_at AS createdAt "
             + "FROM aa_tenant_admin_user WHERE phone = #{phone}")
     TenantAdminUser findByPhone(@Param("phone") String phone);
 
@@ -29,7 +31,8 @@ public interface TenantAdminUserMapper {
     int countByPhoneExcludingId(@Param("phone") String phone, @Param("excludeId") long excludeId);
 
     @Select("SELECT id, tenant_id AS tenantId, phone, password_hash AS passwordHash, "
-            + "sms_login_onboarded AS smsLoginOnboarded, created_at AS createdAt "
+            + "sms_login_onboarded AS smsLoginOnboarded, "
+            + "can_publish_project_info AS canPublishProjectInfo, created_at AS createdAt "
             + "FROM aa_tenant_admin_user WHERE tenant_id = #{tenantId} ORDER BY id")
     List<TenantAdminUser> listByTenantId(@Param("tenantId") long tenantId);
 
@@ -41,4 +44,7 @@ public interface TenantAdminUserMapper {
 
     @Update("UPDATE aa_tenant_admin_user SET sms_login_onboarded = #{onboarded} WHERE id = #{id}")
     int updateSmsLoginOnboarded(@Param("id") long id, @Param("onboarded") boolean onboarded);
+
+    @Update("UPDATE aa_tenant_admin_user SET can_publish_project_info = #{v} WHERE id = #{id} AND tenant_id = #{tenantId}")
+    int updateCanPublishProjectInfo(@Param("id") long id, @Param("tenantId") long tenantId, @Param("v") boolean v);
 }

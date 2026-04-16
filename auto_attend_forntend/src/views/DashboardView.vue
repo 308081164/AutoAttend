@@ -378,6 +378,18 @@
             <p v-else class="hub-placeholder muted">{{ $t('dashboard.hubQuoteEmpty') }}</p>
           </section>
 
+          <section v-if="marketplaceVisible" class="hub-card console-elevated hub-marketplace">
+            <div class="hub-card-head">
+              <span class="hub-icon hub-icon-quote" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span>
+              <h2 class="hub-card-title">{{ $t('marketplace.title') }}</h2>
+              <router-link to="/marketplace" class="hub-card-more">{{ $t('dashboard.hubQuoteViewAll') }} →</router-link>
+            </div>
+            <p class="hub-desc">{{ $t('marketplace.desc') }}</p>
+            <div class="hub-quick-actions">
+              <router-link to="/marketplace" class="hub-pill hub-pill-primary">{{ $t('marketplace.title') }}</router-link>
+            </div>
+          </section>
+
           <section class="hub-card console-elevated hub-api">
             <div class="hub-card-head">
               <span class="hub-icon hub-icon-api" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
@@ -1005,6 +1017,7 @@ export default {
       dailySummaryDetail: null,
       dailyDetailLoading: false,
       quoteHub: { loading: false, items: [], total: 0 },
+      marketplaceVisible: false,
       nexusHub: { loading: false, accountCount: 0 },
       workspaceSummary: null,
       workspaceSummaryLoading: false,
@@ -1376,6 +1389,7 @@ export default {
     if (!this.memberEmbeddedDataBoard) {
       this.loadConsoleHub()
       this.loadWorkspaceSummary()
+      this.loadMarketplaceStatus()
     }
     this.loadRepos().then(() => {
       if (this.selectedRepo) {
@@ -1575,6 +1589,18 @@ export default {
         this.workspaceSummary = null
       } finally {
         this.workspaceSummaryLoading = false
+      }
+    },
+    async loadMarketplaceStatus () {
+      try {
+        const resp = await this.$http.get('/admin/marketplace/status')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.marketplaceVisible = !!resp.data.data.moduleVisible
+        } else {
+          this.marketplaceVisible = false
+        }
+      } catch (e) {
+        this.marketplaceVisible = false
       }
     },
     openSubjectModal () {

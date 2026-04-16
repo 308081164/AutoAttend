@@ -57,6 +57,35 @@
     </section>
 
     <section class="panel">
+      <h3>项目信息发布</h3>
+      <p class="muted small">控制租户控制台「项目信息发布」模块是否可用；配置存于全局 <code class="mono">tenant_id=0</code>。</p>
+      <div v-if="pmLoading" class="muted">加载中…</div>
+      <form v-else class="form" @submit.prevent="saveProjectMarketplace">
+        <label class="chk"><input v-model="pmForm.enabled" type="checkbox"> 启用模块总开关</label>
+        <label>范围 scope</label>
+        <select v-model="pmForm.scope" class="inp">
+          <option value="off">off（关闭）</option>
+          <option value="all">all（全平台，仍可按下方用户白名单限制）</option>
+          <option value="tenant_whitelist">tenant_whitelist（仅白名单租户）</option>
+          <option value="user_whitelist">user_whitelist（仅白名单管理员用户 ID）</option>
+        </select>
+        <label>租户 ID 白名单（逗号分隔）</label>
+        <input v-model="pmForm.tenantIdsStr" type="text" class="inp mono" placeholder="例如：1,2,3">
+        <label>管理员用户 ID 白名单（逗号分隔，空表示不额外限制用户）</label>
+        <input v-model="pmForm.userIdsStr" type="text" class="inp mono" placeholder="可选">
+        <label class="chk"><input v-model="pmForm.allowGuestBrowseList" type="checkbox"> 允许未登录访客调用公开状态接口（仅探测，不含列表数据）</label>
+        <label class="chk"><input v-model="pmForm.requireContentReview" type="checkbox"> 先审后发（新发布进入待审核）</label>
+        <label>免责文案版本号</label>
+        <input v-model="pmForm.disclaimerVersion" type="text" class="inp mono">
+        <p v-if="pmCounts" class="hint">当前白名单规模：租户 {{ pmCounts.tenantWhitelistCount }}，用户 {{ pmCounts.userWhitelistCount }}</p>
+        <div class="btn-row">
+          <button type="submit" class="btn primary" :disabled="pmSaving">{{ pmSaving ? '保存中…' : '保存' }}</button>
+          <span v-if="pmMsg" :class="pmOk ? 'ok' : 'err'">{{ pmMsg }}</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
       <h3>官方 API 池</h3>
       <p class="muted small">为租户代付 DeepSeek / 通义（DashScope）调用：开启后，在租户有余额时优先走平台密钥；计费按下方单价从租户「官方额度」扣减。新用户注册默认赠送额度见应用配置 <code class="mono">app.official-ai.registration-grant-cny</code>。</p>
       <div v-if="aiPoolLoading" class="muted">加载中…</div>
@@ -182,7 +211,21 @@ export default {
       lastPlainCode: '',
       redeemCodes: [],
       usageByTenant: [],
-      usageDays: 30
+      usageDays: 30,
+      pmLoading: true,
+      pmSaving: false,
+      pmMsg: '',
+      pmOk: true,
+      pmCounts: null,
+      pmForm: {
+        enabled: false,
+        scope: 'off',
+        tenantIdsStr: '',
+        userIdsStr: '',
+        allowGuestBrowseList: false,
+        requireContentReview: true,
+        disclaimerVersion: '2026-04-01'
+      }
     }
   },
   mounted () {
@@ -190,7 +233,67 @@ export default {
   },
   methods: {
     async loadAll () {
-      await Promise.all([this.loadMail(), this.loadReportMail(), this.loadAiPool(), this.loadRedeemCodes(), this.loadUsageByTenant()])
+      await Promise.all([this.loadMail(), this.loadReportMail(), this.loadProjectMarketplace(), this.loadAiPool(), this.loadRedeemCodes(), this.loadUsageByTenant()])
+    },
+    parseIdList (s) {
+      if (!s || !String(s).trim()) return []
+      return String(s).split(/[,，\s]+/).map(x => x.trim()).filter(Boolean).map(x => {
+        const n = Number(x)
+        return Number.isFinite(n) ? n : null
+      }).filter(x => x != null)
+    },
+    async loadProjectMarketplace () {
+      this.pmLoading = true
+      try {
+        const { data } = await http.get('/platform/settings/project-marketplace')
+        if (data.code === 0 && data.data) {
+          const d = data.data
+          this.pmCounts = { tenantWhitelistCount: d.tenantWhitelistCount, userWhitelistCount: d.userWhitelistCount }
+          this.pmForm.enabled = !!d.enabled
+          this.pmForm.scope = d.scope || 'off'
+          const tids = Array.isArray(d.tenantIds) ? d.tenantIds : []
+          const uids = Array.isArray(d.userIds) ? d.userIds : []
+          this.pmForm.tenantIdsStr = tids.join(', ')
+          this.pmForm.userIdsStr = uids.join(', ')
+          this.pmForm.allowGuestBrowseList = !!d.allowGuestBrowseList
+          this.pmForm.requireContentReview = d.requireContentReview !== false
+          this.pmForm.disclaimerVersion = d.disclaimerVersion || '2026-04-01'
+        }
+      } catch (e) {
+        this.pmMsg = '加载失败'
+        this.pmOk = false
+      } finally {
+        this.pmLoading = false
+      }
+    },
+    async saveProjectMarketplace () {
+      this.pmSaving = true
+      this.pmMsg = ''
+      try {
+        const body = {
+          enabled: !!this.pmForm.enabled,
+          scope: this.pmForm.scope,
+          tenantIds: this.parseIdList(this.pmForm.tenantIdsStr),
+          userIds: this.parseIdList(this.pmForm.userIdsStr),
+          allowGuestBrowseList: !!this.pmForm.allowGuestBrowseList,
+          requireContentReview: !!this.pmForm.requireContentReview,
+          disclaimerVersion: (this.pmForm.disclaimerVersion || '').trim() || '2026-04-01'
+        }
+        const { data } = await http.put('/platform/settings/project-marketplace', body)
+        if (data.code === 0) {
+          this.pmMsg = '已保存'
+          this.pmOk = true
+          await this.loadProjectMarketplace()
+        } else {
+          this.pmMsg = data.message || '保存失败'
+          this.pmOk = false
+        }
+      } catch (e) {
+        this.pmMsg = '请求失败'
+        this.pmOk = false
+      } finally {
+        this.pmSaving = false
+      }
     },
     async loadMail () {
       this.mailLoading = true

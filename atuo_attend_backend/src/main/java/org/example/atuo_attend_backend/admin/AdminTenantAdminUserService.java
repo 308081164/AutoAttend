@@ -35,6 +35,7 @@ public class AdminTenantAdminUserService {
             TenantAdminUserItem it = new TenantAdminUserItem();
             it.setId(u.getId());
             it.setPhone(u.getPhone());
+            it.setCanPublishProjectInfo(u.getCanPublishProjectInfo());
             it.setCreatedAt(u.getCreatedAt());
             out.add(it);
         }
@@ -48,8 +49,9 @@ public class AdminTenantAdminUserService {
         }
         boolean hasPhone = req.getPhone() != null && !req.getPhone().isBlank();
         boolean hasPwd = req.getNewPassword() != null && !req.getNewPassword().isBlank();
-        if (!hasPhone && !hasPwd) {
-            throw new IllegalArgumentException("请填写新手机号或新密码");
+        boolean hasPublish = req.getCanPublishProjectInfo() != null;
+        if (!hasPhone && !hasPwd && !hasPublish) {
+            throw new IllegalArgumentException("请填写新手机号、新密码或发布权限");
         }
         TenantAdminUser tau = tenantAdminUserMapper.findById(id);
         if (tau == null || !tau.getTenantId().equals(tenantId)) {
@@ -106,8 +108,12 @@ public class AdminTenantAdminUserService {
             }
         }
 
-        if (!phoneChanged && !hasPwd) {
-            throw new IllegalArgumentException("手机号未变更且未填写新密码");
+        if (hasPublish) {
+            tenantAdminUserMapper.updateCanPublishProjectInfo(id, tenantId, Boolean.TRUE.equals(req.getCanPublishProjectInfo()));
+        }
+
+        if (!phoneChanged && !hasPwd && !hasPublish) {
+            throw new IllegalArgumentException("无变更项");
         }
     }
 
