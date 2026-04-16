@@ -67,4 +67,12 @@
 
 ---
 
-*文档版本：2026-04-16*
+## 7. 实现状态（本仓库 `cursor/nexus-metrics-chart-and-extension-tasks-7cd2`）
+
+- **数据库**：`schema_nexus_extension_dns_oss_sms_icp.sql` 建表 `aa_nexus_dns_domain`、`aa_nexus_dns_record`、`aa_nexus_oss_bucket`、`aa_nexus_sms_signature`、`aa_nexus_sms_template`、`aa_nexus_icp_site`。
+- **同步**：在 `NexusSyncService.syncAccount` 成功后调用 `NexusExtensionSyncService` 拉取 DNS / OSS / 短信元数据；亦可 `POST /api/admin/nexus/accounts/{id}/extension-sync` 单独拉取。
+- **API**：见 `NexusAdminController` — `dns/domains`、`dns/records`、`oss/buckets`、`sms/signatures`、`sms/templates`、`icp/sites`（CRUD 手工备案）。
+- **前端**：`NexusConsoleView.vue` 增加 Tab：域名 DNS、OSS、备案、短信。
+- **RAM 建议**：云账号需授权云解析只读、OSS 列举、短信查询类 Action（以阿里云控制台策略为准）。
+
+*文档版本：2026-04-16（补充实现说明）*

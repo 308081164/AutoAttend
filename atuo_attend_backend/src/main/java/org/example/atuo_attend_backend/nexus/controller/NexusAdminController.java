@@ -10,10 +10,24 @@ import org.example.atuo_attend_backend.nexus.domain.NexusAutoSyncConfig;
 import org.example.atuo_attend_backend.nexus.domain.NexusCloudAccount;
 import org.example.atuo_attend_backend.nexus.domain.NexusCloudInstance;
 import org.example.atuo_attend_backend.nexus.dto.*;
-import org.example.atuo_attend_backend.nexus.mapper.*;
+import org.example.atuo_attend_backend.nexus.mapper.NexusAlertRuleMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusAuditLogMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusAutoSyncConfigMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusCloudAccountMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusCpuMetricMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusDnsDomainMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusDnsRecordMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusIcpSiteMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusInstanceMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusMemoryMetricMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusOssBucketMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusSmsSignatureMapper;
+import org.example.atuo_attend_backend.nexus.mapper.NexusSmsTemplateMapper;
 import org.example.atuo_attend_backend.nexus.service.NexusBssCostService;
 import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
+import org.example.atuo_attend_backend.nexus.service.NexusExtensionSyncService;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
+import org.example.atuo_attend_backend.nexus.domain.NexusIcpSite;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
@@ -43,6 +57,13 @@ public class NexusAdminController {
     private final NexusBssCostService bssCostService;
     private final NexusAlertRuleMapper alertRuleMapper;
     private final TenantResourceQuotaService tenantResourceQuotaService;
+    private final NexusDnsDomainMapper dnsDomainMapper;
+    private final NexusDnsRecordMapper dnsRecordMapper;
+    private final NexusOssBucketMapper ossBucketMapper;
+    private final NexusSmsSignatureMapper smsSignatureMapper;
+    private final NexusSmsTemplateMapper smsTemplateMapper;
+    private final NexusIcpSiteMapper icpSiteMapper;
+    private final NexusExtensionSyncService extensionSyncService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public NexusAdminController(
@@ -57,7 +78,14 @@ public class NexusAdminController {
             NexusEcsOpsService ecsOpsService,
             NexusBssCostService bssCostService,
             NexusAlertRuleMapper alertRuleMapper,
-            TenantResourceQuotaService tenantResourceQuotaService
+            TenantResourceQuotaService tenantResourceQuotaService,
+            NexusDnsDomainMapper dnsDomainMapper,
+            NexusDnsRecordMapper dnsRecordMapper,
+            NexusOssBucketMapper ossBucketMapper,
+            NexusSmsSignatureMapper smsSignatureMapper,
+            NexusSmsTemplateMapper smsTemplateMapper,
+            NexusIcpSiteMapper icpSiteMapper,
+            NexusExtensionSyncService extensionSyncService
     ) {
         this.accountMapper = accountMapper;
         this.instanceMapper = instanceMapper;
@@ -71,6 +99,13 @@ public class NexusAdminController {
         this.bssCostService = bssCostService;
         this.alertRuleMapper = alertRuleMapper;
         this.tenantResourceQuotaService = tenantResourceQuotaService;
+        this.dnsDomainMapper = dnsDomainMapper;
+        this.dnsRecordMapper = dnsRecordMapper;
+        this.ossBucketMapper = ossBucketMapper;
+        this.smsSignatureMapper = smsSignatureMapper;
+        this.smsTemplateMapper = smsTemplateMapper;
+        this.icpSiteMapper = icpSiteMapper;
+        this.extensionSyncService = extensionSyncService;
     }
 
     /**
@@ -175,6 +210,145 @@ public class NexusAdminController {
                 "skip", out.skip,
                 "reason", out.reason
         ));
+    }
+
+    /** 仅同步 DNS / OSS / 短信元数据（不跑 ECS 全量同步）。 */
+    @PostMapping("/accounts/{accountId}/extension-sync")
+    public ApiResponse<Void> extensionSyncOnly(@PathVariable long accountId, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (!"aliyun".equals(acc.getProvider())) {
+            return ApiResponse.error(40000, "provider not supported");
+        }
+        try {
+            String ak = cryptoService.decrypt(acc.getAccessKeyIdEnc());
+            String sk = cryptoService.decrypt(acc.getAccessKeySecretEnc());
+            extensionSyncService.syncExtensions(tenantId, accountId, ak, sk, acc.getRegionId());
+            Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+            String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.extension.sync", "cloud_account", String.valueOf(accountId), "success", null);
+            return ApiResponse.ok(null);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "extension sync failed");
+        }
+    }
+
+    @GetMapping("/accounts/{accountId}/dns/domains")
+    public ApiResponse<List<Map<String, Object>>> listDnsDomains(@PathVariable long accountId, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        return ApiResponse.ok(dnsDomainMapper.listByAccount(tenantId, accountId));
+    }
+
+    @GetMapping("/accounts/{accountId}/dns/records")
+    public ApiResponse<List<Map<String, Object>>> listDnsRecords(
+            @PathVariable long accountId,
+            @RequestParam String domain,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        if (domain == null || domain.isBlank()) return ApiResponse.error(40000, "domain required");
+        return ApiResponse.ok(dnsRecordMapper.listByDomain(tenantId, accountId, domain.trim()));
+    }
+
+    @GetMapping("/accounts/{accountId}/oss/buckets")
+    public ApiResponse<List<Map<String, Object>>> listOssBuckets(@PathVariable long accountId, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        return ApiResponse.ok(ossBucketMapper.listByAccount(tenantId, accountId));
+    }
+
+    @GetMapping("/accounts/{accountId}/sms/signatures")
+    public ApiResponse<List<Map<String, Object>>> listSmsSignatures(@PathVariable long accountId, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        return ApiResponse.ok(smsSignatureMapper.listByAccount(tenantId, accountId));
+    }
+
+    @GetMapping("/accounts/{accountId}/sms/templates")
+    public ApiResponse<List<Map<String, Object>>> listSmsTemplates(@PathVariable long accountId, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        return ApiResponse.ok(smsTemplateMapper.listByAccount(tenantId, accountId));
+    }
+
+    @GetMapping("/accounts/{accountId}/icp/sites")
+    public ApiResponse<List<Map<String, Object>>> listIcpSites(@PathVariable long accountId, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        return ApiResponse.ok(icpSiteMapper.listByAccount(tenantId, accountId));
+    }
+
+    @PostMapping("/accounts/{accountId}/icp/sites")
+    public ApiResponse<Map<String, Object>> createIcpSite(
+            @PathVariable long accountId,
+            @RequestBody NexusIcpSiteWriteRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        if (req == null || req.getDomainName() == null || req.getDomainName().isBlank()) {
+            return ApiResponse.error(40000, "domainName required");
+        }
+        NexusIcpSite row = new NexusIcpSite();
+        row.setTenantId(tenantId);
+        row.setAccountId(accountId);
+        row.setDomainName(req.getDomainName().trim());
+        row.setSiteName(trimOrNull(req.getSiteName()));
+        row.setIcpLicense(trimOrNull(req.getIcpLicense()));
+        row.setStatusText(trimOrNull(req.getStatusText()));
+        row.setRemark(trimOrNull(req.getRemark()));
+        icpSiteMapper.insert(row);
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.create", "icp_site", String.valueOf(row.getId()), "success", null);
+        return ApiResponse.ok(Map.of("id", row.getId()));
+    }
+
+    @PutMapping("/accounts/{accountId}/icp/sites/{siteId}")
+    public ApiResponse<Void> updateIcpSite(
+            @PathVariable long accountId,
+            @PathVariable long siteId,
+            @RequestBody NexusIcpSiteWriteRequest req,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        if (req == null) return ApiResponse.error(40000, "body required");
+        int n = icpSiteMapper.update(tenantId, siteId,
+                trimOrNull(req.getSiteName()),
+                trimOrNull(req.getIcpLicense()),
+                trimOrNull(req.getStatusText()),
+                trimOrNull(req.getRemark()));
+        if (n <= 0) return ApiResponse.error(40400, "record not found");
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.update", "icp_site", String.valueOf(siteId), "success", null);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/accounts/{accountId}/icp/sites/{siteId}")
+    public ApiResponse<Void> deleteIcpSite(
+            @PathVariable long accountId,
+            @PathVariable long siteId,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
+        int n = icpSiteMapper.delete(tenantId, siteId);
+        if (n <= 0) return ApiResponse.error(40400, "record not found");
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.delete", "icp_site", String.valueOf(siteId), "success", null);
+        return ApiResponse.ok(null);
+    }
+
+    private static String trimOrNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 
     @GetMapping("/accounts/{accountId}/instances/{instanceId}/cpu-metrics")

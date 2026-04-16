@@ -26,6 +26,7 @@ public class NexusSyncService {
     private final NexusAutoSyncConfigMapper autoSyncConfigMapper;
     private final NexusAuditLogMapper auditLogMapper;
     private final NexusCryptoService cryptoService;
+    private final NexusExtensionSyncService extensionSyncService;
 
     private final AliyunEcsAdapter aliyunEcsAdapter = new AliyunEcsAdapter();
     private final org.example.atuo_attend_backend.nexus.adapter.aliyun.AliyunCmsAdapter aliyunCmsAdapter = new org.example.atuo_attend_backend.nexus.adapter.aliyun.AliyunCmsAdapter();
@@ -40,6 +41,7 @@ public class NexusSyncService {
             NexusAutoSyncConfigMapper autoSyncConfigMapper,
             NexusAuditLogMapper auditLogMapper,
             NexusCryptoService cryptoService,
+            NexusExtensionSyncService extensionSyncService,
             @Value("${nexus.sync.max-instances-per-run:200}") int maxInstancesPerRun
     ) {
         this.accountMapper = accountMapper;
@@ -49,6 +51,7 @@ public class NexusSyncService {
         this.autoSyncConfigMapper = autoSyncConfigMapper;
         this.auditLogMapper = auditLogMapper;
         this.cryptoService = cryptoService;
+        this.extensionSyncService = extensionSyncService;
         this.maxInstancesPerRun = maxInstancesPerRun;
     }
 
@@ -131,6 +134,12 @@ public class NexusSyncService {
                     mp.setInstanceId(mp.getInstanceId() != null ? mp.getInstanceId() : ins.instanceId);
                     memoryMetricMapper.upsertPoint(mp);
                 }
+            }
+
+            try {
+                extensionSyncService.syncExtensions(tenantId, accountId, accessKeyId, accessKeySecret, regionId);
+            } catch (Exception ignored) {
+                // 扩展同步失败不阻断主流程（日志在 extension 内）
             }
 
             accountMapper.updateLastAutoSyncAt(tenantId, accountId, LocalDateTime.now());

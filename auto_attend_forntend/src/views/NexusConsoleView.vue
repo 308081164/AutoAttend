@@ -31,6 +31,10 @@
       <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'instances' }" @click="mainTab = 'instances'">实例与监控</button>
       <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'alerts' }" @click="mainTab = 'alerts'; loadAlertRules()">告警规则</button>
       <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'cost' }" @click="mainTab = 'cost'; loadCostSummary()">成本中心</button>
+      <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'dns' }" @click="switchMainTab('dns')">域名 DNS</button>
+      <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'oss' }" @click="switchMainTab('oss')">OSS</button>
+      <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'icp' }" @click="switchMainTab('icp')">备案</button>
+      <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'sms' }" @click="switchMainTab('sms')">短信</button>
     </div>
 
     <!-- ===== Add Account Panel (collapsible) ===== -->
@@ -324,6 +328,151 @@
       </div>
     </div>
 
+    <!-- 域名 DNS -->
+    <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'dns'">
+      <div class="nx-ext-head">
+        <h3 class="nx-panel-title">域名与解析</h3>
+        <div class="nx-ext-actions">
+          <button type="button" class="nx-btn nx-btn--secondary nx-btn--sm" :disabled="!selectedAccountId || extensionSyncing" @click="refreshExtensionOnly">
+            {{ extensionSyncing ? '同步中…' : '拉取 DNS 数据' }}
+          </button>
+          <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openAliyunConsole('dns')">阿里云解析控制台</button>
+        </div>
+      </div>
+      <p class="nx-alerts-desc">数据在云账号执行「同步」或点击「拉取 DNS 数据」时写入；需 RAM 授权云解析只读 API。</p>
+      <div v-if="extensionLoading" class="nx-ext-loading"><div class="nx-spinner"></div></div>
+      <div v-else-if="!dnsDomains.length" class="nx-alerts-empty">暂无域名数据，请先同步或拉取。</div>
+      <div v-else class="nx-dns-list">
+        <div v-for="d in dnsDomains" :key="d.domainName" class="nx-dns-card">
+          <div class="nx-dns-row" @click="toggleDnsDomain(d.domainName)">
+            <span class="nx-dns-name">{{ d.domainName }}</span>
+            <span class="nx-dns-meta">{{ d.syncedAt ? ('更新 ' + formatShortTime(d.syncedAt)) : '' }}</span>
+            <span class="nx-dns-chev">{{ dnsExpanded[d.domainName] ? '▼' : '▶' }}</span>
+          </div>
+          <div v-if="dnsExpanded[d.domainName]" class="nx-dns-rec-wrap">
+            <div v-if="dnsRecordsLoading[d.domainName]" class="nx-ext-loading small"><div class="nx-spinner"></div></div>
+            <table v-else-if="(dnsRecordsCache[d.domainName] || []).length" class="nx-ext-table">
+              <thead><tr><th>主机</th><th>类型</th><th>值</th><th>TTL</th></tr></thead>
+              <tbody>
+                <tr v-for="(r, ri) in dnsRecordsCache[d.domainName]" :key="ri">
+                  <td>{{ r.rr || '@' }}</td>
+                  <td>{{ r.recordType }}</td>
+                  <td class="mono">{{ r.recordValue }}</td>
+                  <td>{{ r.ttl != null ? r.ttl : '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else class="nx-alerts-empty" style="padding:8px">无解析记录或尚未加载</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OSS -->
+    <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'oss'">
+      <div class="nx-ext-head">
+        <h3 class="nx-panel-title">对象存储 Bucket</h3>
+        <div class="nx-ext-actions">
+          <button type="button" class="nx-btn nx-btn--secondary nx-btn--sm" :disabled="!selectedAccountId || extensionSyncing" @click="refreshExtensionOnly">
+            {{ extensionSyncing ? '同步中…' : '刷新 Bucket 列表' }}
+          </button>
+          <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openAliyunConsole('oss')">OSS 控制台</button>
+        </div>
+      </div>
+      <p class="nx-alerts-desc">列举当前 AccessKey 可访问的 Bucket（按云账号地域 endpoint）；仅元数据，不列举对象。</p>
+      <div v-if="extensionLoading" class="nx-ext-loading"><div class="nx-spinner"></div></div>
+      <table v-else-if="ossBuckets.length" class="nx-ext-table">
+        <thead><tr><th>Bucket</th><th>地域</th><th>Location</th><th>同步时间</th></tr></thead>
+        <tbody>
+          <tr v-for="b in ossBuckets" :key="b.bucketName">
+            <td class="mono">{{ b.bucketName }}</td>
+            <td>{{ b.region || '—' }}</td>
+            <td>{{ b.location || '—' }}</td>
+            <td>{{ formatShortTime(b.syncedAt) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="nx-alerts-empty">暂无数据，请先同步或刷新。</p>
+    </div>
+
+    <!-- 备案（手工登记） -->
+    <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'icp'">
+      <div class="nx-ext-head">
+        <h3 class="nx-panel-title">网站备案登记</h3>
+        <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openAliyunConsole('beian')">阿里云备案控制台</button>
+      </div>
+      <p class="nx-alerts-desc">阿里云备案信息无稳定公开查询 API，此处支持手工登记便于团队内对照；敏感信息请自行脱敏。</p>
+      <div class="nx-icp-form">
+        <div class="nx-form-item"><label>域名 *</label><input v-model.trim="icpForm.domainName" placeholder="example.com" /></div>
+        <div class="nx-form-item"><label>网站名称</label><input v-model.trim="icpForm.siteName" /></div>
+        <div class="nx-form-item"><label>备案号</label><input v-model.trim="icpForm.icpLicense" placeholder="京ICP备xxxx" /></div>
+        <div class="nx-form-item"><label>状态说明</label><input v-model.trim="icpForm.statusText" /></div>
+        <div class="nx-form-item full"><label>备注</label><input v-model.trim="icpForm.remark" /></div>
+        <button type="button" class="nx-btn nx-btn--primary nx-btn--sm" :disabled="icpSaving || !icpForm.domainName" @click="saveIcpSite">{{ icpSaving ? '保存中…' : '添加登记' }}</button>
+      </div>
+      <div v-if="icpLoading" class="nx-ext-loading"><div class="nx-spinner"></div></div>
+      <table v-else-if="icpSites.length" class="nx-ext-table" style="margin-top:16px">
+        <thead><tr><th>域名</th><th>网站名</th><th>备案号</th><th>状态</th><th>更新</th><th></th></tr></thead>
+        <tbody>
+          <tr v-for="s in icpSites" :key="s.id">
+            <td>{{ s.domainName }}</td>
+            <td>{{ s.siteName || '—' }}</td>
+            <td class="mono">{{ s.icpLicense || '—' }}</td>
+            <td>{{ s.statusText || '—' }}</td>
+            <td>{{ formatShortTime(s.updatedAt) }}</td>
+            <td><button type="button" class="nx-btn nx-btn--ghost nx-btn--sm danger-text" @click="deleteIcpSite(s)">删除</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="nx-alerts-empty">暂无登记</p>
+    </div>
+
+    <!-- 短信元数据 -->
+    <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'sms'">
+      <div class="nx-ext-head">
+        <h3 class="nx-panel-title">短信签名与模板</h3>
+        <div class="nx-ext-actions">
+          <button type="button" class="nx-btn nx-btn--secondary nx-btn--sm" :disabled="!selectedAccountId || extensionSyncing" @click="refreshExtensionOnly">
+            {{ extensionSyncing ? '同步中…' : '拉取短信资源' }}
+          </button>
+          <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openAliyunConsole('sms')">短信服务控制台</button>
+        </div>
+      </div>
+      <p class="nx-alerts-desc">与平台验证码短信配置独立；此处展示当前云账号 AK 下的签名/模板列表（只读）。</p>
+      <div v-if="extensionLoading" class="nx-ext-loading"><div class="nx-spinner"></div></div>
+      <div v-else class="nx-sms-grid">
+        <div>
+          <h4 class="nx-sub-title">签名</h4>
+          <table v-if="smsSignatures.length" class="nx-ext-table compact">
+            <thead><tr><th>签名</th><th>审核</th><th>类型</th></tr></thead>
+            <tbody>
+              <tr v-for="(sig, si) in smsSignatures" :key="'sig-' + si">
+                <td>{{ sig.signName }}</td>
+                <td>{{ sig.auditStatus || '—' }}</td>
+                <td>{{ sig.signType || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="nx-alerts-empty">暂无</p>
+        </div>
+        <div>
+          <h4 class="nx-sub-title">模板</h4>
+          <table v-if="smsTemplates.length" class="nx-ext-table compact">
+            <thead><tr><th>CODE</th><th>名称</th><th>类型</th><th>审核</th></tr></thead>
+            <tbody>
+              <tr v-for="(tp, ti) in smsTemplates" :key="'tp-' + ti">
+                <td class="mono">{{ tp.templateCode }}</td>
+                <td>{{ tp.templateName || '—' }}</td>
+                <td>{{ tp.templateType || '—' }}</td>
+                <td>{{ tp.auditStatus || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="nx-alerts-empty">暂无</p>
+        </div>
+      </div>
+    </div>
+
     <!-- 全局巡检配置 -->
     <div class="nx-modal-overlay" v-if="showGlobalSyncModal" @click.self="showGlobalSyncModal = false">
       <div class="nx-modal">
@@ -435,7 +584,21 @@ export default {
       sshOpening: false,
       sshUser: 'root',
       sshPort: 22,
-      sshKeyPath: ''
+      sshKeyPath: '',
+
+      extensionLoading: false,
+      extensionSyncing: false,
+      dnsDomains: [],
+      dnsExpanded: {},
+      dnsRecordsCache: {},
+      dnsRecordsLoading: {},
+      ossBuckets: [],
+      smsSignatures: [],
+      smsTemplates: [],
+      icpSites: [],
+      icpLoading: false,
+      icpSaving: false,
+      icpForm: { domainName: '', siteName: '', icpLicense: '', statusText: '', remark: '' }
     }
   },
   created () {
@@ -590,6 +753,173 @@ export default {
     },
     async onAccountChange () {
       await this.loadInstances()
+      if (['dns', 'oss', 'icp', 'sms'].includes(this.mainTab)) {
+        await this.loadExtensionTabData()
+      }
+    },
+    switchMainTab (tab) {
+      this.mainTab = tab
+      this.loadExtensionTabData()
+    },
+    async loadExtensionTabData () {
+      if (!this.selectedAccountId) return
+      if (this.mainTab === 'dns') return this.loadDnsDomains()
+      if (this.mainTab === 'oss') return this.loadOssBuckets()
+      if (this.mainTab === 'sms') return this.loadSmsMeta()
+      if (this.mainTab === 'icp') return this.loadIcpSites()
+    },
+    async refreshExtensionOnly () {
+      if (!this.selectedAccountId) return
+      this.extensionSyncing = true
+      try {
+        const resp = await this.$http.post(`/admin/nexus/accounts/${this.selectedAccountId}/extension-sync`)
+        if (resp.data && resp.data.code === 0) {
+          await this.loadExtensionTabData()
+        } else {
+          alert((resp.data && resp.data.message) || '拉取失败')
+        }
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || '拉取失败')
+      } finally {
+        this.extensionSyncing = false
+      }
+    },
+    async loadDnsDomains () {
+      this.extensionLoading = true
+      try {
+        const resp = await this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/dns/domains`)
+        if (resp.data && resp.data.code === 0) {
+          this.dnsDomains = resp.data.data || []
+        } else {
+          this.dnsDomains = []
+        }
+      } catch (e) {
+        this.dnsDomains = []
+      } finally {
+        this.extensionLoading = false
+      }
+    },
+    toggleDnsDomain (domainName) {
+      const next = !this.dnsExpanded[domainName]
+      this.$set(this.dnsExpanded, domainName, next)
+      if (next && !this.dnsRecordsCache[domainName]) {
+        this.loadDnsRecords(domainName)
+      }
+    },
+    async loadDnsRecords (domainName) {
+      this.$set(this.dnsRecordsLoading, domainName, true)
+      try {
+        const resp = await this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/dns/records`, {
+          params: { domain: domainName }
+        })
+        if (resp.data && resp.data.code === 0) {
+          this.$set(this.dnsRecordsCache, domainName, resp.data.data || [])
+        } else {
+          this.$set(this.dnsRecordsCache, domainName, [])
+        }
+      } catch (e) {
+        this.$set(this.dnsRecordsCache, domainName, [])
+      } finally {
+        this.$set(this.dnsRecordsLoading, domainName, false)
+      }
+    },
+    async loadOssBuckets () {
+      this.extensionLoading = true
+      try {
+        const resp = await this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/oss/buckets`)
+        if (resp.data && resp.data.code === 0) {
+          this.ossBuckets = resp.data.data || []
+        } else {
+          this.ossBuckets = []
+        }
+      } catch (e) {
+        this.ossBuckets = []
+      } finally {
+        this.extensionLoading = false
+      }
+    },
+    async loadSmsMeta () {
+      this.extensionLoading = true
+      try {
+        const [r1, r2] = await Promise.all([
+          this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/sms/signatures`),
+          this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/sms/templates`)
+        ])
+        this.smsSignatures = (r1.data && r1.data.code === 0) ? (r1.data.data || []) : []
+        this.smsTemplates = (r2.data && r2.data.code === 0) ? (r2.data.data || []) : []
+      } catch (e) {
+        this.smsSignatures = []
+        this.smsTemplates = []
+      } finally {
+        this.extensionLoading = false
+      }
+    },
+    async loadIcpSites () {
+      this.icpLoading = true
+      try {
+        const resp = await this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/icp/sites`)
+        if (resp.data && resp.data.code === 0) {
+          this.icpSites = resp.data.data || []
+        } else {
+          this.icpSites = []
+        }
+      } catch (e) {
+        this.icpSites = []
+      } finally {
+        this.icpLoading = false
+      }
+    },
+    async saveIcpSite () {
+      const domain = (this.icpForm.domainName || '').trim()
+      if (!domain || !this.selectedAccountId) return
+      this.icpSaving = true
+      try {
+        const body = {
+          domainName: domain,
+          siteName: this.icpForm.siteName || null,
+          icpLicense: this.icpForm.icpLicense || null,
+          statusText: this.icpForm.statusText || null,
+          remark: this.icpForm.remark || null
+        }
+        const resp = await this.$http.post(`/admin/nexus/accounts/${this.selectedAccountId}/icp/sites`, body)
+        if (resp.data && resp.data.code === 0) {
+          this.icpForm = { domainName: '', siteName: '', icpLicense: '', statusText: '', remark: '' }
+          await this.loadIcpSites()
+        } else {
+          alert((resp.data && resp.data.message) || '保存失败')
+        }
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || '保存失败')
+      } finally {
+        this.icpSaving = false
+      }
+    },
+    async deleteIcpSite (row) {
+      if (!row || !row.id || !confirm('删除该条备案登记？')) return
+      try {
+        const resp = await this.$http.delete(`/admin/nexus/accounts/${this.selectedAccountId}/icp/sites/${row.id}`)
+        if (resp.data && resp.data.code === 0) {
+          await this.loadIcpSites()
+        } else {
+          alert((resp.data && resp.data.message) || '删除失败')
+        }
+      } catch (e) {
+        alert((e.response && e.response.data && e.response.data.message) || '删除失败')
+      }
+    },
+    formatShortTime (v) {
+      if (!v) return '—'
+      return String(v).replace('T', ' ').slice(0, 16)
+    },
+    openAliyunConsole (kind) {
+      const map = {
+        dns: 'https://dns.console.aliyun.com/',
+        oss: 'https://oss.console.aliyun.com/',
+        sms: 'https://dysms.console.aliyun.com/',
+        beian: 'https://beian.console.aliyun.com/'
+      }
+      const u = map[kind]
+      if (u) window.open(u, '_blank', 'noopener,noreferrer')
     },
     async createAccount () {
       this.creatingAccount = true
@@ -1441,6 +1771,7 @@ export default {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 .nx-main-tab {
   padding: 8px 16px;
@@ -1520,12 +1851,80 @@ export default {
   padding: 12px 16px;
   border-top: 1px solid var(--border-primary, #dee0e3);
 }
-.nx-alerts-panel, .nx-cost-panel {
+.nx-alerts-panel, .nx-cost-panel, .nx-extension-panel {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 16px 20px;
 }
+.nx-ext-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.nx-ext-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nx-ext-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+.nx-ext-loading.small { padding: 16px; }
+.nx-dns-list { display: flex; flex-direction: column; gap: 8px; }
+.nx-dns-card {
+  border: 1px solid var(--border-primary, #dee0e3);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.nx-dns-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: #fafbfc;
+}
+.nx-dns-name { font-weight: 600; font-size: 13px; flex: 1; }
+.nx-dns-meta { font-size: 12px; color: var(--text-disabled, #8F959E); }
+.nx-dns-chev { font-size: 12px; color: var(--text-secondary, #646A73); }
+.nx-dns-rec-wrap { padding: 0 12px 12px; border-top: 1px solid var(--border-primary, #dee0e3); }
+.nx-ext-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.nx-ext-table.compact td, .nx-ext-table.compact th { padding: 6px 8px; }
+.nx-ext-table th {
+  text-align: left;
+  border-bottom: 1px solid var(--border-primary, #dee0e3);
+  color: var(--text-secondary, #646A73);
+  font-weight: 500;
+}
+.nx-ext-table td {
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: top;
+}
+.nx-ext-table .mono { font-family: ui-monospace, monospace; word-break: break-all; }
+.nx-sms-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 900px) {
+  .nx-sms-grid { grid-template-columns: 1fr; }
+}
+.nx-sub-title { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.nx-icp-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 14px;
+  align-items: end;
+}
+.nx-icp-form .nx-form-item.full { grid-column: 1 / -1; }
+.danger-text { color: #d03050 !important; }
 .nx-alerts-head {
   display: flex;
   align-items: center;
