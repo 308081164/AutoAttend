@@ -59,15 +59,22 @@ public class CollabProjectController {
         return ApiResponse.ok(data);
     }
 
-    /** organization=本组织名下项目；participation=仅以成员身份参与 */
+    /**
+     * organization=会话所属租户名下项目（管理权）；participation=其它租户下仅以成员身份参与。
+     * <p>
+     * 须对 {@link CollabJwtService#PROJECT_SCOPE_ADMIN_MERGED} 与 {@link CollabJwtService#PROJECT_SCOPE_TENANT}
+     * 等管理员协作 JWT 均生效：后者仅含本租户项目，也应标为 organization，否则前端「本组织项目」页为空。
+     */
     private static String resolveParticipation(String scope, Long adminHomeTenantId, BizProject p) {
-        if (scope == null || p == null || p.getTenantId() == null) {
+        if (p == null || p.getTenantId() == null || adminHomeTenantId == null) {
             return "participation";
         }
-        if (CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope) && adminHomeTenantId != null) {
-            return p.getTenantId().equals(adminHomeTenantId) ? "organization" : "participation";
+        boolean adminScope = CollabJwtService.PROJECT_SCOPE_ADMIN_MERGED.equals(scope)
+                || CollabJwtService.PROJECT_SCOPE_TENANT.equals(scope);
+        if (!adminScope) {
+            return "participation";
         }
-        return "participation";
+        return p.getTenantId().equals(adminHomeTenantId) ? "organization" : "participation";
     }
 
     @GetMapping("/{id}")
