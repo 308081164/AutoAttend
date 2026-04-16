@@ -9,6 +9,7 @@ import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -55,6 +56,9 @@ public class SystemConfigService {
     public static final String KEY_REPORT_MAIL_ENABLED = "app.report_mail.enabled";
     public static final String KEY_REPORT_MAIL_CRON = "app.report_mail.cron";
     public static final String KEY_REPORT_MAIL_TIMEZONE = "app.report_mail.timezone";
+
+    /** 项目信息发布：平台级 JSON 配置（tenant_id=0） */
+    public static final String KEY_MARKETPLACE_PROJECT_INFO_CONFIG = "marketplace.project_info.config_json";
 
     private final SystemConfigMapper mapper;
     private final CollabPasswordService passwordHasher;
@@ -359,5 +363,52 @@ public class SystemConfigService {
         }
         String json = merged.isEmpty() ? "{}" : objectMapper.writeValueAsString(merged);
         mapper.upsert(tenantId(), KEY_QUOTE_PARTY_B_PROFILE, json);
+    }
+
+    // ===== 项目信息发布（平台级 tenant_id=0）=====
+
+    /**
+     * 默认配置：关闭模块；白名单为空；需先审后发。
+     */
+    public Map<String, Object> getMarketplaceProjectInfoConfig() {
+        String raw = mapper.findByKey(platformTenantId(), KEY_MARKETPLACE_PROJECT_INFO_CONFIG);
+        if (raw == null || raw.isBlank()) {
+            return defaultMarketplaceProjectInfoConfig();
+        }
+        try {
+            Map<String, Object> m = objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() {});
+            if (m == null) {
+                return defaultMarketplaceProjectInfoConfig();
+            }
+            return m;
+        } catch (Exception e) {
+            return defaultMarketplaceProjectInfoConfig();
+        }
+    }
+
+    public void saveMarketplaceProjectInfoConfig(Map<String, Object> incoming) throws JsonProcessingException {
+        if (incoming == null) {
+            return;
+        }
+        Map<String, Object> base = new LinkedHashMap<>(getMarketplaceProjectInfoConfig());
+        for (Map.Entry<String, Object> e : incoming.entrySet()) {
+            if (e.getKey() != null && e.getValue() != null) {
+                base.put(e.getKey(), e.getValue());
+            }
+        }
+        String json = objectMapper.writeValueAsString(base);
+        mapper.upsert(platformTenantId(), KEY_MARKETPLACE_PROJECT_INFO_CONFIG, json);
+    }
+
+    private static Map<String, Object> defaultMarketplaceProjectInfoConfig() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("enabled", false);
+        m.put("scope", "off");
+        m.put("tenantIds", List.of());
+        m.put("userIds", List.of());
+        m.put("allowGuestBrowseList", false);
+        m.put("requireContentReview", true);
+        m.put("disclaimerVersion", "2026-04-01");
+        return m;
     }
 }

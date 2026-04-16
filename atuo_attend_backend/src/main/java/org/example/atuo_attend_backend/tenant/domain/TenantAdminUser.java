@@ -10,6 +10,8 @@ public class TenantAdminUser {
     private String passwordHash;
     /** 是否已完成至少一次短信验证码登录（与仅验证码登录流程对齐） */
     private Boolean smsLoginOnboarded;
+    /** 是否可在租户内发布「项目信息」（外包信息发布模块） */
+    private Boolean canPublishProjectInfo;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -50,6 +52,14 @@ public class TenantAdminUser {
 
     public void setSmsLoginOnboarded(Boolean smsLoginOnboarded) {
         this.smsLoginOnboarded = smsLoginOnboarded;
+    }
+
+    public Boolean getCanPublishProjectInfo() {
+        return canPublishProjectInfo;
+    }
+
+    public void setCanPublishProjectInfo(Boolean canPublishProjectInfo) {
+        this.canPublishProjectInfo = canPublishProjectInfo;
     }
 
     public LocalDateTime getCreatedAt() {

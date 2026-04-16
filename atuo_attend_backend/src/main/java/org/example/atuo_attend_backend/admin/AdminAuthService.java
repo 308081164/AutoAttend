@@ -179,12 +179,16 @@ public class AdminAuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
         }
         Tenant t = tenantMapper.findById(tenantId);
+        TenantAdminUser tau = tenantAdminUserMapper.findById(userId);
         AdminUser u = new AdminUser();
         u.setUserId(userId);
         u.setPhone(phone);
         u.setUsername(phone != null ? phone : "");
         u.setRole("TENANT_ADMIN");
         u.setTenantId(tenantId);
+        if (tau != null) {
+            u.setCanPublishProjectInfo(tau.getCanPublishProjectInfo());
+        }
         if (t != null) {
             u.setTenantName(t.getName());
             u.setSlug(t.getSlug());

@@ -12,6 +12,7 @@ import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -122,6 +123,33 @@ public class PlatformSettingsController {
             data.put("message", e.getMessage() != null ? e.getMessage() : "发送失败");
             data.put("latencyMs", System.currentTimeMillis() - start);
             return ApiResponse.ok(data);
+        }
+    }
+
+    /** 项目信息发布：平台总开关与白名单（tenant_id=0 JSON） */
+    @GetMapping("/project-marketplace")
+    public ApiResponse<Map<String, Object>> getProjectMarketplace() {
+        Map<String, Object> raw = systemConfigService.getMarketplaceProjectInfoConfig();
+        Map<String, Object> data = new HashMap<>(raw);
+        Object tids = raw.get("tenantIds");
+        Object uids = raw.get("userIds");
+        data.put("tenantWhitelistCount", tids instanceof List<?> l ? l.size() : 0);
+        data.put("userWhitelistCount", uids instanceof List<?> l2 ? l2.size() : 0);
+        return ApiResponse.ok(data);
+    }
+
+    @PutMapping("/project-marketplace")
+    public ApiResponse<Void> putProjectMarketplace(@RequestBody(required = false) Map<String, Object> body,
+                                                   HttpServletRequest request) {
+        if (body == null) {
+            return ApiResponse.error(40000, "请求体不能为空");
+        }
+        try {
+            systemConfigService.saveMarketplaceProjectInfoConfig(body);
+            audit(request, "platform.settings.project_marketplace", Map.copyOf(body));
+            return ApiResponse.ok(null);
+        } catch (JsonProcessingException e) {
+            return ApiResponse.error(40000, "配置 JSON 无效");
         }
     }
 

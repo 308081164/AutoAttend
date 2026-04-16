@@ -6,6 +6,7 @@ public class TenantAdminUserItem {
 
     private Long id;
     private String phone;
+    private Boolean canPublishProjectInfo;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -22,6 +23,14 @@ public class TenantAdminUserItem {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public Boolean getCanPublishProjectInfo() {
+        return canPublishProjectInfo;
+    }
+
+    public void setCanPublishProjectInfo(Boolean canPublishProjectInfo) {
+        this.canPublishProjectInfo = canPublishProjectInfo;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -7,6 +7,8 @@ public class UpdateTenantAdminUserRequest {
 
     private String phone;
     private String newPassword;
+    /** 是否可发布项目信息；不传则不改 */
+    private Boolean canPublishProjectInfo;
 
     public String getPhone() {
         return phone;
@@ -22,5 +24,13 @@ public class UpdateTenantAdminUserRequest {
 
     public void setNewPassword(String newPassword) {
         this.newPassword = newPassword;
+    }
+
+    public Boolean getCanPublishProjectInfo() {
+        return canPublishProjectInfo;
+    }
+
+    public void setCanPublishProjectInfo(Boolean canPublishProjectInfo) {
+        this.canPublishProjectInfo = canPublishProjectInfo;
     }
 }

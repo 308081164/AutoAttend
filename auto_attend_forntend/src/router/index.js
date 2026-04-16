@@ -25,6 +25,10 @@ import CloudDevHubView from '../views/CloudDevHubView.vue'
 import ClientBoardView from '../views/ClientBoardView.vue'
 import AgentChatView from '../views/AgentChatView.vue'
 import SubscriptionBillingView from '../views/SubscriptionBillingView.vue'
+import MarketplaceListView from '../views/MarketplaceListView.vue'
+import MarketplaceDetailView from '../views/MarketplaceDetailView.vue'
+import MarketplaceMineView from '../views/MarketplaceMineView.vue'
+import MarketplacePendingView from '../views/MarketplacePendingView.vue'
 
 Vue.use(VueRouter)
 
@@ -83,6 +87,26 @@ const routes = [
     path: '/tenant-admins',
     name: 'tenant-admins',
     component: TenantAdminManageView
+  },
+  {
+    path: '/marketplace',
+    name: 'marketplace-list',
+    component: MarketplaceListView
+  },
+  {
+    path: '/marketplace/mine',
+    name: 'marketplace-mine',
+    component: MarketplaceMineView
+  },
+  {
+    path: '/marketplace/pending',
+    name: 'marketplace-pending',
+    component: MarketplacePendingView
+  },
+  {
+    path: '/marketplace/:id',
+    name: 'marketplace-detail',
+    component: MarketplaceDetailView
   },
   {
     path: '/api-config',
@@ -197,6 +221,7 @@ router.beforeEach(async (to, from, next) => {
       p === '/subscription' || p.startsWith('/subscription/') ||
       p.startsWith('/api-config') || p.startsWith('/ai-config') ||
       p.startsWith('/prototype') ||
+      p.startsWith('/marketplace') ||
       p.startsWith('/nexus') ||
       p.startsWith('/tenant-admins')
     ) {

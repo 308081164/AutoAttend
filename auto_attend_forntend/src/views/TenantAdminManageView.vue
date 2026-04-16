@@ -13,6 +13,7 @@
           <tr>
             <th>ID</th>
             <th>{{ $t('tenantAdminManage.phone') }}</th>
+            <th>{{ $t('tenantAdminManage.canPublishProject') }}</th>
             <th>{{ $t('tenantAdminManage.createdAt') }}</th>
             <th>{{ $t('dashboard.actions') }}</th>
           </tr>
@@ -21,6 +22,7 @@
           <tr v-for="u in rows" :key="u.id">
             <td>{{ u.id }}</td>
             <td><code class="mono">{{ u.phone }}</code></td>
+            <td>{{ u.canPublishProjectInfo ? '✓' : '—' }}</td>
             <td>{{ formatTime(u.createdAt) }}</td>
             <td>
               <button class="link-button" @click="openEdit(u)">{{ $t('tenantAdminManage.edit') }}</button>
@@ -41,6 +43,9 @@
         <div class="form-row">
           <label>{{ $t('tenantAdminManage.newPasswordOptional') }}</label>
           <input v-model="editForm.newPassword" type="password" autocomplete="new-password" :placeholder="$t('tenantAdminManage.leaveBlank')">
+        </div>
+        <div class="form-row">
+          <label class="chk"><input v-model="editForm.canPublishProjectInfo" type="checkbox"> {{ $t('tenantAdminManage.canPublishProject') }}</label>
         </div>
         <div class="modal-actions">
           <button class="primary-button" @click="saveEdit" :disabled="saving">{{ $t('teamManage.save') }}</button>
@@ -63,7 +68,7 @@ export default {
       currentUserId: null,
       showEditModal: false,
       editTarget: null,
-      editForm: { phone: '', newPassword: '' },
+      editForm: { phone: '', newPassword: '', canPublishProjectInfo: false },
       saving: false
     }
   },
@@ -102,14 +107,19 @@ export default {
     },
     openEdit (u) {
       this.editTarget = u
-      this.editForm = { phone: u.phone || '', newPassword: '' }
+      this.editForm = {
+        phone: u.phone || '',
+        newPassword: '',
+        canPublishProjectInfo: !!u.canPublishProjectInfo
+      }
       this.showEditModal = true
     },
     async saveEdit () {
       if (!this.editTarget) return
       const phone = (this.editForm.phone || '').trim()
       const pwd = (this.editForm.newPassword || '').trim()
-      if (!phone && !pwd) {
+      const pubChanged = this.editTarget && (Boolean(this.editTarget.canPublishProjectInfo) !== Boolean(this.editForm.canPublishProjectInfo))
+      if (!phone && !pwd && !pubChanged) {
         alert(this.$t('tenantAdminManage.needOneField'))
         return
       }
@@ -118,6 +128,7 @@ export default {
         const body = {}
         if (phone) body.phone = phone
         if (pwd) body.newPassword = pwd
+        if (pubChanged) body.canPublishProjectInfo = !!this.editForm.canPublishProjectInfo
         const r = await this.$http.put('/admin/tenant-admins/' + this.editTarget.id, body)
         if (r.data && r.data.code === 0) {
           this.showEditModal = false

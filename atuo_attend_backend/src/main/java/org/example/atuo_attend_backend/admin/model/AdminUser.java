@@ -9,6 +9,8 @@ public class AdminUser {
     private Long tenantId;
     private String tenantName;
     private String slug;
+    /** 是否可发布项目信息（外包信息发布模块） */
+    private Boolean canPublishProjectInfo;
 
     public AdminUser() {
     }
@@ -73,6 +75,14 @@ public class AdminUser {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public Boolean getCanPublishProjectInfo() {
+        return canPublishProjectInfo;
+    }
+
+    public void setCanPublishProjectInfo(Boolean canPublishProjectInfo) {
+        this.canPublishProjectInfo = canPublishProjectInfo;
     }
 }
 
