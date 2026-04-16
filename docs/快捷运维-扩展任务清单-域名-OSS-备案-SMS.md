@@ -27,14 +27,13 @@
 
 ---
 
-## 3. 备案（ICP 相关展示）
+## 3. 备案（ICP）
 
 | # | 任务 | 说明 | 依赖 / 风险 |
 |---|------|------|-------------|
-| 3.1 | 能力确认 | 核对阿里云「备案」或「网站备案」OpenAPI 当前可用接口（主体/网站备案信息查询类） | **产品 API 变更频繁，需以官方文档为准** |
-| 3.2 | 适配层 | 若仅有控制台能力，则提供**文档化跳转** + 手动登记字段；若有 API 则只读同步 | 合规：敏感信息脱敏展示 |
-| 3.3 | 数据模型 | `nexus_icp_site`（域名/网站备案号、主体名称片段、状态、同步时间） | PII 加密或掩码 |
-| 3.4 | API & UI | Tab「备案」：列表 + 状态 + 外链 | 与域名模块联动（同域名关联） |
+| 3.1 | 结论 | **阿里云不提供在第三方平台内代开通/代查询备案的公开稳定 API**；本地登记重复控制台信息价值低 | — |
+| 3.2 | 产品形态 | **仅提供跳转**：阿里云备案控制台、备案订单/进度（新窗口打开），由用户登录阿里云操作 | 需与云账号主体一致 |
+| 3.3 | ~~数据模型~~ | ~~本地表~~ 已废弃；若历史环境曾建 `aa_nexus_icp_site`，可执行 `schema_nexus_drop_icp_site_migration.sql` 删除 | — |
 
 ---
 
@@ -63,16 +62,35 @@
 1. **域名 DNS（只读）** — API 稳定、与运维排障最近。  
 2. **OSS Bucket 列表（只读）** — 实现路径与 DNS 类似。  
 3. **短信签名/模板只读** — 依赖产品 API 清晰度。  
-4. **备案** — 依赖官方 API 可用性；否则先做「跳转 + 手工登记」MVP。
+4. **备案** — **仅控制台跳转**（当前实现），不维护本地备案数据。
 
 ---
 
-## 7. 实现状态（本仓库 `cursor/nexus-metrics-chart-and-extension-tasks-7cd2`）
+## 7. 实现状态
 
-- **数据库**：`schema_nexus_extension_dns_oss_sms_icp.sql` 建表 `aa_nexus_dns_domain`、`aa_nexus_dns_record`、`aa_nexus_oss_bucket`、`aa_nexus_sms_signature`、`aa_nexus_sms_template`、`aa_nexus_icp_site`。
+- **数据库**：`schema_nexus_extension_dns_oss_sms_icp.sql` 建表 `aa_nexus_dns_domain`、`aa_nexus_dns_record`、`aa_nexus_oss_bucket`、`aa_nexus_sms_signature`、`aa_nexus_sms_template`（**不含** `aa_nexus_icp_site`）。
+- **清理旧表**：若曾创建 `aa_nexus_icp_site`，执行 `schema_nexus_drop_icp_site_migration.sql`。
 - **同步**：在 `NexusSyncService.syncAccount` 成功后调用 `NexusExtensionSyncService` 拉取 DNS / OSS / 短信元数据；亦可 `POST /api/admin/nexus/accounts/{id}/extension-sync` 单独拉取。
-- **API**：见 `NexusAdminController` — `dns/domains`、`dns/records`、`oss/buckets`、`sms/signatures`、`sms/templates`、`icp/sites`（CRUD 手工备案）。
-- **前端**：`NexusConsoleView.vue` 增加 Tab：域名 DNS、OSS、备案、短信。
+- **API**：`dns/domains`、`dns/records`、`oss/buckets`、`sms/signatures`、`sms/templates`；**无** `icp/sites`。
+- **前端**：`NexusConsoleView.vue` Tab：域名 DNS、OSS、**备案（跳转）**、短信。
 - **RAM 建议**：云账号需授权云解析只读、OSS 列举、短信查询类 Action（以阿里云控制台策略为准）。
 
-*文档版本：2026-04-16（补充实现说明）*
+---
+
+## 8. 结合《快捷运维-功能设计文档》§13，现阶段推荐优先做的能力
+
+以下与现有 **ECS + 监控 + 成本 + 快捷入口** 主线契合度高、且多为 **只读**、风险可控：
+
+| 优先级 | 能力 | 理由 |
+|--------|------|------|
+| **P1** | **安全组规则只读**（§13 A7） | 与 SSH/公网排障强相关；建议先做 Describe，写入端口走二期审批。 |
+| **P1** | **EIP 列表与绑定关系只读**（§13 A8） | 与公网 IP、SSH 入口一致；便于核对「这台 ECS 绑了哪个 EIP」。 |
+| **P2** | **云盘 / 快照列表只读**（§13 A3～A4） | 日常运维高频；先做列表与容量，创建快照需二次确认。 |
+| **P2** | **云监控「系统事件」订阅或事件列表只读**（§13 A13） | 比阈值告警更贴近云平台运维事件；可与现有告警规则互补。 |
+| **P3** | **标签 / 资源组只读**（§13 A17） | 利于多客户代维与成本分摊展示。 |
+
+**建议暂缓**：云助手 RunCommand（A1）、OOS（A2）、日志 SLS 一体化（A14）— 权限与治理成本高，适合单独里程碑。
+
+---
+
+*文档版本：2026-04-17*

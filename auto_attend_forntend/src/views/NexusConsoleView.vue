@@ -395,36 +395,19 @@
       <p v-else class="nx-alerts-empty">暂无数据，请先同步或刷新。</p>
     </div>
 
-    <!-- 备案（手工登记） -->
+    <!-- 备案：跳转阿里云（无开放 API，不在平台内登记） -->
     <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'icp'">
       <div class="nx-ext-head">
-        <h3 class="nx-panel-title">网站备案登记</h3>
-        <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openAliyunConsole('beian')">阿里云备案控制台</button>
+        <h3 class="nx-panel-title">网站备案</h3>
       </div>
-      <p class="nx-alerts-desc">阿里云备案信息无稳定公开查询 API，此处支持手工登记便于团队内对照；敏感信息请自行脱敏。</p>
-      <div class="nx-icp-form">
-        <div class="nx-form-item"><label>域名 *</label><input v-model.trim="icpForm.domainName" placeholder="example.com" /></div>
-        <div class="nx-form-item"><label>网站名称</label><input v-model.trim="icpForm.siteName" /></div>
-        <div class="nx-form-item"><label>备案号</label><input v-model.trim="icpForm.icpLicense" placeholder="京ICP备xxxx" /></div>
-        <div class="nx-form-item"><label>状态说明</label><input v-model.trim="icpForm.statusText" /></div>
-        <div class="nx-form-item full"><label>备注</label><input v-model.trim="icpForm.remark" /></div>
-        <button type="button" class="nx-btn nx-btn--primary nx-btn--sm" :disabled="icpSaving || !icpForm.domainName" @click="saveIcpSite">{{ icpSaving ? '保存中…' : '添加登记' }}</button>
+      <p class="nx-alerts-desc">
+        阿里云未提供在第三方平台内「代开通/代查询备案」的稳定开放 API；备案申请、进度与管局审核均在阿里云备案系统完成。点击下方按钮在新标签页打开控制台，请使用与当前云账号一致的阿里云账号登录。
+      </p>
+      <div class="nx-icp-actions">
+        <button type="button" class="nx-btn nx-btn--primary" @click="openAliyunConsole('beian')">打开阿里云备案控制台</button>
+        <button type="button" class="nx-btn nx-btn--secondary" @click="openAliyunConsole('beianOrder')">备案订单 / 进度</button>
       </div>
-      <div v-if="icpLoading" class="nx-ext-loading"><div class="nx-spinner"></div></div>
-      <table v-else-if="icpSites.length" class="nx-ext-table" style="margin-top:16px">
-        <thead><tr><th>域名</th><th>网站名</th><th>备案号</th><th>状态</th><th>更新</th><th></th></tr></thead>
-        <tbody>
-          <tr v-for="s in icpSites" :key="s.id">
-            <td>{{ s.domainName }}</td>
-            <td>{{ s.siteName || '—' }}</td>
-            <td class="mono">{{ s.icpLicense || '—' }}</td>
-            <td>{{ s.statusText || '—' }}</td>
-            <td>{{ formatShortTime(s.updatedAt) }}</td>
-            <td><button type="button" class="nx-btn nx-btn--ghost nx-btn--sm danger-text" @click="deleteIcpSite(s)">删除</button></td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-else class="nx-alerts-empty">暂无登记</p>
+      <p class="nx-icp-footnote">提示：若页面提示未登录，请先登录阿里云账号后再操作。</p>
     </div>
 
     <!-- 短信元数据 -->
@@ -595,10 +578,6 @@ export default {
       ossBuckets: [],
       smsSignatures: [],
       smsTemplates: [],
-      icpSites: [],
-      icpLoading: false,
-      icpSaving: false,
-      icpForm: { domainName: '', siteName: '', icpLicense: '', statusText: '', remark: '' }
     }
   },
   created () {
@@ -766,7 +745,7 @@ export default {
       if (this.mainTab === 'dns') return this.loadDnsDomains()
       if (this.mainTab === 'oss') return this.loadOssBuckets()
       if (this.mainTab === 'sms') return this.loadSmsMeta()
-      if (this.mainTab === 'icp') return this.loadIcpSites()
+      if (this.mainTab === 'icp') return Promise.resolve()
     },
     async refreshExtensionOnly () {
       if (!this.selectedAccountId) return
@@ -854,59 +833,6 @@ export default {
         this.extensionLoading = false
       }
     },
-    async loadIcpSites () {
-      this.icpLoading = true
-      try {
-        const resp = await this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/icp/sites`)
-        if (resp.data && resp.data.code === 0) {
-          this.icpSites = resp.data.data || []
-        } else {
-          this.icpSites = []
-        }
-      } catch (e) {
-        this.icpSites = []
-      } finally {
-        this.icpLoading = false
-      }
-    },
-    async saveIcpSite () {
-      const domain = (this.icpForm.domainName || '').trim()
-      if (!domain || !this.selectedAccountId) return
-      this.icpSaving = true
-      try {
-        const body = {
-          domainName: domain,
-          siteName: this.icpForm.siteName || null,
-          icpLicense: this.icpForm.icpLicense || null,
-          statusText: this.icpForm.statusText || null,
-          remark: this.icpForm.remark || null
-        }
-        const resp = await this.$http.post(`/admin/nexus/accounts/${this.selectedAccountId}/icp/sites`, body)
-        if (resp.data && resp.data.code === 0) {
-          this.icpForm = { domainName: '', siteName: '', icpLicense: '', statusText: '', remark: '' }
-          await this.loadIcpSites()
-        } else {
-          alert((resp.data && resp.data.message) || '保存失败')
-        }
-      } catch (e) {
-        alert((e.response && e.response.data && e.response.data.message) || '保存失败')
-      } finally {
-        this.icpSaving = false
-      }
-    },
-    async deleteIcpSite (row) {
-      if (!row || !row.id || !confirm('删除该条备案登记？')) return
-      try {
-        const resp = await this.$http.delete(`/admin/nexus/accounts/${this.selectedAccountId}/icp/sites/${row.id}`)
-        if (resp.data && resp.data.code === 0) {
-          await this.loadIcpSites()
-        } else {
-          alert((resp.data && resp.data.message) || '删除失败')
-        }
-      } catch (e) {
-        alert((e.response && e.response.data && e.response.data.message) || '删除失败')
-      }
-    },
     formatShortTime (v) {
       if (!v) return '—'
       return String(v).replace('T', ' ').slice(0, 16)
@@ -916,7 +842,8 @@ export default {
         dns: 'https://dns.console.aliyun.com/',
         oss: 'https://oss.console.aliyun.com/',
         sms: 'https://dysms.console.aliyun.com/',
-        beian: 'https://beian.console.aliyun.com/'
+        beian: 'https://beian.console.aliyun.com/',
+        beianOrder: 'https://bsn.console.aliyun.com/'
       }
       const u = map[kind]
       if (u) window.open(u, '_blank', 'noopener,noreferrer')
@@ -1917,14 +1844,17 @@ export default {
   .nx-sms-grid { grid-template-columns: 1fr; }
 }
 .nx-sub-title { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
-.nx-icp-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px 14px;
-  align-items: end;
+.nx-icp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
-.nx-icp-form .nx-form-item.full { grid-column: 1 / -1; }
-.danger-text { color: #d03050 !important; }
+.nx-icp-footnote {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-disabled, #8F959E);
+}
 .nx-alerts-head {
   display: flex;
   align-items: center;

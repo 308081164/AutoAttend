@@ -17,7 +17,6 @@ import org.example.atuo_attend_backend.nexus.mapper.NexusCloudAccountMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusCpuMetricMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusDnsDomainMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusDnsRecordMapper;
-import org.example.atuo_attend_backend.nexus.mapper.NexusIcpSiteMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusInstanceMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusMemoryMetricMapper;
 import org.example.atuo_attend_backend.nexus.mapper.NexusOssBucketMapper;
@@ -27,7 +26,6 @@ import org.example.atuo_attend_backend.nexus.service.NexusBssCostService;
 import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
 import org.example.atuo_attend_backend.nexus.service.NexusExtensionSyncService;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
-import org.example.atuo_attend_backend.nexus.domain.NexusIcpSite;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
@@ -62,7 +60,6 @@ public class NexusAdminController {
     private final NexusOssBucketMapper ossBucketMapper;
     private final NexusSmsSignatureMapper smsSignatureMapper;
     private final NexusSmsTemplateMapper smsTemplateMapper;
-    private final NexusIcpSiteMapper icpSiteMapper;
     private final NexusExtensionSyncService extensionSyncService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -84,7 +81,6 @@ public class NexusAdminController {
             NexusOssBucketMapper ossBucketMapper,
             NexusSmsSignatureMapper smsSignatureMapper,
             NexusSmsTemplateMapper smsTemplateMapper,
-            NexusIcpSiteMapper icpSiteMapper,
             NexusExtensionSyncService extensionSyncService
     ) {
         this.accountMapper = accountMapper;
@@ -104,7 +100,6 @@ public class NexusAdminController {
         this.ossBucketMapper = ossBucketMapper;
         this.smsSignatureMapper = smsSignatureMapper;
         this.smsTemplateMapper = smsTemplateMapper;
-        this.icpSiteMapper = icpSiteMapper;
         this.extensionSyncService = extensionSyncService;
     }
 
@@ -274,82 +269,6 @@ public class NexusAdminController {
         return ApiResponse.ok(smsTemplateMapper.listByAccount(tenantId, accountId));
     }
 
-    @GetMapping("/accounts/{accountId}/icp/sites")
-    public ApiResponse<List<Map<String, Object>>> listIcpSites(@PathVariable long accountId, HttpServletRequest request) {
-        long tenantId = tenantIdFrom(request);
-        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
-        return ApiResponse.ok(icpSiteMapper.listByAccount(tenantId, accountId));
-    }
-
-    @PostMapping("/accounts/{accountId}/icp/sites")
-    public ApiResponse<Map<String, Object>> createIcpSite(
-            @PathVariable long accountId,
-            @RequestBody NexusIcpSiteWriteRequest req,
-            HttpServletRequest request
-    ) {
-        long tenantId = tenantIdFrom(request);
-        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
-        if (req == null || req.getDomainName() == null || req.getDomainName().isBlank()) {
-            return ApiResponse.error(40000, "domainName required");
-        }
-        NexusIcpSite row = new NexusIcpSite();
-        row.setTenantId(tenantId);
-        row.setAccountId(accountId);
-        row.setDomainName(req.getDomainName().trim());
-        row.setSiteName(trimOrNull(req.getSiteName()));
-        row.setIcpLicense(trimOrNull(req.getIcpLicense()));
-        row.setStatusText(trimOrNull(req.getStatusText()));
-        row.setRemark(trimOrNull(req.getRemark()));
-        icpSiteMapper.insert(row);
-        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
-        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
-        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.create", "icp_site", String.valueOf(row.getId()), "success", null);
-        return ApiResponse.ok(Map.of("id", row.getId()));
-    }
-
-    @PutMapping("/accounts/{accountId}/icp/sites/{siteId}")
-    public ApiResponse<Void> updateIcpSite(
-            @PathVariable long accountId,
-            @PathVariable long siteId,
-            @RequestBody NexusIcpSiteWriteRequest req,
-            HttpServletRequest request
-    ) {
-        long tenantId = tenantIdFrom(request);
-        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
-        if (req == null) return ApiResponse.error(40000, "body required");
-        int n = icpSiteMapper.update(tenantId, siteId,
-                trimOrNull(req.getSiteName()),
-                trimOrNull(req.getIcpLicense()),
-                trimOrNull(req.getStatusText()),
-                trimOrNull(req.getRemark()));
-        if (n <= 0) return ApiResponse.error(40400, "record not found");
-        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
-        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
-        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.update", "icp_site", String.valueOf(siteId), "success", null);
-        return ApiResponse.ok(null);
-    }
-
-    @DeleteMapping("/accounts/{accountId}/icp/sites/{siteId}")
-    public ApiResponse<Void> deleteIcpSite(
-            @PathVariable long accountId,
-            @PathVariable long siteId,
-            HttpServletRequest request
-    ) {
-        long tenantId = tenantIdFrom(request);
-        if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
-        int n = icpSiteMapper.delete(tenantId, siteId);
-        if (n <= 0) return ApiResponse.error(40400, "record not found");
-        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
-        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
-        auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.delete", "icp_site", String.valueOf(siteId), "success", null);
-        return ApiResponse.ok(null);
-    }
-
-    private static String trimOrNull(String s) {
-        if (s == null) return null;
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
-    }
 
     @GetMapping("/accounts/{accountId}/instances/{instanceId}/cpu-metrics")
     public ApiResponse<List<NexusCpuMetricMapper.MetricRow>> cpuMetrics(

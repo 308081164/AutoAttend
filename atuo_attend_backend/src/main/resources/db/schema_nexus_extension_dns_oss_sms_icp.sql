@@ -1,4 +1,5 @@
--- 快捷运维扩展：DNS 域名/解析、OSS Bucket、短信签名与模板（缓存）、ICP 备案登记（手工）
+-- 快捷运维扩展：DNS 域名/解析、OSS Bucket、短信签名与模板（缓存）
+-- 备案（ICP）在平台内仅提供跳转阿里云备案控制台，不使用本地表；见 schema_nexus_drop_icp_site_migration.sql
 
 CREATE TABLE IF NOT EXISTS aa_nexus_dns_domain (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -68,19 +69,4 @@ CREATE TABLE IF NOT EXISTS aa_nexus_sms_template (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_nexus_sms_tpl_acc (tenant_id, account_id),
     UNIQUE KEY uk_nexus_sms_tpl (tenant_id, account_id, template_code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS aa_nexus_icp_site (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    tenant_id BIGINT NOT NULL,
-    account_id BIGINT NOT NULL,
-    domain_name VARCHAR(255) NOT NULL,
-    site_name VARCHAR(255) NULL,
-    icp_license VARCHAR(128) NULL,
-    status_text VARCHAR(255) NULL,
-    remark VARCHAR(1024) NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    KEY idx_nexus_icp_acc (tenant_id, account_id),
-    KEY idx_nexus_icp_domain (tenant_id, account_id, domain_name(128))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
