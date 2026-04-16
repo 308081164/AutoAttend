@@ -10,6 +10,7 @@ import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.List;
@@ -57,12 +58,51 @@ public class AdminAgentController {
             backgroundAttachmentIds = request.getBackgroundAttachmentIds();
         }
 
-        AgentSession session = sessionService.createSession(
-                tenantId, projectId, projectContext,
-                backgroundTexts, backgroundAttachmentIds
-        );
+        try {
+            AgentSession session = sessionService.createSession(
+                    tenantId, projectId, projectContext,
+                    backgroundTexts, backgroundAttachmentIds
+            );
+            return ApiResponse.ok(session);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
 
-        return ApiResponse.ok(session);
+    /**
+     * 列出报价关联协作项目下的附件，供「新建 Agent 会话」勾选背景材料。
+     */
+    @GetMapping("/quote/projects/{quoteProjectId}/agent-background-attachments")
+    public ApiResponse<?> listAgentBackgroundAttachments(@PathVariable Long quoteProjectId,
+                                                         HttpServletRequest httpRequest) {
+        long tenantId = tenantIdFrom(httpRequest);
+        try {
+            return ApiResponse.ok(sessionService.listBackgroundAttachmentsForQuote(tenantId, quoteProjectId));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
+    /**
+     * 上传背景附件到协作项目（与多维表项目级附件同源），用于新建会话。
+     */
+    @PostMapping("/quote/projects/{quoteProjectId}/agent-background-attachments")
+    public ApiResponse<?> uploadAgentBackgroundAttachment(@PathVariable Long quoteProjectId,
+                                                          @RequestParam("file") MultipartFile file,
+                                                          HttpServletRequest httpRequest) {
+        long tenantId = tenantIdFrom(httpRequest);
+        Long uid = null;
+        Object u = httpRequest != null ? httpRequest.getAttribute(AdminAuthFilter.ATTR_USER_ID) : null;
+        if (u instanceof Long l) {
+            uid = l;
+        }
+        try {
+            return ApiResponse.ok(sessionService.uploadBackgroundAttachmentForQuote(tenantId, quoteProjectId, uid, file));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, "上传失败: " + e.getMessage());
+        }
     }
 
     /**

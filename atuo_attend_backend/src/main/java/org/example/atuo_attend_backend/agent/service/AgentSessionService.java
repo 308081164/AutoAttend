@@ -14,6 +14,7 @@ import org.example.atuo_attend_backend.ai.mapper.AiTokenUsageMapper;
 import org.example.atuo_attend_backend.collab.domain.BizAttachment;
 import org.example.atuo_attend_backend.collab.mapper.BizAttachmentMapper;
 import org.example.atuo_attend_backend.collab.service.MinioService;
+import org.example.atuo_attend_backend.quote.service.QuoteCollabLinkService;
 import org.example.atuo_attend_backend.tenant.quota.TenantResourceQuotaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Agent 会话服务 - 核心业务逻辑
@@ -43,7 +45,11 @@ public class AgentSessionService {
     private final AiAnalysisConfigMapper aiAnalysisConfigMapper;
     private final AiTokenUsageMapper tokenUsageMapper;
     private final TenantResourceQuotaService tenantResourceQuotaService;
+    private final QuoteCollabLinkService quoteCollabLinkService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** 新建会话时可选背景附件数量上限 */
+    private static final int MAX_BACKGROUND_ATTACHMENTS = 12;
 
     public AgentSessionService(AgentSessionMapper sessionMapper,
                                AgentMessageMapper messageMapper,
@@ -53,7 +59,8 @@ public class AgentSessionService {
                                QwenClient qwenClient,
                                AiAnalysisConfigMapper aiAnalysisConfigMapper,
                                AiTokenUsageMapper tokenUsageMapper,
-                               TenantResourceQuotaService tenantResourceQuotaService) {
+                               TenantResourceQuotaService tenantResourceQuotaService,
+                               QuoteCollabLinkService quoteCollabLinkService) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.attachmentMapper = attachmentMapper;
@@ -63,6 +70,7 @@ public class AgentSessionService {
         this.aiAnalysisConfigMapper = aiAnalysisConfigMapper;
         this.tokenUsageMapper = tokenUsageMapper;
         this.tenantResourceQuotaService = tenantResourceQuotaService;
+        this.quoteCollabLinkService = quoteCollabLinkService;
     }
 
     private AiAnalysisConfig requireDeepSeekConfig(long tenantId) {
@@ -149,6 +157,8 @@ public class AgentSessionService {
 
         tenantResourceQuotaService.assertCanCreateAgentSession(tenantId);
 
+        backgroundAttachmentIds = validateAndNormalizeBackgroundAttachmentIds(tenantId, projectId, backgroundAttachmentIds);
+
         // 1. 生成 48 字符随机 publicToken
         String publicToken = generatePublicToken();
 
@@ -217,6 +227,80 @@ public class AgentSessionService {
         }
 
         return session;
+    }
+
+    /**
+     * 报价页「新建 Agent 会话」：列出当前报价关联协作项目下的附件（供勾选作为背景）。
+     */
+    public Map<String, Object> listBackgroundAttachmentsForQuote(long tenantId, long quoteProjectId) {
+        long collabProjectId = quoteCollabLinkService.resolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        List<BizAttachment> list = attachmentMapper.listByProjectId(collabProjectId);
+        List<Map<String, Object>> items = list.stream().map(a -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", a.getId());
+            m.put("fileName", a.getFileName());
+            m.put("fileSize", a.getFileSize());
+            m.put("createdAt", a.getCreatedAt());
+            m.put("isImage", isImageFile(a.getFileName()));
+            return m;
+        }).collect(Collectors.toList());
+        Map<String, Object> data = new HashMap<>();
+        data.put("items", items);
+        data.put("collabProjectId", collabProjectId);
+        return data;
+    }
+
+    /**
+     * 报价页上传背景附件：写入协作项目 MinIO，与多维表「项目级附件」一致。
+     */
+    public Map<String, Object> uploadBackgroundAttachmentForQuote(long tenantId, long quoteProjectId,
+                                                                   Long uploadedBy, MultipartFile file) throws Exception {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("请选择文件");
+        }
+        long collabProjectId = quoteCollabLinkService.resolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
+        String key = minioService.upload(collabProjectId, 0L, originalName, file.getInputStream(), file.getSize());
+        BizAttachment att = new BizAttachment();
+        att.setProjectId(collabProjectId);
+        att.setRecordId(null);
+        att.setFileName(originalName);
+        att.setFileSize(file.getSize());
+        att.setStorageKey(key);
+        att.setUploadedBy(uploadedBy);
+        attachmentMapper.insert(att);
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", att.getId());
+        data.put("fileName", att.getFileName());
+        data.put("fileSize", att.getFileSize());
+        data.put("createdAt", att.getCreatedAt());
+        data.put("isImage", isImageFile(att.getFileName()));
+        data.put("collabProjectId", collabProjectId);
+        return data;
+    }
+
+    /**
+     * 校验「背景附件」均属于当前报价关联的协作项目，并去重、限制数量。
+     */
+    private List<Long> validateAndNormalizeBackgroundAttachmentIds(long tenantId, long quoteProjectId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return null;
+        }
+        List<Long> dedup = ids.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (dedup.size() > MAX_BACKGROUND_ATTACHMENTS) {
+            throw new IllegalArgumentException("背景附件最多选择 " + MAX_BACKGROUND_ATTACHMENTS + " 个");
+        }
+        long collabProjectId = quoteCollabLinkService.resolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        for (Long id : dedup) {
+            BizAttachment att = attachmentMapper.findById(id);
+            if (att == null || att.getProjectId() == null || att.getProjectId() != collabProjectId) {
+                throw new IllegalArgumentException("附件不存在或不属于当前报价关联的协作项目");
+            }
+        }
+        return dedup;
     }
 
     /**
