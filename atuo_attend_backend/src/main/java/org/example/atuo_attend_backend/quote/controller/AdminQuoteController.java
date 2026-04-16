@@ -225,6 +225,21 @@ public class AdminQuoteController {
         }
     }
 
+    /**
+     * 商务调价：对「最近一次计算」结果做等比例缩放（或按目标总价反算系数）。
+     */
+    @PostMapping("/projects/{id}/price-adjust")
+    public ApiResponse<Map<String, Object>> priceAdjust(@PathVariable long id,
+                                                        @RequestBody(required = false) QuotePriceAdjustRequest body) {
+        try {
+            return ApiResponse.ok(quoteService.applyPriceAdjustment(id, body != null ? body : new QuotePriceAdjustRequest()));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
+    }
+
     @PostMapping("/projects/{id}/calculate")
     public ApiResponse<Map<String, Object>> calculate(@PathVariable long id,
                                                         @RequestBody(required = false) QuoteCalculateRequest calcReq,

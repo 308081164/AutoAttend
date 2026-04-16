@@ -11,6 +11,12 @@ public class QuoteItem {
     private int quantity;
     private BigDecimal estimatedDays;
     private int sortOrder;
+    /** 不参与等比例商务调价（如第三方固定费用） */
+    private Boolean excludedFromScale;
+    /** 模型总价分摊到本行的基线金额 */
+    private BigDecimal linePriceSnap;
+    /** 商务调价后金额 */
+    private BigDecimal linePriceAdjusted;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -28,4 +34,10 @@ public class QuoteItem {
     public void setEstimatedDays(BigDecimal estimatedDays) { this.estimatedDays = estimatedDays; }
     public int getSortOrder() { return sortOrder; }
     public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
+    public Boolean getExcludedFromScale() { return excludedFromScale; }
+    public void setExcludedFromScale(Boolean excludedFromScale) { this.excludedFromScale = excludedFromScale; }
+    public BigDecimal getLinePriceSnap() { return linePriceSnap; }
+    public void setLinePriceSnap(BigDecimal linePriceSnap) { this.linePriceSnap = linePriceSnap; }
+    public BigDecimal getLinePriceAdjusted() { return linePriceAdjusted; }
+    public void setLinePriceAdjusted(BigDecimal linePriceAdjusted) { this.linePriceAdjusted = linePriceAdjusted; }
 }

@@ -13,6 +13,14 @@ public class QuoteResult {
     private BigDecimal riskPctTotal;
     private BigDecimal riskAmount;
     private BigDecimal finalAmount;
+    /** 模型输出的总价（调价前基线），与首次计算时 final_amount 一致 */
+    private BigDecimal baselineFinalAmount;
+    /** 作用于可缩放明细行的商务系数 */
+    private BigDecimal priceScaleFactor;
+    /** 商务调价后总价（对外展示） */
+    private BigDecimal adjustedFinalAmount;
+    /** 调价备注 */
+    private String priceAdjustNote;
     private int confidenceScore;
     private String auditChecklistJson;
     private String selectedRisksJson;
@@ -39,6 +47,14 @@ public class QuoteResult {
     public void setRiskAmount(BigDecimal riskAmount) { this.riskAmount = riskAmount; }
     public BigDecimal getFinalAmount() { return finalAmount; }
     public void setFinalAmount(BigDecimal finalAmount) { this.finalAmount = finalAmount; }
+    public BigDecimal getBaselineFinalAmount() { return baselineFinalAmount; }
+    public void setBaselineFinalAmount(BigDecimal baselineFinalAmount) { this.baselineFinalAmount = baselineFinalAmount; }
+    public BigDecimal getPriceScaleFactor() { return priceScaleFactor; }
+    public void setPriceScaleFactor(BigDecimal priceScaleFactor) { this.priceScaleFactor = priceScaleFactor; }
+    public BigDecimal getAdjustedFinalAmount() { return adjustedFinalAmount; }
+    public void setAdjustedFinalAmount(BigDecimal adjustedFinalAmount) { this.adjustedFinalAmount = adjustedFinalAmount; }
+    public String getPriceAdjustNote() { return priceAdjustNote; }
+    public void setPriceAdjustNote(String priceAdjustNote) { this.priceAdjustNote = priceAdjustNote; }
     public int getConfidenceScore() { return confidenceScore; }
     public void setConfidenceScore(int confidenceScore) { this.confidenceScore = confidenceScore; }
     public String getAuditChecklistJson() { return auditChecklistJson; }

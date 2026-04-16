@@ -16,6 +16,8 @@ public class QuoteAiModulesParseRequest {
     private String securityLevel;
     private String deployType;
     private String prdSummary;
+    /** 为 true 时要求 AI 按「多交付物」输出 deliverables[]（整套系统报价） */
+    private Boolean multiDeliverableMode;
 
     public String getRequirementText() {
         return requirementText;
@@ -87,5 +89,13 @@ public class QuoteAiModulesParseRequest {
 
     public void setPrdSummary(String prdSummary) {
         this.prdSummary = prdSummary;
+    }
+
+    public Boolean getMultiDeliverableMode() {
+        return multiDeliverableMode;
+    }
+
+    public void setMultiDeliverableMode(Boolean multiDeliverableMode) {
+        this.multiDeliverableMode = multiDeliverableMode;
     }
 }

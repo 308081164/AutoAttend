@@ -8,14 +8,16 @@ import java.util.List;
 @Mapper
 public interface QuoteModuleMapper {
 
-    @Insert("INSERT INTO biz_quote_module (tenant_id, quote_project_id, name, sort_order) VALUES (#{tenantId}, #{quoteProjectId}, #{name}, #{sortOrder})")
+    @Insert("INSERT INTO biz_quote_module (tenant_id, quote_project_id, name, sort_order, deliverable_key, deliverable_label) " +
+            "VALUES (#{tenantId}, #{quoteProjectId}, #{name}, #{sortOrder}, #{deliverableKey}, #{deliverableLabel})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(QuoteModule m);
 
     @Delete("DELETE FROM biz_quote_module WHERE tenant_id = #{tenantId} AND quote_project_id = #{projectId}")
     int deleteByProjectId(@Param("tenantId") long tenantId, @Param("projectId") long projectId);
 
-    @Select("SELECT id, tenant_id AS tenantId, quote_project_id AS quoteProjectId, name, sort_order AS sortOrder FROM biz_quote_module " +
-            "WHERE tenant_id = #{tenantId} AND quote_project_id = #{projectId} ORDER BY sort_order, id")
+    @Select("SELECT id, tenant_id AS tenantId, quote_project_id AS quoteProjectId, name, sort_order AS sortOrder, " +
+            "deliverable_key AS deliverableKey, deliverable_label AS deliverableLabel FROM biz_quote_module " +
+            "WHERE tenant_id = #{tenantId} AND quote_project_id = #{projectId} ORDER BY deliverable_key, sort_order, id")
     List<QuoteModule> listByProjectId(@Param("tenantId") long tenantId, @Param("projectId") long projectId);
 }

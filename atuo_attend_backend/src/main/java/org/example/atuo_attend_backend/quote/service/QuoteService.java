@@ -198,6 +198,12 @@ public class QuoteService {
             m.setQuoteProjectId(projectId);
             m.setName(md.getName().trim());
             m.setSortOrder(md.getSortOrder() != 0 ? md.getSortOrder() : mi++);
+            String dk = trimToNull(md.getDeliverableKey());
+            if (dk == null) {
+                dk = "default";
+            }
+            m.setDeliverableKey(dk);
+            m.setDeliverableLabel(trimToNull(md.getDeliverableLabel()));
             moduleMapper.insert(m);
             int ii = 0;
             for (QuoteItemSaveDto it : md.getItems()) {
@@ -210,6 +216,9 @@ public class QuoteService {
                 item.setQuantity(Math.max(1, it.getQuantity()));
                 item.setEstimatedDays(BigDecimal.ZERO);
                 item.setSortOrder(ii++);
+                item.setExcludedFromScale(Boolean.TRUE.equals(it.getExcludedFromScale()));
+                item.setLinePriceSnap(null);
+                item.setLinePriceAdjusted(null);
                 itemMapper.insert(item);
             }
         }
@@ -225,6 +234,8 @@ public class QuoteService {
             mm.put("id", m.getId());
             mm.put("name", m.getName());
             mm.put("sortOrder", m.getSortOrder());
+            mm.put("deliverableKey", m.getDeliverableKey() != null ? m.getDeliverableKey() : "default");
+            mm.put("deliverableLabel", m.getDeliverableLabel());
             List<Map<String, Object>> items = new ArrayList<>();
             for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
                 Map<String, Object> im = new LinkedHashMap<>();
@@ -233,6 +244,9 @@ public class QuoteService {
                 im.put("complexity", it.getComplexity());
                 im.put("quantity", it.getQuantity());
                 im.put("estimatedDays", it.getEstimatedDays());
+                im.put("excludedFromScale", Boolean.TRUE.equals(it.getExcludedFromScale()));
+                im.put("linePriceSnap", it.getLinePriceSnap());
+                im.put("linePriceAdjusted", it.getLinePriceAdjusted());
                 items.add(im);
             }
             mm.put("items", items);
@@ -449,14 +463,20 @@ public class QuoteService {
         r.setDurationCoefficientUsed(durationCoeff);
         r.setEstimatedDurationDays(estimatedDuration);
         r.setRegionLabelUsed(regionLabel);
+        r.setBaselineFinalAmount(finalAmount);
+        r.setPriceScaleFactor(BigDecimal.ONE);
+        r.setAdjustedFinalAmount(finalAmount);
+        r.setPriceAdjustNote(null);
         r.setTenantId(tid());
         resultMapper.insert(r);
+        distributeBaselineLinePrices(projectId, finalAmount);
         try {
             projectMapper.updateQuoteCalcPrefs(tid(),projectId, objectMapper.writeValueAsString(buildQuoteCalcPrefsMap(req)));
         } catch (Exception ignored) {
             // 不因偏好落库失败影响报价结果
         }
-        Map<String, Object> data = resultToMap(r);
+        QuoteResult persisted = resultMapper.findById(tid(), r.getId());
+        Map<String, Object> data = resultToMap(persisted != null ? persisted : r);
         data.put("riskHints", hints);
         data.put("confidenceLevel", confidenceLevel(confidence));
         return data;
@@ -577,23 +597,55 @@ public class QuoteService {
         sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
         sb.append("<p><strong>生成时间：</strong>").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))).append("</p>");
         sb.append("<p><strong>技术栈：</strong>").append(esc(p.getTechStack())).append(" &nbsp; <strong>项目类型：</strong>").append(esc(p.getProjectType())).append("</p>");
-        sb.append("<table><thead><tr><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>人天</th></tr></thead><tbody>");
+        sb.append("<table><thead><tr><th>交付物</th><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>人天</th><th>金额(元)</th></tr></thead><tbody>");
         for (QuoteModule m : moduleMapper.listByProjectId(tid(),p.getId())) {
+            String dlab = m.getDeliverableLabel();
+            String dk = m.getDeliverableKey() != null ? m.getDeliverableKey() : "default";
+            String delCell = (dlab != null && !dlab.isBlank()) ? esc(dlab) : esc(dk);
             for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
-                sb.append("<tr><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
+                String amt = it.getLinePriceAdjusted() != null ? it.getLinePriceAdjusted().toPlainString()
+                        : (it.getLinePriceSnap() != null ? it.getLinePriceSnap().toPlainString() : "—");
+                sb.append("<tr><td>").append(delCell).append("</td><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
                         .append("</td><td>").append(esc(it.getComplexity())).append("</td><td>").append(it.getQuantity())
                         .append("</td><td>").append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0")
+                        .append("</td><td>").append(amt)
                         .append("</td></tr>");
             }
         }
         sb.append("</tbody></table>");
+        Map<String, BigDecimal> subByKey = new LinkedHashMap<>();
+        for (QuoteModule m : moduleMapper.listByProjectId(tid(), p.getId())) {
+            String dk = m.getDeliverableKey() != null ? m.getDeliverableKey() : "default";
+            String label = (m.getDeliverableLabel() != null && !m.getDeliverableLabel().isBlank()) ? m.getDeliverableLabel() : dk;
+            for (QuoteItem it : itemMapper.listByModuleId(tid(), m.getId())) {
+                BigDecimal line = it.getLinePriceAdjusted() != null ? it.getLinePriceAdjusted()
+                        : (it.getLinePriceSnap() != null ? it.getLinePriceSnap() : BigDecimal.ZERO);
+                subByKey.merge(label, line, BigDecimal::add);
+            }
+        }
+        if (subByKey.size() > 1) {
+            sb.append("<p style='margin-top:12px'><strong>分交付物小计：</strong></p><ul>");
+            for (Map.Entry<String, BigDecimal> e : subByKey.entrySet()) {
+                sb.append("<li>").append(esc(e.getKey())).append("：").append(e.getValue().toPlainString()).append(" 元</li>");
+            }
+            sb.append("</ul>");
+        }
         sb.append("<p style='margin-top:20px'><strong>总人天：</strong>").append(r.getTotalDays().toPlainString());
         sb.append(" &nbsp; <strong>工期系数：</strong>").append(r.getDurationCoefficientUsed() != null ? r.getDurationCoefficientUsed().toPlainString() : "1.2");
         sb.append(" &nbsp; <strong>预计工期（天）：</strong>").append(r.getEstimatedDurationDays() != null ? r.getEstimatedDurationDays().toPlainString() : "0");
         sb.append(" &nbsp; <strong>人天单价：</strong>").append(r.getPricePerDayUsed().toPlainString()).append("（").append(esc(r.getRegionLabelUsed())).append("）</p>");
         sb.append("<p><strong>基础金额：</strong>").append(r.getBaseAmount().toPlainString());
         sb.append(" &nbsp; <strong>风险合计：</strong>+").append(r.getRiskPctTotal().toPlainString()).append("%，风险金额：").append(r.getRiskAmount().toPlainString());
-        sb.append(" &nbsp; <strong>最终报价：</strong><span style='color:#059669;font-size:18px'>").append(r.getFinalAmount().toPlainString()).append("</span> 元</p>");
+        BigDecimal baseLine = r.getBaselineFinalAmount() != null ? r.getBaselineFinalAmount() : r.getFinalAmount();
+        sb.append(" &nbsp; <strong>模型基线总价：</strong>").append(baseLine.toPlainString()).append(" 元");
+        if (r.getPriceScaleFactor() != null && r.getPriceScaleFactor().compareTo(BigDecimal.ONE) != 0) {
+            sb.append(" &nbsp; <strong>商务系数：</strong>").append(r.getPriceScaleFactor().stripTrailingZeros().toPlainString());
+        }
+        sb.append("</p>");
+        if (r.getPriceAdjustNote() != null && !r.getPriceAdjustNote().isBlank()) {
+            sb.append("<p><strong>调价说明：</strong>").append(esc(r.getPriceAdjustNote())).append("</p>");
+        }
+        sb.append("<p><strong>最终对外报价：</strong><span style='color:#059669;font-size:18px'>").append(r.getFinalAmount().toPlainString()).append("</span> 元</p>");
         sb.append("<p><strong>置信度评分：</strong>").append(r.getConfidenceScore()).append("/100</p>");
         sb.append("</body></html>");
         return sb.toString();
@@ -644,6 +696,30 @@ public class QuoteService {
 
     private static String nz(String s) {
         return s == null ? "" : s.trim();
+    }
+
+    private List<Map<String, Object>> parseQuoteModuleItemsJson(JsonNode itemsNode) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        if (itemsNode == null || !itemsNode.isArray()) {
+            return items;
+        }
+        for (JsonNode it : itemsNode) {
+            String itemName = it.has("name") ? it.get("name").asText("").trim() : "";
+            if (itemName.isEmpty()) {
+                continue;
+            }
+            String complexity = normalizeComplexityForQuote(it.has("complexity") ? it.get("complexity").asText() : "standard");
+            int qty = 1;
+            if (it.has("quantity") && it.get("quantity").isNumber()) {
+                qty = Math.max(1, it.get("quantity").intValue());
+            }
+            Map<String, Object> im = new LinkedHashMap<>();
+            im.put("name", itemName);
+            im.put("complexity", complexity);
+            im.put("quantity", qty);
+            items.add(im);
+        }
+        return items;
     }
 
     private static String formatLegalEntityContactLine(Map<String, Object> profile) {
@@ -824,11 +900,153 @@ public class QuoteService {
         m.put("riskPctTotal", r.getRiskPctTotal());
         m.put("riskAmount", r.getRiskAmount());
         m.put("finalAmount", r.getFinalAmount());
+        m.put("baselineFinalAmount", r.getBaselineFinalAmount());
+        m.put("priceScaleFactor", r.getPriceScaleFactor());
+        m.put("adjustedFinalAmount", r.getAdjustedFinalAmount());
+        m.put("priceAdjustNote", r.getPriceAdjustNote());
         m.put("confidenceScore", r.getConfidenceScore());
         m.put("pricePerDayUsed", r.getPricePerDayUsed());
         m.put("regionLabelUsed", r.getRegionLabelUsed());
         m.put("createdAt", r.getCreatedAt());
         return m;
+    }
+
+    /**
+     * 将模型总价按人天权重分摊到各行，作为基线行金额（调价前）。
+     */
+    private void distributeBaselineLinePrices(long projectId, BigDecimal modelTotal) {
+        if (modelTotal == null || modelTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        List<QuoteModule> modules = moduleMapper.listByProjectId(tid(), projectId);
+        List<QuoteItem> all = new ArrayList<>();
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        for (QuoteModule mo : modules) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(), mo.getId())) {
+                BigDecimal w = it.getEstimatedDays() != null ? it.getEstimatedDays() : BigDecimal.ZERO;
+                if (w.compareTo(BigDecimal.ZERO) <= 0) {
+                    w = new BigDecimal("0.01");
+                }
+                all.add(it);
+                totalWeight = totalWeight.add(w);
+            }
+        }
+        if (all.isEmpty() || totalWeight.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal acc = BigDecimal.ZERO;
+        for (int i = 0; i < all.size(); i++) {
+            QuoteItem it = all.get(i);
+            BigDecimal w = it.getEstimatedDays() != null ? it.getEstimatedDays() : BigDecimal.ZERO;
+            if (w.compareTo(BigDecimal.ZERO) <= 0) {
+                w = new BigDecimal("0.01");
+            }
+            BigDecimal snap;
+            if (i < all.size() - 1) {
+                snap = modelTotal.multiply(w).divide(totalWeight, 2, RoundingMode.HALF_UP);
+                acc = acc.add(snap);
+            } else {
+                snap = modelTotal.subtract(acc).setScale(2, RoundingMode.HALF_UP);
+            }
+            itemMapper.updateLinePrices(tid(), it.getId(), snap, snap);
+        }
+    }
+
+    /**
+     * 对最新报价结果做商务调价：可缩放行按同一系数等比例调整；excluded 行保持基线行金额。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> applyPriceAdjustment(long projectId, QuotePriceAdjustRequest req) {
+        if (req == null) {
+            throw new IllegalArgumentException("请求体不能为空");
+        }
+        QuoteResult r = resultMapper.findLatestByProjectId(tid(), projectId);
+        if (r == null) {
+            throw new IllegalArgumentException("请先计算报价");
+        }
+        BigDecimal baseline = r.getBaselineFinalAmount() != null ? r.getBaselineFinalAmount() : r.getFinalAmount();
+        if (baseline == null) {
+            baseline = r.getFinalAmount();
+        }
+
+        List<QuoteModule> modules = moduleMapper.listByProjectId(tid(), projectId);
+        List<QuoteItem> all = new ArrayList<>();
+        BigDecimal scalablePool = BigDecimal.ZERO;
+        BigDecimal frozenSum = BigDecimal.ZERO;
+        for (QuoteModule mo : modules) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(), mo.getId())) {
+                all.add(it);
+                BigDecimal snap = it.getLinePriceSnap();
+                if (snap == null) {
+                    throw new IllegalStateException("行金额未初始化，请先重新「计算报价」后再调价");
+                }
+                if (Boolean.TRUE.equals(it.getExcludedFromScale())) {
+                    frozenSum = frozenSum.add(snap);
+                } else {
+                    scalablePool = scalablePool.add(snap);
+                }
+            }
+        }
+        if (all.isEmpty()) {
+            throw new IllegalStateException("无功能行，无法调价");
+        }
+
+        BigDecimal k;
+        BigDecimal scalableTarget;
+        if (req.getTargetAmount() != null && req.getTargetAmount().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal target = req.getTargetAmount().setScale(2, RoundingMode.HALF_UP);
+            scalableTarget = target.subtract(frozenSum).setScale(2, RoundingMode.HALF_UP);
+            if (scalablePool.compareTo(BigDecimal.ZERO) <= 0) {
+                if (scalableTarget.abs().compareTo(new BigDecimal("0.02")) > 0) {
+                    throw new IllegalArgumentException("当前全部为不参与缩放行，无法匹配目标总价");
+                }
+                k = BigDecimal.ONE;
+                scalableTarget = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            } else {
+                k = scalableTarget.divide(scalablePool, 8, RoundingMode.HALF_UP);
+            }
+        } else if (req.getScaleFactor() != null && req.getScaleFactor().compareTo(BigDecimal.ZERO) > 0) {
+            k = req.getScaleFactor();
+            scalableTarget = scalablePool.multiply(k).setScale(2, RoundingMode.HALF_UP);
+        } else {
+            throw new IllegalArgumentException("请提供 targetAmount 或 scaleFactor");
+        }
+        if (k.compareTo(new BigDecimal("0.01")) < 0 || k.compareTo(new BigDecimal("100")) > 0) {
+            throw new IllegalArgumentException("调价系数需在 0.01～100 之间");
+        }
+
+        int scCount = (int) all.stream().filter(x -> !Boolean.TRUE.equals(x.getExcludedFromScale())).count();
+        BigDecimal acc = BigDecimal.ZERO;
+        int sIdx = 0;
+        BigDecimal newTotal = BigDecimal.ZERO;
+        for (QuoteItem it : all) {
+            BigDecimal snap = it.getLinePriceSnap();
+            BigDecimal adj;
+            if (Boolean.TRUE.equals(it.getExcludedFromScale())) {
+                adj = snap;
+            } else {
+                if (scalablePool.compareTo(BigDecimal.ZERO) <= 0) {
+                    adj = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+                } else if (sIdx < scCount - 1) {
+                    adj = scalableTarget.multiply(snap).divide(scalablePool, 2, RoundingMode.HALF_UP);
+                    acc = acc.add(adj);
+                } else {
+                    adj = scalableTarget.subtract(acc).setScale(2, RoundingMode.HALF_UP);
+                }
+                sIdx++;
+            }
+            itemMapper.updateLinePrices(tid(), it.getId(), snap, adj);
+            newTotal = newTotal.add(adj);
+        }
+
+        r.setBaselineFinalAmount(baseline);
+        r.setPriceScaleFactor(k);
+        r.setAdjustedFinalAmount(newTotal);
+        r.setPriceAdjustNote(trimToNull(req.getNote()));
+        r.setFinalAmount(newTotal);
+        resultMapper.updatePriceAdjustment(tid(), r.getId(), newTotal, baseline, k, newTotal, r.getPriceAdjustNote());
+        QuoteResult out = resultMapper.findById(tid(), r.getId());
+        return resultToMap(out != null ? out : r);
     }
 
     public List<Map<String, Object>> listPresetItems(boolean includeDisabled) {
@@ -1533,7 +1751,16 @@ public class QuoteService {
             ctx.append("PRD/摘要（节选）：\n").append(prd).append("\n");
         }
 
-        String system = """
+        boolean multiDel = Boolean.TRUE.equals(req.getMultiDeliverableMode());
+        String system = multiDel ? """
+你是资深软件外包需求分析师。用户要做「一整套系统」的统一报价（可能含 Web、App、后端等多子系统）。
+必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
+{"deliverables":[{"deliverableKey":"web","deliverableLabel":"Web 管理端","modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}]}
+规则：
+- deliverables：至少 1 个交付物；deliverableKey 用小写英文短码（web、app、api、mini_program 等）；deliverableLabel 为中文展示名。
+- 每个交付物下 modules：按业务域划分，至少 1 个模块。
+- items：可交付功能粒度；complexity 只能是：simple、standard、medium、complex、extreme；quantity 为正整数。
+""" : """
 你是资深软件外包需求分析师。根据用户自然语言需求，拆解为「功能模块 → 功能点」清单，用于人天报价。
 必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
 {"modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}
@@ -1556,46 +1783,84 @@ public class QuoteService {
             throw new IllegalStateException("AI 未返回有效内容，请稍后重试或缩短描述");
         }
         JsonNode root = parseAiJsonOrThrow(content, "parseQuoteModules");
-        JsonNode modulesNode = root.get("modules");
-        if (modulesNode == null || !modulesNode.isArray()) {
-            throw new IllegalStateException("AI 返回缺少 modules 数组");
-        }
-
         List<Map<String, Object>> outModules = new ArrayList<>();
         int mi = 0;
-        for (JsonNode mod : modulesNode) {
-            String modName = mod.has("name") ? mod.get("name").asText("").trim() : "";
-            if (modName.isEmpty()) {
-                continue;
-            }
-            JsonNode itemsNode = mod.get("items");
-            List<Map<String, Object>> items = new ArrayList<>();
-            if (itemsNode != null && itemsNode.isArray()) {
-                for (JsonNode it : itemsNode) {
-                    String itemName = it.has("name") ? it.get("name").asText("").trim() : "";
-                    if (itemName.isEmpty()) {
+
+        if (multiDel && root.has("deliverables") && root.get("deliverables").isArray()) {
+            for (JsonNode del : root.get("deliverables")) {
+                String dKey = del.has("deliverableKey") ? del.get("deliverableKey").asText("").trim().toLowerCase() : "";
+                if (dKey.isEmpty()) {
+                    dKey = "part_" + mi;
+                }
+                String dLabel = del.has("deliverableLabel") ? del.get("deliverableLabel").asText("").trim() : "";
+                JsonNode modulesNode = del.get("modules");
+                if (modulesNode == null || !modulesNode.isArray()) {
+                    continue;
+                }
+                for (JsonNode mod : modulesNode) {
+                    String modName = mod.has("name") ? mod.get("name").asText("").trim() : "";
+                    if (modName.isEmpty()) {
                         continue;
                     }
-                    String complexity = normalizeComplexityForQuote(it.has("complexity") ? it.get("complexity").asText() : "standard");
-                    int qty = 1;
-                    if (it.has("quantity") && it.get("quantity").isNumber()) {
-                        qty = Math.max(1, it.get("quantity").intValue());
+                    JsonNode itemsNode = mod.get("items");
+                    List<Map<String, Object>> items = parseQuoteModuleItemsJson(itemsNode);
+                    if (items.isEmpty()) {
+                        continue;
                     }
-                    Map<String, Object> im = new LinkedHashMap<>();
-                    im.put("name", itemName);
-                    im.put("complexity", complexity);
-                    im.put("quantity", qty);
-                    items.add(im);
+                    Map<String, Object> mm = new LinkedHashMap<>();
+                    mm.put("name", modName);
+                    mm.put("sortOrder", mi++);
+                    mm.put("deliverableKey", dKey);
+                    mm.put("deliverableLabel", dLabel.isEmpty() ? null : dLabel);
+                    mm.put("items", items);
+                    outModules.add(mm);
                 }
             }
-            if (items.isEmpty()) {
-                continue;
+        } else {
+            JsonNode modulesNode = root.get("modules");
+            if (modulesNode == null || !modulesNode.isArray()) {
+                throw new IllegalStateException("AI 返回缺少 modules 数组");
             }
-            Map<String, Object> mm = new LinkedHashMap<>();
-            mm.put("name", modName);
-            mm.put("sortOrder", mi++);
-            mm.put("items", items);
-            outModules.add(mm);
+            for (JsonNode mod : modulesNode) {
+                String modName = mod.has("name") ? mod.get("name").asText("").trim() : "";
+                if (modName.isEmpty()) {
+                    continue;
+                }
+                JsonNode itemsNode = mod.get("items");
+                List<Map<String, Object>> items = parseQuoteModuleItemsJson(itemsNode);
+                if (items.isEmpty()) {
+                    continue;
+                }
+                Map<String, Object> mm = new LinkedHashMap<>();
+                mm.put("name", modName);
+                mm.put("sortOrder", mi++);
+                mm.put("deliverableKey", "default");
+                mm.put("deliverableLabel", null);
+                mm.put("items", items);
+                outModules.add(mm);
+            }
+        }
+
+        if (outModules.isEmpty() && multiDel && root.has("modules") && root.get("modules").isArray()) {
+            JsonNode modulesNode = root.get("modules");
+            for (JsonNode mod : modulesNode) {
+                String modName = mod.has("name") ? mod.get("name").asText("").trim() : "";
+                if (modName.isEmpty()) {
+                    continue;
+                }
+                JsonNode itemsNode = mod.get("items");
+                List<Map<String, Object>> items = parseQuoteModuleItemsJson(itemsNode);
+                if (items.isEmpty()) {
+                    continue;
+                }
+                Map<String, Object> mm = new LinkedHashMap<>();
+                mm.put("name", modName);
+                mm.put("sortOrder", mi++);
+                mm.put("deliverableKey", "default");
+                mm.put("deliverableLabel", null);
+                mm.put("items", items);
+                outModules.add(mm);
+            }
         }
 
         if (outModules.isEmpty()) {

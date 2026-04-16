@@ -12,21 +12,21 @@ public interface TenantMapper {
     @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
-            + "subscription_ends_at AS subscriptionEndsAt, status, "
+            + "subscription_ends_at AS subscriptionEndsAt, status, workspace_prefs_json AS workspacePrefsJson, "
             + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant WHERE id = #{id}")
     Tenant findById(@Param("id") long id);
 
     @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
-            + "subscription_ends_at AS subscriptionEndsAt, status, "
+            + "subscription_ends_at AS subscriptionEndsAt, status, workspace_prefs_json AS workspacePrefsJson, "
             + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant WHERE slug = #{slug}")
     Tenant findBySlug(@Param("slug") String slug);
 
     @Select("SELECT id, name, slug, referrer_tenant_id AS referrerTenantId, "
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
-            + "subscription_ends_at AS subscriptionEndsAt, status, "
+            + "subscription_ends_at AS subscriptionEndsAt, status, workspace_prefs_json AS workspacePrefsJson, "
             + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant ORDER BY id")
     List<Tenant> listAll();
 
@@ -100,4 +100,7 @@ public interface TenantMapper {
     @Update("UPDATE aa_tenant SET official_api_cny_balance = COALESCE(official_api_cny_balance, 0) "
             + "- LEAST(#{cost}, COALESCE(official_api_cny_balance, 0)) WHERE id = #{id}")
     int deductOfficialApiCnyCapped(@Param("id") long id, @Param("cost") BigDecimal cost);
+
+    @Update("UPDATE aa_tenant SET workspace_prefs_json = #{json} WHERE id = #{id}")
+    int updateWorkspacePrefsJson(@Param("id") long id, @Param("json") String json);
 }

@@ -102,7 +102,7 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">工作台</span>
               </router-link>
-              <router-link to="/quote" class="nav-item" :class="{ 'is-active': isNavActive('/quote') }" @click.native="onNavClick">
+              <router-link v-if="quoteNavVisible" to="/quote" class="nav-item" :class="{ 'is-active': isNavActive('/quote') }" @click.native="onNavClick">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">报价系统</span>
               </router-link>
@@ -238,7 +238,9 @@ export default {
       cloudDevEmbedActive: false,
       appToastMessage: '',
       appToastKind: 'info',
-      appToastTimer: null
+      appToastTimer: null,
+      /** 工作台偏好：侧栏是否展示「报价系统」 */
+      quoteNavVisible: true
     }
   },
   computed: {
@@ -292,10 +294,18 @@ export default {
       return this.$t('app.title')
     }
   },
+  watch: {
+    authSessionTick () {
+      if (this.isAdmin) {
+        this.loadWorkspacePrefs()
+      }
+    }
+  },
   mounted () {
     this._unsubAuthSession = subscribeAuthSession(() => {
       this.authSessionTick++
     })
+    this.loadWorkspacePrefs()
     this.initSidebarState()
     window.addEventListener('resize', this.onResize)
     this._onCloudDevEmbed = (e) => {
@@ -303,6 +313,8 @@ export default {
       this.cloudDevEmbedActive = active
     }
     window.addEventListener('autoattend-clouddev-embed', this._onCloudDevEmbed)
+    this._onWorkspacePrefs = () => this.loadWorkspacePrefs()
+    window.addEventListener('autoattend-workspace-prefs-changed', this._onWorkspacePrefs)
   },
   beforeDestroy () {
     if (this._unsubAuthSession) {
@@ -313,12 +325,27 @@ export default {
     if (this._onCloudDevEmbed) {
       window.removeEventListener('autoattend-clouddev-embed', this._onCloudDevEmbed)
     }
+    if (this._onWorkspacePrefs) {
+      window.removeEventListener('autoattend-workspace-prefs-changed', this._onWorkspacePrefs)
+    }
     if (this.appToastTimer) {
       clearTimeout(this.appToastTimer)
       this.appToastTimer = null
     }
   },
   methods: {
+    async loadWorkspacePrefs () {
+      if (!this.isAdmin) return
+      try {
+        const resp = await this.$http.get('/admin/workspace/prefs')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const v = resp.data.data.quoteNavVisible
+          this.quoteNavVisible = v !== false
+        }
+      } catch (e) {
+        this.quoteNavVisible = true
+      }
+    },
     showAppToast (message, kind = 'info') {
       const k = kind === 'error' ? 'error' : 'info'
       if (this.appToastTimer) {
