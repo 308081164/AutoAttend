@@ -168,6 +168,9 @@
         <!-- Agent 智能引导面板 -->
         <div v-show="moduleEntryMode === 'agent'" class="quote-agent-panel">
           <p class="hint">通过 Agent 智能引导客户自助描述需求，AI 将整理为结构化文本后自动填充到上方输入框。</p>
+          <p v-if="!quoteProjectIdForApi" class="hint err" style="margin-bottom:12px">
+            请先点击页面底部「保存」创建报价项目，再使用 Agent 会话（新建页未保存时没有项目编号，无法创建会话）。
+          </p>
 
           <!-- 当前活跃会话 -->
           <div v-if="activeAgentSession" class="agent-session-card">
@@ -192,7 +195,7 @@
           <!-- 无活跃会话 -->
           <div v-else class="agent-empty">
             <p>暂无进行中的 Agent 会话</p>
-            <button type="button" class="btn primary" @click="showCreateAgentModal = true">新建 Agent 会话</button>
+            <button type="button" class="btn primary" :disabled="!quoteProjectIdForApi" @click="showCreateAgentModal = true">新建 Agent 会话</button>
           </div>
 
           <!-- 已结束的会话列表 -->
@@ -993,6 +996,7 @@ export default {
       isNew: false,
       projectId: null,
       form: {
+        id: null,
         name: '',
         projectType: 'website',
         techStack: 'vue_node',
@@ -1200,6 +1204,14 @@ export default {
       const r = this.resolvedQuotePreview
       return !r.vendorName && !r.contactInfo
     },
+    /** 与 projectId 一致，供 Agent 等接口使用（避免未赋值时请求 .../undefined/...） */
+    quoteProjectIdForApi () {
+      const pid = this.projectId != null ? Number(this.projectId) : NaN
+      if (Number.isFinite(pid) && pid > 0) return pid
+      const fid = this.form && this.form.id != null ? Number(this.form.id) : NaN
+      if (Number.isFinite(fid) && fid > 0) return fid
+      return null
+    },
     /** 验收测试用例「归属模块」下拉：来自当前功能模块名称 */
     quoteModuleNameOptions () {
       const names = []
@@ -1239,7 +1251,7 @@ export default {
       this.init()
     },
     moduleEntryMode (val) {
-      if (val === 'agent' && this.form.id) {
+      if (val === 'agent' && this.quoteProjectIdForApi) {
         this.fetchAgentSessions()
       }
     },
@@ -1448,6 +1460,7 @@ export default {
           this.projectId = null
           this.form = {
             ...this.form,
+            id: null,
             name: '',
             prdSummary: '',
             quoteSubjectMode: 'legal_entity',
@@ -1480,6 +1493,7 @@ export default {
         const resp = await this.$http.get('/admin/quote/projects/' + id)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const d = resp.data.data
+          this.form.id = d.id != null ? d.id : id
           this.resetArtifactReady()
           this.restoringCalcPrefs = true
           try {
@@ -1990,6 +2004,7 @@ export default {
             this.saveMsg = '已创建'
             const newId = resp.data.data.id
             this.projectId = newId
+            this.form.id = newId
             this.isNew = false
             await this.$router.replace({ name: 'quote-project', params: { id: String(newId) } })
             this.$nextTick(() => {
@@ -2176,8 +2191,14 @@ export default {
     },
     // ==================== Agent 智能引导 ====================
     async fetchAgentSessions () {
+      const qid = this.quoteProjectIdForApi
+      if (!qid) {
+        this.activeAgentSession = null
+        this.endedAgentSessions = []
+        return
+      }
       try {
-        const resp = await this.$http.get(`/admin/agent/quote/projects/${this.form.id}/agent-sessions`)
+        const resp = await this.$http.get(`/admin/agent/quote/projects/${qid}/agent-sessions`)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const items = resp.data.data.items || []
           this.activeAgentSession = items.find(s => s.status === 'active') || null
@@ -2223,6 +2244,11 @@ export default {
       }
     },
     async createAgentSession () {
+      const qid = this.quoteProjectIdForApi
+      if (!qid) {
+        alert('请先保存报价项目（新建页需先保存以生成项目编号），再创建 Agent 会话。')
+        return
+      }
       this.agentCreating = true
       try {
         const body = {}
@@ -2230,7 +2256,7 @@ export default {
         if (text) {
           body.backgroundTexts = [{ label: '沟通记录', content: text }]
         }
-        const resp = await this.$http.post(`/admin/agent/quote/projects/${this.form.id}/agent-sessions`, body)
+        const resp = await this.$http.post(`/admin/agent/quote/projects/${qid}/agent-sessions`, body)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.showCreateAgentModal = false
           this.agentBgText = ''
