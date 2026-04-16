@@ -4,6 +4,44 @@
     <p class="lead">平台级设置（与租户无关）：SMTP 发信、日报邮件定时任务、官方 API 池。租户控制台不再提供邮件表单；未配置 SMTP 时相关能力不可用，不影响其他功能。</p>
 
     <section class="panel">
+      <h3>壳客户端（Flutter / WebView）</h3>
+      <p class="muted small">最低版本、黑名单与下载直链保存在平台配置（tenant_id=0）。壳应用请求 API 时若携带 <code class="mono">X-Client-Version</code> 且命中策略，将返回 HTTP 426，官网与纯浏览器无该头不受影响。</p>
+      <div v-if="csLoading" class="muted">加载中…</div>
+      <form v-else class="form" @submit.prevent="saveClientShell">
+        <h4 class="subh">版本策略</h4>
+        <label>最低支持版本（semver，如 1.0.0；留空表示不限制）</label>
+        <input v-model="csForm.minSupportedVersion" type="text" class="inp mono" placeholder="1.0.0">
+        <label>禁止的版本号（逗号分隔，如 0.9.0,1.0.0）</label>
+        <input v-model="csForm.blockedVersionsCsv" type="text" class="inp mono" placeholder="">
+        <label>禁止的构建号（逗号分隔整数）</label>
+        <input v-model="csForm.blockedBuildsCsv" type="text" class="inp mono" placeholder="">
+        <label>拦截提示文案</label>
+        <input v-model="csForm.blockMessage" type="text" class="inp">
+        <label>升级包 / Release 页面 URL</label>
+        <input v-model="csForm.upgradeUrl" type="text" class="inp" placeholder="https://github.com/.../releases/...">
+        <h4 class="subh">官网下载信息（GitHub Releases）</h4>
+        <label>GitHub 仓库（owner/repo）</label>
+        <input v-model="csForm.githubRepo" type="text" class="inp mono" placeholder="308081164/AutoAttend">
+        <label>Release 标签前缀</label>
+        <input v-model="csForm.releaseTagPrefix" type="text" class="inp mono" placeholder="app-v">
+        <label>当前展示版本号（与 tag 中版本一致，如 1.0.0）</label>
+        <input v-model="csForm.latestVersion" type="text" class="inp mono">
+        <label>Windows 安装包直链（可空，则官网仅展示 Release 页）</label>
+        <input v-model="csForm.windowsUrl" type="text" class="inp mono">
+        <label>Linux deb 直链</label>
+        <input v-model="csForm.linuxDebUrl" type="text" class="inp mono">
+        <label>Android APK 直链</label>
+        <input v-model="csForm.androidApkUrl" type="text" class="inp mono">
+        <label>iOS 说明页 / TestFlight 链接</label>
+        <input v-model="csForm.iosNoteUrl" type="text" class="inp mono">
+        <div class="btn-row">
+          <button type="submit" class="btn primary" :disabled="csSaving">{{ csSaving ? '保存中…' : '保存壳客户端配置' }}</button>
+          <span v-if="csMsg" :class="csOk ? 'ok' : 'err'">{{ csMsg }}</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
       <h3>SMTP 发信</h3>
       <p class="muted small">用于项目日报、开发者日报等。配置保存在全局库（tenant_id=0）。</p>
       <div v-if="mailLoading" class="muted">加载中…</div>
@@ -225,6 +263,25 @@ export default {
         allowGuestBrowseList: false,
         requireContentReview: true,
         disclaimerVersion: '2026-04-01'
+      },
+
+      csLoading: true,
+      csSaving: false,
+      csMsg: '',
+      csOk: true,
+      csForm: {
+        minSupportedVersion: '',
+        blockedVersionsCsv: '',
+        blockedBuildsCsv: '',
+        blockMessage: '',
+        upgradeUrl: '',
+        githubRepo: '',
+        releaseTagPrefix: 'app-v',
+        latestVersion: '',
+        windowsUrl: '',
+        linuxDebUrl: '',
+        androidApkUrl: '',
+        iosNoteUrl: ''
       }
     }
   },
@@ -233,7 +290,15 @@ export default {
   },
   methods: {
     async loadAll () {
-      await Promise.all([this.loadMail(), this.loadReportMail(), this.loadProjectMarketplace(), this.loadAiPool(), this.loadRedeemCodes(), this.loadUsageByTenant()])
+      await Promise.all([
+        this.loadMail(),
+        this.loadReportMail(),
+        this.loadProjectMarketplace(),
+        this.loadAiPool(),
+        this.loadRedeemCodes(),
+        this.loadUsageByTenant(),
+        this.loadClientShell()
+      ])
     },
     parseIdList (s) {
       if (!s || !String(s).trim()) return []
@@ -293,6 +358,71 @@ export default {
         this.pmOk = false
       } finally {
         this.pmSaving = false
+      }
+    },
+    async loadClientShell () {
+      this.csLoading = true
+      try {
+        const { data } = await http.get('/platform/settings/client-shell')
+        if (data.code === 0 && data.data) {
+          const pol = data.data.policy || {}
+          const dl = data.data.downloads || {}
+          this.csForm.minSupportedVersion = pol.minSupportedVersion || ''
+          this.csForm.blockedVersionsCsv = Array.isArray(pol.blockedVersions) ? pol.blockedVersions.join(',') : ''
+          this.csForm.blockedBuildsCsv = Array.isArray(pol.blockedBuilds) ? pol.blockedBuilds.join(',') : ''
+          this.csForm.blockMessage = pol.blockMessage || ''
+          this.csForm.upgradeUrl = pol.upgradeUrl || ''
+          this.csForm.githubRepo = dl.githubRepo || ''
+          this.csForm.releaseTagPrefix = dl.releaseTagPrefix || 'app-v'
+          this.csForm.latestVersion = dl.latestVersion || ''
+          this.csForm.windowsUrl = dl.windowsUrl || ''
+          this.csForm.linuxDebUrl = dl.linuxDebUrl || ''
+          this.csForm.androidApkUrl = dl.androidApkUrl || ''
+          this.csForm.iosNoteUrl = dl.iosNoteUrl || ''
+        }
+      } catch (e) {
+        this.csMsg = '壳客户端配置加载失败'
+        this.csOk = false
+      } finally {
+        this.csLoading = false
+      }
+    },
+    async saveClientShell () {
+      this.csSaving = true
+      this.csMsg = ''
+      const blockedVersions = (this.csForm.blockedVersionsCsv || '').split(/[,，]/).map(s => s.trim()).filter(Boolean)
+      const blockedBuilds = (this.csForm.blockedBuildsCsv || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).map(s => parseInt(s, 10)).filter(n => !isNaN(n))
+      const policy = {
+        minSupportedVersion: this.csForm.minSupportedVersion || '',
+        blockedVersions,
+        blockedBuilds,
+        blockMessage: this.csForm.blockMessage || '',
+        upgradeUrl: this.csForm.upgradeUrl || ''
+      }
+      const downloads = {
+        githubRepo: this.csForm.githubRepo || '',
+        releaseTagPrefix: this.csForm.releaseTagPrefix || 'app-v',
+        latestVersion: this.csForm.latestVersion || '',
+        windowsUrl: this.csForm.windowsUrl || '',
+        linuxDebUrl: this.csForm.linuxDebUrl || '',
+        androidApkUrl: this.csForm.androidApkUrl || '',
+        iosNoteUrl: this.csForm.iosNoteUrl || ''
+      }
+      try {
+        const { data } = await http.put('/platform/settings/client-shell', { policy, downloads })
+        if (data.code === 0) {
+          this.csMsg = '已保存'
+          this.csOk = true
+          await this.loadClientShell()
+        } else {
+          this.csMsg = data.message || '保存失败'
+          this.csOk = false
+        }
+      } catch (e) {
+        this.csMsg = '请求失败'
+        this.csOk = false
+      } finally {
+        this.csSaving = false
       }
     },
     async loadMail () {

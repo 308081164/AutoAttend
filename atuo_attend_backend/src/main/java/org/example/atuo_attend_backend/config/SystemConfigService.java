@@ -411,4 +411,13 @@ public class SystemConfigService {
         m.put("disclaimerVersion", "2026-04-01");
         return m;
     }
+
+    /** 平台级（tenant_id=0）原始配置值 */
+    public String getRawPlatformConfig(String key) {
+        return mapper.findByKey(platformTenantId(), key);
+    }
+
+    public void upsertPlatformConfig(String key, String value) {
+        mapper.upsert(platformTenantId(), key, value != null ? value : "");
+    }
 }

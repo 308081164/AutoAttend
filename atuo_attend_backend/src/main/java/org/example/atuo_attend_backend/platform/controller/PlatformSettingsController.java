@@ -4,6 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.client.ClientShellDownloadsConfig;
+import org.example.atuo_attend_backend.client.ClientShellPolicy;
+import org.example.atuo_attend_backend.client.ClientVersionPolicyService;
 import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.example.atuo_attend_backend.platform.auth.PlatformAuthFilter;
 import org.example.atuo_attend_backend.platform.mapper.PlatformOpsAuditMapper;
@@ -26,16 +29,19 @@ public class PlatformSettingsController {
     private final MailSenderService mailSenderService;
     private final PlatformReportMailScheduler platformReportMailScheduler;
     private final PlatformOpsAuditMapper platformOpsAuditMapper;
+    private final ClientVersionPolicyService clientVersionPolicyService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PlatformSettingsController(SystemConfigService systemConfigService,
                                       MailSenderService mailSenderService,
                                       PlatformReportMailScheduler platformReportMailScheduler,
-                                      PlatformOpsAuditMapper platformOpsAuditMapper) {
+                                      PlatformOpsAuditMapper platformOpsAuditMapper,
+                                      ClientVersionPolicyService clientVersionPolicyService) {
         this.systemConfigService = systemConfigService;
         this.mailSenderService = mailSenderService;
         this.platformReportMailScheduler = platformReportMailScheduler;
         this.platformOpsAuditMapper = platformOpsAuditMapper;
+        this.clientVersionPolicyService = clientVersionPolicyService;
     }
 
     @GetMapping("/mail")
@@ -124,6 +130,34 @@ public class PlatformSettingsController {
             data.put("latencyMs", System.currentTimeMillis() - start);
             return ApiResponse.ok(data);
         }
+    }
+
+    @GetMapping("/client-shell")
+    public ApiResponse<Map<String, Object>> getClientShell() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("policy", clientVersionPolicyService.getPolicy());
+        data.put("downloads", clientVersionPolicyService.getDownloadsConfig());
+        return ApiResponse.ok(data);
+    }
+
+    @PutMapping("/client-shell")
+    public ApiResponse<Void> putClientShell(@RequestBody(required = false) Map<String, Object> body,
+                                            HttpServletRequest request) throws JsonProcessingException {
+        if (body == null) {
+            return ApiResponse.error(40000, "body required");
+        }
+        Object p = body.get("policy");
+        Object d = body.get("downloads");
+        if (p != null) {
+            ClientShellPolicy pol = objectMapper.convertValue(p, ClientShellPolicy.class);
+            clientVersionPolicyService.savePolicy(pol);
+        }
+        if (d != null) {
+            ClientShellDownloadsConfig dl = objectMapper.convertValue(d, ClientShellDownloadsConfig.class);
+            clientVersionPolicyService.saveDownloadsConfig(dl);
+        }
+        audit(request, "platform.settings.client_shell", Map.of("savedPolicy", p != null, "savedDownloads", d != null));
+        return ApiResponse.ok(null);
     }
 
     /** 项目信息发布：平台总开关与白名单（tenant_id=0 JSON） */

@@ -20,6 +20,22 @@ Vue.config.productionTip = false
     if (embed === '1') {
       window.__AUTOATTEND_EMBED__ = true
     }
+    const cv = params.get('clientVersion')
+    const cb = params.get('clientBuild')
+    const cp = params.get('clientPlatform')
+    if (cv) {
+      try {
+        sessionStorage.setItem('autoattend_client_version', cv)
+        if (cb) sessionStorage.setItem('autoattend_client_build', cb)
+        if (cp) sessionStorage.setItem('autoattend_client_platform', cp)
+        params.delete('clientVersion')
+        params.delete('clientBuild')
+        params.delete('clientPlatform')
+        const qs = params.toString()
+        const nextUrl = window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash
+        window.history.replaceState({}, document.title, nextUrl)
+      } catch (e) { /* ignore */ }
+    }
     if (adminToken) window.localStorage.setItem('autoattend_token', adminToken)
     if (collabToken) window.localStorage.setItem('autoattend_collab_token', collabToken)
     if (username) window.localStorage.setItem('autoattend_username', username)
@@ -57,6 +73,16 @@ axios.interceptors.request.use(config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  try {
+    const cv = sessionStorage.getItem('autoattend_client_version')
+    if (cv) {
+      config.headers['X-Client-Version'] = cv
+      const cbuild = sessionStorage.getItem('autoattend_client_build')
+      const cplat = sessionStorage.getItem('autoattend_client_platform')
+      if (cbuild) config.headers['X-Client-Build'] = cbuild
+      if (cplat) config.headers['X-Client-Platform'] = cplat
+    }
+  } catch (e) { /* ignore */ }
   if (isCollabApiPath(url)) {
     const acting = getStoredCollabActingUserId()
     if (acting) {
@@ -106,8 +132,22 @@ axios.interceptors.response.use(
         console.warn('检测到403禁止访问错误')
         // 可以在这里添加特定的403处理逻辑
       }
+
+      // 壳客户端版本被平台废弃（需升级）
+      if (status === 426) {
+        const d = error.response.data
+        const msg = (d && d.message) ? d.message : '客户端版本不可用，请升级。'
+        const up = d && d.upgradeUrl
+        try {
+          if (up && window.confirm(msg + '\n\n是否打开下载页面？')) {
+            window.open(up, '_blank', 'noopener,noreferrer')
+          } else if (!up) {
+            alert(msg)
+          }
+        } catch (e) { /* ignore */ }
+      }
     }
-    
+
     return Promise.reject(error)
   }
 )

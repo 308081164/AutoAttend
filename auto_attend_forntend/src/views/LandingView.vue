@@ -69,6 +69,17 @@
             <router-link class="btn btn-ghost btn-lg" :to="{ name: 'login' }">{{ $t('landing.ctaSecondary') }}</router-link>
           </div>
           <p class="hero-trust">{{ $t('landing.trustLine') }}</p>
+          <div v-if="clientDownloads.releasePageUrl || clientDownloads.windowsUrl" class="hero-downloads">
+            <p class="hero-downloads-title">{{ $t('landing.downloadsTitle') }}</p>
+            <p class="hero-downloads-ver">{{ $t('landing.downloadsVersion') }} {{ clientDownloads.latestVersion || '—' }}</p>
+            <div class="hero-downloads-btns">
+              <a v-if="clientDownloads.androidApkUrl" class="btn btn-ghost btn-sm" :href="clientDownloads.androidApkUrl" target="_blank" rel="noopener noreferrer">{{ $t('landing.downloadAndroid') }}</a>
+              <a v-if="clientDownloads.iosNoteUrl" class="btn btn-ghost btn-sm" :href="clientDownloads.iosNoteUrl" target="_blank" rel="noopener noreferrer">{{ $t('landing.downloadIos') }}</a>
+              <a v-if="clientDownloads.windowsUrl" class="btn btn-ghost btn-sm" :href="clientDownloads.windowsUrl" target="_blank" rel="noopener noreferrer">{{ $t('landing.downloadWindows') }}</a>
+              <a v-if="clientDownloads.linuxDebUrl" class="btn btn-ghost btn-sm" :href="clientDownloads.linuxDebUrl" target="_blank" rel="noopener noreferrer">{{ $t('landing.downloadLinux') }}</a>
+              <a v-if="clientDownloads.releasePageUrl" class="btn btn-ghost btn-sm" :href="clientDownloads.releasePageUrl" target="_blank" rel="noopener noreferrer">{{ $t('landing.downloadAllReleases') }}</a>
+            </div>
+          </div>
           <div class="hero-tech-strip">
             <div class="hero-tech-item">
               <span class="hero-tech-val">{{ $t('landing.statReposLabel') }}</span>
@@ -187,6 +198,7 @@
 </template>
 
 <script>
+import axios from 'axios'
 import { localeOptions, setLocale } from '../locales'
 
 const MOBILE_HINT_KEY = 'landing_mobile_screen_hint_dismissed'
@@ -195,6 +207,14 @@ export default {
   name: 'LandingView',
   data () {
     return {
+      clientDownloads: {
+        latestVersion: '',
+        releasePageUrl: '',
+        windowsUrl: '',
+        linuxDebUrl: '',
+        androidApkUrl: '',
+        iosNoteUrl: ''
+      },
       localeOptions,
       locale: this.$i18n.locale,
       mobileNavOpen: false,
@@ -230,11 +250,28 @@ export default {
   mounted () {
     this.updateLayoutFlags()
     window.addEventListener('resize', this.updateLayoutFlags, { passive: true })
+    this.loadClientDownloads()
   },
   beforeDestroy () {
     window.removeEventListener('resize', this.updateLayoutFlags)
   },
   methods: {
+    async loadClientDownloads () {
+      try {
+        const resp = await axios.get('/api/public/client/downloads')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.clientDownloads = {
+            latestVersion: d.latestVersion || '',
+            releasePageUrl: d.releasePageUrl || '',
+            windowsUrl: d.windowsUrl || '',
+            linuxDebUrl: d.linuxDebUrl || '',
+            androidApkUrl: d.androidApkUrl || '',
+            iosNoteUrl: d.iosNoteUrl || ''
+          }
+        }
+      } catch (e) { /* ignore */ }
+    },
     onLocaleChange () {
       setLocale(this.locale)
     },
@@ -601,6 +638,34 @@ export default {
   margin: 0 0 24px;
   font-size: 12px;
   color: #94a3b8;
+}
+
+.hero-downloads {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--lb-border);
+}
+.hero-downloads-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.hero-downloads-ver {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+.hero-downloads-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hero-downloads .btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 .hero-tech-strip {

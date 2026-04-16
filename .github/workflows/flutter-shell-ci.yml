@@ -1,0 +1,30 @@
+# 壳工程：PR / main 变更时静态分析（全量构建见 flutter-shell-release.yml）
+name: Flutter shell CI
+
+on:
+  pull_request:
+    paths:
+      - 'client/flutter_shell/**'
+      - '.github/workflows/flutter-shell-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'client/flutter_shell/**'
+      - '.github/workflows/flutter-shell-ci.yml'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/flutter_shell
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
