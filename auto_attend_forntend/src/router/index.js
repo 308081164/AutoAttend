@@ -1,5 +1,6 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
+import { notifyAuthSessionChanged } from '../utils/authSession'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import LandingView from '../views/LandingView.vue'
@@ -184,8 +185,8 @@ router.beforeEach(async (to, from, next) => {
     next()
     return
   }
-  const adminToken = window.localStorage.getItem('autoattend_token')
-  const collabToken = window.localStorage.getItem('autoattend_collab_token')
+  const adminToken = (window.localStorage.getItem('autoattend_token') || '').trim()
+  const collabToken = (window.localStorage.getItem('autoattend_collab_token') || '').trim()
   const memberOnly = !!collabToken && !adminToken
   if (memberOnly) {
     const p = to.path
@@ -234,6 +235,7 @@ router.beforeEach(async (to, from, next) => {
         const data = await r.json()
         if (data.data && data.data.collabToken) {
           window.localStorage.setItem('autoattend_collab_token', data.data.collabToken)
+          notifyAuthSessionChanged()
         }
       } catch (e) {
         // Ignore API errors, admin is still authenticated

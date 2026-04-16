@@ -914,6 +914,7 @@
 import { Chart as ChartJS, registerables } from 'chart.js'
 import MarkdownIt from 'markdown-it'
 import { compressImageFile, IMAGE_COMPRESS_PRESETS } from '@/utils/imageCompress'
+import { subscribeAuthSession, notifyAuthSessionChanged } from '@/utils/authSession'
 
 ChartJS.register(...registerables)
 
@@ -963,6 +964,7 @@ export default {
   },
   data () {
     return {
+      authSessionTick: 0,
       dashboard: null,
       commits: [],
       commitsLoading: false,
@@ -1123,6 +1125,7 @@ export default {
       return Number.isFinite(n) ? n : null
     },
     hasAdminSession () {
+      void this.authSessionTick
       if (typeof localStorage === 'undefined') return false
       return !!(localStorage.getItem('autoattend_token') || '').trim()
     },
@@ -1177,6 +1180,7 @@ export default {
       })
     },
     consoleLoginIdRaw () {
+      void this.authSessionTick
       if (typeof localStorage === 'undefined') return ''
       return (localStorage.getItem('autoattend_username') || '').trim()
     },
@@ -1381,6 +1385,9 @@ export default {
     }).catch(() => {})
   },
   mounted () {
+    this._unsubAuthSession = subscribeAuthSession(() => {
+      this.authSessionTick++
+    })
     this.$nextTick(() => {
       setTimeout(() => {
         if (this.chartTab === 'trend') this.renderTrendChart()
@@ -1388,6 +1395,10 @@ export default {
     })
   },
   beforeDestroy () {
+    if (this._unsubAuthSession) {
+      this._unsubAuthSession()
+      this._unsubAuthSession = null
+    }
     if (this.bindPhoneTimer) {
       clearInterval(this.bindPhoneTimer)
       this.bindPhoneTimer = null
@@ -1467,6 +1478,7 @@ export default {
         const r2 = await this.$http.get('/admin/auth/collab-token')
         if (r2.data && r2.data.code === 0 && r2.data.data && r2.data.data.collabToken) {
           window.localStorage.setItem('autoattend_collab_token', r2.data.data.collabToken)
+          notifyAuthSessionChanged()
         }
         const r3 = await this.$http.get('/collab/auth/me')
         if (r3.data && r3.data.code === 0 && r3.data.data) {

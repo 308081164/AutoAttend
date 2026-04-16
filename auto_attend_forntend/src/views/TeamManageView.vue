@@ -65,7 +65,7 @@
       <div class="modal-card">
         <h3>{{ $t('teamManage.editMember') }}</h3>
         <div class="form-row"><label>{{ $t('teamManage.email') }}</label><span class="form-readonly">{{ editTarget && editTarget.email }}</span></div>
-        <div class="form-row"><label>{{ $t('teamManage.name') }}</label><input v-model="editForm.name" type="text"></div>
+        <div class="form-row"><label>{{ $t('teamManage.name') }}</label><span class="form-readonly">{{ editForm.name || '—' }}</span><p class="form-hint">{{ $t('teamManage.nameAdminReadOnlyHint') }}</p></div>
         <div class="form-row"><label>{{ $t('teamManage.remarkName') }}</label><input v-model="editForm.remarkName" type="text"></div>
         <div class="form-row"><label>{{ $t('teamManage.jobTitle') }}</label>
           <select v-model="editForm.jobTitle">
@@ -74,16 +74,10 @@
         </div>
         <div class="form-row">
           <label>{{ $t('teamManage.avatar') }}</label>
-          <div class="avatar-edit">
+          <div class="avatar-edit avatar-edit--readonly">
             <img v-if="editForm.avatar" :src="avatarDisplayUrl(editForm.avatar)" class="avatar-preview" alt="">
             <span v-else class="avatar-placeholder avatar-preview">{{ (editForm.remarkName || editForm.name || '?').slice(0, 1) }}</span>
-            <div class="avatar-upload-actions">
-              <input ref="avatarFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="avatar-file-input" @change="onAvatarFileChange">
-              <button type="button" class="secondary-button" @click="$refs.avatarFileInput && $refs.avatarFileInput.click()" :disabled="avatarUploading">
-                {{ avatarUploading ? $t('teamManage.uploading') : $t('teamManage.uploadAvatar') }}
-              </button>
-              <button v-if="editForm.avatar" type="button" class="link-button" @click="editForm.avatar = ''">{{ $t('teamManage.clearAvatar') }}</button>
-            </div>
+            <p class="form-hint">{{ $t('teamManage.avatarAdminReadOnlyHint') }}</p>
           </div>
         </div>
         <div class="form-row"><label>{{ $t('teamManage.role') }}</label>
@@ -127,8 +121,6 @@
 </template>
 
 <script>
-import { compressImageFile, IMAGE_COMPRESS_PRESETS } from '@/utils/imageCompress'
-
 export default {
   name: 'TeamManageView',
   data () {
@@ -146,8 +138,7 @@ export default {
       editForm: { name: '', remarkName: '', jobTitle: '开发工程师', avatar: '', role: 'member' },
       projectsTarget: null,
       projectSelection: [],
-      projectRoles: {},
-      avatarUploading: false
+      projectRoles: {}
     }
   },
   created () {
@@ -163,35 +154,6 @@ export default {
       if (s.startsWith('http://') || s.startsWith('https://')) return s
       const base = this.$http.defaults.baseURL || '/api'
       return base + '/admin/team/avatar?key=' + encodeURIComponent(s)
-    },
-    async onAvatarFileChange (e) {
-      const file = e.target && e.target.files && e.target.files[0]
-      if (!file) return
-      const name = (file.name || '').toLowerCase()
-      if (!name.endsWith('.png') && !name.endsWith('.jpg') && !name.endsWith('.jpeg') && !name.endsWith('.gif') && !name.endsWith('.webp')) {
-        alert(this.$t('teamManage.avatarFormatHint'))
-        e.target.value = ''
-        return
-      }
-      this.avatarUploading = true
-      try {
-        const uploadFile = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.avatar)
-        const form = new FormData()
-        form.append('file', uploadFile)
-        const r = await this.$http.post('/admin/team/avatar-upload', form, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        if (r.data && r.data.code === 0 && r.data.data && r.data.data.key) {
-          this.editForm.avatar = r.data.data.key
-        } else {
-          alert(r.data && r.data.message ? r.data.message : this.$t('teamManage.uploadFailed'))
-        }
-      } catch (err) {
-        alert(err.response && err.response.data && err.response.data.message ? err.response.data.message : this.$t('teamManage.uploadFailed'))
-      } finally {
-        this.avatarUploading = false
-        e.target.value = ''
-      }
     },
     roleLabel (role) {
       if (!role) return '—'
@@ -262,7 +224,12 @@ export default {
       if (!this.editTarget) return
       this.saving = true
       try {
-        const r = await this.$http.put('/admin/team/members/' + this.editTarget.id, this.editForm)
+        const body = {
+          remarkName: this.editForm.remarkName != null ? String(this.editForm.remarkName).trim() : '',
+          jobTitle: this.editForm.jobTitle || '开发工程师',
+          role: this.editForm.role || 'member'
+        }
+        const r = await this.$http.put('/admin/team/members/' + this.editTarget.id, body)
         if (r.data && r.data.code === 0) {
           this.showEditModal = false
           this.loadMembers()

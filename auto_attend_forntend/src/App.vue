@@ -221,12 +221,15 @@
 
 <script>
 import { localeOptions, setLocale } from './locales'
+import { subscribeAuthSession, notifyAuthSessionChanged } from './utils/authSession'
 import './assets/theme.css'
 
 export default {
   name: 'App',
   data () {
     return {
+      /** 与 localStorage 会话键联动，使 isAdmin/memberLayout 等计算属性在 token 变更后重新求值 */
+      authSessionTick: 0,
       localeOptions,
       currentLocale: this.$i18n.locale,
       sidebarOpen: false,
@@ -243,14 +246,18 @@ export default {
       return String(this.$route.query.embed || '') === '1' || window.__AUTOATTEND_EMBED__ === true
     },
     username () {
+      void this.authSessionTick
       return window.localStorage.getItem('autoattend_username') || ''
     },
     isAdmin () {
-      return !!window.localStorage.getItem('autoattend_token')
+      void this.authSessionTick
+      return !!(window.localStorage.getItem('autoattend_token') || '').trim()
     },
     /** 仅成员 JWT、无管理员 JWT：侧栏与路由走精简模式 */
     memberLayout () {
-      return !!window.localStorage.getItem('autoattend_collab_token') && !window.localStorage.getItem('autoattend_token')
+      void this.authSessionTick
+      const admin = (window.localStorage.getItem('autoattend_token') || '').trim()
+      return !!(window.localStorage.getItem('autoattend_collab_token') || '').trim() && !admin
     },
     sidebarUserLabel () {
       if (this.isAdmin) return this.$t('app.adminLabel') || '管理员'
@@ -286,6 +293,9 @@ export default {
     }
   },
   mounted () {
+    this._unsubAuthSession = subscribeAuthSession(() => {
+      this.authSessionTick++
+    })
     this.initSidebarState()
     window.addEventListener('resize', this.onResize)
     this._onCloudDevEmbed = (e) => {
@@ -295,6 +305,10 @@ export default {
     window.addEventListener('autoattend-clouddev-embed', this._onCloudDevEmbed)
   },
   beforeDestroy () {
+    if (this._unsubAuthSession) {
+      this._unsubAuthSession()
+      this._unsubAuthSession = null
+    }
     window.removeEventListener('resize', this.onResize)
     if (this._onCloudDevEmbed) {
       window.removeEventListener('autoattend-clouddev-embed', this._onCloudDevEmbed)
@@ -363,6 +377,7 @@ export default {
         window.localStorage.removeItem('autoattend_token')
         window.localStorage.removeItem('autoattend_username')
         window.localStorage.removeItem('autoattend_collab_token')
+        notifyAuthSessionChanged()
         if (memberOnly) {
           this.$router.push({ name: 'member-login' })
         } else {

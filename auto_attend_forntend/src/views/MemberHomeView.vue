@@ -113,6 +113,7 @@
 
 <script>
 import { getStoredCollabActingUserId, setStoredCollabActingUserId } from '@/utils/collabActingUser'
+import { notifyAuthSessionChanged } from '@/utils/authSession'
 
 export default {
   name: 'MemberHomeView',
@@ -303,6 +304,7 @@ export default {
     logout () {
       window.localStorage.removeItem('autoattend_collab_token')
       window.localStorage.removeItem('autoattend_token')
+      notifyAuthSessionChanged()
       this.$router.push({ name: 'member-login' })
     }
   }
