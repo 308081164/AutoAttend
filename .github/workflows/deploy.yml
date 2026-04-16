@@ -96,6 +96,7 @@ jobs:
           ssh-keyscan -p "${SSH_PORT}" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P "${SSH_PORT}" -r \
             docker-compose.prod.yml \
+            docker-compose.penpot.yml \
             atuo_attend_backend \
             "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
 
@@ -143,6 +144,8 @@ jobs:
 
             # 分步 up，避免单次 up 在旧 compose（前端等 backend 健康）下永久 Waiting
             docker compose -f docker-compose.prod.yml up -d mysql minio
+            # Penpot 栈（快原型 Beta）：拉起依赖后 penpot-frontend 可访问
+            docker compose -f docker-compose.prod.yml up -d penpot-frontend
             docker compose -f docker-compose.prod.yml up -d backend
             docker compose -f docker-compose.prod.yml up -d frontend platform-monitor-frontend
 

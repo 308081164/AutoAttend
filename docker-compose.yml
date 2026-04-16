@@ -1,5 +1,9 @@
 version: "3.9"
 
+# Penpot（快原型 Beta）：与 autoattend 服务共享默认 bridge，backend 可访问 http://penpot-frontend:8080
+include:
+  - docker-compose.penpot.yml
+
 services:
   mysql:
     image: mysql:8.4
@@ -52,6 +56,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      penpot-frontend:
+        condition: service_started
     volumes:
       - ./atuo_attend_backend/src/main/resources/db:/app/db:ro
     environment:
@@ -71,6 +77,9 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: autoattend-attachments
+      # 容器内访问 Penpot 前端（映射到宿主机见 PENPOT_HTTP_PORT，默认 9001）
+      PENPOT_PUBLIC_URI: ${PENPOT_PUBLIC_URI:-http://localhost:9001}
+      PENPOT_INTERNAL_URI: ${PENPOT_INTERNAL_URI:-http://penpot-frontend:8080}
     ports:
       - "8848:8848"
     restart: unless-stopped
