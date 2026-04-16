@@ -25,6 +25,7 @@ import org.example.atuo_attend_backend.nexus.mapper.NexusSmsTemplateMapper;
 import org.example.atuo_attend_backend.nexus.service.NexusBssCostService;
 import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
 import org.example.atuo_attend_backend.nexus.service.NexusExtensionSyncService;
+import org.example.atuo_attend_backend.nexus.service.NexusSecurityGroupService;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
@@ -61,6 +62,7 @@ public class NexusAdminController {
     private final NexusSmsSignatureMapper smsSignatureMapper;
     private final NexusSmsTemplateMapper smsTemplateMapper;
     private final NexusExtensionSyncService extensionSyncService;
+    private final NexusSecurityGroupService securityGroupService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public NexusAdminController(
@@ -81,7 +83,8 @@ public class NexusAdminController {
             NexusOssBucketMapper ossBucketMapper,
             NexusSmsSignatureMapper smsSignatureMapper,
             NexusSmsTemplateMapper smsTemplateMapper,
-            NexusExtensionSyncService extensionSyncService
+            NexusExtensionSyncService extensionSyncService,
+            NexusSecurityGroupService securityGroupService
     ) {
         this.accountMapper = accountMapper;
         this.instanceMapper = instanceMapper;
@@ -101,6 +104,7 @@ public class NexusAdminController {
         this.smsSignatureMapper = smsSignatureMapper;
         this.smsTemplateMapper = smsTemplateMapper;
         this.extensionSyncService = extensionSyncService;
+        this.securityGroupService = securityGroupService;
     }
 
     /**
@@ -269,6 +273,58 @@ public class NexusAdminController {
         return ApiResponse.ok(smsTemplateMapper.listByAccount(tenantId, accountId));
     }
 
+    /** 安全组列表（只读，实时查询阿里云）。 */
+    @GetMapping("/accounts/{accountId}/ecs/security-groups")
+    public ApiResponse<Map<String, Object>> listSecurityGroups(
+            @PathVariable long accountId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (!"aliyun".equals(acc.getProvider())) {
+            return ApiResponse.error(40000, "provider not supported");
+        }
+        try {
+            String ak = cryptoService.decrypt(acc.getAccessKeyIdEnc());
+            String sk = cryptoService.decrypt(acc.getAccessKeySecretEnc());
+            Map<String, Object> data = securityGroupService.listSecurityGroups(ak, sk, acc.getRegionId(), page, pageSize);
+            return ApiResponse.ok(data);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "list security groups failed");
+        }
+    }
+
+    /** 某安全组规则明细（只读，实时查询阿里云）。 */
+    @GetMapping("/accounts/{accountId}/ecs/security-groups/{securityGroupId}/rules")
+    public ApiResponse<List<Map<String, Object>>> listSecurityGroupRules(
+            @PathVariable long accountId,
+            @PathVariable String securityGroupId,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (!"aliyun".equals(acc.getProvider())) {
+            return ApiResponse.error(40000, "provider not supported");
+        }
+        if (securityGroupId == null || securityGroupId.isBlank()) {
+            return ApiResponse.error(40000, "securityGroupId required");
+        }
+        try {
+            String ak = cryptoService.decrypt(acc.getAccessKeyIdEnc());
+            String sk = cryptoService.decrypt(acc.getAccessKeySecretEnc());
+            List<Map<String, Object>> rules = securityGroupService.listRules(ak, sk, acc.getRegionId(), securityGroupId.trim());
+            Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+            String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.sg.rules.read", "security_group", securityGroupId.trim(), "success", null);
+            return ApiResponse.ok(rules);
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "list security group rules failed");
+        }
+    }
 
     @GetMapping("/accounts/{accountId}/instances/{instanceId}/cpu-metrics")
     public ApiResponse<List<NexusCpuMetricMapper.MetricRow>> cpuMetrics(

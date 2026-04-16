@@ -35,6 +35,7 @@
       <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'oss' }" @click="switchMainTab('oss')">OSS</button>
       <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'icp' }" @click="switchMainTab('icp')">备案</button>
       <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'sms' }" @click="switchMainTab('sms')">短信</button>
+      <button type="button" class="nx-main-tab" :class="{ 'is-active': mainTab === 'sg' }" @click="switchMainTab('sg')">安全组</button>
     </div>
 
     <!-- ===== Add Account Panel (collapsible) ===== -->
@@ -456,6 +457,78 @@
       </div>
     </div>
 
+    <!-- 安全组（只读，实时查询） -->
+    <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'sg'">
+      <div class="nx-ext-head">
+        <h3 class="nx-panel-title">安全组规则（只读）</h3>
+        <div class="nx-ext-actions">
+          <button type="button" class="nx-btn nx-btn--secondary nx-btn--sm" :disabled="!selectedAccountId || sgLoading" @click="loadSecurityGroups">
+            {{ sgLoading ? '加载中…' : '刷新列表' }}
+          </button>
+          <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" @click="openAliyunConsole('ecsSg')">ECS 安全组控制台</button>
+        </div>
+      </div>
+      <p class="nx-alerts-desc">数据来自阿里云 ECS OpenAPI 实时查询；本平台仅展示，不提供增删改规则。修改规则请在阿里云控制台或使用具备写权限的 API/RAM 策略。</p>
+      <div v-if="sgLoading && !sgList.length" class="nx-ext-loading"><div class="nx-spinner"></div></div>
+      <div v-else-if="sgError" class="nx-chart-error">{{ sgError }}</div>
+      <div v-else class="nx-sg-layout">
+        <div class="nx-sg-list">
+          <div
+            v-for="g in sgList"
+            :key="g.securityGroupId"
+            class="nx-sg-item"
+            :class="{ 'is-active': selectedSgId === g.securityGroupId }"
+            @click="selectSecurityGroup(g)"
+          >
+            <div class="nx-sg-item-title">{{ g.securityGroupName || g.securityGroupId }}</div>
+            <div class="nx-sg-item-meta mono">{{ g.securityGroupId }}</div>
+            <div class="nx-sg-item-meta">规则 {{ g.ruleCount != null ? g.ruleCount : '—' }} · 实例 {{ g.ecsCount != null ? g.ecsCount : '—' }}</div>
+          </div>
+          <p v-if="!sgList.length && !sgLoading" class="nx-alerts-empty">暂无安全组或暂无权限列出。</p>
+          <div v-if="sgTotalPages > 1" class="nx-sg-pager">
+            <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" :disabled="sgPage <= 1 || sgLoading" @click="sgPage--; loadSecurityGroups()">上一页</button>
+            <span class="nx-sg-pager-info">{{ sgPage }} / {{ sgTotalPages }}</span>
+            <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" :disabled="sgPage >= sgTotalPages || sgLoading" @click="sgPage++; loadSecurityGroups()">下一页</button>
+          </div>
+        </div>
+        <div class="nx-sg-detail">
+          <template v-if="selectedSgId">
+            <div class="nx-sg-detail-head">
+              <span class="mono">{{ selectedSgId }}</span>
+              <button type="button" class="nx-btn nx-btn--ghost nx-btn--sm" :disabled="sgRulesLoading" @click="loadSgRules">{{ sgRulesLoading ? '加载中…' : '刷新规则' }}</button>
+            </div>
+            <div v-if="sgRulesLoading && !sgRules.length" class="nx-ext-loading small"><div class="nx-spinner"></div></div>
+            <table v-else-if="sgRules.length" class="nx-ext-table compact nx-sg-rules-table">
+              <thead>
+                <tr>
+                  <th>方向</th>
+                  <th>协议</th>
+                  <th>端口</th>
+                  <th>授权对象</th>
+                  <th>策略</th>
+                  <th>优先级</th>
+                  <th>网卡</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(r, ri) in sgRules" :key="'r-' + ri">
+                  <td>{{ formatSgDirection(r.direction) }}</td>
+                  <td>{{ r.ipProtocol || '—' }}</td>
+                  <td class="mono">{{ r.portRange || '—' }}</td>
+                  <td class="mono nx-sg-cidr">{{ formatSgPeer(r) }}</td>
+                  <td>{{ r.policy || '—' }}</td>
+                  <td>{{ r.priority != null ? r.priority : '—' }}</td>
+                  <td>{{ r.nicType || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else-if="!sgRulesLoading" class="nx-alerts-empty">暂无规则或加载失败</p>
+          </template>
+          <p v-else class="nx-alerts-empty">请从左侧选择一个安全组查看规则</p>
+        </div>
+      </div>
+    </div>
+
     <!-- 全局巡检配置 -->
     <div class="nx-modal-overlay" v-if="showGlobalSyncModal" @click.self="showGlobalSyncModal = false">
       <div class="nx-modal">
@@ -578,6 +651,16 @@ export default {
       ossBuckets: [],
       smsSignatures: [],
       smsTemplates: [],
+
+      sgLoading: false,
+      sgError: '',
+      sgList: [],
+      sgPage: 1,
+      sgPageSize: 20,
+      sgTotalCount: 0,
+      selectedSgId: null,
+      sgRules: [],
+      sgRulesLoading: false
     }
   },
   created () {
@@ -618,6 +701,12 @@ export default {
       const userPart = this.sshUser && String(this.sshUser).trim() ? String(this.sshUser).trim() : 'root'
       const portPart = this.sshPort ? ` -p ${this.sshPort}` : ''
       return `ssh ${keyPart}${userPart}@${this.sshHost}${portPart}`.trim()
+    },
+    sgTotalPages () {
+      const t = Number(this.sgTotalCount) || 0
+      const ps = Number(this.sgPageSize) || 20
+      if (t <= 0) return 1
+      return Math.max(1, Math.ceil(t / ps))
     }
   },
   methods: {
@@ -732,7 +821,7 @@ export default {
     },
     async onAccountChange () {
       await this.loadInstances()
-      if (['dns', 'oss', 'icp', 'sms'].includes(this.mainTab)) {
+      if (['dns', 'oss', 'icp', 'sms', 'sg'].includes(this.mainTab)) {
         await this.loadExtensionTabData()
       }
     },
@@ -746,6 +835,12 @@ export default {
       if (this.mainTab === 'oss') return this.loadOssBuckets()
       if (this.mainTab === 'sms') return this.loadSmsMeta()
       if (this.mainTab === 'icp') return Promise.resolve()
+      if (this.mainTab === 'sg') {
+        this.sgPage = 1
+        this.selectedSgId = null
+        this.sgRules = []
+        return this.loadSecurityGroups()
+      }
     },
     async refreshExtensionOnly () {
       if (!this.selectedAccountId) return
@@ -817,6 +912,75 @@ export default {
         this.extensionLoading = false
       }
     },
+    async loadSecurityGroups () {
+      if (!this.selectedAccountId) return
+      this.sgLoading = true
+      this.sgError = ''
+      try {
+        const resp = await this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/ecs/security-groups`, {
+          params: { page: this.sgPage, pageSize: this.sgPageSize }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.sgList = d.items || []
+          this.sgTotalCount = d.totalCount != null ? d.totalCount : 0
+          const still = this.selectedSgId && this.sgList.find(x => x.securityGroupId === this.selectedSgId)
+          if (still) {
+            await this.loadSgRules()
+          } else if (this.sgList.length) {
+            await this.selectSecurityGroup(this.sgList[0])
+          } else {
+            this.selectedSgId = null
+            this.sgRules = []
+          }
+        } else {
+          this.sgList = []
+          this.sgTotalCount = 0
+          this.sgError = (resp.data && resp.data.message) || '加载失败'
+        }
+      } catch (e) {
+        this.sgList = []
+        this.sgTotalCount = 0
+        this.sgError = (e.response && e.response.data && e.response.data.message) || e.message || '加载失败'
+      } finally {
+        this.sgLoading = false
+      }
+    },
+    async selectSecurityGroup (g) {
+      if (!g || !g.securityGroupId) return
+      this.selectedSgId = g.securityGroupId
+      await this.loadSgRules()
+    },
+    async loadSgRules () {
+      if (!this.selectedAccountId || !this.selectedSgId) return
+      this.sgRulesLoading = true
+      try {
+        const resp = await this.$http.get(
+          `/admin/nexus/accounts/${this.selectedAccountId}/ecs/security-groups/${encodeURIComponent(this.selectedSgId)}/rules`
+        )
+        if (resp.data && resp.data.code === 0) {
+          this.sgRules = resp.data.data || []
+        } else {
+          this.sgRules = []
+        }
+      } catch (e) {
+        this.sgRules = []
+      } finally {
+        this.sgRulesLoading = false
+      }
+    },
+    formatSgDirection (d) {
+      const m = { ingress: '入方向', egress: '出方向', all: '全部' }
+      return m[d] || d || '—'
+    },
+    formatSgPeer (r) {
+      if (!r) return '—'
+      const dir = (r.direction || '').toLowerCase()
+      if (dir === 'egress') {
+        return r.destCidrIp || r.destGroupId || '—'
+      }
+      return r.sourceCidrIp || r.sourceGroupId || '—'
+    },
     async loadSmsMeta () {
       this.extensionLoading = true
       try {
@@ -838,12 +1002,15 @@ export default {
       return String(v).replace('T', ' ').slice(0, 16)
     },
     openAliyunConsole (kind) {
+      const acc = this.accounts.find(a => a.id === this.selectedAccountId)
+      const region = (acc && acc.regionId) ? String(acc.regionId).trim() : 'cn-hangzhou'
       const map = {
         dns: 'https://dns.console.aliyun.com/',
         oss: 'https://oss.console.aliyun.com/',
         sms: 'https://dysms.console.aliyun.com/',
         beian: 'https://beian.console.aliyun.com/',
-        beianOrder: 'https://bsn.console.aliyun.com/'
+        beianOrder: 'https://bsn.console.aliyun.com/',
+        ecsSg: `https://ecs.console.aliyun.com/#/securityGroup/region/${encodeURIComponent(region)}`
       }
       const u = map[kind]
       if (u) window.open(u, '_blank', 'noopener,noreferrer')
@@ -1855,6 +2022,65 @@ export default {
   font-size: 12px;
   color: var(--text-disabled, #8F959E);
 }
+.nx-sg-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 16px;
+  align-items: start;
+  min-height: 240px;
+}
+@media (max-width: 900px) {
+  .nx-sg-layout { grid-template-columns: 1fr; }
+}
+.nx-sg-list {
+  border: 1px solid var(--border-primary, #dee0e3);
+  border-radius: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+.nx-sg-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-primary, #dee0e3);
+  cursor: pointer;
+  background: #fafbfc;
+}
+.nx-sg-item:last-child { border-bottom: none; }
+.nx-sg-item:hover { background: #f0f5ff; }
+.nx-sg-item.is-active {
+  background: #e8f0ff;
+  border-left: 3px solid var(--brand-blue, #1456F0);
+  padding-left: 9px;
+}
+.nx-sg-item-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.nx-sg-item-meta { font-size: 11px; color: var(--text-disabled, #8F959E); line-height: 1.4; }
+.nx-sg-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--border-primary, #dee0e3);
+  background: #fff;
+}
+.nx-sg-pager-info { font-size: 12px; color: var(--text-secondary, #646A73); }
+.nx-sg-detail {
+  border: 1px solid var(--border-primary, #dee0e3);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 200px;
+  overflow: auto;
+}
+.nx-sg-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  word-break: break-all;
+}
+.nx-sg-rules-table { font-size: 11px; }
+.nx-sg-cidr { max-width: 220px; word-break: break-all; }
 .nx-alerts-head {
   display: flex;
   align-items: center;

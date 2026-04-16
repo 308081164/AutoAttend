@@ -5,6 +5,10 @@ import com.aliyun.ecs20140526.models.DescribeInstanceMonitorDataRequest;
 import com.aliyun.ecs20140526.models.DescribeInstanceMonitorDataResponse;
 import com.aliyun.ecs20140526.models.DescribeInstancesRequest;
 import com.aliyun.ecs20140526.models.DescribeInstancesResponse;
+import com.aliyun.ecs20140526.models.DescribeSecurityGroupAttributeRequest;
+import com.aliyun.ecs20140526.models.DescribeSecurityGroupAttributeResponse;
+import com.aliyun.ecs20140526.models.DescribeSecurityGroupsRequest;
+import com.aliyun.ecs20140526.models.DescribeSecurityGroupsResponse;
 import com.aliyun.ecs20140526.models.RebootInstanceRequest;
 import com.aliyun.ecs20140526.models.StartInstanceRequest;
 import com.aliyun.ecs20140526.models.StopInstanceRequest;
@@ -17,6 +21,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -135,6 +140,117 @@ public class AliyunEcsAdapter {
         client.stopInstanceWithOptions(req, runtime);
     }
 
+    /**
+     * 分页列举安全组（仅元数据，不含规则明细）。
+     */
+    public List<SecurityGroupSummary> listSecurityGroups(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            int pageSize,
+            int pageNumber
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        DescribeSecurityGroupsRequest request = new DescribeSecurityGroupsRequest()
+                .setRegionId(regionId)
+                .setPageSize(pageSize)
+                .setPageNumber(pageNumber);
+        DescribeSecurityGroupsResponse response = client.describeSecurityGroupsWithOptions(request, runtime);
+        if (response.body == null || response.body.getSecurityGroups() == null) {
+            return Collections.emptyList();
+        }
+        var groups = response.body.getSecurityGroups().getSecurityGroup();
+        if (groups == null || groups.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<SecurityGroupSummary> out = new ArrayList<>();
+        for (var g : groups) {
+            if (g == null) continue;
+            SecurityGroupSummary s = new SecurityGroupSummary();
+            s.securityGroupId = g.getSecurityGroupId();
+            s.securityGroupName = g.getSecurityGroupName();
+            s.vpcId = g.getVpcId();
+            s.description = g.getDescription();
+            s.ecsCount = g.getEcsCount();
+            s.ruleCount = g.getRuleCount();
+            s.creationTime = g.getCreationTime();
+            if (s.securityGroupId != null && !s.securityGroupId.isBlank()) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    public Integer totalCountSecurityGroups(String accessKeyId, String accessKeySecret, String regionId, int pageSize, int pageNumber) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        DescribeSecurityGroupsRequest request = new DescribeSecurityGroupsRequest()
+                .setRegionId(regionId)
+                .setPageSize(pageSize)
+                .setPageNumber(pageNumber);
+        DescribeSecurityGroupsResponse response = client.describeSecurityGroupsWithOptions(request, runtime);
+        if (response.body == null) {
+            return 0;
+        }
+        return response.body.getTotalCount();
+    }
+
+    /**
+     * 拉取某安全组全部入/出方向规则（分页 nextToken 聚合）。
+     */
+    public List<Map<String, Object>> listSecurityGroupRulesMerged(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String securityGroupId
+    ) throws Exception {
+        Client client = createClient(accessKeyId, accessKeySecret, regionId);
+        RuntimeOptions runtime = new RuntimeOptions();
+        List<Map<String, Object>> merged = new ArrayList<>();
+        String nextToken = null;
+        int guard = 0;
+        while (guard++ < 80) {
+            DescribeSecurityGroupAttributeRequest req = new DescribeSecurityGroupAttributeRequest()
+                    .setRegionId(regionId)
+                    .setSecurityGroupId(securityGroupId)
+                    .setDirection("all");
+            if (nextToken != null && !nextToken.isBlank()) {
+                req.setNextToken(nextToken);
+            }
+            DescribeSecurityGroupAttributeResponse resp = client.describeSecurityGroupAttributeWithOptions(req, runtime);
+            if (resp.body == null) {
+                break;
+            }
+            if (resp.body.getPermissions() != null && resp.body.getPermissions().getPermission() != null) {
+                for (var p : resp.body.getPermissions().getPermission()) {
+                    if (p == null) continue;
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("securityGroupRuleId", p.getSecurityGroupRuleId());
+                    m.put("direction", p.getDirection());
+                    m.put("ipProtocol", p.getIpProtocol());
+                    m.put("portRange", p.getPortRange());
+                    m.put("sourcePortRange", p.getSourcePortRange());
+                    m.put("policy", p.getPolicy());
+                    m.put("priority", p.getPriority());
+                    m.put("nicType", p.getNicType());
+                    m.put("sourceCidrIp", p.getSourceCidrIp());
+                    m.put("destCidrIp", p.getDestCidrIp());
+                    m.put("sourceGroupId", p.getSourceGroupId());
+                    m.put("destGroupId", p.getDestGroupId());
+                    m.put("description", p.getDescription());
+                    m.put("createTime", p.getCreateTime());
+                    merged.add(m);
+                }
+            }
+            nextToken = resp.body.getNextToken();
+            if (nextToken == null || nextToken.isBlank()) {
+                break;
+            }
+        }
+        return merged;
+    }
+
     public void rebootInstance(String accessKeyId, String accessKeySecret, String regionId, String instanceId, boolean forceStop) throws Exception {
         Client client = createClient(accessKeyId, accessKeySecret, regionId);
         RuntimeOptions runtime = new RuntimeOptions();
@@ -228,6 +344,16 @@ public class AliyunEcsAdapter {
         public String instanceId;
         public LocalDateTime ts;
         public Double cpuValue;
+    }
+
+    public static class SecurityGroupSummary {
+        public String securityGroupId;
+        public String securityGroupName;
+        public String vpcId;
+        public String description;
+        public Integer ecsCount;
+        public Integer ruleCount;
+        public String creationTime;
     }
 
     private static DescribeInstancesRequest tryInvoke(DescribeInstancesRequest req, String method, Class<?>[] pTypes, Object[] args) {
