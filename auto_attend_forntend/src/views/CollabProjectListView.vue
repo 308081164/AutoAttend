@@ -79,11 +79,13 @@
 
 <script>
 import { getStoredCollabActingUserId, setStoredCollabActingUserId } from '@/utils/collabActingUser'
+import { subscribeAuthSession, notifyAuthSessionChanged } from '@/utils/authSession'
 
 export default {
   name: 'CollabProjectListView',
   data () {
     return {
+      authSessionTick: 0,
       projects: [],
       projectTab: 'tenant',
       projectSearch: '',
@@ -96,7 +98,8 @@ export default {
   },
   computed: {
     isAdmin () {
-      return !!window.localStorage.getItem('autoattend_token')
+      void this.authSessionTick
+      return !!(window.localStorage.getItem('autoattend_token') || '').trim()
     },
     showIdentitySwitcher () {
       return this.linkedIdentities.length > 1
@@ -146,6 +149,17 @@ export default {
     this.loadMe()
       .then(() => this.loadLinkedIdentities())
       .then(() => this.loadProjects())
+  },
+  mounted () {
+    this._unsubAuthSession = subscribeAuthSession(() => {
+      this.authSessionTick++
+    })
+  },
+  beforeDestroy () {
+    if (this._unsubAuthSession) {
+      this._unsubAuthSession()
+      this._unsubAuthSession = null
+    }
   },
   methods: {
     formatIdentityOption (it) {
@@ -217,6 +231,7 @@ export default {
       window.localStorage.removeItem('autoattend_collab_token')
       window.localStorage.removeItem('autoattend_token')
       window.localStorage.removeItem('autoattend_username')
+      notifyAuthSessionChanged()
       this.$router.push({ name: admin ? 'login' : 'member-login' })
     }
   }

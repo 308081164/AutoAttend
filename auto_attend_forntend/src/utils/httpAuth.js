@@ -22,6 +22,6 @@ export function shouldHandleUnauthorizedSession (error) {
 /** 协作页 401：按是否存在管理员会话跳转对应登录页（勿写死 login） */
 export function redirectCollabUnauthorized (router) {
   if (!router) return
-  const admin = !!window.localStorage.getItem('autoattend_token')
+  const admin = !!(window.localStorage.getItem('autoattend_token') || '').trim()
   router.push({ name: admin ? 'login' : 'member-login' })
 }

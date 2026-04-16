@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -89,10 +90,22 @@ public class AdminTeamService {
     public void updateMember(long id, UpdateMemberRequest req) {
         BizUser user = getMember(id);
         if (user == null) throw new IllegalArgumentException("用户不存在");
-        if (req.getName() != null) user.setName(req.getName().trim());
+        // 成员姓名与头像由成员自行维护，管理员仅可改备注名、职务、系统角色等
+        if (req.getName() != null) {
+            String incoming = req.getName().trim();
+            String current = user.getName() != null ? user.getName().trim() : "";
+            if (!incoming.equals(current)) {
+                throw new IllegalArgumentException("成员姓名不可由管理员修改");
+            }
+        }
+        if (req.getAvatar() != null) {
+            String incoming = req.getAvatar().trim().isEmpty() ? null : req.getAvatar().trim();
+            if (!Objects.equals(incoming, user.getAvatar())) {
+                throw new IllegalArgumentException("成员头像不可由管理员修改");
+            }
+        }
         if (req.getRemarkName() != null) user.setRemarkName(req.getRemarkName().trim());
         if (req.getJobTitle() != null) user.setJobTitle(req.getJobTitle().trim());
-        if (req.getAvatar() != null) user.setAvatar(req.getAvatar().trim().isEmpty() ? null : req.getAvatar().trim());
         if (req.getRole() != null && ("member".equals(req.getRole()) || "sub_admin".equals(req.getRole()) || "super_admin".equals(req.getRole()))) {
             user.setRole(req.getRole());
         }

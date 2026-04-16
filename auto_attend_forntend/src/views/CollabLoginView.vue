@@ -37,6 +37,8 @@
 </template>
 
 <script>
+import { notifyAuthSessionChanged } from '@/utils/authSession'
+
 export default {
   name: 'CollabLoginView',
   data () {
@@ -58,6 +60,7 @@ export default {
         if (resp.data && resp.data.code === 0) {
           const token = resp.data.data.token
           window.localStorage.setItem('autoattend_collab_token', token)
+          notifyAuthSessionChanged()
           this.$router.push({ name: 'member-home' })
         } else {
           this.error = (resp.data && resp.data.message) || this.$t('collabLogin.failed')

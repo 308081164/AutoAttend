@@ -5,6 +5,7 @@ import axios from 'axios'
 import { i18n } from './locales'
 import { isCollabApiRequestUrl, shouldHandleUnauthorizedSession } from './utils/httpAuth'
 import { getStoredCollabActingUserId } from './utils/collabActingUser'
+import { notifyAuthSessionChanged } from './utils/authSession'
 
 Vue.config.productionTip = false
 
@@ -31,6 +32,7 @@ Vue.config.productionTip = false
       const qs = params.toString()
       const nextUrl = window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash
       window.history.replaceState({}, document.title, nextUrl)
+      notifyAuthSessionChanged()
     }
   } catch (e) {
     // ignore
@@ -86,6 +88,7 @@ axios.interceptors.response.use(
           window.localStorage.removeItem('autoattend_token')
           window.localStorage.removeItem('autoattend_username')
         }
+        notifyAuthSessionChanged()
 
         setTimeout(() => {
           const p = window.location.pathname || ''
