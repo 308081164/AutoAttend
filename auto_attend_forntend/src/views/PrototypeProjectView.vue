@@ -32,6 +32,13 @@
                   :class="{ active: mode === 'spec' }"
                   @click="switchMode('spec')"
                 >Spec（结构化）</button>
+                <button
+                  v-if="penpotUiAvailable"
+                  type="button"
+                  class="mode-btn"
+                  :class="{ active: mode === 'penpot' }"
+                  @click="switchMode('penpot')"
+                >Penpot Beta</button>
               </span>
             </div>
             <div class="section-body">
@@ -90,6 +97,34 @@
               <p class="section-hint import-doc-hint">将同步报价中的<strong>需求原文</strong>（PRD / AI 录入）与项目维度，并生成标准结构的《页面设计文档》；报价功能清单仅出现在文末附录，供智能体做漏项核对，不强制「一模块一 Tab」。</p>
               <div v-if="importHint" class="section-hint">{{ importHint }}</div>
               <div v-if="genError" class="error-msg">{{ genError }}</div>
+
+              <template v-if="mode === 'penpot'">
+                <p class="section-hint">
+                  在 Penpot 中为当前项目<strong>创建空白设计文件</strong>（服务端技术账号，方案 A）。
+                  画布编辑可在 Penpot 中打开链接完成；本页不嵌入 Penpot 编辑器。
+                </p>
+                <label class="label">备注（可选，写入任务审计）</label>
+                <textarea
+                  v-model="penpotNote"
+                  class="prompt-textarea"
+                  placeholder="例如：占位初稿，后续由设计在 Penpot 中完善"
+                ></textarea>
+                <div class="actions-row">
+                  <button
+                    type="button"
+                    class="primary-button"
+                    :disabled="penpotGenerating || !penpotReady"
+                    @click="createPenpotFile"
+                  >
+                    {{ penpotGenerating ? '创建中…' : '创建 Penpot 文件' }}
+                  </button>
+                  <button type="button" class="secondary-button" :disabled="penpotProbeLoading" @click="checkPenpotReachable">
+                    {{ penpotProbeLoading ? '检测中…' : '检测 Penpot 连通' }}
+                  </button>
+                </div>
+                <div v-if="penpotStatusHint" class="section-hint">{{ penpotStatusHint }}</div>
+                <div v-if="penpotError" class="error-msg">{{ penpotError }}</div>
+              </template>
             </div>
           </div>
 
@@ -103,6 +138,20 @@
               </select>
               <div v-else class="muted">尚未生成 spec。</div>
               <div class="section-hint">生成新版本后会自动切换预览。</div>
+            </div>
+          </div>
+
+          <div v-else-if="mode === 'penpot'" class="section-card">
+            <div class="section-title">Penpot 绑定</div>
+            <div class="section-body">
+              <div v-if="penpotFileId" class="penpot-bind">
+                <p><strong>文件 ID：</strong><code>{{ penpotFileId }}</code></p>
+                <p v-if="penpotPreviewUrl">
+                  <a :href="penpotPreviewUrl" target="_blank" rel="noopener">在 Penpot 中打开工作区</a>
+                  <span class="section-hint">（需登录与后端相同的 Penpot 技术账号，或使用已分享的查看方式）</span>
+                </p>
+              </div>
+              <div v-else class="muted">尚未创建 Penpot 文件。点击左侧「创建 Penpot 文件」。</div>
             </div>
           </div>
 
@@ -129,7 +178,7 @@
           <div class="section-card">
             <div class="section-head">
               <div class="section-title">
-                {{ mode === 'spec' ? '预览（MVP：点击态/切换面板/Tabs）' : 'Mockup 预览（HTML+CSS）' }}
+                {{ mode === 'spec' ? '预览（MVP：点击态/切换面板/Tabs）' : mode === 'penpot' ? 'Penpot（外链打开）' : 'Mockup 预览（HTML+CSS）' }}
               </div>
               <div class="head-actions">
                 <button
@@ -142,13 +191,21 @@
                   导出 spec + preview
                 </button>
                 <button
-                  v-else
+                  v-else-if="mode === 'mockup'"
                   type="button"
                   class="primary-button"
                   :disabled="!latestDesign"
                   @click="downloadLatestMockup"
                 >
                   下载 mockup（HTML+CSS）
+                </button>
+                <button
+                  v-else-if="mode === 'penpot' && penpotPreviewUrl"
+                  type="button"
+                  class="primary-button"
+                  @click="openPenpotExternal"
+                >
+                  打开 Penpot 工作区
                 </button>
               </div>
             </div>
@@ -157,6 +214,14 @@
                 <div ref="previewRoot" class="preview-root"></div>
                 <div v-if="specParseError" class="error-msg">{{ specParseError }}</div>
                 <div v-if="exportError" class="error-msg">{{ exportError }}</div>
+              </template>
+              <template v-else-if="mode === 'penpot'">
+                <div v-if="penpotPreviewUrl" class="penpot-preview-hint">
+                  <p>预览与编辑请在 Penpot 网页中完成（不在此页嵌入 iframe，避免跨域与登录态问题）。</p>
+                  <p class="muted">链接：<code>{{ penpotPreviewUrl }}</code></p>
+                </div>
+                <div v-else class="muted">创建成功后将显示工作区链接。</div>
+                <div v-if="penpotError" class="error-msg">{{ penpotError }}</div>
               </template>
               <template v-else>
                 <iframe
@@ -215,7 +280,19 @@ export default {
           role: 'assistant',
           content: '你好！你可以直接输入中文需求（例如：生成一个登录页 mockup）。我会自动解析为 HTML + CSS 并预览。'
         }
-      ]
+      ],
+
+      // Penpot Beta（方案 A）
+      penpotUiAvailable: false,
+      penpotReady: false,
+      penpotReachable: null,
+      penpotNote: '',
+      penpotGenerating: false,
+      penpotError: '',
+      penpotStatusHint: '',
+      penpotProbeLoading: false,
+      penpotFileId: '',
+      penpotPreviewUrl: ''
     }
   },
   computed: {
@@ -266,6 +343,7 @@ ${html}
     this.load()
     this.loadQuoteProjects()
     this.loadMockup()
+    this.loadPenpotStatus()
   },
   watch: {
     activeSpecId () {
@@ -324,7 +402,7 @@ ${html}
       }
     },
     switchMode (m) {
-      if (m !== 'spec' && m !== 'mockup') return
+      if (m !== 'spec' && m !== 'mockup' && m !== 'penpot') return
       this.mode = m
       this.genError = ''
       this.specParseError = ''
@@ -344,6 +422,8 @@ ${html}
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const d = resp.data.data
           this.projectName = d.name || ''
+          this.penpotFileId = d.penpotFileId ? String(d.penpotFileId) : ''
+          this.penpotPreviewUrl = d.penpotPreviewUrl ? String(d.penpotPreviewUrl) : ''
           this.specs = d.specs || []
           // 默认选中当前版本：如果有 currentSpecVersion，则匹配；否则选第一个
           const cur = d.currentSpecVersion
@@ -432,6 +512,84 @@ ${html}
         }
       }
       this.genError = '等待超时：生成可能仍在后台进行，请稍后刷新页面查看版本列表。'
+    },
+    async loadPenpotStatus () {
+      try {
+        const resp = await this.$http.get('/admin/ui-prototype/penpot/status')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.penpotUiAvailable = !!d.enabled
+          this.penpotReady = !!d.enabled
+          if (!this.penpotUiAvailable) {
+            this.penpotStatusHint = 'Penpot Beta 未启用：请在部署环境设置 PENPOT_ENABLED=true 并配置 PENPOT_ACCESS_TOKEN（或邮箱密码）。'
+          } else {
+            this.penpotStatusHint = ''
+          }
+        }
+      } catch (e) {
+        this.penpotUiAvailable = false
+      }
+    },
+    async checkPenpotReachable () {
+      this.penpotProbeLoading = true
+      this.penpotError = ''
+      try {
+        const resp = await this.$http.get('/admin/ui-prototype/penpot/status', { params: { probe: 1 } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const ok = !!resp.data.data.reachable
+          this.penpotReachable = ok
+          this.penpotStatusHint = ok ? 'Penpot API 连通正常。' : '无法连接 Penpot：请检查 Token、PENPOT_INTERNAL_URI 与 Penpot 容器是否运行。'
+        }
+      } catch (e) {
+        this.penpotError = (e.response && e.response.data && e.response.data.message) || '检测失败'
+      } finally {
+        this.penpotProbeLoading = false
+      }
+    },
+    async createPenpotFile () {
+      if (!this.penpotReady) return
+      this.penpotGenerating = true
+      this.penpotError = ''
+      try {
+        const resp = await this.$http.post(`/admin/ui-prototype/projects/${this.projectId}/penpot/jobs`, {
+          note: this.penpotNote || undefined
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.jobId != null) {
+          await this.pollPenpotJob(resp.data.data.jobId)
+          await this.load()
+        } else {
+          this.penpotError = (resp.data && resp.data.message) || '创建失败'
+        }
+      } catch (e) {
+        this.penpotError = (e.response && e.response.data && e.response.data.message) || '创建失败'
+      } finally {
+        this.penpotGenerating = false
+      }
+    },
+    async pollPenpotJob (jobId) {
+      const max = 60
+      for (let i = 0; i < max; i++) {
+        await this.sleep(1500)
+        const r = await this.$http.get(`/admin/ui-prototype/projects/${this.projectId}/penpot/jobs/${jobId}`)
+        if (!r.data || r.data.code !== 0 || !r.data.data) {
+          this.penpotError = (r.data && r.data.message) || '查询任务失败'
+          return
+        }
+        const st = r.data.data.status
+        if (st === 'success') {
+          return
+        }
+        if (st === 'failed') {
+          this.penpotError = r.data.data.errorMessage || '创建失败'
+          return
+        }
+      }
+      this.penpotError = '等待超时：请稍后刷新页面查看 Penpot 绑定。'
+    },
+    openPenpotExternal () {
+      if (this.penpotPreviewUrl) {
+        window.open(this.penpotPreviewUrl, '_blank', 'noopener')
+      }
     },
     async pollMockupJob (jobId) {
       const max = 120

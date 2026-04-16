@@ -18,6 +18,7 @@ import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateJobStatu
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSpecGenerateResult;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeGenerateJobMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeMockupGenerateJobMapper;
+import org.example.atuo_attend_backend.prototype.mapper.UiPrototypePenpotJobMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeMockupMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeProjectMapper;
 import org.example.atuo_attend_backend.prototype.mapper.UiPrototypeSpecMapper;
@@ -42,6 +43,7 @@ public class UiPrototypeService {
     private final UiPrototypeGenerateJobMapper generateJobMapper;
     private final UiPrototypeMockupMapper mockupMapper;
     private final UiPrototypeMockupGenerateJobMapper mockupGenerateJobMapper;
+    private final UiPrototypePenpotJobMapper penpotJobMapper;
     private final AiAnalysisConfigService configService;
     private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -53,6 +55,7 @@ public class UiPrototypeService {
                               UiPrototypeGenerateJobMapper generateJobMapper,
                               UiPrototypeMockupMapper mockupMapper,
                               UiPrototypeMockupGenerateJobMapper mockupGenerateJobMapper,
+                              UiPrototypePenpotJobMapper penpotJobMapper,
                               AiAnalysisConfigService configService,
                               DeepSeekClient deepSeekClient) {
         this.projectMapper = projectMapper;
@@ -60,6 +63,7 @@ public class UiPrototypeService {
         this.generateJobMapper = generateJobMapper;
         this.mockupMapper = mockupMapper;
         this.mockupGenerateJobMapper = mockupGenerateJobMapper;
+        this.penpotJobMapper = penpotJobMapper;
         this.configService = configService;
         this.deepSeekClient = deepSeekClient;
     }
@@ -114,6 +118,9 @@ public class UiPrototypeService {
         try {
             mockupGenerateJobMapper.deleteByProjectId(tenantId, id);
         } catch (Exception ignore) { /* non-fatal */ }
+        try {
+            penpotJobMapper.deleteByProjectId(tenantId, id);
+        } catch (Exception ignore) { /* non-fatal */ }
         int deleted = projectMapper.deleteById(tenantId, id);
         if (deleted <= 0) throw new IllegalArgumentException("项目不存在");
     }
@@ -139,6 +146,10 @@ public class UiPrototypeService {
         d.setId(p.getId());
         d.setName(p.getName());
         d.setCurrentSpecVersion(p.getCurrentSpecVersion());
+        d.setPenpotTeamId(p.getPenpotTeamId());
+        d.setPenpotProjectId(p.getPenpotProjectId());
+        d.setPenpotFileId(p.getPenpotFileId());
+        d.setPenpotPreviewUrl(p.getPenpotPreviewUrl());
         d.setSpecs(specItems);
         return d;
     }

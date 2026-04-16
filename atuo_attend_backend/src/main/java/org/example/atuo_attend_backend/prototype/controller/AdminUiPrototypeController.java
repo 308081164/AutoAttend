@@ -12,6 +12,9 @@ import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateSpecRequ
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeGenerateMockupRequest;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeImportQuoteRequirementRequest;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeSaveMockupMessagesRequest;
+import org.example.atuo_attend_backend.prototype.dto.UiPrototypePenpotJobStatus;
+import org.example.atuo_attend_backend.prototype.dto.UiPrototypePenpotGenerateRequest;
+import org.example.atuo_attend_backend.prototype.service.UiPrototypePenpotService;
 import org.example.atuo_attend_backend.quote.service.QuoteService;
 import org.example.atuo_attend_backend.prototype.service.UiPrototypeService;
 import org.springframework.web.bind.annotation.*;
@@ -27,15 +30,34 @@ import java.util.Map;
 public class AdminUiPrototypeController {
 
     private final UiPrototypeService uiPrototypeService;
+    private final UiPrototypePenpotService uiPrototypePenpotService;
     private final QuoteService quoteService;
     private final PlatformComponentEventService componentEventService;
 
     public AdminUiPrototypeController(UiPrototypeService uiPrototypeService,
+                                      UiPrototypePenpotService uiPrototypePenpotService,
                                       QuoteService quoteService,
                                       PlatformComponentEventService componentEventService) {
         this.uiPrototypeService = uiPrototypeService;
+        this.uiPrototypePenpotService = uiPrototypePenpotService;
         this.quoteService = quoteService;
         this.componentEventService = componentEventService;
+    }
+
+    /**
+     * Penpot Beta 是否可用。
+     * @param probe 传 1 或 true 时额外请求 Penpot get-teams 做连通性检查（略慢，勿高频轮询）
+     */
+    @GetMapping("/penpot/status")
+    public ApiResponse<Map<String, Object>> penpotStatus(@RequestParam(required = false) String probe) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("enabled", uiPrototypePenpotService.isFeatureEnabled());
+        data.put("configured", uiPrototypePenpotService.isConfiguredOnly());
+        boolean doProbe = "1".equals(probe) || "true".equalsIgnoreCase(probe);
+        if (doProbe) {
+            data.put("reachable", uiPrototypePenpotService.probeConnection());
+        }
+        return ApiResponse.ok(data);
     }
 
     @GetMapping("/projects")
@@ -187,6 +209,36 @@ public class AdminUiPrototypeController {
     /**
      * 从报价项目生成快原型需求正文（后端判别）：有 PRD/AI 原文则仅返回该叙述；无则仅返回功能清单表。供快原型需求框使用。
      */
+    /**
+     * 在 Penpot 中为当前快原型项目创建空白设计文件（异步任务）；绑定关系落在服务端技术账号下（方案 A）。
+     */
+    @PostMapping("/projects/{id}/penpot/jobs")
+    public ApiResponse<Map<String, Object>> enqueuePenpotJob(@PathVariable long id,
+                                                             @RequestBody(required = false) UiPrototypePenpotGenerateRequest body,
+                                                             HttpServletRequest req) {
+        try {
+            String note = body != null ? body.getNote() : null;
+            long jobId = uiPrototypePenpotService.enqueueCreateFile(id, note);
+            Long adminUserId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+            String adminPhone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
+            componentEventService.recordUsage(adminUserId, adminPhone, "hub_prototype", "ui_prototype_penpot_create_file");
+            Map<String, Object> data = new HashMap<>();
+            data.put("jobId", jobId);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
+    }
+
+    @GetMapping("/projects/{id}/penpot/jobs/{jobId}")
+    public ApiResponse<UiPrototypePenpotJobStatus> getPenpotJob(@PathVariable long id, @PathVariable long jobId) {
+        UiPrototypePenpotJobStatus s = uiPrototypePenpotService.getJobStatus(id, jobId);
+        if (s == null) return ApiResponse.error(40400, "任务不存在");
+        return ApiResponse.ok(s);
+    }
+
     @PostMapping("/projects/{id}/import-quote-requirement")
     public ApiResponse<Map<String, Object>> importQuoteRequirement(@PathVariable long id,
                                                                    @RequestBody(required = false) UiPrototypeImportQuoteRequirementRequest body) {

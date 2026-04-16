@@ -37,8 +37,13 @@ docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "%{http_code}\n" 
 1. 在服务器 `DEPLOY_PATH` 下配置 `.env`（与 compose 同目录），至少设置：
    - `PENPOT_PUBLIC_URI`：用户浏览器访问 Penpot 的完整 URL。
    - `PENPOT_SECRET_KEY`：**勿使用** 仓库默认值。
-2. CI 会同步 `docker-compose.prod.yml` 与 **`docker-compose.penpot.yml`**；部署脚本会先 `up -d penpot-frontend` 再启动 `backend`。
-3. 若经 **反向代理** 仅暴露 443，请把 `PENPOT_PUBLIC_URI` 设为 `https://...`，并在代理层转发到 `127.0.0.1:9001`（或你映射的端口）。
+2. **AutoAttend 后端调用 Penpot（方案 A）**：在 Penpot 网页 **设置 → Access tokens** 生成令牌，写入部署环境：
+   - `PENPOT_ENABLED=true`
+   - `PENPOT_ACCESS_TOKEN=<令牌>`
+   - `PENPOT_INTERNAL_URI`：与 Compose 内 `penpot-frontend:8080` 一致（默认已配）。
+   备选：配置 `PENPOT_EMAIL` + `PENPOT_PASSWORD`（内置账号密码，由后端登录换 Cookie）。
+3. CI 会同步 `docker-compose.prod.yml` 与 **`docker-compose.penpot.yml`**；部署脚本会先 `up -d penpot-frontend` 再启动 `backend`。
+4. 若经 **反向代理** 仅暴露 443，请把 `PENPOT_PUBLIC_URI` 设为 `https://...`，并在代理层转发到 `127.0.0.1:9001`（或你映射的端口）。
 
 ## 4. 常见问题
 
