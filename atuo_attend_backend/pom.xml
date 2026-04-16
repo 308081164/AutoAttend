@@ -82,6 +82,12 @@
             <artifactId>aliyun-sdk-oss</artifactId>
             <version>3.18.2</version>
         </dependency>
+        <!-- 阿里云备案服务 OpenAPI（接入/域名状态等，非工信部全文查询） -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>beian20160810</artifactId>
+            <version>1.0.0</version>
+        </dependency>
 
         <dependency>
             <groupId>com.mysql</groupId>

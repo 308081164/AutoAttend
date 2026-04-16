@@ -396,19 +396,45 @@
       <p v-else class="nx-alerts-empty">暂无数据，请先同步或刷新。</p>
     </div>
 
-    <!-- 备案：跳转阿里云（无开放 API，不在平台内登记） -->
+    <!-- 备案：控制台跳转 + 官方 Beian 查询 + 可选云市场 ICP 查询 -->
     <div class="nx-panel nx-extension-panel" v-if="accounts.length && mainTab === 'icp'">
       <div class="nx-ext-head">
         <h3 class="nx-panel-title">网站备案</h3>
       </div>
       <p class="nx-alerts-desc">
-        阿里云未提供在第三方平台内「代开通/代查询备案」的稳定开放 API；备案申请、进度与管局审核均在阿里云备案系统完成。点击下方按钮在新标签页打开控制台，请使用与当前云账号一致的阿里云账号登录。
+        <strong>说明：</strong>工信部「备案号/主体」公开检索以工信部与接入商系统为准。
+        下方「官方查询」调用阿里云备案服务 OpenAPI（<code>QueryAccessorDomainStatus</code>），用于<strong>接入场景下的域名状态</strong>，不等同于工信部全文备案库检索。
+        「云市场查询」为可选：需在服务端配置云市场商品 URL 与 AppCode（通常为<strong>按次付费</strong>的第三方数据接口），未配置时按钮会提示。
       </p>
       <div class="nx-icp-actions">
         <button type="button" class="nx-btn nx-btn--primary" @click="openAliyunConsole('beian')">打开阿里云备案控制台</button>
         <button type="button" class="nx-btn nx-btn--secondary" @click="openAliyunConsole('beianOrder')">备案订单 / 进度</button>
       </div>
-      <p class="nx-icp-footnote">提示：若页面提示未登录，请先登录阿里云账号后再操作。</p>
+      <p class="nx-icp-footnote">控制台操作：若页面提示未登录，请先登录与云账号一致的阿里云账号。</p>
+
+      <div class="nx-icp-query-block">
+        <h4 class="nx-sub-title">接入域名状态（官方 OpenAPI）</h4>
+        <div class="nx-icp-query-row">
+          <input v-model.trim="icpDomainInput" class="nx-icp-domain-input" type="text" placeholder="域名，如 example.com" />
+          <button type="button" class="nx-btn nx-btn--secondary nx-btn--sm" :disabled="!selectedAccountId || icpOfficialLoading" @click="queryIcpOfficial">
+            {{ icpOfficialLoading ? '查询中…' : '官方查询' }}
+          </button>
+        </div>
+        <p v-if="icpOfficialError" class="nx-chart-error">{{ icpOfficialError }}</p>
+        <pre v-else-if="icpOfficialJson" class="nx-icp-json">{{ icpOfficialJson }}</pre>
+      </div>
+
+      <div class="nx-icp-query-block">
+        <h4 class="nx-sub-title">ICP 信息（云市场第三方，可选）</h4>
+        <div class="nx-icp-query-row">
+          <input v-model.trim="icpMarketDomainInput" class="nx-icp-domain-input" type="text" placeholder="域名（可与上栏相同）" />
+          <button type="button" class="nx-btn nx-btn--secondary nx-btn--sm" :disabled="icpMarketLoading" @click="queryIcpMarket">
+            {{ icpMarketLoading ? '查询中…' : '云市场查询' }}
+          </button>
+        </div>
+        <p v-if="icpMarketError" class="nx-chart-error">{{ icpMarketError }}</p>
+        <pre v-else-if="icpMarketJson" class="nx-icp-json">{{ icpMarketJson }}</pre>
+      </div>
     </div>
 
     <!-- 短信元数据 -->
@@ -756,7 +782,16 @@ export default {
         priority: '1',
         nicType: 'internet',
         description: ''
-      }
+      },
+
+      icpDomainInput: '',
+      icpOfficialLoading: false,
+      icpOfficialError: '',
+      icpOfficialJson: '',
+      icpMarketDomainInput: '',
+      icpMarketLoading: false,
+      icpMarketError: '',
+      icpMarketJson: ''
     }
   },
   created () {
@@ -1181,6 +1216,56 @@ export default {
         this.sgModalHint = (d && d.message) ? d.message : (e.message || '请求失败')
       } finally {
         this.sgModalSaving = false
+      }
+    },
+    async queryIcpOfficial () {
+      const d = (this.icpDomainInput || '').trim()
+      if (!d || !this.selectedAccountId) {
+        this.icpOfficialError = '请输入域名并选择云账号'
+        this.icpOfficialJson = ''
+        return
+      }
+      this.icpOfficialLoading = true
+      this.icpOfficialError = ''
+      this.icpOfficialJson = ''
+      try {
+        const resp = await this.$http.get(`/admin/nexus/accounts/${this.selectedAccountId}/icp/query-accessor-domain-status`, {
+          params: { domain: d }
+        })
+        if (resp.data && resp.data.code === 0) {
+          this.icpOfficialJson = JSON.stringify(resp.data.data || {}, null, 2)
+        } else {
+          this.icpOfficialError = (resp.data && resp.data.message) || '查询失败'
+        }
+      } catch (e) {
+        const d0 = e.response && e.response.data
+        this.icpOfficialError = (d0 && d0.message) ? d0.message : (e.message || '查询失败')
+      } finally {
+        this.icpOfficialLoading = false
+      }
+    },
+    async queryIcpMarket () {
+      const d = (this.icpMarketDomainInput || this.icpDomainInput || '').trim()
+      if (!d) {
+        this.icpMarketError = '请输入域名'
+        this.icpMarketJson = ''
+        return
+      }
+      this.icpMarketLoading = true
+      this.icpMarketError = ''
+      this.icpMarketJson = ''
+      try {
+        const resp = await this.$http.get('/admin/nexus/icp/market-query', { params: { domain: d } })
+        if (resp.data && resp.data.code === 0) {
+          this.icpMarketJson = JSON.stringify(resp.data.data || {}, null, 2)
+        } else {
+          this.icpMarketError = (resp.data && resp.data.message) || '查询失败'
+        }
+      } catch (e) {
+        const d0 = e.response && e.response.data
+        this.icpMarketError = (d0 && d0.message) ? d0.message : (e.message || '查询失败')
+      } finally {
+        this.icpMarketLoading = false
       }
     },
     async confirmDeleteSgRule (r) {
@@ -2255,6 +2340,38 @@ export default {
   margin-top: 16px;
   font-size: 12px;
   color: var(--text-disabled, #8F959E);
+}
+.nx-icp-query-block {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-primary, #dee0e3);
+}
+.nx-icp-query-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.nx-icp-domain-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary, #dee0e3);
+  font-size: 13px;
+}
+.nx-icp-json {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: #f7f8fa;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow: auto;
+  max-height: 240px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .nx-sg-layout {
   display: grid;

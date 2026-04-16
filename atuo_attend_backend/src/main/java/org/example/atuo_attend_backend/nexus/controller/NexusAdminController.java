@@ -26,6 +26,7 @@ import org.example.atuo_attend_backend.nexus.aliyun.AliyunEcsOpenApiSupport;
 import org.example.atuo_attend_backend.nexus.service.NexusBssCostService;
 import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
 import org.example.atuo_attend_backend.nexus.service.NexusExtensionSyncService;
+import org.example.atuo_attend_backend.nexus.service.NexusIcpQueryService;
 import org.example.atuo_attend_backend.nexus.service.NexusSecurityGroupService;
 import org.example.atuo_attend_backend.nexus.service.NexusSecurityGroupWriteException;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
@@ -66,6 +67,7 @@ public class NexusAdminController {
     private final NexusSmsTemplateMapper smsTemplateMapper;
     private final NexusExtensionSyncService extensionSyncService;
     private final NexusSecurityGroupService securityGroupService;
+    private final NexusIcpQueryService icpQueryService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public NexusAdminController(
@@ -87,7 +89,8 @@ public class NexusAdminController {
             NexusSmsSignatureMapper smsSignatureMapper,
             NexusSmsTemplateMapper smsTemplateMapper,
             NexusExtensionSyncService extensionSyncService,
-            NexusSecurityGroupService securityGroupService
+            NexusSecurityGroupService securityGroupService,
+            NexusIcpQueryService icpQueryService
     ) {
         this.accountMapper = accountMapper;
         this.instanceMapper = instanceMapper;
@@ -108,6 +111,7 @@ public class NexusAdminController {
         this.smsTemplateMapper = smsTemplateMapper;
         this.extensionSyncService = extensionSyncService;
         this.securityGroupService = securityGroupService;
+        this.icpQueryService = icpQueryService;
     }
 
     /**
@@ -274,6 +278,71 @@ public class NexusAdminController {
         long tenantId = tenantIdFrom(request);
         if (accountMapper.findForSync(tenantId, accountId) == null) return ApiResponse.error(40400, "account not found");
         return ApiResponse.ok(smsTemplateMapper.listByAccount(tenantId, accountId));
+    }
+
+    /**
+     * 阿里云官方备案服务 OpenAPI：QueryAccessorDomainStatus（接入场景域名状态，非工信部全文备案检索）。
+     * 需 RAM 授权 beian 相关产品接口；失败时返回阿里云错误信息。
+     */
+    @GetMapping("/accounts/{accountId}/icp/query-accessor-domain-status")
+    public ApiResponse<Map<String, Object>> queryAccessorDomainStatus(
+            @PathVariable long accountId,
+            @RequestParam String domain,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        NexusCloudAccount acc = accountMapper.findForSync(tenantId, accountId);
+        if (acc == null) return ApiResponse.error(40400, "account not found");
+        if (!"aliyun".equals(acc.getProvider())) {
+            return ApiResponse.error(40000, "provider not supported");
+        }
+        if (domain == null || domain.isBlank()) {
+            return ApiResponse.error(40000, "domain required");
+        }
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        try {
+            String ak = cryptoService.decrypt(acc.getAccessKeyIdEnc());
+            String sk = cryptoService.decrypt(acc.getAccessKeySecretEnc());
+            Map<String, Object> data = icpQueryService.queryOfficialDomainStatus(ak, sk, acc.getRegionId(), domain.trim());
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.query.official", "domain", domain.trim(), "success", null);
+            return ApiResponse.ok(data);
+        } catch (Exception e) {
+            TeaException te = AliyunEcsOpenApiSupport.unwrapTea(e);
+            if (te != null) {
+                auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.query.official", "domain", domain.trim(), "failed", te.getMessage());
+                String msg = AliyunEcsOpenApiSupport.friendlyMessage(te,
+                        "请在 RAM 中为该密钥授予备案服务（Beian）相关接口权限，例如 QueryAccessorDomainStatus（以阿里云控制台策略模板为准）。",
+                        "域名或参数无效，请检查域名格式后重试。",
+                        "调用阿里云备案服务 OpenAPI 失败。");
+                return ApiResponse.error(AliyunEcsOpenApiSupport.mapBusinessCode(te), msg);
+            }
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.query.official", "domain", domain.trim(), "failed", e.getMessage());
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "icp query failed");
+        }
+    }
+
+    /**
+     * 云市场第三方 ICP 查询（按域名）。需在服务端配置 nexus.icp.market.api-url 与 app-code（通常为付费套餐 AppCode）。
+     * 响应中的 rawBody 可能含第三方返回全文，请注意合规与脱敏。
+     */
+    @GetMapping("/icp/market-query")
+    public ApiResponse<Map<String, Object>> marketIcpQuery(@RequestParam String domain, HttpServletRequest request) {
+        long tenantId = tenantIdFrom(request);
+        if (domain == null || domain.isBlank()) {
+            return ApiResponse.error(40000, "domain required");
+        }
+        Long actorUserId = (Long) request.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        String actorPhone = (String) request.getAttribute(AdminAuthFilter.ATTR_PHONE);
+        try {
+            Map<String, Object> data = icpQueryService.queryMarketByDomain(domain.trim());
+            boolean ok = Boolean.TRUE.equals(data.get("configured"));
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.query.market", "domain", domain.trim(), ok ? "success" : "skipped", null);
+            return ApiResponse.ok(data);
+        } catch (Exception e) {
+            auditLogMapper.insert(tenantId, actorUserId, actorPhone, "nexus.icp.query.market", "domain", domain.trim(), "failed", e.getMessage());
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "market icp query failed");
+        }
     }
 
     /** 安全组列表（只读，实时查询阿里云）。 */
