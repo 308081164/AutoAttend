@@ -196,11 +196,12 @@
               </button>
             </div>
           </div>
-          <div class="nx-chart-area" v-if="!metricsLoading">
+          <p v-if="metricsError" class="nx-chart-error">{{ metricsError }}</p>
+          <div class="nx-chart-area">
             <canvas ref="cpuChart"></canvas>
-          </div>
-          <div class="nx-chart-loading" v-else>
-            <div class="nx-spinner"></div>
+            <div v-if="metricsLoading" class="nx-chart-overlay" aria-busy="true">
+              <div class="nx-spinner"></div>
+            </div>
           </div>
         </div>
 
@@ -425,6 +426,7 @@ export default {
       selectedInstanceId: null,
 
       metricsLoading: false,
+      metricsError: '',
       metricLimit: 60,
       metricType: 'cpu',
       chart: null,
@@ -439,6 +441,12 @@ export default {
   created () {
     this.loadAccounts()
     this.loadSyncConfig()
+  },
+  beforeDestroy () {
+    if (this.chart) {
+      try { this.chart.destroy() } catch (_e) { /* ignore */ }
+      this.chart = null
+    }
   },
   computed: {
     btPanelUrlEffective () {
@@ -814,6 +822,7 @@ export default {
     async loadMetricChart () {
       if (!this.selectedAccountId || !this.selectedInstanceId) return
       this.metricsLoading = true
+      this.metricsError = ''
       try {
         const apiPath =
           this.metricType === 'cpu'
@@ -826,11 +835,16 @@ export default {
           const labels = points.map(p => (p.ts ? p.ts.toString().slice(5, 16).replace('T', ' ') : ''))
           const values = points.map(p => Number(p.value || 0))
           const title = this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)'
+          await this.$nextTick()
           this.renderChart(labels, values, title)
         } else {
+          this.metricsError = (resp.data && resp.data.message) || '无法加载监控数据'
+          await this.$nextTick()
           this.renderChart([], [], this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)')
         }
       } catch (e) {
+        this.metricsError = (e.response && e.response.data && e.response.data.message) || '监控数据加载失败'
+        await this.$nextTick()
         this.renderChart([], [], this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)')
       } finally {
         this.metricsLoading = false
@@ -1315,6 +1329,21 @@ export default {
 /* ===== Chart ===== */
 .nx-chart-area { height: 200px; position: relative; }
 .nx-chart-loading { height: 200px; display: flex; align-items: center; justify-content: center; }
+.nx-chart-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 8px;
+  z-index: 1;
+}
+.nx-chart-error {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--danger, #d03050);
+}
 
 /* ===== SSH ===== */
 .nx-ssh-config {
