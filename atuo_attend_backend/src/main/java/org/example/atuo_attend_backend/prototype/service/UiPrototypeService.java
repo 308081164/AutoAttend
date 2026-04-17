@@ -150,6 +150,7 @@ public class UiPrototypeService {
         d.setPenpotProjectId(p.getPenpotProjectId());
         d.setPenpotFileId(p.getPenpotFileId());
         d.setPenpotPreviewUrl(p.getPenpotPreviewUrl());
+        d.setPenpotExportUrl(p.getPenpotExportUrl());
         d.setSpecs(specItems);
         return d;
     }

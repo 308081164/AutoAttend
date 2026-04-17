@@ -11,11 +11,23 @@ public class PenpotProperties {
     /** 为 false 时不调用 Penpot，快原型页隐藏 Beta 入口 */
     private boolean enabled = false;
 
-    /** 容器内访问 Penpot 前端（Nginx 反代 /api 至后端），如 http://penpot-frontend:8080 */
+    /**
+     * 容器内访问 Penpot 前端（Nginx 反代 /api 至后端），RPC 默认走此地址。
+     * 若需与「仅浏览器可访问的外网地址」分离，可再配 {@link #apiBaseUrl}。
+     */
     private String baseUrl = "http://penpot-frontend:8080";
 
-    /** 浏览器打开工作区的基址，用于拼接 /workspace/{projectId}/{fileId} */
-    private String publicUri = "http://localhost:9001";
+    /**
+     * 可选：仅用于后端 RPC 的基址（与 {@link #baseUrl} 二选一逻辑见 getter）。
+     * 不配置时与 baseUrl 相同。
+     */
+    private String apiBaseUrl = "";
+
+    /**
+     * 浏览器打开工作区 /workspace/... 的基址（与容器内 RPC 地址可以不同）。
+     * 可不配置：此时预览链接退化为 {@link #getEffectiveBrowserBaseUrl()}（多为内网地址，仅供运维调试）。
+     */
+    private String publicUri = "";
 
     /**
      * 个人访问令牌（推荐）：在 Penpot 网页 设置 → Access tokens 生成，配置在部署环境变量。
@@ -45,12 +57,36 @@ public class PenpotProperties {
         this.baseUrl = baseUrl;
     }
 
+    public String getApiBaseUrl() {
+        return apiBaseUrl;
+    }
+
+    public void setApiBaseUrl(String apiBaseUrl) {
+        this.apiBaseUrl = apiBaseUrl;
+    }
+
+    /** 调用 /api/rpc 的基址 */
+    public String getEffectiveRpcBaseUrl() {
+        if (apiBaseUrl != null && !apiBaseUrl.isBlank()) {
+            return apiBaseUrl.trim();
+        }
+        return baseUrl != null ? baseUrl.trim() : "";
+    }
+
     public String getPublicUri() {
         return publicUri;
     }
 
     public void setPublicUri(String publicUri) {
         this.publicUri = publicUri;
+    }
+
+    /** 生成用户可点击的 workspace 链接时的基址 */
+    public String getEffectiveBrowserBaseUrl() {
+        if (publicUri != null && !publicUri.isBlank()) {
+            return publicUri.trim();
+        }
+        return getEffectiveRpcBaseUrl();
     }
 
     public String getAccessToken() {

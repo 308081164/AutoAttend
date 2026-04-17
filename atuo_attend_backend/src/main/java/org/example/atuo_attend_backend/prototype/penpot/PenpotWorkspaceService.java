@@ -54,7 +54,7 @@ public class PenpotWorkspaceService {
     }
 
     public String buildWorkspaceUrl(String projectId, String fileId) {
-        String base = trimSlash(props.getPublicUri());
+        String base = trimSlash(props.getEffectiveBrowserBaseUrl());
         return base + "/workspace/" + projectId + "/" + fileId;
     }
 

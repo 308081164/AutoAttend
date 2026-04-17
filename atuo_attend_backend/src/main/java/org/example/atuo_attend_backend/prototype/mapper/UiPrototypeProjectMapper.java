@@ -38,6 +38,7 @@ public interface UiPrototypeProjectMapper {
                    penpot_project_id AS penpotProjectId,
                    penpot_file_id AS penpotFileId,
                    penpot_preview_url AS penpotPreviewUrl,
+                   penpot_export_url AS penpotExportUrl,
                    created_at AS createdAt, updated_at AS updatedAt
             FROM aa_ui_prototype_project
             WHERE tenant_id=#{tenantId}
@@ -52,6 +53,7 @@ public interface UiPrototypeProjectMapper {
                    penpot_project_id AS penpotProjectId,
                    penpot_file_id AS penpotFileId,
                    penpot_preview_url AS penpotPreviewUrl,
+                   penpot_export_url AS penpotExportUrl,
                    created_at AS createdAt, updated_at AS updatedAt
             FROM aa_ui_prototype_project
             WHERE tenant_id=#{tenantId} AND id=#{id}
@@ -64,6 +66,7 @@ public interface UiPrototypeProjectMapper {
                 penpot_project_id=#{penpotProjectId},
                 penpot_file_id=#{penpotFileId},
                 penpot_preview_url=#{penpotPreviewUrl},
+                penpot_export_url=#{penpotExportUrl},
                 updated_at=CURRENT_TIMESTAMP
             WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
@@ -71,7 +74,8 @@ public interface UiPrototypeProjectMapper {
                             @Param("penpotTeamId") String penpotTeamId,
                             @Param("penpotProjectId") String penpotProjectId,
                             @Param("penpotFileId") String penpotFileId,
-                            @Param("penpotPreviewUrl") String penpotPreviewUrl);
+                            @Param("penpotPreviewUrl") String penpotPreviewUrl,
+                            @Param("penpotExportUrl") String penpotExportUrl);
 
     @Delete("""
             DELETE FROM aa_ui_prototype_project
