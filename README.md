@@ -173,7 +173,8 @@ npm run dev
 | 项 | 说明 |
 |----|------|
 | **`DEPLOY_PATH`** | GitHub Secret，默认 **`/mnt/newdisk/app/AutoAttend`**；须与实际部署目录一致 |
-| **同目录 `.env`** | **强烈建议**配置 **`IMAGE_BACKEND`** / **`IMAGE_FRONTEND`** / **`IMAGE_PLATFORM_MONITOR_FRONTEND`**（指向 `ghcr.io/<owner小写>/...:latest`），否则 compose 会回落到占位符 **`ghcr.io/please-set/...`**，导致 **`manifest unknown`**。CI 的 SSH 脚本会 `export IMAGE_*`，但服务器持久化仍依赖 `.env` 或手动 export |
+| **同目录 `.env`** | **强烈建议**配置 **`IMAGE_*`**（见上），否则会出现 **`manifest unknown`**。另建议配置 **`NEXUS_CRYPTO_DEV_KEY`**：与加密租户 Penpot 等凭证时一致，**迁移或换机后若改变会导致库内密文无法解密**；生产用长随机串并长期固定。 |
+| **`PENPOT_ENABLED`** | `docker-compose.prod.yml` 中 backend 默认 **`true`**（与 Penpot 栈一起用时快原型 Penpot 入口可见）；若 `.env` 里写死 `false` 会覆盖默认并隐藏功能。 |
 | **阿里云短信** | `ALIYUN_*` 见 `.env.example`；写入部署目录 `.env`，**勿提交 Git** |
 
 ### Docker 数据目录（运维可选）

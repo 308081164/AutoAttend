@@ -552,15 +552,20 @@ ${html}
           this.penpotReady = !!d.penpotReady
           this.penpotMustBootstrap = !!d.mustBootstrap
           if (!this.penpotUiAvailable) {
-            this.penpotStatusHint = 'Penpot Beta 未启用：请在部署环境设置 PENPOT_ENABLED=true（无需再配置平台级 PENPOT_ACCESS_TOKEN）。'
+            this.penpotStatusHint = 'Penpot Beta 未启用：请在部署目录 .env 或 compose 中为 backend 设置 PENPOT_ENABLED=true（与 Penpot 容器一并部署时默认为开启）。'
           } else if (this.penpotMustBootstrap) {
             this.penpotStatusHint = '首次使用需由租户管理员在本页开通 Penpot 工作区（自动创建独立账号并保存凭证）。切换到「Penpot Beta」标签时将自动执行。'
           } else {
             this.penpotStatusHint = ''
           }
+        } else {
+          this.penpotUiAvailable = false
+          this.penpotStatusHint = (resp.data && resp.data.message) ? ('Penpot 状态：' + resp.data.message) : 'Penpot 状态接口返回异常，请刷新或检查后端日志。'
         }
       } catch (e) {
         this.penpotUiAvailable = false
+        const msg = (e.response && e.response.data && e.response.data.message) || (e.message || '')
+        this.penpotStatusHint = msg ? ('无法获取 Penpot 状态：' + msg) : '无法获取 Penpot 状态（请检查网络、登录是否过期或后端是否已升级）。'
       }
     },
     async checkPenpotReachable () {

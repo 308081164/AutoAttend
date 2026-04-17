@@ -63,20 +63,22 @@ docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "%{http_code}\n" 
 
 ## 3. 生产（docker-compose.prod.yml）
 
-1. 在服务器 `DEPLOY_PATH` 下配置 `.env`（与 compose 同目录），至少设置：
-   - `PENPOT_PUBLIC_URI`：用户浏览器访问 Penpot 的完整 URL。
+1. **`PENPOT_ENABLED`**：`docker-compose.prod.yml` 中 backend 默认 **`true`**（与 Penpot 栈一起部署时快原型入口可见）。若暂不跑 Penpot，在 `.env` 中显式设 `PENPOT_ENABLED=false`。
+2. 在服务器 `DEPLOY_PATH` 下配置 `.env`（与 compose 同目录），建议包含：
+   - **`NEXUS_CRYPTO_DEV_KEY`**：租户 Penpot 凭证（Token/密码）用 NexusCryptoService 加密落库；**必须与首次写入时一致**。迁移服务器或重建容器后若未设置或与旧环境不同，会导致 **解密失败**。生产请使用长随机串并长期固定。
+   - **`PENPOT_TENANT_CREDENTIAL_PEPPER`**（可选但推荐生产设置）：派生租户 Penpot 登录密码的盐。
+   - **`IMAGE_*`**：指向 ghcr 上实际镜像，避免 compose 占位符导致拉取失败（见主 README / 部署说明）。
+   - `PENPOT_PUBLIC_URI`：用户浏览器访问 Penpot 的完整 URL（可选；不配则工作区链接可能仅容器内可打开）。
    - `PENPOT_SECRET_KEY`：**勿使用** 仓库默认值。
-2. **AutoAttend 后端调用 Penpot（方案 A）**：优先使用 **`scripts/penpot-bootstrap-token.sh`** 自动生成 Token 并配置 `PENPOT_ACCESS_TOKEN`；或配置 `PENPOT_EMAIL` + `PENPOT_PASSWORD`（由后端登录换 Cookie，适合开发）。生产建议 **长期 Token + 定期轮换**。
-   - `PENPOT_ENABLED=true`
-   - `PENPOT_ACCESS_TOKEN=<脚本输出或按租户存储>`
-   - `PENPOT_INTERNAL_URI`：与 Compose 内 `penpot-frontend:8080` 一致（默认已配）。
-3. CI 会同步 `docker-compose.prod.yml` 与 **`docker-compose.penpot.yml`**；部署脚本会先 `up -d penpot-frontend` 再启动 `backend`。
-4. 若经 **反向代理** 仅暴露 443，请把 `PENPOT_PUBLIC_URI` 设为 `https://...`，并在代理层转发到 `127.0.0.1:9001`（或你映射的端口）。
+3. **租户级 Token（当前默认）**：管理员在快原型页首次开通即可，**无需**在服务端配置 `PENPOT_ACCESS_TOKEN`。可选：运维脚本 `scripts/penpot-bootstrap-token.sh` 生成平台级 Token，或 `PENPOT_EMAIL`+`PENPOT_PASSWORD`（兼容旧方式）。
+4. CI 会同步 `docker-compose.prod.yml` 与 **`docker-compose.penpot.yml`**；部署脚本会先 `up -d penpot-frontend` 再启动 `backend`。
+5. 若经 **反向代理** 仅暴露 443，请把 `PENPOT_PUBLIC_URI` 设为 `https://...`，并在代理层转发到 `127.0.0.1:9001`（或你映射的端口）。
 
 ## 4. 常见问题
 
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
+| 快原型页没有 **Penpot Beta** 标签 | 后端 `app.penpot.enabled=false`（如旧 `.env` 写死 `PENPOT_ENABLED=false`） | 去掉或改为 `PENPOT_ENABLED=true`，`docker compose up -d --force-recreate backend`；或确认已拉取含 `PENPOT_ENABLED` 默认 true 的 compose |
 | `backend` 起不来 / 一直等待 | `depends_on` 等待 `penpot-frontend` | `docker compose ps`、`docker logs penpot-postgres`、`docker logs penpot-frontend`；先单独 `up -d penpot-frontend` 看依赖是否 healthy |
 | 浏览器打开 Penpot 空白或资源 404 | `PENPOT_PUBLIC_URI` 与浏览器地址不一致 | 将 `PENPOT_PUBLIC_URI` 改为实际访问 URL（含协议与端口） |
 | 宿主机 9001 已被占用 | 端口冲突 | 设置 `PENPOT_HTTP_PORT=其他端口`，并同步修改 `PENPOT_PUBLIC_URI` 中的端口 |
