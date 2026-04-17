@@ -54,6 +54,12 @@ public class PenpotProperties {
      */
     private String tenantCredentialPepper = "";
 
+    /**
+     * Penpot 2.12+ RPC 路径为 /api/main/methods/；旧版为 /api/rpc/command/。
+     * auto：先尝试新路径，遇 HTTP 404 再回退旧路径并缓存。
+     */
+    private String rpcPathStyle = "auto";
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -148,5 +154,13 @@ public class PenpotProperties {
 
     public void setTenantCredentialPepper(String tenantCredentialPepper) {
         this.tenantCredentialPepper = tenantCredentialPepper;
+    }
+
+    public String getRpcPathStyle() {
+        return rpcPathStyle;
+    }
+
+    public void setRpcPathStyle(String rpcPathStyle) {
+        this.rpcPathStyle = rpcPathStyle;
     }
 }

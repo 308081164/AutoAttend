@@ -100,6 +100,8 @@ services:
       PENPOT_TENANT_EMAIL_DOMAIN: ${PENPOT_TENANT_EMAIL_DOMAIN:-penpot.local}
       PENPOT_TENANT_TOKEN_NAME_PREFIX: ${PENPOT_TENANT_TOKEN_NAME_PREFIX:-autoattend}
       PENPOT_TENANT_CREDENTIAL_PEPPER: ${PENPOT_TENANT_CREDENTIAL_PEPPER:-}
+      # Penpot 2.12+ 为 new；旧版 legacy；默认 auto 先试新路径再试旧路径
+      PENPOT_RPC_PATH_STYLE: ${PENPOT_RPC_PATH_STYLE:-auto}
       # 与库内 aa_tenant_penpot_credential 密文一致；生产请在 .env 设置长随机串并勿随意变更，否则已有 Token 无法解密
       NEXUS_CRYPTO_DEV_KEY: ${NEXUS_CRYPTO_DEV_KEY:-dev-nexus-crypto-key-change-me}
     volumes:
