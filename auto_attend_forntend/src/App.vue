@@ -8,7 +8,9 @@
     <!-- embed mode: keep original behavior -->
     <template v-else-if="isEmbedMode">
       <main class="app-main app-main-embed">
-        <router-view/>
+        <keep-alive :max="8" :exclude="shellKeepAliveExclude">
+          <router-view :key="$route.fullPath"/>
+        </keep-alive>
       </main>
     </template>
 
@@ -209,9 +211,11 @@
             </div>
           </header>
 
-          <!-- MAIN CONTENT -->
+          <!-- MAIN CONTENT：keep-alive 缓存侧栏内页面实例，减少重复请求；动态路由用 fullPath 区分 -->
           <main class="app-main" :class="{ 'app-main-clouddev-embed': cloudDevEmbedActive }">
-            <router-view/>
+            <keep-alive :max="8" :exclude="shellKeepAliveExclude">
+              <router-view :key="$route.fullPath"/>
+            </keep-alive>
           </main>
         </div>
       </div>
@@ -222,6 +226,7 @@
 <script>
 import { localeOptions, setLocale } from './locales'
 import { subscribeAuthSession, notifyAuthSessionChanged } from './utils/authSession'
+import { SHELL_KEEP_ALIVE_EXCLUDE } from './utils/keepAliveShell'
 import './assets/theme.css'
 
 export default {
@@ -240,7 +245,8 @@ export default {
       appToastKind: 'info',
       appToastTimer: null,
       /** 工作台偏好：侧栏是否展示「报价系统」 */
-      quoteNavVisible: true
+      quoteNavVisible: true,
+      shellKeepAliveExclude: SHELL_KEEP_ALIVE_EXCLUDE
     }
   },
   computed: {
