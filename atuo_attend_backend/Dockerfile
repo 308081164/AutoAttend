@@ -10,8 +10,9 @@ RUN mvn -q -B -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
-# git：Diff 本地兜底；default-mysql-client：供 entrypoint 对 MySQL 执行增量迁移（无需在宿主机手工 mysql 客户端跑脚本）
-# CI（如 GitHub Actions）偶发连不上 archive.ubuntu.com：为 apt 加长超时与重试，并对 update/install 做有限次重试
+# git：Diff 本地兜底；mysql-client：供 entrypoint 对 MySQL 执行增量迁移（与 default-mysql-client 等价，包名更稳定）
+# CI 偶发仅连上 security.ubuntu.com、archive 超时 → apt 仍返回 0 但主仓库索引缺失会导致「Package has no installation candidate」
+# 处理：优先把官方源改为 HTTPS；update 后校验 mysql-client 元数据存在再 install
 RUN set -eux; \
     export DEBIAN_FRONTEND=noninteractive; \
     printf '%s\n' \
@@ -19,20 +20,16 @@ RUN set -eux; \
       'Acquire::http::Timeout "120";' \
       'Acquire::https::Timeout "120";' \
       > /etc/apt/apt.conf.d/80-ci-retries; \
+    find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 2>/dev/null | xargs -0 -r sed -i \
+      's|http://archive.ubuntu.com|https://archive.ubuntu.com|g; s|http://security.ubuntu.com|https://security.ubuntu.com|g' || true; \
     n=0; \
-    until apt-get update; do \
+    until apt-get update && apt-cache show mysql-client >/dev/null 2>&1; do \
       n=$((n + 1)); \
-      if [ "$n" -gt 5 ]; then echo "apt-get update failed after 5 retries"; exit 1; fi; \
-      echo "apt-get update retry $n/5 in 15s..."; \
-      sleep 15; \
-    done; \
-    n=0; \
-    until apt-get install -y --no-install-recommends git ca-certificates default-mysql-client curl; do \
-      n=$((n + 1)); \
-      if [ "$n" -gt 5 ]; then echo "apt-get install failed after 5 retries"; exit 1; fi; \
-      echo "apt-get install retry $n/5 in 20s..."; \
+      if [ "$n" -gt 8 ]; then echo "apt-get update incomplete (no mysql-client in index) after 8 retries"; exit 1; fi; \
+      echo "apt-get update retry $n/8 in 20s..."; \
       sleep 20; \
     done; \
+    apt-get install -y --no-install-recommends git ca-certificates mysql-client curl; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/target/*.jar app.jar
