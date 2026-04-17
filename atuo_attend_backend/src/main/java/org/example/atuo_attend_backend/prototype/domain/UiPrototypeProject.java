@@ -12,6 +12,7 @@ public class UiPrototypeProject {
     private String penpotProjectId;
     private String penpotFileId;
     private String penpotPreviewUrl;
+    private String penpotExportUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -38,6 +39,9 @@ public class UiPrototypeProject {
 
     public String getPenpotPreviewUrl() { return penpotPreviewUrl; }
     public void setPenpotPreviewUrl(String penpotPreviewUrl) { this.penpotPreviewUrl = penpotPreviewUrl; }
+
+    public String getPenpotExportUrl() { return penpotExportUrl; }
+    public void setPenpotExportUrl(String penpotExportUrl) { this.penpotExportUrl = penpotExportUrl; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

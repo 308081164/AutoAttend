@@ -8,7 +8,13 @@
 - **端口**：
   - **宿主机**：`PENPOT_HTTP_PORT`（默认 **9001**）→ 容器 `penpot-frontend:8080`。
   - **容器内互访**：`backend` 使用 `PENPOT_INTERNAL_URI`（默认 `http://penpot-frontend:8080`）。
-- **对外 URL**：`PENPOT_PUBLIC_URI` 必须可被 **浏览器** 访问（用于 Penpot 前端与后端协同）；开发多为 `http://localhost:9001`，生产请改为 **https + 域名** 或经网关的路径。
+- **对外 URL（`PENPOT_PUBLIC_URI`）**：**可选**。不配时，应用生成的「工作区链接」与内网 RPC 基址一致，**只适合调试**；若终端用户需在浏览器打开 Penpot，请设为 **https + 公网域名**（与反代一致）。可另设 `PENPOT_API_BASE_URL` 专用于后端 RPC（一般等于 `PENPOT_INTERNAL_URI`）。
+
+### 获取 Personal Access Token
+
+1. 浏览器登录你的 Penpot（自托管）实例。  
+2. 头像菜单 → **Your account** → **Access tokens**。  
+3. **Generate new token**，命名并复制；写入部署环境 **`PENPOT_ACCESS_TOKEN`**，并设置 **`PENPOT_ENABLED=true`**。
 
 ## 2. 首次启动（本地）
 

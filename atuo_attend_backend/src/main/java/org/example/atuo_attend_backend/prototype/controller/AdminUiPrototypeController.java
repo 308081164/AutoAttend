@@ -210,20 +210,36 @@ public class AdminUiPrototypeController {
      * 从报价项目生成快原型需求正文（后端判别）：有 PRD/AI 原文则仅返回该叙述；无则仅返回功能清单表。供快原型需求框使用。
      */
     /**
-     * 在 Penpot 中为当前快原型项目创建空白设计文件（异步任务）；绑定关系落在服务端技术账号下（方案 A）。
+     * Penpot Beta：LLM 规划 → 创建文件 → 写入画布 → 导出 .penpot（异步任务）；方案 A 技术账号。
      */
     @PostMapping("/projects/{id}/penpot/jobs")
     public ApiResponse<Map<String, Object>> enqueuePenpotJob(@PathVariable long id,
                                                              @RequestBody(required = false) UiPrototypePenpotGenerateRequest body,
                                                              HttpServletRequest req) {
         try {
+            String prompt = body != null ? body.getPrompt() : null;
             String note = body != null ? body.getNote() : null;
-            long jobId = uiPrototypePenpotService.enqueueCreateFile(id, note);
+            long jobId = uiPrototypePenpotService.enqueueGenerate(id, prompt, note);
             Long adminUserId = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
             String adminPhone = (String) req.getAttribute(AdminAuthFilter.ATTR_PHONE);
-            componentEventService.recordUsage(adminUserId, adminPhone, "hub_prototype", "ui_prototype_penpot_create_file");
+            componentEventService.recordUsage(adminUserId, adminPhone, "hub_prototype", "ui_prototype_penpot_generate");
             Map<String, Object> data = new HashMap<>();
             data.put("jobId", jobId);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
+    }
+
+    /** 重新请求 .penpot 导出链接（临时 URL，与任务成功时一致） */
+    @GetMapping("/projects/{id}/penpot/export-binfile")
+    public ApiResponse<Map<String, Object>> penpotExportBinfile(@PathVariable long id) {
+        try {
+            String url = uiPrototypePenpotService.exportBinfileForProject(id);
+            Map<String, Object> data = new HashMap<>();
+            data.put("exportBinfileUrl", url);
             return ApiResponse.ok(data);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());

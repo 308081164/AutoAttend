@@ -11,6 +11,7 @@ public class UiPrototypeProjectDetail {
     private String penpotProjectId;
     private String penpotFileId;
     private String penpotPreviewUrl;
+    private String penpotExportUrl;
     private List<UiPrototypeSpecItem> specs;
 
     public Long getId() { return id; }
@@ -36,5 +37,8 @@ public class UiPrototypeProjectDetail {
 
     public String getPenpotPreviewUrl() { return penpotPreviewUrl; }
     public void setPenpotPreviewUrl(String penpotPreviewUrl) { this.penpotPreviewUrl = penpotPreviewUrl; }
+
+    public String getPenpotExportUrl() { return penpotExportUrl; }
+    public void setPenpotExportUrl(String penpotExportUrl) { this.penpotExportUrl = penpotExportUrl; }
 }
 

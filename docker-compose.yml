@@ -78,7 +78,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: autoattend-attachments
       # 容器内访问 Penpot 前端（映射到宿主机见 PENPOT_HTTP_PORT，默认 9001）
-      PENPOT_PUBLIC_URI: ${PENPOT_PUBLIC_URI:-http://localhost:9001}
+      PENPOT_PUBLIC_URI: ${PENPOT_PUBLIC_URI:-}
+      PENPOT_API_BASE_URL: ${PENPOT_API_BASE_URL:-}
       PENPOT_INTERNAL_URI: ${PENPOT_INTERNAL_URI:-http://penpot-frontend:8080}
       PENPOT_ENABLED: ${PENPOT_ENABLED:-false}
       PENPOT_ACCESS_TOKEN: ${PENPOT_ACCESS_TOKEN:-}

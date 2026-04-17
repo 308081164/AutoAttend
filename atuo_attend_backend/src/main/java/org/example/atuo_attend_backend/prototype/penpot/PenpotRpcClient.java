@@ -45,9 +45,23 @@ public class PenpotRpcClient {
         return StringUtils.hasText(props.getEmail()) && StringUtils.hasText(props.getPassword());
     }
 
+    /**
+     * 部分 RPC（如 export-binfile）返回 JSON 字符串字面量。
+     */
+    public String commandForStringResult(String methodName, Map<String, Object> body) {
+        JsonNode n = command(methodName, body);
+        if (n == null || n.isNull()) {
+            return null;
+        }
+        if (n.isTextual()) {
+            return n.asText();
+        }
+        return n.toString();
+    }
+
     public JsonNode command(String methodName, Map<String, Object> body) {
         ensureSession();
-        String url = trimSlash(props.getBaseUrl()) + "/api/rpc/command/" + methodName;
+        String url = trimSlash(props.getEffectiveRpcBaseUrl()) + "/api/rpc/command/" + methodName;
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
@@ -92,7 +106,7 @@ public class PenpotRpcClient {
     }
 
     private void loginPassword() {
-        String url = trimSlash(props.getBaseUrl()) + "/api/rpc/command/login-with-password";
+        String url = trimSlash(props.getEffectiveRpcBaseUrl()) + "/api/rpc/command/login-with-password";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));

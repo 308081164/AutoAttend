@@ -100,23 +100,29 @@
 
               <template v-if="mode === 'penpot'">
                 <p class="section-hint">
-                  在 Penpot 中为当前项目<strong>创建空白设计文件</strong>（服务端技术账号，方案 A）。
-                  画布编辑可在 Penpot 中打开链接完成；本页不嵌入 Penpot 编辑器。
+                  使用<strong>平台 AI 配置</strong>生成布局计划并写入 Penpot 画布（服务端技术账号，方案 A）。
+                  外链打开工作区编辑；本页不嵌入 Penpot。
                 </p>
-                <label class="label">备注（可选，写入任务审计）</label>
+                <label class="label">页面需求 / 设计说明（将传给 AI 规划）</label>
+                <textarea
+                  v-model="penpotPrompt"
+                  class="prompt-textarea"
+                  placeholder="描述页面目标、模块、关键文案等；可与左侧 Spec 模式使用相同需求文本。"
+                ></textarea>
+                <label class="label">备注（可选，审计用）</label>
                 <textarea
                   v-model="penpotNote"
-                  class="prompt-textarea"
-                  placeholder="例如：占位初稿，后续由设计在 Penpot 中完善"
+                  class="prompt-textarea muted-area"
+                  placeholder="可选：内部备注，不参与主要规划"
                 ></textarea>
                 <div class="actions-row">
                   <button
                     type="button"
                     class="primary-button"
-                    :disabled="penpotGenerating || !penpotReady"
+                    :disabled="penpotGenerating || !penpotReady || !String(penpotPrompt || '').trim()"
                     @click="createPenpotFile"
                   >
-                    {{ penpotGenerating ? '创建中…' : '创建 Penpot 文件' }}
+                    {{ penpotGenerating ? '生成中…' : '生成 Penpot 初稿' }}
                   </button>
                   <button type="button" class="secondary-button" :disabled="penpotProbeLoading" @click="checkPenpotReachable">
                     {{ penpotProbeLoading ? '检测中…' : '检测 Penpot 连通' }}
@@ -148,7 +154,11 @@
                 <p><strong>文件 ID：</strong><code>{{ penpotFileId }}</code></p>
                 <p v-if="penpotPreviewUrl">
                   <a :href="penpotPreviewUrl" target="_blank" rel="noopener">在 Penpot 中打开工作区</a>
-                  <span class="section-hint">（需登录与后端相同的 Penpot 技术账号，或使用已分享的查看方式）</span>
+                  <span class="section-hint">（公网访问请在部署环境配置 PENPOT_PUBLIC_URI；否则链接可能指向容器内网地址）</span>
+                </p>
+                <p v-if="penpotExportUrl">
+                  <a :href="penpotExportUrl" target="_blank" rel="noopener">下载 .penpot 源文件</a>
+                  <button type="button" class="secondary-button penpot-refetch" @click="refreshPenpotExport">刷新导出链接</button>
                 </p>
               </div>
               <div v-else class="muted">尚未创建 Penpot 文件。点击左侧「创建 Penpot 文件」。</div>
@@ -207,6 +217,14 @@
                 >
                   打开 Penpot 工作区
                 </button>
+                <button
+                  v-if="mode === 'penpot' && penpotExportUrl"
+                  type="button"
+                  class="secondary-button"
+                  @click="openPenpotExport"
+                >
+                  下载 .penpot
+                </button>
               </div>
             </div>
             <div class="section-body">
@@ -217,10 +235,11 @@
               </template>
               <template v-else-if="mode === 'penpot'">
                 <div v-if="penpotPreviewUrl" class="penpot-preview-hint">
-                  <p>预览与编辑请在 Penpot 网页中完成（不在此页嵌入 iframe，避免跨域与登录态问题）。</p>
-                  <p class="muted">链接：<code>{{ penpotPreviewUrl }}</code></p>
+                  <p>预览与编辑请在 Penpot 网页中完成（不在此页嵌入 iframe）。</p>
+                  <p class="muted">工作区：<code>{{ penpotPreviewUrl }}</code></p>
+                  <p v-if="penpotJobStage" class="muted">任务阶段：{{ penpotJobStage }} · 进度 {{ penpotJobProgress }}%</p>
                 </div>
-                <div v-else class="muted">创建成功后将显示工作区链接。</div>
+                <div v-else class="muted">提交生成后将显示工作区与导出链接。</div>
                 <div v-if="penpotError" class="error-msg">{{ penpotError }}</div>
               </template>
               <template v-else>
@@ -292,7 +311,11 @@ export default {
       penpotStatusHint: '',
       penpotProbeLoading: false,
       penpotFileId: '',
-      penpotPreviewUrl: ''
+      penpotPreviewUrl: '',
+      penpotExportUrl: '',
+      penpotPrompt: '',
+      penpotJobStage: '',
+      penpotJobProgress: 0
     }
   },
   computed: {
@@ -424,6 +447,7 @@ ${html}
           this.projectName = d.name || ''
           this.penpotFileId = d.penpotFileId ? String(d.penpotFileId) : ''
           this.penpotPreviewUrl = d.penpotPreviewUrl ? String(d.penpotPreviewUrl) : ''
+          this.penpotExportUrl = d.penpotExportUrl ? String(d.penpotExportUrl) : ''
           this.specs = d.specs || []
           // 默认选中当前版本：如果有 currentSpecVersion，则匹配；否则选第一个
           const cur = d.currentSpecVersion
@@ -552,6 +576,7 @@ ${html}
       this.penpotError = ''
       try {
         const resp = await this.$http.post(`/admin/ui-prototype/projects/${this.projectId}/penpot/jobs`, {
+          prompt: String(this.penpotPrompt || '').trim(),
           note: this.penpotNote || undefined
         })
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.jobId != null) {
@@ -567,7 +592,7 @@ ${html}
       }
     },
     async pollPenpotJob (jobId) {
-      const max = 60
+      const max = 120
       for (let i = 0; i < max; i++) {
         await this.sleep(1500)
         const r = await this.$http.get(`/admin/ui-prototype/projects/${this.projectId}/penpot/jobs/${jobId}`)
@@ -575,12 +600,16 @@ ${html}
           this.penpotError = (r.data && r.data.message) || '查询任务失败'
           return
         }
-        const st = r.data.data.status
+        const d = r.data.data
+        this.penpotJobStage = d.stage || ''
+        this.penpotJobProgress = typeof d.progress === 'number' ? d.progress : 0
+        const st = d.status
         if (st === 'success') {
+          await this.load()
           return
         }
         if (st === 'failed') {
-          this.penpotError = r.data.data.errorMessage || '创建失败'
+          this.penpotError = d.errorMessage || '生成失败'
           return
         }
       }
@@ -589,6 +618,22 @@ ${html}
     openPenpotExternal () {
       if (this.penpotPreviewUrl) {
         window.open(this.penpotPreviewUrl, '_blank', 'noopener')
+      }
+    },
+    openPenpotExport () {
+      if (this.penpotExportUrl) {
+        window.open(this.penpotExportUrl, '_blank', 'noopener')
+      }
+    },
+    async refreshPenpotExport () {
+      this.penpotError = ''
+      try {
+        const r = await this.$http.get(`/admin/ui-prototype/projects/${this.projectId}/penpot/export-binfile`)
+        if (r.data && r.data.code === 0 && r.data.data && r.data.data.exportBinfileUrl) {
+          this.penpotExportUrl = String(r.data.data.exportBinfileUrl)
+        }
+      } catch (e) {
+        this.penpotError = (e.response && e.response.data && e.response.data.message) || '刷新导出失败'
       }
     },
     async pollMockupJob (jobId) {
@@ -1136,6 +1181,13 @@ ${html}
   border-color: var(--brand-blue);
   color: var(--brand-blue);
   box-shadow: var(--shadow-sm);
+}
+.muted-area {
+  opacity: 0.92;
+  min-height: 56px;
+}
+.penpot-refetch {
+  margin-left: 8px;
 }
 .section-body select,
 .section-body textarea {
