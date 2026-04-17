@@ -10,11 +10,34 @@
   - **容器内互访**：`backend` 使用 `PENPOT_INTERNAL_URI`（默认 `http://penpot-frontend:8080`）。
 - **对外 URL（`PENPOT_PUBLIC_URI`）**：**可选**。不配时，应用生成的「工作区链接」与内网 RPC 基址一致，**只适合调试**；若终端用户需在浏览器打开 Penpot，请设为 **https + 公网域名**（与反代一致）。可另设 `PENPOT_API_BASE_URL` 专用于后端 RPC（一般等于 `PENPOT_INTERNAL_URI`）。
 
-### 获取 Personal Access Token
+### 获取 Personal Access Token（推荐：自动化，无需打开网页）
 
-1. 浏览器登录你的 Penpot（自托管）实例。  
-2. 头像菜单 → **Your account** → **Access tokens**。  
-3. **Generate new token**，命名并复制；写入部署环境 **`PENPOT_ACCESS_TOKEN`**，并设置 **`PENPOT_ENABLED=true`**。
+在 **不修改 Penpot 源码** 的前提下，可用脚本通过官方 HTTP RPC 完成 **`login-with-password` → `create-access-token`**，将返回的明文 Token 写入部署环境（CI Secret、`.env`），**无需**在浏览器里手动复制。
+
+**前提**：已存在可登录的 Penpot 账号（邮箱 + 密码）。首次部署可由运维在 Penpot 注册页注册 **平台服务账号**，或通过官方 `manage.py` / 邀请流程创建（见 [Penpot 自托管文档](https://help.penpot.app/technical-guide/getting-started/docker/)）。
+
+```bash
+cd /path/to/AutoAttend
+export PENPOT_BASE_URL=http://127.0.0.1:9001   # 或部署机可访问的 Penpot 根 URL
+export PENPOT_EMAIL=your-service@example.com
+export PENPOT_PASSWORD='********'
+./scripts/penpot-bootstrap-token.sh
+# 将输出的单行 token 配置为 PENPOT_ACCESS_TOKEN（勿提交 Git）
+```
+
+可选环境变量：`PENPOT_TOKEN_NAME`（默认 `autoattend-bootstrap`）。
+
+**手动方式（备选）**：浏览器登录 → **Your account** → **Access tokens** → Generate（与自动化等价，仅适合排查）。
+
+### 「一账号一 Token」与租户强隔离
+
+| 模式 | 含义 | 能否强隔离 | 说明 |
+|------|------|------------|------|
+| **平台单 Token** | 全站共用一个 `PENPOT_ACCESS_TOKEN`（服务账号） | **数据层靠你们业务映射** | Penpot 侧文件都挂在同一 profile；隔离依赖你们在 **AutoAttend 租户 ↔ Penpot project/file** 的映射与 API 侧校验，**不是** Penpot 多用户天然隔离。 |
+| **每租户管理员一 Token** | 每个租户在 Penpot 有 **独立 profile**，各自 `create-access-token`，存 `aa_tenant` 或密钥表 | **可做到「一账号一 token」** | 需：**(1)** 为该租户在 Penpot **注册/预创建用户**（邮箱可用 `penpot+{tenantId}@你的域` 或 OIDC）；**(2)** 后端用 **该租户对应 Token** 调 RPC；**(3)** 轮换/吊销时按租户更新 DB。**仍不强迫客户手抄**：Token 可由 **你们后端** 在管理员首次绑定 Penpot 时代为调用 `create-access-token` 并加密存储，或使用本脚本在 **开通租户时 CI/运维批量执行**。 |
+| **每终端用户一 Token** | 每个业务用户一个 Penpot 账号 + Token | 一般 **不推荐** | 成本高；Penpot 报价/团队模型与你们租户模型要对齐，运维复杂。 |
+
+**结论**：自动化脚本与「一账号一 Token」**不矛盾**。强隔离取决于是否在 Penpot 侧为 **每个隔离单元（建议：每个租户）** 使用 **不同 profile + 不同 Token**，并由后端 **按租户路由** 调用；平台级单 Token 则隔离在 **应用层**，Penpot 仍为共享技术账号。
 
 ## 2. 首次启动（本地）
 
@@ -43,11 +66,10 @@ docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "%{http_code}\n" 
 1. 在服务器 `DEPLOY_PATH` 下配置 `.env`（与 compose 同目录），至少设置：
    - `PENPOT_PUBLIC_URI`：用户浏览器访问 Penpot 的完整 URL。
    - `PENPOT_SECRET_KEY`：**勿使用** 仓库默认值。
-2. **AutoAttend 后端调用 Penpot（方案 A）**：在 Penpot 网页 **设置 → Access tokens** 生成令牌，写入部署环境：
+2. **AutoAttend 后端调用 Penpot（方案 A）**：优先使用 **`scripts/penpot-bootstrap-token.sh`** 自动生成 Token 并配置 `PENPOT_ACCESS_TOKEN`；或配置 `PENPOT_EMAIL` + `PENPOT_PASSWORD`（由后端登录换 Cookie，适合开发）。生产建议 **长期 Token + 定期轮换**。
    - `PENPOT_ENABLED=true`
-   - `PENPOT_ACCESS_TOKEN=<令牌>`
+   - `PENPOT_ACCESS_TOKEN=<脚本输出或按租户存储>`
    - `PENPOT_INTERNAL_URI`：与 Compose 内 `penpot-frontend:8080` 一致（默认已配）。
-   备选：配置 `PENPOT_EMAIL` + `PENPOT_PASSWORD`（内置账号密码，由后端登录换 Cookie）。
 3. CI 会同步 `docker-compose.prod.yml` 与 **`docker-compose.penpot.yml`**；部署脚本会先 `up -d penpot-frontend` 再启动 `backend`。
 4. 若经 **反向代理** 仅暴露 443，请把 `PENPOT_PUBLIC_URI` 设为 `https://...`，并在代理层转发到 `127.0.0.1:9001`（或你映射的端口）。
 
