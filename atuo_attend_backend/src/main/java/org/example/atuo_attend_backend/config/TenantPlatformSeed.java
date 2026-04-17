@@ -1,5 +1,6 @@
 package org.example.atuo_attend_backend.config;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.example.atuo_attend_backend.collab.service.CollabAuthService;
 import org.example.atuo_attend_backend.collab.service.CollabPasswordService;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
@@ -13,8 +14,13 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
  * 首次启动时写入默认租户与指定手机号管理员（密码 123456），并同步协作 biz_user。
+ * 若平台尚未配置「项目信息发布」，则写入默认开启（scope=all），避免部署后功能对用户不可见。
  */
 @Component
 @Order(100)
@@ -30,15 +36,18 @@ public class TenantPlatformSeed implements ApplicationRunner {
     private final TenantAdminUserMapper tenantAdminUserMapper;
     private final CollabPasswordService passwordService;
     private final CollabAuthService collabAuthService;
+    private final SystemConfigService systemConfigService;
 
     public TenantPlatformSeed(TenantMapper tenantMapper,
                               TenantAdminUserMapper tenantAdminUserMapper,
                               CollabPasswordService passwordService,
-                              CollabAuthService collabAuthService) {
+                              CollabAuthService collabAuthService,
+                              SystemConfigService systemConfigService) {
         this.tenantMapper = tenantMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
         this.passwordService = passwordService;
         this.collabAuthService = collabAuthService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Override
@@ -67,8 +76,43 @@ public class TenantPlatformSeed implements ApplicationRunner {
                 log.info("Seeded tenant admin phone={}", SEED_PHONE);
             }
             collabAuthService.ensureBizUserForTenantAdmin(SEED_PHONE, SEED_PASSWORD);
+
+            seedMarketplaceProjectInfoIfUnset();
         } catch (Exception e) {
             log.warn("Tenant platform seed skipped: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 库中尚无 {@link SystemConfigService#KEY_MARKETPLACE_PROJECT_INFO_CONFIG} 时，落库默认「开启 + 全租户可用」，
+     * 与「部署即上线」预期一致；若已在监测台保存过任意 JSON，则绝不覆盖。
+     * 同步为种子管理员开启「可发布项目信息」，否则仅有浏览权限无法发首条。
+     */
+    private void seedMarketplaceProjectInfoIfUnset() {
+        try {
+            String raw = systemConfigService.getRawPlatformConfig(SystemConfigService.KEY_MARKETPLACE_PROJECT_INFO_CONFIG);
+            // 键不存在或值为空：均视为「尚未在监测台配置」，写入默认开启
+            if (raw != null && !raw.isBlank()) {
+                return;
+            }
+            Map<String, Object> initial = new LinkedHashMap<>();
+            initial.put("enabled", true);
+            initial.put("scope", "all");
+            initial.put("tenantIds", List.of());
+            initial.put("userIds", List.of());
+            initial.put("allowGuestBrowseList", false);
+            initial.put("requireContentReview", true);
+            initial.put("disclaimerVersion", "2026-04-01");
+            systemConfigService.saveMarketplaceProjectInfoConfig(initial);
+            log.info("Seeded platform marketplace.project_info (enabled=true, scope=all); override in monitor if needed");
+
+            TenantAdminUser seed = tenantAdminUserMapper.findByPhone(SEED_PHONE);
+            if (seed != null && !Boolean.TRUE.equals(seed.getCanPublishProjectInfo())) {
+                tenantAdminUserMapper.updateCanPublishProjectInfo(seed.getId(), seed.getTenantId(), true);
+                log.info("Granted can_publish_project_info to seed tenant admin");
+            }
+        } catch (JsonProcessingException e) {
+            log.warn("Marketplace config seed skipped: {}", e.getMessage());
         }
     }
 }
