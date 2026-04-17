@@ -738,6 +738,9 @@ export default {
       metricsLoading: false,
       metricsError: '',
       metricLimit: 60,
+      /** 图表使用按需实时接口（阿里云），不依赖后台自动巡检落库 */
+      metricLiveMode: true,
+      metricPollTimer: null,
       metricType: 'cpu',
       chart: null,
 
@@ -798,7 +801,17 @@ export default {
     this.loadAccounts()
     this.loadSyncConfig()
   },
+  watch: {
+    mainTab (v) {
+      if (v !== 'instances') {
+        this.stopMetricPoll()
+      } else if (this.selectedInstanceId) {
+        this.loadMetricChart()
+      }
+    }
+  },
   beforeDestroy () {
+    this.stopMetricPoll()
     if (this.chart) {
       try { this.chart.destroy() } catch (_e) { /* ignore */ }
       this.chart = null
@@ -951,6 +964,7 @@ export default {
       }
     },
     async onAccountChange () {
+      this.stopMetricPoll()
       await this.loadInstances()
       if (['dns', 'oss', 'icp', 'sms', 'sg'].includes(this.mainTab)) {
         await this.loadExtensionTabData()
@@ -1391,6 +1405,7 @@ export default {
       }
     },
     selectInstance (instanceId) {
+      this.stopMetricPoll()
       this.selectedInstanceId = instanceId
       const ins = this.instances.find(i => i.instanceId === instanceId)
       this.btPanelUrlDraft = (ins && ins.btPanelUrl) ? ins.btPanelUrl : ''
@@ -1553,24 +1568,54 @@ export default {
       if (n == null || Number.isNaN(Number(n))) return '—'
       return Number(n).toFixed(2)
     },
-    async loadMetricChart () {
+    stopMetricPoll () {
+      if (this.metricPollTimer) {
+        clearInterval(this.metricPollTimer)
+        this.metricPollTimer = null
+      }
+    },
+    startMetricPoll () {
+      this.stopMetricPoll()
+      if (!this.metricLiveMode || this.mainTab !== 'instances') return
       if (!this.selectedAccountId || !this.selectedInstanceId) return
-      this.metricsLoading = true
+      this.metricPollTimer = setInterval(() => {
+        this.loadMetricChart({ silent: true })
+      }, 60000)
+    },
+    async loadMetricChart (opts) {
+      const silent = opts && opts.silent === true
+      if (!this.selectedAccountId || !this.selectedInstanceId) return
+      if (!silent) this.metricsLoading = true
       this.metricsError = ''
       try {
-        const apiPath =
-          this.metricType === 'cpu'
-            ? `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/cpu-metrics`
-            : `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/memory-metrics`
+        const useLive = this.metricLiveMode !== false
+        const apiPath = useLive
+          ? (this.metricType === 'cpu'
+              ? `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/cpu-metrics/live`
+              : `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/memory-metrics/live`)
+          : (this.metricType === 'cpu'
+              ? `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/cpu-metrics`
+              : `/admin/nexus/accounts/${this.selectedAccountId}/instances/${this.selectedInstanceId}/memory-metrics`)
 
-        const resp = await this.$http.get(apiPath, { params: { limit: this.metricLimit } })
+        const params = useLive ? {} : { limit: this.metricLimit }
+        const resp = await this.$http.get(apiPath, { params })
         if (resp.data && resp.data.code === 0) {
           const points = resp.data.data || []
-          const labels = points.map(p => (p.ts ? p.ts.toString().slice(5, 16).replace('T', ' ') : ''))
-          const values = points.map(p => Number(p.value || 0))
+          const labels = points.map(p => {
+            if (!p || p.ts == null) return ''
+            const s = typeof p.ts === 'string' ? p.ts : String(p.ts)
+            return s.length >= 16 ? s.slice(5, 16).replace('T', ' ') : s
+          })
+          const values = points.map(p => Number((p && p.value) != null ? p.value : 0))
           const title = this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)'
+          if (points.length === 0 && !silent) {
+            this.metricsError = useLive
+              ? '暂无监控数据（请确认实例已安装云监控插件，或稍后重试）'
+              : '暂无监控数据（可点击「同步」或开启自动巡检）'
+          }
           await this.$nextTick()
           this.renderChart(labels, values, title)
+          if (!silent) this.startMetricPoll()
         } else {
           this.metricsError = (resp.data && resp.data.message) || '无法加载监控数据'
           await this.$nextTick()
@@ -1581,7 +1626,7 @@ export default {
         await this.$nextTick()
         this.renderChart([], [], this.metricType === 'cpu' ? 'CPU(%)' : '内存(%)')
       } finally {
-        this.metricsLoading = false
+        if (!silent) this.metricsLoading = false
       }
     },
     renderChart (labels, values, label) {

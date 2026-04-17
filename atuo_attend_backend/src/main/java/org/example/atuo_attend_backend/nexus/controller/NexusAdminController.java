@@ -27,6 +27,7 @@ import org.example.atuo_attend_backend.nexus.service.NexusBssCostService;
 import org.example.atuo_attend_backend.nexus.service.NexusEcsOpsService;
 import org.example.atuo_attend_backend.nexus.service.NexusExtensionSyncService;
 import org.example.atuo_attend_backend.nexus.service.NexusIcpQueryService;
+import org.example.atuo_attend_backend.nexus.service.NexusMetricLiveService;
 import org.example.atuo_attend_backend.nexus.service.NexusSecurityGroupService;
 import org.example.atuo_attend_backend.nexus.service.NexusSecurityGroupWriteException;
 import org.example.atuo_attend_backend.nexus.service.NexusSyncService;
@@ -68,6 +69,7 @@ public class NexusAdminController {
     private final NexusExtensionSyncService extensionSyncService;
     private final NexusSecurityGroupService securityGroupService;
     private final NexusIcpQueryService icpQueryService;
+    private final NexusMetricLiveService metricLiveService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public NexusAdminController(
@@ -90,7 +92,8 @@ public class NexusAdminController {
             NexusSmsTemplateMapper smsTemplateMapper,
             NexusExtensionSyncService extensionSyncService,
             NexusSecurityGroupService securityGroupService,
-            NexusIcpQueryService icpQueryService
+            NexusIcpQueryService icpQueryService,
+            NexusMetricLiveService metricLiveService
     ) {
         this.accountMapper = accountMapper;
         this.instanceMapper = instanceMapper;
@@ -112,6 +115,7 @@ public class NexusAdminController {
         this.extensionSyncService = extensionSyncService;
         this.securityGroupService = securityGroupService;
         this.icpQueryService = icpQueryService;
+        this.metricLiveService = metricLiveService;
     }
 
     /**
@@ -517,6 +521,44 @@ public class NexusAdminController {
         long tenantId = tenantIdFrom(request);
         List<NexusMemoryMetricMapper.MetricRow> items = memoryMetricMapper.listMemoryPoints(tenantId, accountId, instanceId, limit);
         return ApiResponse.ok(items);
+    }
+
+    /**
+     * 实时从阿里云拉取 CPU 监控点（不落库），供前端轮询图表。
+     */
+    @GetMapping("/accounts/{accountId}/instances/{instanceId}/cpu-metrics/live")
+    public ApiResponse<List<NexusMetricChartPoint>> cpuMetricsLive(
+            @PathVariable long accountId,
+            @PathVariable String instanceId,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        try {
+            return ApiResponse.ok(metricLiveService.fetchCpuLive(tenantId, accountId, instanceId));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "cpu live metrics failed");
+        }
+    }
+
+    /**
+     * 实时从阿里云拉取内存利用率监控点（不落库），供前端轮询图表。
+     */
+    @GetMapping("/accounts/{accountId}/instances/{instanceId}/memory-metrics/live")
+    public ApiResponse<List<NexusMetricChartPoint>> memoryMetricsLive(
+            @PathVariable long accountId,
+            @PathVariable String instanceId,
+            HttpServletRequest request
+    ) {
+        long tenantId = tenantIdFrom(request);
+        try {
+            return ApiResponse.ok(metricLiveService.fetchMemoryLive(tenantId, accountId, instanceId));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "memory live metrics failed");
+        }
     }
 
     @PostMapping("/accounts/{accountId}/instances/{instanceId}/ssh/action")
