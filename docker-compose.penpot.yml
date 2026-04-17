@@ -81,12 +81,13 @@ services:
     container_name: penpot-postgres
     restart: unless-stopped
     stop_signal: SIGINT
+    # 生产/冷启动时数据目录可能需数十秒才就绪；过短的 start_period 会导致 unhealthy → 整条 Penpot 依赖链失败
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U penpot"]
-      interval: 2s
-      timeout: 10s
-      retries: 5
-      start_period: 2s
+      test: ["CMD-SHELL", "pg_isready -U penpot -d penpot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
     volumes:
       - penpot_postgres_v15:/var/lib/postgresql/data
     environment:
