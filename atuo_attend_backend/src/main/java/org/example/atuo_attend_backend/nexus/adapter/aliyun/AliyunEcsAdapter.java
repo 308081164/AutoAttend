@@ -24,7 +24,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -463,8 +462,7 @@ public class AliyunEcsAdapter {
     }
 
     private static String formatUtc(Instant t) {
-        // Aliyun 要求 ISO 8601 且使用 UTC，末尾必须是 Z
-        return DateTimeFormatter.ISO_INSTANT.format(t);
+        return AliyunOpenApiTimeUtil.utcSecondZ(t);
     }
 
     private static LocalDateTime parseToStoreZone(String ts) {

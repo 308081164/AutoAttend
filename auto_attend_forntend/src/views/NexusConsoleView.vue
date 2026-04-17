@@ -249,7 +249,7 @@
           </div>
           <div class="nx-ssh-hint">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-            平台不保存私钥，依赖本机 key-based 登录。
+            平台不保存私钥，依赖本机 key-based 登录。「SSH 客户端」通过 ssh:// 唤起本机已注册的终端（Windows 需在「应用默认值」中为 ssh 选择 PuTTY/MobaXterm 等）；若未弹出，请用「复制命令」在终端执行。
           </div>
         </div>
       </div>
@@ -1709,8 +1709,17 @@ export default {
       try {
         this.sshOpening = true
         await this.auditSshAction('open')
-        const uri = `ssh://${encodeURIComponent(this.sshUser || 'root')}@${this.sshHost}${this.sshPort ? ':' + this.sshPort : ''}`
-        window.location.href = uri
+        const user = encodeURIComponent((this.sshUser && String(this.sshUser).trim()) || 'root')
+        const port = this.sshPort && Number(this.sshPort) > 0 ? `:${Number(this.sshPort)}` : ''
+        const uri = `ssh://${user}@${this.sshHost}${port}`
+        // 使用隐藏 <a> 点击，避免整页跳转到 ssh:// 导致部分浏览器不交给外部程序
+        const a = document.createElement('a')
+        a.href = uri
+        a.rel = 'noopener noreferrer'
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
       } catch (e) {
         alert('唤起失败，请复制命令手动登录。')
       } finally {

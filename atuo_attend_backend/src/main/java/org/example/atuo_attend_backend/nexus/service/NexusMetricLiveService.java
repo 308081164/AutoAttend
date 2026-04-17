@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -45,11 +46,10 @@ public class NexusMetricLiveService {
     public List<NexusMetricChartPoint> fetchCpuLive(long tenantId, long accountId, String instanceId) throws Exception {
         ResolvedAccount ra = resolveAccount(tenantId, accountId);
         NexusAutoSyncConfig cfg = resolveConfig(tenantId);
-        Instant end = Instant.now();
-        Instant start = end.minusSeconds((long) cfg.getCpuWindowMinutes() * 60L);
+        TimeWindow w = cpuQueryWindow(cfg);
         List<AliyunEcsAdapter.CpuPointInfo> points = ecsAdapter.fetchCpuPoints(
                 ra.accessKeyId, ra.accessKeySecret, ra.regionId,
-                instanceId, start, end, cfg.getCpuPeriodSeconds()
+                instanceId, w.start(), w.end(), w.periodSeconds()
         );
         List<NexusMetricChartPoint> out = new ArrayList<>();
         if (points != null) {
@@ -64,11 +64,12 @@ public class NexusMetricLiveService {
     public List<NexusMetricChartPoint> fetchMemoryLive(long tenantId, long accountId, String instanceId) throws Exception {
         ResolvedAccount ra = resolveAccount(tenantId, accountId);
         NexusAutoSyncConfig cfg = resolveConfig(tenantId);
-        Instant end = Instant.now();
-        Instant start = end.minusSeconds((long) cfg.getCpuWindowMinutes() * 60L);
+        TimeWindow w = cpuQueryWindow(cfg);
+        // CMS 常用周期为 60/300；与 CPU 窗口对齐，避免 period 过小导致无点
+        int cmsPeriod = w.periodSeconds() >= 300 ? 300 : 60;
         List<NexusMemoryMetricPoint> points = cmsAdapter.fetchMemoryPoints(
                 ra.accessKeyId, ra.accessKeySecret, ra.regionId,
-                instanceId, start, end, cfg.getCpuPeriodSeconds()
+                instanceId, w.start(), w.end(), cmsPeriod
         );
         List<NexusMetricChartPoint> out = new ArrayList<>();
         if (points != null) {
@@ -115,5 +116,25 @@ public class NexusMetricLiveService {
     }
 
     private record ResolvedAccount(String accessKeyId, String accessKeySecret, String regionId) {
+    }
+
+    /**
+     * DescribeInstanceMonitorData：{@code (End-Start)/Period <= 400}；周期过小 + 窗口过大会非法。
+     */
+    private static TimeWindow cpuQueryWindow(NexusAutoSyncConfig cfg) {
+        int period = Math.max(15, cfg.getCpuPeriodSeconds());
+        // 上限与巡检配置一致，避免单次请求窗口过大
+        int windowMin = Math.min(240, Math.max(1, cfg.getCpuWindowMinutes()));
+        long spanSec = (long) windowMin * 60L;
+        long maxSpan = (long) period * 399L;
+        if (spanSec > maxSpan) {
+            spanSec = maxSpan;
+        }
+        Instant end = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Instant start = end.minusSeconds(spanSec);
+        return new TimeWindow(start, end, period);
+    }
+
+    private record TimeWindow(Instant start, Instant end, int periodSeconds) {
     }
 }

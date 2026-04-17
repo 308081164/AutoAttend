@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -50,9 +49,9 @@ public class AliyunCmsAdapter {
         Client client = createClient(accessKeyId, accessKeySecret, regionId);
         RuntimeOptions runtime = new RuntimeOptions();
 
-        // 先按一段时间窗拉取（MVP：不做 NextToken 循环）
-        String start = DateTimeFormatter.ISO_INSTANT.format(startTimeUtc);
-        String end = DateTimeFormatter.ISO_INSTANT.format(endTimeUtc);
+        // 与 ECS 监控一致：UTC 整秒 + Z，避免 ISO_INSTANT 小数秒导致 InvalidParameter
+        String start = AliyunOpenApiTimeUtil.utcSecondZ(startTimeUtc);
+        String end = AliyunOpenApiTimeUtil.utcSecondZ(endTimeUtc);
 
         // dimensions：{\"instanceId\":\"...\"} 的字符串形式，SDK 参数要求 String
         String dimensions = "[{\"instanceId\":\"" + instanceId + "\"}]";
