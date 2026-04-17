@@ -99,8 +99,9 @@
               <div v-if="genError" class="error-msg">{{ genError }}</div>
 
               <template v-if="mode === 'penpot'">
+                <p v-if="penpotBootstrapping" class="section-hint">正在为组织开通 Penpot 工作区并保存凭证，请稍候…</p>
                 <p class="section-hint">
-                  使用<strong>平台 AI 配置</strong>生成布局计划并写入 Penpot 画布（服务端技术账号，方案 A）。
+                  使用<strong>平台 AI 配置</strong>生成布局计划并写入 Penpot 画布；每个组织使用独立 Penpot 账号与 Token（凭证由服务端加密保存）。
                   外链打开工作区编辑；本页不嵌入 Penpot。
                 </p>
                 <label class="label">页面需求 / 设计说明（将传给 AI 规划）</label>
@@ -119,12 +120,12 @@
                   <button
                     type="button"
                     class="primary-button"
-                    :disabled="penpotGenerating || !penpotReady || !String(penpotPrompt || '').trim()"
+                    :disabled="penpotGenerating || penpotBootstrapping || !penpotReady || !String(penpotPrompt || '').trim()"
                     @click="createPenpotFile"
                   >
                     {{ penpotGenerating ? '生成中…' : '生成 Penpot 初稿' }}
                   </button>
-                  <button type="button" class="secondary-button" :disabled="penpotProbeLoading" @click="checkPenpotReachable">
+                  <button type="button" class="secondary-button" :disabled="penpotProbeLoading || penpotBootstrapping || !penpotReady" @click="checkPenpotReachable">
                     {{ penpotProbeLoading ? '检测中…' : '检测 Penpot 连通' }}
                   </button>
                 </div>
@@ -315,7 +316,9 @@ export default {
       penpotExportUrl: '',
       penpotPrompt: '',
       penpotJobStage: '',
-      penpotJobProgress: 0
+      penpotJobProgress: 0,
+      penpotMustBootstrap: false,
+      penpotBootstrapping: false
     }
   },
   computed: {
@@ -424,7 +427,7 @@ ${html}
         this.mockupGenerating = false
       }
     },
-    switchMode (m) {
+    async switchMode (m) {
       if (m !== 'spec' && m !== 'mockup' && m !== 'penpot') return
       this.mode = m
       this.genError = ''
@@ -433,6 +436,9 @@ ${html}
       this.mockupError = ''
       if (m === 'spec') {
         this.$nextTick(() => this.renderActiveSpec())
+      }
+      if (m === 'penpot' && this.penpotUiAvailable && this.penpotMustBootstrap) {
+        await this.bootstrapPenpotTenant()
       }
     },
     async load () {
@@ -543,9 +549,12 @@ ${html}
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const d = resp.data.data
           this.penpotUiAvailable = !!d.enabled
-          this.penpotReady = !!d.enabled
+          this.penpotReady = !!d.penpotReady
+          this.penpotMustBootstrap = !!d.mustBootstrap
           if (!this.penpotUiAvailable) {
-            this.penpotStatusHint = 'Penpot Beta 未启用：请在部署环境设置 PENPOT_ENABLED=true 并配置 PENPOT_ACCESS_TOKEN（或邮箱密码）。'
+            this.penpotStatusHint = 'Penpot Beta 未启用：请在部署环境设置 PENPOT_ENABLED=true（无需再配置平台级 PENPOT_ACCESS_TOKEN）。'
+          } else if (this.penpotMustBootstrap) {
+            this.penpotStatusHint = '首次使用需由租户管理员在本页开通 Penpot 工作区（自动创建独立账号并保存凭证）。切换到「Penpot Beta」标签时将自动执行。'
           } else {
             this.penpotStatusHint = ''
           }
@@ -562,12 +571,29 @@ ${html}
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const ok = !!resp.data.data.reachable
           this.penpotReachable = ok
-          this.penpotStatusHint = ok ? 'Penpot API 连通正常。' : '无法连接 Penpot：请检查 Token、PENPOT_INTERNAL_URI 与 Penpot 容器是否运行。'
+          this.penpotStatusHint = ok ? 'Penpot API 连通正常（已使用本组织独立 Token）。' : '无法连接 Penpot：请确认已开通工作区且 Penpot 容器可达。'
         }
       } catch (e) {
         this.penpotError = (e.response && e.response.data && e.response.data.message) || '检测失败'
       } finally {
         this.penpotProbeLoading = false
+      }
+    },
+    async bootstrapPenpotTenant () {
+      if (!this.penpotMustBootstrap || this.penpotBootstrapping) return
+      this.penpotBootstrapping = true
+      this.penpotError = ''
+      try {
+        const resp = await this.$http.post('/admin/ui-prototype/penpot/bootstrap', {})
+        if (resp.data && resp.data.code === 0) {
+          await this.loadPenpotStatus()
+        } else {
+          this.penpotError = (resp.data && resp.data.message) || '开通失败'
+        }
+      } catch (e) {
+        this.penpotError = (e.response && e.response.data && e.response.data.message) || '开通失败'
+      } finally {
+        this.penpotBootstrapping = false
       }
     },
     async createPenpotFile () {

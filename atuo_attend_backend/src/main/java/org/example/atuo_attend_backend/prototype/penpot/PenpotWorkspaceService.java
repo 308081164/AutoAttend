@@ -32,20 +32,21 @@ public class PenpotWorkspaceService {
     /**
      * 解析或创建：优先使用租户已保存的 team/project；否则选默认团队并创建子项目。
      */
-    public TeamProject resolveTeamAndProject(String existingTeamId, String existingProjectId, String projectName) {
-        String teamId = pickTeamId(existingTeamId);
+    public TeamProject resolveTeamAndProject(String existingTeamId, String existingProjectId, String projectName,
+                                             String tenantAccessToken) {
+        String teamId = pickTeamId(existingTeamId, tenantAccessToken);
         String projectId = existingProjectId;
         if (!StringUtils.hasText(projectId)) {
-            projectId = createProject(teamId, safeProjectName(projectName));
+            projectId = createProject(teamId, safeProjectName(projectName), tenantAccessToken);
         }
         return new TeamProject(teamId, projectId);
     }
 
-    public String createDesignFile(String projectId, String fileName) {
+    public String createDesignFile(String projectId, String fileName, String tenantAccessToken) {
         Map<String, Object> body = new HashMap<>();
         body.put("projectId", projectId);
         body.put("name", truncate(fileName, 240));
-        JsonNode res = rpc.command("create-file", body);
+        JsonNode res = rpc.command("create-file", body, tenantAccessToken);
         JsonNode id = res.get("id");
         if (id == null || id.isNull() || !StringUtils.hasText(id.asText())) {
             throw new IllegalStateException("create-file 未返回 id");
@@ -58,11 +59,11 @@ public class PenpotWorkspaceService {
         return base + "/workspace/" + projectId + "/" + fileId;
     }
 
-    private String pickTeamId(String savedTeamId) {
+    private String pickTeamId(String savedTeamId, String tenantAccessToken) {
         if (StringUtils.hasText(savedTeamId)) {
             return savedTeamId.trim();
         }
-        JsonNode teams = rpc.command("get-teams", Map.of());
+        JsonNode teams = rpc.command("get-teams", Map.of(), tenantAccessToken);
         if (!teams.isArray() || teams.isEmpty()) {
             throw new IllegalStateException("Penpot get-teams 为空：请确认服务账号已加入团队");
         }
@@ -74,11 +75,11 @@ public class PenpotWorkspaceService {
         return teams.get(0).get("id").asText();
     }
 
-    private String createProject(String teamId, String name) {
+    private String createProject(String teamId, String name, String tenantAccessToken) {
         Map<String, Object> body = new HashMap<>();
         body.put("teamId", teamId);
         body.put("name", name);
-        JsonNode res = rpc.command("create-project", body);
+        JsonNode res = rpc.command("create-project", body, tenantAccessToken);
         if (res.has("id") && !res.get("id").isNull()) {
             return res.get("id").asText();
         }

@@ -41,6 +41,19 @@ public class PenpotProperties {
     /** 备选：内置账号密码 */
     private String password = "";
 
+    /**
+     * 租户自动开户时生成的邮箱域（仅标签，需与 Penpot 实例允许的邮箱格式一致；自托管可任意后缀）。
+     */
+    private String tenantEmailDomain = "penpot.local";
+
+    /** 租户 Access Token 名称前缀（create-access-token 的 name） */
+    private String tenantTokenNamePrefix = "autoattend";
+
+    /**
+     * 派生租户 Penpot 登录密码时的盐（与 tenantId 组合哈希）；生产务必通过环境变量覆盖。
+     */
+    private String tenantCredentialPepper = "";
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -111,5 +124,29 @@ public class PenpotProperties {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getTenantEmailDomain() {
+        return tenantEmailDomain;
+    }
+
+    public void setTenantEmailDomain(String tenantEmailDomain) {
+        this.tenantEmailDomain = tenantEmailDomain;
+    }
+
+    public String getTenantTokenNamePrefix() {
+        return tenantTokenNamePrefix;
+    }
+
+    public void setTenantTokenNamePrefix(String tenantTokenNamePrefix) {
+        this.tenantTokenNamePrefix = tenantTokenNamePrefix;
+    }
+
+    public String getTenantCredentialPepper() {
+        return tenantCredentialPepper;
+    }
+
+    public void setTenantCredentialPepper(String tenantCredentialPepper) {
+        this.tenantCredentialPepper = tenantCredentialPepper;
     }
 }

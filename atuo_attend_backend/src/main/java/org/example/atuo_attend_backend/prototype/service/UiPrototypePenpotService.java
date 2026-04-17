@@ -10,6 +10,7 @@ import org.example.atuo_attend_backend.prototype.penpot.PenpotFileWriterService;
 import org.example.atuo_attend_backend.prototype.penpot.PenpotPlannerService;
 import org.example.atuo_attend_backend.prototype.penpot.PenpotRpcClient;
 import org.example.atuo_attend_backend.prototype.penpot.PenpotWorkspaceService;
+import org.example.atuo_attend_backend.prototype.penpot.TenantPenpotOnboardingService;
 import org.example.atuo_attend_backend.prototype.penpot.dto.PenpotLayoutPlan;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
@@ -35,6 +36,7 @@ public class UiPrototypePenpotService {
     private final PenpotFileWriterService fileWriterService;
     private final UiPrototypeProjectMapper projectMapper;
     private final UiPrototypePenpotJobMapper penpotJobMapper;
+    private final TenantPenpotOnboardingService tenantPenpotOnboardingService;
 
     public UiPrototypePenpotService(PenpotProperties penpotProperties,
                                     PenpotRpcClient penpotRpcClient,
@@ -42,7 +44,8 @@ public class UiPrototypePenpotService {
                                     PenpotPlannerService plannerService,
                                     PenpotFileWriterService fileWriterService,
                                     UiPrototypeProjectMapper projectMapper,
-                                    UiPrototypePenpotJobMapper penpotJobMapper) {
+                                    UiPrototypePenpotJobMapper penpotJobMapper,
+                                    TenantPenpotOnboardingService tenantPenpotOnboardingService) {
         this.penpotProperties = penpotProperties;
         this.penpotRpcClient = penpotRpcClient;
         this.workspaceService = workspaceService;
@@ -50,6 +53,7 @@ public class UiPrototypePenpotService {
         this.fileWriterService = fileWriterService;
         this.projectMapper = projectMapper;
         this.penpotJobMapper = penpotJobMapper;
+        this.tenantPenpotOnboardingService = tenantPenpotOnboardingService;
     }
 
     private static long tid() {
@@ -57,15 +61,23 @@ public class UiPrototypePenpotService {
     }
 
     public boolean isFeatureEnabled() {
-        return penpotProperties.isEnabled() && penpotRpcClient.isConfigured();
+        return penpotProperties.isEnabled();
     }
 
+    /**
+     * 使用当前租户已落库的 Access Token 探测 Penpot（不会在探测时自动开户）。
+     */
     public boolean probeConnection() {
-        if (!isFeatureEnabled()) {
+        if (!penpotProperties.isEnabled()) {
+            return false;
+        }
+        long tenantId = tid();
+        if (!tenantPenpotOnboardingService.hasCredential(tenantId)) {
             return false;
         }
         try {
-            penpotRpcClient.command("get-teams", new HashMap<>());
+            String tok = tenantPenpotOnboardingService.getOrCreateTenantAccessToken(tenantId);
+            penpotRpcClient.command("get-teams", new HashMap<>(), tok);
             return true;
         } catch (Exception e) {
             log.warn("Penpot probe failed: {}", e.getMessage());
@@ -74,17 +86,30 @@ public class UiPrototypePenpotService {
     }
 
     public boolean isConfiguredOnly() {
-        return penpotRpcClient.isConfigured();
+        return penpotProperties.isEnabled();
+    }
+
+    public boolean isTenantPenpotReady(long tenantId) {
+        return tenantPenpotOnboardingService.hasCredential(tenantId);
+    }
+
+    /** 主管理员首次进入时完成 Penpot 注册并发牌。 */
+    public void ensureTenantPenpotOnboarded() {
+        if (!penpotProperties.isEnabled()) {
+            throw new IllegalStateException("Penpot 未启用");
+        }
+        tenantPenpotOnboardingService.getOrCreateTenantAccessToken(tid());
     }
 
     /**
      * 完整链路：LLM 规划 → 创建文件 → update-file 写入 → export-binfile。
      */
     public long enqueueGenerate(long projectId, String prompt, String note) {
-        if (!isFeatureEnabled()) {
-            throw new IllegalStateException("Penpot 未启用或未配置 access-token/账号");
+        if (!penpotProperties.isEnabled()) {
+            throw new IllegalStateException("Penpot 未启用");
         }
         long tenantId = tid();
+        String tenantToken = tenantPenpotOnboardingService.getOrCreateTenantAccessToken(tenantId);
         UiPrototypeProject p = projectMapper.findById(tenantId, projectId);
         if (p == null) {
             throw new IllegalArgumentException("项目不存在");
@@ -102,7 +127,7 @@ public class UiPrototypePenpotService {
         if (jobId == null) {
             throw new IllegalStateException("创建 Penpot 任务失败");
         }
-        CompletableFuture.runAsync(() -> runJobSafe(tenantId, jobId, projectId, p.getName(), prompt, note));
+        CompletableFuture.runAsync(() -> runJobSafe(tenantId, jobId, projectId, p.getName(), prompt, note, tenantToken));
         return jobId;
     }
 
@@ -144,10 +169,11 @@ public class UiPrototypePenpotService {
 
     /** 返回 export-binfile 临时 URL（需已绑定 penpot_file_id） */
     public String exportBinfileForProject(long projectId) {
-        if (!isFeatureEnabled()) {
+        if (!penpotProperties.isEnabled()) {
             throw new IllegalStateException("Penpot 未启用");
         }
         long tenantId = tid();
+        String tenantToken = tenantPenpotOnboardingService.getOrCreateTenantAccessToken(tenantId);
         UiPrototypeProject p = projectMapper.findById(tenantId, projectId);
         if (p == null) {
             throw new IllegalArgumentException("项目不存在");
@@ -155,24 +181,25 @@ public class UiPrototypePenpotService {
         if (!StringUtils.hasText(p.getPenpotFileId())) {
             throw new IllegalStateException("尚未生成 Penpot 文件");
         }
-        return exportBinfile(p.getPenpotFileId());
+        return exportBinfile(p.getPenpotFileId(), tenantToken);
     }
 
-    private String exportBinfile(String fileId) {
+    private String exportBinfile(String fileId, String tenantAccessToken) {
         Map<String, Object> body = new HashMap<>();
         body.put("fileId", fileId);
         body.put("includeLibraries", false);
         body.put("embedAssets", true);
-        String url = penpotRpcClient.commandForStringResult("export-binfile", body);
+        String url = penpotRpcClient.commandForStringResult("export-binfile", body, tenantAccessToken);
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("export-binfile 未返回下载地址");
         }
         return url.trim();
     }
 
-    private void runJobSafe(long tenantId, long jobId, long projectId, String projectName, String prompt, String note) {
+    private void runJobSafe(long tenantId, long jobId, long projectId, String projectName, String prompt, String note,
+                            String tenantAccessToken) {
         try {
-            TenantContext.runWithTenantId(tenantId, () -> runJob(jobId, projectId, projectName, prompt, note));
+            TenantContext.runWithTenantId(tenantId, () -> runJob(jobId, projectId, projectName, prompt, note, tenantAccessToken));
         } catch (Throwable t) {
             log.error("penpot job {} crashed", jobId, t);
             try {
@@ -186,7 +213,7 @@ public class UiPrototypePenpotService {
         }
     }
 
-    private void runJob(long jobId, long projectId, String projectName, String prompt, String note) {
+    private void runJob(long jobId, long projectId, String projectName, String prompt, String note, String tenantAccessToken) {
         long tenantId = tid();
         penpotJobMapper.updateStage(jobId, tenantId, projectId, "running", "planning", 10, null);
 
@@ -216,7 +243,8 @@ public class UiPrototypePenpotService {
         try {
             tp = workspaceService.resolveTeamAndProject(
                     p.getPenpotTeamId(), p.getPenpotProjectId(),
-                    projectName != null ? projectName : ("project-" + projectId));
+                    projectName != null ? projectName : ("project-" + projectId),
+                    tenantAccessToken);
         } catch (Exception e) {
             penpotJobMapper.updateFailed(jobId, tenantId, projectId,
                     "Penpot 团队/项目：" + (e.getMessage() != null ? e.getMessage() : ""));
@@ -226,7 +254,7 @@ public class UiPrototypePenpotService {
         String fileName = "快原型-" + projectId + "-" + System.currentTimeMillis();
         String fileId;
         try {
-            fileId = workspaceService.createDesignFile(tp.projectId(), fileName);
+            fileId = workspaceService.createDesignFile(tp.projectId(), fileName, tenantAccessToken);
         } catch (Exception e) {
             penpotJobMapper.updateFailed(jobId, tenantId, projectId,
                     "创建文件失败：" + (e.getMessage() != null ? e.getMessage() : ""));
@@ -238,7 +266,7 @@ public class UiPrototypePenpotService {
         Exception lastWrite = null;
         for (int attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt++) {
             try {
-                fileWriterService.applyLayout(fileId, plan);
+                fileWriterService.applyLayout(fileId, plan, tenantAccessToken);
                 lastWrite = null;
                 break;
             } catch (Exception e) {
@@ -259,7 +287,7 @@ public class UiPrototypePenpotService {
         String previewUrl = workspaceService.buildWorkspaceUrl(tp.projectId(), fileId);
         String exportUrl = null;
         try {
-            exportUrl = exportBinfile(fileId);
+            exportUrl = exportBinfile(fileId, tenantAccessToken);
         } catch (Exception e) {
             log.warn("export-binfile skipped: {}", e.getMessage());
         }

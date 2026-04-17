@@ -3,6 +3,8 @@ package org.example.atuo_attend_backend.prototype.controller;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.admin.auth.AdminAuthFilter;
 import org.example.atuo_attend_backend.platform.service.PlatformComponentEventService;
+import org.example.atuo_attend_backend.tenant.domain.TenantAdminUser;
+import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectDetail;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectListItem;
 import org.example.atuo_attend_backend.prototype.dto.UiPrototypeProjectCreateRequest;
@@ -33,15 +35,18 @@ public class AdminUiPrototypeController {
     private final UiPrototypePenpotService uiPrototypePenpotService;
     private final QuoteService quoteService;
     private final PlatformComponentEventService componentEventService;
+    private final TenantAdminUserMapper tenantAdminUserMapper;
 
     public AdminUiPrototypeController(UiPrototypeService uiPrototypeService,
                                       UiPrototypePenpotService uiPrototypePenpotService,
                                       QuoteService quoteService,
-                                      PlatformComponentEventService componentEventService) {
+                                      PlatformComponentEventService componentEventService,
+                                      TenantAdminUserMapper tenantAdminUserMapper) {
         this.uiPrototypeService = uiPrototypeService;
         this.uiPrototypePenpotService = uiPrototypePenpotService;
         this.quoteService = quoteService;
         this.componentEventService = componentEventService;
+        this.tenantAdminUserMapper = tenantAdminUserMapper;
     }
 
     /**
@@ -49,15 +54,55 @@ public class AdminUiPrototypeController {
      * @param probe 传 1 或 true 时额外请求 Penpot get-teams 做连通性检查（略慢，勿高频轮询）
      */
     @GetMapping("/penpot/status")
-    public ApiResponse<Map<String, Object>> penpotStatus(@RequestParam(required = false) String probe) {
+    public ApiResponse<Map<String, Object>> penpotStatus(@RequestParam(required = false) String probe,
+                                                         HttpServletRequest req) {
         Map<String, Object> data = new HashMap<>();
         data.put("enabled", uiPrototypePenpotService.isFeatureEnabled());
         data.put("configured", uiPrototypePenpotService.isConfiguredOnly());
+        Long uid = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        Long tenantId = (Long) req.getAttribute(AdminAuthFilter.ATTR_TENANT_ID);
+        data.put("mustBootstrap", false);
+        if (tenantId != null && uiPrototypePenpotService.isFeatureEnabled()) {
+            boolean admin = isTenantAdminForCurrentTenant(uid, tenantId);
+            data.put("penpotReady", admin && uiPrototypePenpotService.isTenantPenpotReady(tenantId));
+            if (admin) {
+                data.put("mustBootstrap", !uiPrototypePenpotService.isTenantPenpotReady(tenantId));
+            }
+        } else {
+            data.put("penpotReady", false);
+        }
         boolean doProbe = "1".equals(probe) || "true".equalsIgnoreCase(probe);
         if (doProbe) {
-            data.put("reachable", uiPrototypePenpotService.probeConnection());
+            if (tenantId != null && isTenantAdminForCurrentTenant(uid, tenantId)
+                    && uiPrototypePenpotService.isTenantPenpotReady(tenantId)) {
+                data.put("reachable", uiPrototypePenpotService.probeConnection());
+            } else {
+                data.put("reachable", false);
+            }
         }
         return ApiResponse.ok(data);
+    }
+
+    /**
+     * 租户管理员首次进入快原型 Penpot Beta 时调用：自动注册 Penpot 账号并落库租户 Token（一租户一账号）。
+     */
+    @PostMapping("/penpot/bootstrap")
+    public ApiResponse<Map<String, Object>> penpotBootstrap(HttpServletRequest req) {
+        Long uid = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        Long tenantId = (Long) req.getAttribute(AdminAuthFilter.ATTR_TENANT_ID);
+        if (!isTenantAdminForCurrentTenant(uid, tenantId)) {
+            return ApiResponse.error(40300, "仅租户管理员可开通 Penpot 工作区");
+        }
+        try {
+            uiPrototypePenpotService.ensureTenantPenpotOnboarded();
+            Map<String, Object> data = new HashMap<>();
+            data.put("ok", true);
+            return ApiResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        }
     }
 
     @GetMapping("/projects")
@@ -216,6 +261,11 @@ public class AdminUiPrototypeController {
     public ApiResponse<Map<String, Object>> enqueuePenpotJob(@PathVariable long id,
                                                              @RequestBody(required = false) UiPrototypePenpotGenerateRequest body,
                                                              HttpServletRequest req) {
+        Long uid = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        Long tenantId = (Long) req.getAttribute(AdminAuthFilter.ATTR_TENANT_ID);
+        if (!isTenantAdminForCurrentTenant(uid, tenantId)) {
+            return ApiResponse.error(40300, "仅租户管理员可使用 Penpot Beta 生成");
+        }
         try {
             String prompt = body != null ? body.getPrompt() : null;
             String note = body != null ? body.getNote() : null;
@@ -235,7 +285,12 @@ public class AdminUiPrototypeController {
 
     /** 重新请求 .penpot 导出链接（临时 URL，与任务成功时一致） */
     @GetMapping("/projects/{id}/penpot/export-binfile")
-    public ApiResponse<Map<String, Object>> penpotExportBinfile(@PathVariable long id) {
+    public ApiResponse<Map<String, Object>> penpotExportBinfile(@PathVariable long id, HttpServletRequest req) {
+        Long uid = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        Long tenantId = (Long) req.getAttribute(AdminAuthFilter.ATTR_TENANT_ID);
+        if (!isTenantAdminForCurrentTenant(uid, tenantId)) {
+            return ApiResponse.error(40300, "仅租户管理员可导出 Penpot 文件");
+        }
         try {
             String url = uiPrototypePenpotService.exportBinfileForProject(id);
             Map<String, Object> data = new HashMap<>();
@@ -249,7 +304,13 @@ public class AdminUiPrototypeController {
     }
 
     @GetMapping("/projects/{id}/penpot/jobs/{jobId}")
-    public ApiResponse<UiPrototypePenpotJobStatus> getPenpotJob(@PathVariable long id, @PathVariable long jobId) {
+    public ApiResponse<UiPrototypePenpotJobStatus> getPenpotJob(@PathVariable long id, @PathVariable long jobId,
+                                                                HttpServletRequest req) {
+        Long uid = (Long) req.getAttribute(AdminAuthFilter.ATTR_USER_ID);
+        Long tenantId = (Long) req.getAttribute(AdminAuthFilter.ATTR_TENANT_ID);
+        if (!isTenantAdminForCurrentTenant(uid, tenantId)) {
+            return ApiResponse.error(40300, "仅租户管理员可查看 Penpot 任务");
+        }
         UiPrototypePenpotJobStatus s = uiPrototypePenpotService.getJobStatus(id, jobId);
         if (s == null) return ApiResponse.error(40400, "任务不存在");
         return ApiResponse.ok(s);
@@ -272,6 +333,15 @@ public class AdminUiPrototypeController {
         } catch (IllegalStateException e) {
             return ApiResponse.error(50000, e.getMessage());
         }
+    }
+
+    /** 当前会话用户属于该租户的 aa_tenant_admin_user（管理员控制台）。协作「成员」无此会话，无法调用。 */
+    private boolean isTenantAdminForCurrentTenant(Long userId, Long tenantId) {
+        if (userId == null || tenantId == null) {
+            return false;
+        }
+        TenantAdminUser u = tenantAdminUserMapper.findById(userId);
+        return u != null && u.getTenantId() != null && u.getTenantId().longValue() == tenantId.longValue();
     }
 }
 

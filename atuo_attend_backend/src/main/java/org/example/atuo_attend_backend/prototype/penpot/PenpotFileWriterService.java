@@ -18,16 +18,16 @@ public class PenpotFileWriterService {
         this.rpc = rpc;
     }
 
-    public void applyLayout(String fileIdStr, PenpotLayoutPlan plan) {
+    public void applyLayout(String fileIdStr, PenpotLayoutPlan plan, String tenantAccessToken) {
         UUID fileId = UUID.fromString(fileIdStr);
         UUID sessionId = UUID.randomUUID();
 
-        JsonNode file = rpc.command("get-file", Map.of("id", fileIdStr));
+        JsonNode file = rpc.command("get-file", Map.of("id", fileIdStr), tenantAccessToken);
         int revn = file.path("revn").asInt(0);
         int vern = file.path("vern").asInt(0);
 
         String pageIdStr = firstPageId(file);
-        JsonNode page = rpc.command("get-page", Map.of("fileId", fileIdStr, "pageId", pageIdStr));
+        JsonNode page = rpc.command("get-page", Map.of("fileId", fileIdStr, "pageId", pageIdStr), tenantAccessToken);
         UUID rootId = PenpotConstants.PAGE_ROOT_ID;
 
         List<Map<String, Object>> changes = new ArrayList<>();
@@ -72,7 +72,7 @@ public class PenpotFileWriterService {
         body.put("changes", changes);
         body.put("skipValidate", true);
 
-        rpc.command("update-file", body);
+        rpc.command("update-file", body, tenantAccessToken);
     }
 
     private static String firstPageId(JsonNode file) {
