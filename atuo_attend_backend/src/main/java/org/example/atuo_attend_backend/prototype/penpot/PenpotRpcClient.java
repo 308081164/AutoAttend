@@ -9,7 +9,10 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+
+import jakarta.annotation.PostConstruct;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,7 +21,7 @@ import java.util.Map;
 /**
  * 调用 Penpot HTTP RPC。
  * Penpot 2.12+ 使用 {@code /api/main/methods/:method}；旧版为 {@code /api/rpc/command/:method}。
- * {@code app.penpot.rpc-path-style=auto} 时先尝试新路径，遇 HTTP 404 再回退旧路径并缓存。
+ * {@code app.penpot.rpc-path-style=auto} 时：启动时探测路径并锁定；请求时遇「路径不存在」类状态码再尝试另一路径。
  */
 @Component
 public class PenpotRpcClient {
@@ -38,6 +41,62 @@ public class PenpotRpcClient {
     public PenpotRpcClient(PenpotProperties props, RestTemplate restTemplate) {
         this.props = props;
         this.restTemplate = restTemplate;
+    }
+
+    /**
+     * 启动时探测 Penpot 版本对应 RPC 前缀，避免首请求才回退、也减少错误日志。
+     * 使用无需鉴权即可区分「路由存在」的轻量 RPC（get-teams 未登录通常返回 401/403，而非 404）。
+     */
+    @PostConstruct
+    public void probeAndLockRpcPathOnStartup() {
+        if (!props.isEnabled() || !isRpcAutoMode()) {
+            return;
+        }
+        String base = trimSlash(props.getEffectiveRpcBaseUrl());
+        if (!StringUtils.hasText(base)) {
+            return;
+        }
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        h.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        HttpEntity<String> entity = new HttpEntity<>("{}", h);
+        String[] kinds = new String[] { "new", "legacy" };
+        for (String kind : kinds) {
+            String url = "new".equals(kind)
+                    ? base + "/api/main/methods/get-teams"
+                    : base + "/api/rpc/command/get-teams";
+            try {
+                restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+                noteSuccessFromKind(kind);
+                log.info("Penpot RPC path probe: locked to {} ({} responded without 404)", kind, url);
+                return;
+            } catch (HttpStatusCodeException e) {
+                int code = e.getStatusCode().value();
+                if (code == 404 || code == 405) {
+                    log.debug("Penpot RPC probe {} -> HTTP {} (try next path)", url, code);
+                    continue;
+                }
+                noteSuccessFromKind(kind);
+                log.info("Penpot RPC path probe: locked to {} ({} -> HTTP {}, route exists)", kind, url, code);
+                return;
+            } catch (RestClientException e) {
+                log.warn("Penpot RPC path probe network error for {}: {}", url, e.getMessage());
+                return;
+            }
+        }
+        log.warn("Penpot RPC path probe: could not distinguish new vs legacy (Penpot down or unreachable); will try both on first RPC");
+    }
+
+    private void noteSuccessFromKind(String kind) {
+        if (!isRpcAutoMode()) {
+            return;
+        }
+        synchronized (this) {
+            if (autoResolvedRpcKind != null) {
+                return;
+            }
+            autoResolvedRpcKind = "new".equals(kind) ? "new" : "legacy";
+        }
     }
 
     public boolean hasPlatformCredentials() {
@@ -143,7 +202,7 @@ public class PenpotRpcClient {
                 return cookie.split(";", 2)[0].trim();
             } catch (HttpStatusCodeException e) {
                 last = e;
-                if (e.getStatusCode().value() != 404 || !isRpcAutoMode() || autoResolvedRpcKind != null) {
+                if (!shouldTryAlternateRpcPath(e) || !isRpcAutoMode() || autoResolvedRpcKind != null) {
                     break;
                 }
             }
@@ -189,7 +248,7 @@ public class PenpotRpcClient {
                 return parseBody(methodName, resp.getBody());
             } catch (HttpStatusCodeException e) {
                 last = e;
-                if (e.getStatusCode().value() != 404 || !isRpcAutoMode() || autoResolvedRpcKind != null) {
+                if (!shouldTryAlternateRpcPath(e) || !isRpcAutoMode() || autoResolvedRpcKind != null) {
                     log.warn("Penpot RPC {} failed: {} body={}", methodName, e.getStatusCode(), truncate(e.getResponseBodyAsString(), 800));
                     throw rpcException(methodName, e);
                 }
@@ -253,8 +312,16 @@ public class PenpotRpcClient {
                 return;
             }
             autoResolvedRpcKind = url != null && url.contains("/api/main/methods/") ? "new" : "legacy";
-            log.info("Penpot RPC path locked to {} (auto-detect)", autoResolvedRpcKind);
+            log.info("Penpot RPC path locked to {} (first successful request)", autoResolvedRpcKind);
         }
+    }
+
+    /**
+     * 路径错误时常为 404/405；网关/瞬时故障可能为 502/503/504，可尝试另一套路径（兼容反代配置差异）。
+     */
+    private static boolean shouldTryAlternateRpcPath(HttpStatusCodeException e) {
+        int code = e.getStatusCode().value();
+        return code == 404 || code == 405 || code == 502 || code == 503 || code == 504;
     }
 
     private boolean isRpcAutoMode() {
