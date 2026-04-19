@@ -9,6 +9,8 @@ public class MarketplaceProject {
     private Long publisherUserId;
     private String title;
     private String description;
+    /** JSON array：MinIO key，需求配图 */
+    private String requirementImagesJson;
     /** JSON array string */
     private String techStackJson;
     private String budgetRange;
@@ -16,11 +18,15 @@ public class MarketplaceProject {
     private String location;
     private String contactType;
     private String contactValueEnc;
+    /** 联系方式二维码/配图 MinIO key */
+    private String contactAttachmentStorageKey;
     private String status;
     private String rejectReason;
     private Integer viewCount;
     private LocalDateTime publishTime;
     private LocalDateTime expireTime;
+    /** 长期有效：上架后 expire_time 为空 */
+    private Boolean effectiveNeverExpires;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -62,6 +68,14 @@ public class MarketplaceProject {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getRequirementImagesJson() {
+        return requirementImagesJson;
+    }
+
+    public void setRequirementImagesJson(String requirementImagesJson) {
+        this.requirementImagesJson = requirementImagesJson;
     }
 
     public String getTechStackJson() {
@@ -112,6 +126,14 @@ public class MarketplaceProject {
         this.contactValueEnc = contactValueEnc;
     }
 
+    public String getContactAttachmentStorageKey() {
+        return contactAttachmentStorageKey;
+    }
+
+    public void setContactAttachmentStorageKey(String contactAttachmentStorageKey) {
+        this.contactAttachmentStorageKey = contactAttachmentStorageKey;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -150,6 +172,14 @@ public class MarketplaceProject {
 
     public void setExpireTime(LocalDateTime expireTime) {
         this.expireTime = expireTime;
+    }
+
+    public Boolean getEffectiveNeverExpires() {
+        return effectiveNeverExpires;
+    }
+
+    public void setEffectiveNeverExpires(Boolean effectiveNeverExpires) {
+        this.effectiveNeverExpires = effectiveNeverExpires;
     }
 
     public LocalDateTime getCreatedAt() {
