@@ -142,12 +142,9 @@ jobs:
             export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml pull
 
-            # 分步 up，避免单次 up 在旧 compose（前端等 backend 健康）下永久 Waiting
-            docker compose -f docker-compose.prod.yml up -d mysql minio
-            # Penpot 栈（快原型 Beta）：拉起依赖后 penpot-frontend 可访问
-            docker compose -f docker-compose.prod.yml up -d penpot-frontend
-            docker compose -f docker-compose.prod.yml up -d backend
-            docker compose -f docker-compose.prod.yml up -d frontend platform-monitor-frontend
+            # 一次性对齐 networks（含 autoattend_net）、镜像与全部服务定义。
+            # 当前 compose 中 frontend 已 depends_on backend: service_started，不会因等 backend 健康而永久 Waiting。
+            docker compose -f docker-compose.prod.yml up -d
 
             # 数据库迁移：强制重建 backend 跑 migrate_manifest.txt
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
