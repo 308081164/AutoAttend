@@ -65,12 +65,19 @@ public class NexusMetricLiveService {
         ResolvedAccount ra = resolveAccount(tenantId, accountId);
         NexusAutoSyncConfig cfg = resolveConfig(tenantId);
         TimeWindow w = cpuQueryWindow(cfg);
-        // CMS 常用周期为 60/300；与 CPU 窗口对齐，避免 period 过小导致无点
-        int cmsPeriod = w.periodSeconds() >= 300 ? 300 : 60;
+        // ECS 内存利用率在云监控侧通常以 60s 或 300s 粒度上报；与 CPU 周期不一致时依次尝试
+        int preferred = w.periodSeconds() >= 300 ? 300 : 60;
+        int alt = preferred == 300 ? 60 : 300;
         List<NexusMemoryMetricPoint> points = cmsAdapter.fetchMemoryPoints(
                 ra.accessKeyId, ra.accessKeySecret, ra.regionId,
-                instanceId, w.start(), w.end(), cmsPeriod
+                instanceId, w.start(), w.end(), preferred
         );
+        if ((points == null || points.isEmpty()) && alt != preferred) {
+            points = cmsAdapter.fetchMemoryPoints(
+                    ra.accessKeyId, ra.accessKeySecret, ra.regionId,
+                    instanceId, w.start(), w.end(), alt
+            );
+        }
         List<NexusMetricChartPoint> out = new ArrayList<>();
         if (points != null) {
             for (NexusMemoryMetricPoint mp : points) {

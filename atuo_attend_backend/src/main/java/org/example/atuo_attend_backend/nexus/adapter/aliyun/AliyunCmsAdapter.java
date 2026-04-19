@@ -45,16 +45,43 @@ public class AliyunCmsAdapter {
             Instant endTimeUtc,
             int periodSeconds
     ) throws Exception {
+        // 不同账号/地域下 Dimensions 形态不一致：依次尝试（含 regionId、单对象非数组）
+        String escId = escapeJson(instanceId);
+        String escRg = escapeJson(regionId);
+        String[] dimCandidates = new String[] {
+                "{\"instanceId\":\"" + escId + "\",\"regionId\":\"" + escRg + "\"}",
+                "{\"instanceId\":\"" + escId + "\"}",
+                "[{\"instanceId\":\"" + escId + "\",\"regionId\":\"" + escRg + "\"}]",
+                "[{\"instanceId\":\"" + escId + "\"}]"
+        };
+        for (String dimensions : dimCandidates) {
+            List<NexusMemoryMetricPoint> pts = fetchMemoryPointsOnce(
+                    accessKeyId, accessKeySecret, regionId,
+                    instanceId, startTimeUtc, endTimeUtc, periodSeconds, dimensions
+            );
+            if (pts != null && !pts.isEmpty()) {
+                return pts;
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    private List<NexusMemoryMetricPoint> fetchMemoryPointsOnce(
+            String accessKeyId,
+            String accessKeySecret,
+            String regionId,
+            String instanceId,
+            Instant startTimeUtc,
+            Instant endTimeUtc,
+            int periodSeconds,
+            String dimensions
+    ) throws Exception {
 
         Client client = createClient(accessKeyId, accessKeySecret, regionId);
         RuntimeOptions runtime = new RuntimeOptions();
 
-        // 与 ECS 监控一致：UTC 整秒 + Z，避免 ISO_INSTANT 小数秒导致 InvalidParameter
         String start = AliyunOpenApiTimeUtil.utcSecondZ(startTimeUtc);
         String end = AliyunOpenApiTimeUtil.utcSecondZ(endTimeUtc);
-
-        // dimensions：{\"instanceId\":\"...\"} 的字符串形式，SDK 参数要求 String
-        String dimensions = "[{\"instanceId\":\"" + instanceId + "\"}]";
 
         DescribeMetricListRequest request = new DescribeMetricListRequest()
                 .setNamespace("acs_ecs_dashboard")
@@ -63,14 +90,12 @@ public class AliyunCmsAdapter {
                 .setStartTime(start)
                 .setEndTime(end)
                 .setDimensions(dimensions)
-                // 长度限制：DescribeMetricList 最大允许 1440；此处用 limit 的安全上限
                 .setLength("1440");
 
         DescribeMetricListResponse response = client.describeMetricListWithOptions(request, runtime);
 
         if (response == null || response.body == null) return Collections.emptyList();
 
-        // Tea SDK 响应体是 TeaModel，可通过 toMap() 兼容不同版本字段名大小写
         Map<String, Object> bodyMap = response.body.toMap();
         Object datapointsObj = bodyMap.getOrDefault("Datapoints", bodyMap.get("datapoints"));
         String datapoints = datapointsObj instanceof String ? (String) datapointsObj : null;
@@ -81,22 +106,14 @@ public class AliyunCmsAdapter {
 
         List<NexusMemoryMetricPoint> points = new ArrayList<>();
         for (Map<String, Object> r : rows) {
-            Object tsObj = r.get("timestamp");
-            Object avgObj = r.get("Average");
+            Object tsObj = firstNonNull(r, "timestamp", "Timestamp", "time");
             if (tsObj == null) continue;
+            Object avgObj = firstNonNull(r, "Average", "Value", "value", "Maximum", "Minimum");
             Double v = toDouble(avgObj);
             if (v == null) v = 0d;
 
-            long tsMs;
-            if (tsObj instanceof Number n) {
-                tsMs = n.longValue();
-            } else {
-                try {
-                    tsMs = Long.parseLong(String.valueOf(tsObj));
-                } catch (Exception ignored) {
-                    continue;
-                }
-            }
+            long tsMs = toEpochMillis(tsObj);
+            if (tsMs <= 0) continue;
 
             LocalDateTime ts = Instant.ofEpochMilli(tsMs).atZone(STORE_ZONE).toLocalDateTime();
             NexusMemoryMetricPoint p = new NexusMemoryMetricPoint();
@@ -106,6 +123,38 @@ public class AliyunCmsAdapter {
             points.add(p);
         }
         return points;
+    }
+
+    private static String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static Object firstNonNull(Map<String, Object> m, String... keys) {
+        for (String k : keys) {
+            Object v = m.get(k);
+            if (v != null) return v;
+        }
+        return null;
+    }
+
+    /** CMS 可能返回毫秒或秒级时间戳 */
+    private static long toEpochMillis(Object tsObj) {
+        long raw;
+        if (tsObj instanceof Number n) {
+            raw = n.longValue();
+        } else {
+            try {
+                raw = Long.parseLong(String.valueOf(tsObj));
+            } catch (Exception e) {
+                return -1L;
+            }
+        }
+        // 秒级（10 位左右）
+        if (raw > 0 && raw < 1_000_000_000_000L) {
+            return raw * 1000L;
+        }
+        return raw;
     }
 
     private static Double toDouble(Object obj) {
