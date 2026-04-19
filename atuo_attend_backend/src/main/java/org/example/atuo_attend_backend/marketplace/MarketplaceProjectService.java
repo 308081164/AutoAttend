@@ -10,7 +10,9 @@ import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 
 @Service
@@ -21,6 +23,8 @@ public class MarketplaceProjectService {
     public static final String STATUS_CLOSED = "closed";
     public static final String STATUS_COMPLETED = "completed";
     public static final String STATUS_REJECTED = "rejected";
+
+    private static final int MAX_REQUIREMENT_IMAGES = 8;
 
     private final MarketplaceProjectMapper projectMapper;
     private final TenantAdminUserMapper tenantAdminUserMapper;
@@ -43,7 +47,6 @@ public class MarketplaceProjectService {
         return u != null && Boolean.TRUE.equals(u.getCanPublishProjectInfo());
     }
 
-    /** 租户已开放发布且当前管理员具备发布权限位 */
     public boolean canPublishProject(long tenantId, long userId) {
         return accessService.isTenantPublishAllowed(tenantId) && canPublish(userId);
     }
@@ -60,38 +63,57 @@ public class MarketplaceProjectService {
         if (title == null || title.isBlank()) {
             throw new IllegalArgumentException("title 必填");
         }
-        List<String> tech = parseTechStack(body.get("techStack"));
+        List<String> tech = dedupeTech(parseTechStack(body.get("techStack")));
         String techJson = tech.isEmpty() ? null : writeJson(tech);
         String contactPlain = str(body.get("contactValue"));
         if (contactPlain == null || contactPlain.isBlank()) {
             throw new IllegalArgumentException("contactValue 必填");
         }
         String contactType = normalizeContactType(str(body.get("contactType")));
+        String reqJson = requirementKeysJson(body.get("requirementImageKeys"));
+        String contactKey = validateSingleMpKey(str(body.get("contactAttachmentKey")));
+
+        boolean neverExpires = parseNeverExpires(body);
+        LocalDateTime userExpireEnd = parseExpireAtEndOfDay(body.get("expireDate"));
+        boolean review = accessService.requireContentReview();
+        if (!neverExpires && userExpireEnd == null) {
+            throw new IllegalArgumentException("请选择有效期截止日期，或选择长期有效");
+        }
 
         MarketplaceProject p = new MarketplaceProject();
         p.setTenantId(tenantId);
         p.setPublisherUserId(userId);
         p.setTitle(title.trim());
         p.setDescription(str(body.get("description")));
+        p.setRequirementImagesJson(reqJson);
         p.setTechStackJson(techJson);
         p.setBudgetRange(str(body.get("budgetRange")));
         p.setDuration(str(body.get("duration")));
         p.setLocation(str(body.get("location")));
         p.setContactType(contactType);
         p.setContactValueEnc(cryptoService.encrypt(contactPlain.trim()));
+        p.setContactAttachmentStorageKey(contactKey);
         p.setRejectReason(null);
         p.setViewCount(0);
 
-        boolean review = accessService.requireContentReview();
         LocalDateTime now = LocalDateTime.now();
+        p.setEffectiveNeverExpires(neverExpires);
         if (review) {
             p.setStatus(STATUS_PENDING);
             p.setPublishTime(null);
-            p.setExpireTime(null);
+            if (neverExpires) {
+                p.setExpireTime(null);
+            } else if (userExpireEnd != null) {
+                p.setExpireTime(userExpireEnd);
+            } else {
+                p.setExpireTime(null);
+            }
         } else {
             p.setStatus(STATUS_OPEN);
             p.setPublishTime(now);
-            p.setExpireTime(now.plusDays(30));
+            LocalDateTime eff = computeOpenExpire(now, neverExpires, userExpireEnd);
+            p.setExpireTime(eff);
+            p.setEffectiveNeverExpires(neverExpires && eff == null);
         }
         projectMapper.insert(p);
         return projectMapper.findById(p.getId());
@@ -122,8 +144,11 @@ public class MarketplaceProjectService {
         if (body.containsKey("description")) {
             existing.setDescription(str(body.get("description")));
         }
+        if (body.containsKey("requirementImageKeys")) {
+            existing.setRequirementImagesJson(requirementKeysJson(body.get("requirementImageKeys")));
+        }
         if (body.containsKey("techStack")) {
-            List<String> tech = parseTechStack(body.get("techStack"));
+            List<String> tech = dedupeTech(parseTechStack(body.get("techStack")));
             existing.setTechStackJson(tech.isEmpty() ? null : writeJson(tech));
         }
         if (body.containsKey("budgetRange")) {
@@ -144,8 +169,24 @@ public class MarketplaceProjectService {
                 existing.setContactValueEnc(cryptoService.encrypt(cv.trim()));
             }
         }
-        if (body.containsKey("expireTime")) {
-            existing.setExpireTime(parseDateTime(body.get("expireTime")));
+        if (body.containsKey("contactAttachmentKey")) {
+            existing.setContactAttachmentStorageKey(validateSingleMpKey(str(body.get("contactAttachmentKey"))));
+        }
+        if (body.containsKey("expireDate") || body.containsKey("effectiveNeverExpires") || body.containsKey("effectiveExpireMode")) {
+            boolean never = parseNeverExpires(body);
+            LocalDateTime userEnd = parseExpireAtEndOfDay(body.get("expireDate"));
+            existing.setEffectiveNeverExpires(never);
+            if (STATUS_OPEN.equals(existing.getStatus())) {
+                LocalDateTime base = existing.getPublishTime() != null ? existing.getPublishTime() : LocalDateTime.now();
+                existing.setExpireTime(computeOpenExpire(base, never, userEnd));
+                existing.setEffectiveNeverExpires(never && existing.getExpireTime() == null);
+            } else if (STATUS_PENDING.equals(existing.getStatus())) {
+                if (never) {
+                    existing.setExpireTime(null);
+                } else {
+                    existing.setExpireTime(userEnd);
+                }
+            }
         }
         projectMapper.updateEditable(existing);
         return projectMapper.findById(projectId);
@@ -270,7 +311,16 @@ public class MarketplaceProjectService {
             throw new IllegalArgumentException("非待审核状态");
         }
         LocalDateTime now = LocalDateTime.now();
-        projectMapper.approve(projectId, tenantId, STATUS_OPEN, now, now.plusDays(30));
+        boolean never = Boolean.TRUE.equals(p.getEffectiveNeverExpires());
+        LocalDateTime exp;
+        if (never) {
+            exp = null;
+        } else if (p.getExpireTime() != null) {
+            exp = p.getExpireTime();
+        } else {
+            exp = now.plusDays(30);
+        }
+        projectMapper.approve(projectId, tenantId, STATUS_OPEN, now, exp, never);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -295,7 +345,6 @@ public class MarketplaceProjectService {
         projectMapper.updateStatus(projectId, tenantId, STATUS_REJECTED, r.isEmpty() ? "已驳回" : r);
     }
 
-    /** @return 关闭的条数（近似，取决于 JDBC 驱动返回值） */
     public int runExpireJobReturn() {
         return projectMapper.closeExpiredOpen();
     }
@@ -308,6 +357,7 @@ public class MarketplaceProjectService {
         m.put("publisherDisplayName", pub != null && pub.getPhone() != null ? pub.getPhone() : "");
         m.put("title", p.getTitle());
         m.put("description", p.getDescription());
+        m.put("requirementImageUrls", imageUrls(readStringList(p.getRequirementImagesJson())));
         m.put("techStack", readTechStack(p.getTechStackJson()));
         m.put("budgetRange", p.getBudgetRange());
         m.put("duration", p.getDuration());
@@ -322,14 +372,151 @@ public class MarketplaceProjectService {
         } else if (includeContact) {
             m.put("contactValue", null);
         }
+        if (p.getContactAttachmentStorageKey() != null && !p.getContactAttachmentStorageKey().isBlank()) {
+            m.put("contactAttachmentUrl", publicMpImageUrl(p.getContactAttachmentStorageKey()));
+        } else {
+            m.put("contactAttachmentUrl", null);
+        }
         m.put("status", p.getStatus());
         m.put("rejectReason", p.getRejectReason());
         m.put("viewCount", p.getViewCount());
         m.put("publishTime", p.getPublishTime());
         m.put("expireTime", p.getExpireTime());
+        m.put("effectiveNeverExpires", Boolean.TRUE.equals(p.getEffectiveNeverExpires()));
         m.put("createdAt", p.getCreatedAt());
         m.put("updatedAt", p.getUpdatedAt());
         return m;
+    }
+
+    private List<String> imageUrls(List<String> keys) {
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (String k : keys) {
+            String u = publicMpImageUrl(k);
+            if (u != null) {
+                out.add(u);
+            }
+        }
+        return out;
+    }
+
+    /** 与 AdminAuthFilter 白名单一致，供前端 img 标签 src 使用 */
+    private static String publicMpImageUrl(String key) {
+        if (key == null || key.isBlank() || !key.startsWith("marketplace/mp/")) {
+            return null;
+        }
+        return "/api/admin/marketplace/image?key=" + java.net.URLEncoder.encode(key, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private List<String> readStringList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private String requirementKeysJson(Object raw) {
+        List<String> keys = parseStringList(raw);
+        if (keys.size() > MAX_REQUIREMENT_IMAGES) {
+            throw new IllegalArgumentException("需求配图最多 " + MAX_REQUIREMENT_IMAGES + " 张");
+        }
+        for (String k : keys) {
+            validateMpKeyOrThrow(k);
+        }
+        return keys.isEmpty() ? null : writeJson(keys);
+    }
+
+    private static List<String> parseStringList(Object raw) {
+        if (raw == null) {
+            return List.of();
+        }
+        if (raw instanceof List<?> list) {
+            List<String> out = new ArrayList<>();
+            for (Object o : list) {
+                if (o != null) {
+                    String s = String.valueOf(o).trim();
+                    if (!s.isEmpty()) {
+                        out.add(s);
+                    }
+                }
+            }
+            return out;
+        }
+        return List.of();
+    }
+
+    private static String validateSingleMpKey(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        validateMpKeyOrThrow(key.trim());
+        return key.trim();
+    }
+
+    private static void validateMpKeyOrThrow(String key) {
+        if (!key.startsWith("marketplace/mp/") || key.contains("..")) {
+            throw new IllegalArgumentException("无效的图片引用");
+        }
+    }
+
+    private static LocalDateTime computeOpenExpire(LocalDateTime base, boolean neverExpires, LocalDateTime userEnd) {
+        if (neverExpires) {
+            return null;
+        }
+        if (userEnd != null) {
+            return userEnd;
+        }
+        return base.plusDays(30);
+    }
+
+    private boolean parseNeverExpires(Map<String, Object> body) {
+        Object mode = body.get("effectiveExpireMode");
+        if (mode != null && "long_term".equalsIgnoreCase(String.valueOf(mode).trim())) {
+            return true;
+        }
+        Object v = body.get("effectiveNeverExpires");
+        if (v instanceof Boolean b) {
+            return b;
+        }
+        return false;
+    }
+
+    private LocalDateTime parseExpireAtEndOfDay(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof LocalDateTime ldt) {
+            return ldt;
+        }
+        String s = String.valueOf(raw).trim();
+        if (s.isEmpty()) {
+            return null;
+        }
+        try {
+            LocalDate d = LocalDate.parse(s.length() > 10 ? s.substring(0, 10) : s);
+            return LocalDateTime.of(d, LocalTime.of(23, 59, 59));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static List<String> dedupeTech(List<String> in) {
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String s : in) {
+            if (s != null) {
+                String t = s.trim();
+                if (!t.isEmpty()) {
+                    set.add(t);
+                }
+            }
+        }
+        return new ArrayList<>(set);
     }
 
     private static String emptyToNull(String s) {
@@ -377,7 +564,14 @@ public class MarketplaceProjectService {
             return out;
         }
         if (raw instanceof String s && !s.isBlank()) {
-            return List.of(s.trim());
+            String[] parts = s.split("[,，]");
+            List<String> out = new ArrayList<>();
+            for (String p : parts) {
+                if (p != null && !p.trim().isEmpty()) {
+                    out.add(p.trim());
+                }
+            }
+            return out;
         }
         return List.of();
     }
@@ -393,25 +587,19 @@ public class MarketplaceProjectService {
         if (x.contains("站内") || "internal".equals(x) || "im".equals(x)) {
             return "internal";
         }
+        if ("wechat".equals(x) || "weixin".equals(x) || "wx".equals(x) || x.contains("微信")) {
+            return "wechat";
+        }
+        if ("qq".equals(x)) {
+            return "qq";
+        }
+        if ("feishu".equals(x) || "lark".equals(x) || x.contains("飞书")) {
+            return "feishu";
+        }
+        if ("phone".equals(x) || "tel".equals(x) || "mobile".equals(x)) {
+            return "phone";
+        }
         return "phone";
-    }
-
-    private static LocalDateTime parseDateTime(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        if (raw instanceof LocalDateTime ldt) {
-            return ldt;
-        }
-        String s = String.valueOf(raw).trim();
-        if (s.isEmpty()) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(s.replace(" ", "T"));
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     public static class ForbiddenException extends RuntimeException {

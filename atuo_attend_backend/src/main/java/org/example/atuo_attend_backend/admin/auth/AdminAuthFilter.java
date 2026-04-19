@@ -78,6 +78,11 @@ public class AdminAuthFilter implements Filter {
             chain.doFilter(request, response);
             return;
         }
+        // 项目信息配图：<img src> 无法带 Bearer，与头像同理按 key 前缀校验
+        if ("/api/admin/marketplace/image".equals(uri) && "GET".equalsIgnoreCase(req.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         String auth = req.getHeader("Authorization");
         String token = null;
