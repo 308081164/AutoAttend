@@ -9,6 +9,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -84,8 +85,8 @@ public class PenpotRpcClient {
                     log.info("Penpot RPC path probe: locked to {} ({} -> HTTP {}, route exists)", kind, url, code);
                     return;
                 } catch (RestClientException e) {
-                    log.warn("Penpot RPC path probe network error for {}: {}", url, e.getMessage());
-                    return;
+                    log.warn("Penpot RPC path probe network error for {}: {} (try next base/path)", url, e.getMessage());
+                    continue;
                 }
             }
         }
@@ -198,6 +199,7 @@ public class PenpotRpcClient {
         String jsonBody = safeWriteJson(body);
         HttpEntity<String> entity = new HttpEntity<>(jsonBody, headers);
         HttpStatusCodeException last = null;
+        String lastNetworkMsg = null;
         bases:
         for (String base : rpcBasesOrdered()) {
             for (String url : loginTryUrls(base)) {
@@ -215,10 +217,22 @@ public class PenpotRpcClient {
                         continue;
                     }
                     break bases;
+                } catch (RestClientException e) {
+                    lastNetworkMsg = e.getMessage();
+                    log.warn("Penpot 登录连接失败 {}: {} (try next URL/base)", url, lastNetworkMsg);
+                    if (shouldTryNextRpcBase(e) && isRpcAutoMode()) {
+                        continue;
+                    }
+                    break bases;
                 }
             }
         }
         String hint = last != null ? last.getResponseBodyAsString() : "";
+        if (last == null && lastNetworkMsg != null) {
+            throw new IllegalStateException("Penpot 登录无法连接 Penpot（"
+                    + truncate(lastNetworkMsg, 400)
+                    + "）。请确认 backend 与 penpot-frontend / penpot-backend 在同一 Docker 网络，且 PENPOT_INTERNAL_URI 或 PENPOT_BACKEND_DIRECT_URI 可达。");
+        }
         throw new IllegalStateException("Penpot 登录失败 HTTP "
                 + (last != null ? last.getStatusCode().value() : "?")
                 + (hint != null && !hint.isBlank() ? (": " + truncate(hint, 400)) : "")
@@ -263,6 +277,12 @@ public class PenpotRpcClient {
                         log.warn("Penpot RPC {} failed: {} body={}", methodName, e.getStatusCode(), truncate(e.getResponseBodyAsString(), 800));
                         throw rpcException(methodName, e);
                     }
+                } catch (RestClientException e) {
+                    if (shouldTryNextRpcBase(e) && isRpcAutoMode()) {
+                        log.warn("Penpot RPC {} 连接失败 {}: {} (try next URL/base)", methodName, url, e.getMessage());
+                        continue;
+                    }
+                    throw new IllegalStateException("Penpot RPC 异常: " + methodName + ": " + e.getMessage(), e);
                 } catch (IllegalStateException ex) {
                     throw ex;
                 } catch (Exception e) {
@@ -323,6 +343,18 @@ public class PenpotRpcClient {
         }
         return "。请确认 PENPOT_INTERNAL_URI 为 Docker 内 penpot-frontend（默认 http://penpot-frontend:8080），"
                 + "勿填 AutoAttend 公网域名；或设置 PENPOT_BACKEND_DIRECT_URI=http://penpot-backend:6060 直连 Penpot 后端。";
+    }
+
+    /**
+     * 主基址 DNS/连接失败时继续尝试 {@link PenpotProperties#getBackendDirectUri()}。
+     */
+    private static boolean shouldTryNextRpcBase(RestClientException e) {
+        if (e instanceof ResourceAccessException) {
+            return true;
+        }
+        String msg = e.getMessage() != null ? e.getMessage() : "";
+        return msg.contains("Failed to resolve") || msg.contains("Connection refused")
+                || msg.contains("timed out") || msg.contains("Timeout") || msg.contains("Name or service not known");
     }
 
     /**

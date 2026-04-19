@@ -18,6 +18,8 @@ services:
   mysql:
     image: mysql:8.4
     container_name: autoattend-mysql
+    networks:
+      - autoattend_net
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -44,6 +46,8 @@ services:
   minio:
     image: minio/minio:latest
     container_name: autoattend-minio
+    networks:
+      - autoattend_net
     restart: unless-stopped
     command: server /data
     environment:
@@ -58,6 +62,8 @@ services:
   backend:
     image: ${IMAGE_BACKEND:-ghcr.io/please-set/autoattend-backend:latest}
     container_name: autoattend-backend
+    networks:
+      - autoattend_net
     depends_on:
       mysql:
         condition: service_healthy
@@ -126,6 +132,8 @@ services:
   frontend:
     image: ${IMAGE_FRONTEND:-ghcr.io/please-set/autoattend-frontend:latest}
     container_name: autoattend-frontend
+    networks:
+      - autoattend_net
     depends_on:
       # 必须用 service_started，勿用「等 backend 健康」条件，否则 compose 会长时间 Waiting 且 CI 看不到日志
       backend:
@@ -137,12 +145,18 @@ services:
   platform-monitor-frontend:
     image: ${IMAGE_PLATFORM_MONITOR_FRONTEND:-ghcr.io/please-set/platform-monitor-frontend:latest}
     container_name: autoattend-platform-monitor-frontend
+    networks:
+      - autoattend_net
     depends_on:
       backend:
         condition: service_started
     ports:
       - "8850:80"
     restart: unless-stopped
+
+networks:
+  autoattend_net:
+    driver: bridge
 
 volumes:
   autoattend_mysql_data:

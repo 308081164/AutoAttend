@@ -8,6 +8,8 @@ services:
   mysql:
     image: mysql:8.4
     container_name: autoattend-mysql
+    networks:
+      - autoattend_net
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -34,6 +36,8 @@ services:
   minio:
     image: minio/minio:latest
     container_name: autoattend-minio
+    networks:
+      - autoattend_net
     restart: unless-stopped
     command: server /data
     environment:
@@ -51,6 +55,8 @@ services:
     build:
       context: ./atuo_attend_backend
     container_name: autoattend-backend
+    networks:
+      - autoattend_net
     depends_on:
       mysql:
         condition: service_healthy
@@ -107,6 +113,8 @@ services:
     build:
       context: ./auto_attend_forntend
     container_name: autoattend-frontend
+    networks:
+      - autoattend_net
     depends_on:
       backend:
         condition: service_started
@@ -118,12 +126,18 @@ services:
     build:
       context: ./platform_monitor_frontend
     container_name: autoattend-platform-monitor-frontend
+    networks:
+      - autoattend_net
     depends_on:
       backend:
         condition: service_started
     ports:
       - "8850:80"
     restart: unless-stopped
+
+networks:
+  autoattend_net:
+    driver: bridge
 
 volumes:
   autoattend_mysql_data:
