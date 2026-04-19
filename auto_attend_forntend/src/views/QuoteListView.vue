@@ -3,6 +3,7 @@
     <div class="page-head">
       <h1>{{ $t('quote.listTitle') }}</h1>
       <p class="desc">{{ $t('quote.listDesc') }}</p>
+      <p class="desc desc-sub">每个项目即一次<strong>解决方案报价</strong>：可在编辑页按<strong>交付物</strong>（Web / App / 后端等）分组维护功能清单，统一计算总价与商务调价。</p>
       <div class="head-actions">
         <router-link to="/quote/config" class="secondary-button">{{ $t('quote.quoteConfigNav') }}</router-link>
         <router-link to="/quote/new" class="primary-button">{{ $t('quote.newProject') }}</router-link>
@@ -108,6 +109,13 @@ export default {
   margin-bottom: var(--space-md);
   line-height: var(--line-height-normal);
   font-weight: var(--font-weight-medium);
+}
+.desc-sub {
+  margin-top: -8px;
+  margin-bottom: var(--space-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  opacity: 0.95;
 }
 .head-actions {
   display: flex;

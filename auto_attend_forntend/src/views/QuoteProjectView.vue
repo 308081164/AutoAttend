@@ -2,9 +2,16 @@
   <div class="quote-project-page">
     <div class="page-head">
       <div class="head-links">
+        <router-link to="/quote" class="head-link-inline">← 报价列表</router-link>
         <router-link to="/quote/config" class="head-link-inline">{{ $t('quote.quoteConfigNav') }}</router-link>
       </div>
-      <h1>{{ isNew ? $t('quote.newProject') : $t('quote.editTitle') }}</h1>
+      <h1>{{ isNew ? '新建解决方案报价' : '编辑解决方案报价' }}</h1>
+      <p v-if="isNew" class="solution-hero-text">
+        一次商务机会对应<strong>一套系统</strong>：可在下方按<strong>交付物</strong>（如 Web 管理端、用户 App、接口服务）分组填写模块与功能点，统一计算人天与总价；支持 AI 多交付物拆解与商务调价。
+      </p>
+      <p v-else class="solution-hero-text solution-hero-text--muted">
+        项目 #{{ quoteProjectIdForApi || '—' }} · 按交付物维护功能清单，保存后可在「报价计算」中生成基线价与对外价。
+      </p>
     </div>
 
     <div v-if="pageLoading" class="placeholder">{{ $t('quote.loading') }}</div>
@@ -119,8 +126,11 @@
 
       <party-b-profile-edit-modal :visible="showPartyBModal" @close="showPartyBModal = false" @saved="onPartyBProfileSaved" />
 
-      <section class="card">
-        <h2>{{ $t('quote.modules') }}</h2>
+      <section class="card solution-modules-card">
+        <h2>解决方案报价 · 功能清单</h2>
+        <p class="solution-scope-lead">
+          将需求拆到不同<strong>交付物</strong>下（同一交付物键下的模块会合并为报价单中的一组）。默认「整单」为一块；需要 Web+App+后端时，点击<strong>添加交付物</strong>再分别填模块即可。
+        </p>
         <div class="module-entry-mode-row" role="group" :aria-label="$t('quote.moduleEntryModeLabel')">
           <span class="module-mode-label">{{ $t('quote.moduleEntryModeLabel') }}</span>
           <label class="mode-opt-inline">
@@ -268,100 +278,147 @@
           </div>
         </div>
 
-        <div v-for="(mod, mi) in modules" :key="'m-' + mi" class="module-block">
-          <div class="mod-head mod-head--deliverable">
-            <label class="deliverable-field">交付物键
-              <input v-model="mod.deliverableKey" class="inp narrow" placeholder="web / app / api" title="同一键的模块在报价单中归为同一交付物分组" />
-            </label>
-            <label class="deliverable-field">交付物名称
-              <input v-model="mod.deliverableLabel" class="inp" placeholder="如：管理后台 Web（可选）" />
-            </label>
-            <input v-model="mod.name" class="inp mod-name" placeholder="模块名称" />
-            <select class="inp preset-select" @change="applyPresetToModule(mi, $event)">
-              <option value="">{{ $t('quote.addFromPreset') }}</option>
-              <option v-for="p in presetItems" :key="'ps-' + p.id" :value="p.id">{{ formatPresetOption(p) }}</option>
-            </select>
-            <button type="button" class="btn-sm" @click="addItem(mi)">{{ $t('quote.addItem') }}</button>
-            <button type="button" class="btn-sm danger" @click="removeModule(mi)">删模块</button>
+        <div
+          v-for="(dg, gIdx) in deliverableGroups"
+          :key="'dg-' + dg.key + '-' + gIdx"
+          class="deliverable-group"
+        >
+          <div class="deliverable-group__head">
+            <div class="deliverable-group__title">
+              <span class="deliverable-group__badge">交付物 {{ gIdx + 1 }}</span>
+              <span class="deliverable-group__key-label">{{ formatDeliverableHeadTitle(dg) }}</span>
+            </div>
+            <div class="deliverable-group__meta">
+              <label class="deliverable-inline">键
+                <input
+                  class="inp narrow"
+                  :value="dg.key"
+                  placeholder="web / app / api"
+                  title="同一键下的模块归为同一交付物"
+                  @input="syncDeliverableKey(dg.key, $event.target.value)"
+                >
+              </label>
+              <label class="deliverable-inline">显示名
+                <input
+                  class="inp"
+                  :value="deliverableLabelForGroup(dg.key)"
+                  placeholder="如：管理后台 Web"
+                  @input="syncDeliverableLabel(dg.key, $event.target.value)"
+                >
+              </label>
+              <button type="button" class="btn secondary btn-sm" @click="addModuleInGroup(gIdx)">在本交付物下加模块</button>
+              <button
+                type="button"
+                class="btn-sm danger"
+                :disabled="!canRemoveDeliverableGroup(gIdx)"
+                @click="removeDeliverableGroup(gIdx)"
+              >移除本交付物</button>
+            </div>
           </div>
-          <div class="item-table-head" role="row">
-            <div class="item-col item-col-name th th-with-hint">
-              <span class="th-label-text">{{ $t('quote.itemName') }}</span>
-              <button
-                type="button"
-                class="th-hint-icon"
-                :aria-expanded="isTableHintOpen(mi, 'itemName') ? 'true' : 'false'"
-                :aria-controls="'quote-th-hint-itemName-' + mi"
-                :aria-label="$t('quote.tableHeaderHintAria')"
-                @click.stop="toggleTableHint(mi, 'itemName')"
-              >?</button>
-              <div
-                v-show="isTableHintOpen(mi, 'itemName')"
-                :id="'quote-th-hint-itemName-' + mi"
-                class="th-hint-popover"
-                role="tooltip"
-              >{{ $t('quote.itemNameHint') }}</div>
+
+          <div
+            v-for="(mod, localI) in dg.modules"
+            :key="'m-' + dg.indices[localI]"
+            class="module-block module-block--nested"
+          >
+            <div class="mod-head">
+              <span class="module-block__tag">模块</span>
+              <input v-model="mod.name" class="inp mod-name" placeholder="模块名称" />
+              <select class="inp preset-select" @change="applyPresetToModule(dg.indices[localI], $event)">
+                <option value="">{{ $t('quote.addFromPreset') }}</option>
+                <option v-for="p in presetItems" :key="'ps-' + p.id" :value="p.id">{{ formatPresetOption(p) }}</option>
+              </select>
+              <button type="button" class="btn-sm" @click="addItem(dg.indices[localI])">{{ $t('quote.addItem') }}</button>
+              <button type="button" class="btn-sm danger" @click="removeModule(dg.indices[localI])">删模块</button>
             </div>
-            <div class="item-col item-col-complexity th th-with-hint">
-              <span class="th-label-text">{{ $t('quote.complexity') }}</span>
-              <button
-                type="button"
-                class="th-hint-icon"
-                :aria-expanded="isTableHintOpen(mi, 'complexity') ? 'true' : 'false'"
-                :aria-controls="'quote-th-hint-complexity-' + mi"
-                :aria-label="$t('quote.tableHeaderHintAria')"
-                @click.stop="toggleTableHint(mi, 'complexity')"
-              >?</button>
-              <div
-                v-show="isTableHintOpen(mi, 'complexity')"
-                :id="'quote-th-hint-complexity-' + mi"
-                class="th-hint-popover"
-                role="tooltip"
-              >{{ $t('quote.complexityHint') }}</div>
+            <div class="item-table-head" role="row">
+              <div class="item-col item-col-name th th-with-hint">
+                <span class="th-label-text">{{ $t('quote.itemName') }}</span>
+                <button
+                  type="button"
+                  class="th-hint-icon"
+                  :aria-expanded="isTableHintOpen(dg.indices[localI], 'itemName') ? 'true' : 'false'"
+                  :aria-controls="'quote-th-hint-itemName-' + dg.indices[localI]"
+                  :aria-label="$t('quote.tableHeaderHintAria')"
+                  @click.stop="toggleTableHint(dg.indices[localI], 'itemName')"
+                >?</button>
+                <div
+                  v-show="isTableHintOpen(dg.indices[localI], 'itemName')"
+                  :id="'quote-th-hint-itemName-' + dg.indices[localI]"
+                  class="th-hint-popover"
+                  role="tooltip"
+                >{{ $t('quote.itemNameHint') }}</div>
+              </div>
+              <div class="item-col item-col-complexity th th-with-hint">
+                <span class="th-label-text">{{ $t('quote.complexity') }}</span>
+                <button
+                  type="button"
+                  class="th-hint-icon"
+                  :aria-expanded="isTableHintOpen(dg.indices[localI], 'complexity') ? 'true' : 'false'"
+                  :aria-controls="'quote-th-hint-complexity-' + dg.indices[localI]"
+                  :aria-label="$t('quote.tableHeaderHintAria')"
+                  @click.stop="toggleTableHint(dg.indices[localI], 'complexity')"
+                >?</button>
+                <div
+                  v-show="isTableHintOpen(dg.indices[localI], 'complexity')"
+                  :id="'quote-th-hint-complexity-' + dg.indices[localI]"
+                  class="th-hint-popover"
+                  role="tooltip"
+                >{{ $t('quote.complexityHint') }}</div>
+              </div>
+              <div class="item-col item-col-qty th th-with-hint">
+                <span class="th-label-text">{{ $t('quote.quantity') }}</span>
+                <button
+                  type="button"
+                  class="th-hint-icon"
+                  :aria-expanded="isTableHintOpen(dg.indices[localI], 'quantity') ? 'true' : 'false'"
+                  :aria-controls="'quote-th-hint-quantity-' + dg.indices[localI]"
+                  :aria-label="$t('quote.tableHeaderHintAria')"
+                  @click.stop="toggleTableHint(dg.indices[localI], 'quantity')"
+                >?</button>
+                <div
+                  v-show="isTableHintOpen(dg.indices[localI], 'quantity')"
+                  :id="'quote-th-hint-quantity-' + dg.indices[localI]"
+                  class="th-hint-popover"
+                  role="tooltip"
+                >{{ $t('quote.quantityHint') }}</div>
+              </div>
+              <div class="item-col item-col-excl th" title="第三方固定成本等不参与商务等比例调价">不调价</div>
+              <div class="item-col item-col-lineamt th">金额</div>
+              <div class="item-col item-col-actions th" aria-hidden="true"></div>
             </div>
-            <div class="item-col item-col-qty th th-with-hint">
-              <span class="th-label-text">{{ $t('quote.quantity') }}</span>
-              <button
-                type="button"
-                class="th-hint-icon"
-                :aria-expanded="isTableHintOpen(mi, 'quantity') ? 'true' : 'false'"
-                :aria-controls="'quote-th-hint-quantity-' + mi"
-                :aria-label="$t('quote.tableHeaderHintAria')"
-                @click.stop="toggleTableHint(mi, 'quantity')"
-              >?</button>
-              <div
-                v-show="isTableHintOpen(mi, 'quantity')"
-                :id="'quote-th-hint-quantity-' + mi"
-                class="th-hint-popover"
-                role="tooltip"
-              >{{ $t('quote.quantityHint') }}</div>
+            <div v-for="(it, ii) in mod.items" :key="'i-' + dg.indices[localI] + '-' + ii" class="item-row">
+              <input v-model="it.name" class="inp item-col-name" :placeholder="$t('quote.itemName')" />
+              <select v-model="it.complexity" class="inp narrow item-col-complexity">
+                <option value="simple">简单</option>
+                <option value="standard">标准</option>
+                <option value="medium">中等</option>
+                <option value="complex">复杂</option>
+                <option value="extreme">极复杂</option>
+              </select>
+              <input v-model.number="it.quantity" type="number" min="1" class="inp qty item-col-qty" />
+              <label class="item-col item-col-excl chk-inline">
+                <input type="checkbox" v-model="it.excludedFromScale" />
+              </label>
+              <div class="item-col item-col-lineamt hint">
+                {{ formatLineAmt(it) }}
+              </div>
+              <div class="item-col-actions">
+                <button type="button" class="btn-sm danger" @click="removeItem(dg.indices[localI], ii)">×</button>
+              </div>
             </div>
-            <div class="item-col item-col-excl th" title="第三方固定成本等不参与商务等比例调价">不调价</div>
-            <div class="item-col item-col-lineamt th">金额</div>
-            <div class="item-col item-col-actions th" aria-hidden="true"></div>
           </div>
-          <div v-for="(it, ii) in mod.items" :key="'i-' + mi + '-' + ii" class="item-row">
-            <input v-model="it.name" class="inp item-col-name" :placeholder="$t('quote.itemName')" />
-            <select v-model="it.complexity" class="inp narrow item-col-complexity">
-              <option value="simple">简单</option>
-              <option value="standard">标准</option>
-              <option value="medium">中等</option>
-              <option value="complex">复杂</option>
-              <option value="extreme">极复杂</option>
-            </select>
-            <input v-model.number="it.quantity" type="number" min="1" class="inp qty item-col-qty" />
-            <label class="item-col item-col-excl chk-inline">
-              <input type="checkbox" v-model="it.excludedFromScale" />
-            </label>
-            <div class="item-col item-col-lineamt hint">
-              {{ formatLineAmt(it) }}
-            </div>
-            <div class="item-col-actions">
-              <button type="button" class="btn-sm danger" @click="removeItem(mi, ii)">×</button>
-            </div>
+
+          <div class="deliverable-group__subtotal">
+            <span>本交付物金额小计（对外）：<strong>{{ deliverableSubtotalFmt(dg.key) }}</strong></span>
+            <span class="hint" style="margin-left:8px">计算报价后按行金额汇总；未计算时显示 —</span>
           </div>
         </div>
-        <button type="button" class="btn secondary" @click="addModule">{{ $t('quote.addModule') }}</button>
+
+        <div class="deliverable-global-actions">
+          <button type="button" class="btn primary" @click="addDeliverableGroup">＋ 添加交付物</button>
+          <button type="button" class="btn secondary" @click="addModuleToDefaultDeliverable">在「整单 / 默认」下加模块</button>
+        </div>
       </section>
 
       <section v-if="projectId" class="card">
@@ -1312,6 +1369,27 @@ export default {
       if (!u) return ''
       const base = u.endsWith('.git') ? u.replace(/\.git$/i, '') : u.replace(/\/$/, '')
       return 'git clone ' + base + '.git'
+    },
+    /** 按交付物键分组模块，保持 modules 数组顺序 */
+    deliverableGroups () {
+      const list = this.modules || []
+      const order = []
+      const byKey = new Map()
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i]
+        const raw = (m.deliverableKey && String(m.deliverableKey).trim()) ? String(m.deliverableKey).trim() : 'default'
+        const k = raw || 'default'
+        if (!byKey.has(k)) {
+          byKey.set(k, { key: k, label: '', modules: [], indices: [] })
+          order.push(k)
+        }
+        const g = byKey.get(k)
+        const lab = (m.deliverableLabel && String(m.deliverableLabel).trim()) ? String(m.deliverableLabel).trim() : ''
+        if (lab && !g.label) g.label = lab
+        g.modules.push(m)
+        g.indices.push(i)
+      }
+      return order.map(key => byKey.get(key))
     }
   },
   created () {
@@ -1518,7 +1596,8 @@ export default {
       this.modules[mi].items.push({
         name: p.name,
         complexity: p.complexity || 'standard',
-        quantity: 1
+        quantity: 1,
+        excludedFromScale: false
       })
     },
     async init () {
@@ -2510,7 +2589,112 @@ export default {
       }
     },
     addModule () {
-      this.modules.push(emptyModule())
+      this.addModuleToDefaultDeliverable()
+    },
+    formatDeliverableHeadTitle (dg) {
+      if (!dg) return ''
+      const lab = (dg.label || '').trim()
+      if (lab) return lab
+      const k = String(dg.key || 'default').trim()
+      return k === 'default' ? '整单（默认）' : k
+    },
+    deliverableLabelForGroup (key) {
+      const kk = (key != null && String(key).trim()) ? String(key).trim() : 'default'
+      for (const m of this.modules || []) {
+        const mk = (m.deliverableKey && String(m.deliverableKey).trim()) || 'default'
+        if (mk === kk) {
+          return m.deliverableLabel != null ? String(m.deliverableLabel) : ''
+        }
+      }
+      return ''
+    },
+    syncDeliverableKey (oldKey, newVal) {
+      const raw = newVal != null ? String(newVal).trim() : ''
+      const nk = raw ? raw.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'part' : 'default'
+      const ok = (oldKey != null && String(oldKey).trim()) ? String(oldKey).trim() : 'default'
+      if (nk === ok) return
+      for (const m of this.modules) {
+        const k = (m.deliverableKey && String(m.deliverableKey).trim()) || 'default'
+        if (k === ok) {
+          m.deliverableKey = nk
+        }
+      }
+    },
+    syncDeliverableLabel (key, v) {
+      const kk = (key != null && String(key).trim()) ? String(key).trim() : 'default'
+      const label = v != null ? String(v).trim() : ''
+      for (const m of this.modules) {
+        const mk = (m.deliverableKey && String(m.deliverableKey).trim()) || 'default'
+        if (mk === kk) {
+          m.deliverableLabel = label
+        }
+      }
+    },
+    addModuleInGroup (gIdx) {
+      const dg = this.deliverableGroups[gIdx]
+      if (!dg || !dg.modules.length) return
+      const sample = dg.modules[0]
+      const row = emptyModule()
+      row.deliverableKey = (sample.deliverableKey && String(sample.deliverableKey).trim()) || 'default'
+      row.deliverableLabel = sample.deliverableLabel != null ? String(sample.deliverableLabel) : ''
+      const lastIdx = dg.indices[dg.indices.length - 1]
+      this.modules.splice(lastIdx + 1, 0, row)
+    },
+    addModuleToDefaultDeliverable () {
+      const row = emptyModule()
+      let last = -1
+      for (let i = 0; i < this.modules.length; i++) {
+        const k = (this.modules[i].deliverableKey && String(this.modules[i].deliverableKey).trim()) || 'default'
+        if (k === 'default') last = i
+      }
+      if (last >= 0) {
+        this.modules.splice(last + 1, 0, row)
+      } else {
+        this.modules.push(row)
+      }
+    },
+    addDeliverableGroup () {
+      let n = 2
+      let key = 'deliverable_2'
+      while (this.modules.some(m => ((m.deliverableKey && String(m.deliverableKey).trim()) || 'default') === key)) {
+        n++
+        key = 'deliverable_' + n
+      }
+      const row = emptyModule()
+      row.deliverableKey = key
+      row.deliverableLabel = '新交付物'
+      this.modules.push(row)
+    },
+    canRemoveDeliverableGroup (gIdx) {
+      const dg = this.deliverableGroups[gIdx]
+      if (!dg) return false
+      return this.modules.length > dg.modules.length
+    },
+    removeDeliverableGroup (gIdx) {
+      if (!this.canRemoveDeliverableGroup(gIdx)) return
+      const dg = this.deliverableGroups[gIdx]
+      const ids = [...dg.indices].sort((a, b) => b - a)
+      for (const i of ids) {
+        this.modules.splice(i, 1)
+      }
+    },
+    deliverableSubtotalFmt (key) {
+      const kk = (key != null && String(key).trim()) ? String(key).trim() : 'default'
+      let sum = 0
+      let any = false
+      for (const m of this.modules || []) {
+        const mk = (m.deliverableKey && String(m.deliverableKey).trim()) || 'default'
+        if (mk !== kk) continue
+        for (const it of m.items || []) {
+          const a = it.linePriceAdjusted != null ? Number(it.linePriceAdjusted) : (it.linePriceSnap != null ? Number(it.linePriceSnap) : NaN)
+          if (Number.isFinite(a)) {
+            sum += a
+            any = true
+          }
+        }
+      }
+      if (!any) return '—'
+      return '¥' + sum.toFixed(2)
     },
     removeModule (mi) {
       if (this.modules.length <= 1) return
@@ -3084,6 +3268,106 @@ export default {
 .head-link-inline:hover {
   text-decoration: underline;
   color: var(--text-link-hover);
+}
+.solution-hero-text {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  color: var(--text-secondary);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.06));
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+.solution-hero-text--muted {
+  background: var(--bg-hover);
+  font-size: var(--font-size-sm);
+}
+.solution-modules-card h2 {
+  margin-bottom: 8px;
+}
+.solution-scope-lead {
+  margin: 0 0 16px;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.deliverable-group {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.deliverable-group__head {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border-primary);
+}
+.deliverable-group__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+.deliverable-group__badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-blue);
+  background: rgba(59, 130, 246, 0.12);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.deliverable-group__key-label {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+.deliverable-group__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+.deliverable-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.deliverable-inline .inp.narrow {
+  max-width: 140px;
+}
+.module-block--nested {
+  margin-bottom: 12px;
+  background: var(--bg-hover);
+  border-style: dashed;
+}
+.module-block__tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.deliverable-group__subtotal {
+  margin-top: 10px;
+  padding-top: 10px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-primary);
+}
+.deliverable-global-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 /* --- Layout: Main + Sidebar --- */
