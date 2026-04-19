@@ -17,6 +17,7 @@ PENPOT_BASE_URL="${PENPOT_BASE_URL:-http://127.0.0.1:9001}"
 EMAIL="${PENPOT_EMAIL:-}"
 PASS="${PENPOT_PASSWORD:-}"
 TOKEN_NAME="${PENPOT_TOKEN_NAME:-autoattend-bootstrap}"
+CLIENT_HEADER="${PENPOT_CLIENT_HEADER:-penpot-backend}"
 
 if [[ -z "$EMAIL" || -z "$PASS" ]]; then
   echo "请设置 PENPOT_EMAIL 与 PENPOT_PASSWORD" >&2
@@ -40,6 +41,7 @@ for path in "${LOGIN_PATHS[@]}"; do
     -c "$COOKIE_JAR" \
     -H 'Content-Type: application/json' \
     -H 'Accept: application/json' \
+    -H "x-client: $CLIENT_HEADER" \
     -X POST "$BASE$path" \
     -d "$login_json" || true)
   if [[ "$http_code" == "200" ]]; then
@@ -66,6 +68,7 @@ for path in "${TOKEN_PATHS[@]}"; do
     -b "$COOKIE_JAR" \
     -H 'Content-Type: application/json' \
     -H 'Accept: application/json' \
+    -H "x-client: $CLIENT_HEADER" \
     -X POST "$BASE$path" \
     -d "$create_body" || true)
   if [[ "$http_code" == "200" ]]; then
