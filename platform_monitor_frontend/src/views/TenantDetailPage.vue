@@ -14,39 +14,60 @@
         </div>
         <div class="card">
           <div class="card-label">当前权益档位</div>
-          <div class="card-value mono">{{ tenant.planCode || '—' }}</div>
+          <div class="card-value mono">{{ ops.planCode || '—' }}</div>
         </div>
         <div class="card">
           <div class="card-label">到期回退档位</div>
-          <div class="card-value mono">{{ tenant.billingBaselinePlanCode || '—' }}</div>
+          <div class="card-value mono">{{ ops.billingBaselinePlanCode || '—' }}</div>
         </div>
         <div class="card">
           <div class="card-label">权益截止</div>
-          <div class="card-value small">{{ tenant.subscriptionEndsAt || '—' }}</div>
+          <div class="card-value small">{{ ops.subscriptionEndsAt || '—' }}</div>
         </div>
       </section>
 
       <section class="panel">
         <h3>基本信息</h3>
         <table class="kv">
-          <tr><td>名称</td><td>{{ tenant.tenantName }}</td></tr>
-          <tr><td>Slug</td><td><code>{{ tenant.slug }}</code></td></tr>
-          <tr><td>状态</td><td>{{ tenant.status }}</td></tr>
-          <tr><td>管理员手机</td><td>{{ tenant.adminPhone || '—' }}</td></tr>
-          <tr><td>创建时间</td><td>{{ tenant.tenantCreatedAt || '—' }}</td></tr>
-          <tr><td>官方 API 额度（元）</td><td>{{ formatOfficialYuan(tenant.officialApiCnyBalance) }}</td></tr>
+          <tr><td>名称</td><td>{{ ops.tenantName }}</td></tr>
+          <tr><td>Slug</td><td><code>{{ ops.slug }}</code></td></tr>
+          <tr><td>状态</td><td>{{ ops.status }}</td></tr>
+          <tr><td>管理员手机</td><td>{{ ops.adminPhone || '—' }}</td></tr>
+          <tr><td>创建时间</td><td>{{ ops.tenantCreatedAt || '—' }}</td></tr>
+          <tr><td>官方 API 额度（元）</td><td>{{ formatOfficialYuan(ops.officialApiCnyBalance) }}</td></tr>
         </table>
+      </section>
+
+      <section class="panel">
+        <h3>项目信息发布（租户级）</h3>
+        <p class="muted small">控制该租户管理员控制台是否出现「项目信息」入口，以及是否允许在本租户内发布（仍须在租户管理中为账号勾选可发布）。</p>
+        <div class="mp-row">
+          <label class="mp-check">
+            <input v-model="mpBrowseEnabled" type="checkbox" :disabled="mpSaving">
+            <span>对本租户开放浏览（列表/详情）</span>
+          </label>
+        </div>
+        <div class="mp-row">
+          <label class="mp-check">
+            <input v-model="mpAllowPublish" type="checkbox" :disabled="mpSaving || !mpBrowseEnabled">
+            <span>允许在本租户发布与审核（需同时开启浏览）</span>
+          </label>
+        </div>
+        <div class="btn-row" style="margin-top:12px">
+          <button type="button" class="btn ok" :disabled="mpSaving" @click="saveProjectMarketplace">保存项目信息设置</button>
+        </div>
+        <p v-if="mpMsg" class="ok">{{ mpMsg }}</p>
       </section>
 
       <section class="panel">
         <h3>用量与活跃</h3>
         <table class="kv">
-          <tr><td>成员数</td><td>{{ tenant.memberCount }}</td></tr>
-          <tr><td>GitHub 已绑定项目</td><td>{{ tenant.githubLinkedProjects }}</td></tr>
-          <tr><td>24h 提交</td><td>{{ tenant.commits24h }}</td></tr>
-          <tr><td>7d 提交</td><td>{{ tenant.commits7d }}</td></tr>
-          <tr><td>DAU 近似（24h 邮箱）</td><td>{{ tenant.dauEmails24h }}</td></tr>
-          <tr><td>Diff 存储近似</td><td>{{ formatBytes(tenant.storageDiffBytesApprox) }}</td></tr>
+          <tr><td>成员数</td><td>{{ ops.memberCount }}</td></tr>
+          <tr><td>GitHub 已绑定项目</td><td>{{ ops.githubLinkedProjects }}</td></tr>
+          <tr><td>24h 提交</td><td>{{ ops.commits24h }}</td></tr>
+          <tr><td>7d 提交</td><td>{{ ops.commits7d }}</td></tr>
+          <tr><td>DAU 近似（24h 邮箱）</td><td>{{ ops.dauEmails24h }}</td></tr>
+          <tr><td>Diff 存储近似</td><td>{{ formatBytes(ops.storageDiffBytesApprox) }}</td></tr>
         </table>
       </section>
 
@@ -77,12 +98,22 @@ export default {
       tenant: null,
       mrrApproxCents: 0,
       acting: false,
-      actionMsg: ''
+      actionMsg: '',
+      mpBrowseEnabled: true,
+      mpAllowPublish: false,
+      mpSaving: false,
+      mpMsg: ''
     }
   },
   computed: {
     tenantId () {
       return Number(this.$route.params.id)
+    },
+    /** 详情接口 tenant.ops 为运维报表行；兼容旧结构（字段在 tenant 根上） */
+    ops () {
+      const t = this.tenant
+      if (!t) return {}
+      return t.ops || t
     }
   },
   watch: {
@@ -124,6 +155,11 @@ export default {
         if (data.code === 0 && data.data) {
           this.tenant = data.data.tenant
           this.mrrApproxCents = data.data.mrrApproxCents30d != null ? data.data.mrrApproxCents30d : 0
+          const tr = data.data.tenant || {}
+          const b = tr.projectMarketplaceEnabled
+          const p = tr.projectMarketplaceAllowPublish
+          this.mpBrowseEnabled = b !== false
+          this.mpAllowPublish = p === true
         } else {
           this.error = (data && data.message) || '加载失败'
         }
@@ -164,6 +200,26 @@ export default {
         this.actionMsg = '请求失败'
       } finally {
         this.acting = false
+      }
+    },
+    async saveProjectMarketplace () {
+      this.mpSaving = true
+      this.mpMsg = ''
+      try {
+        const { data } = await http.put(`/platform/tenants/${this.tenantId}/project-marketplace`, {
+          projectMarketplaceEnabled: this.mpBrowseEnabled,
+          projectMarketplaceAllowPublish: this.mpAllowPublish
+        })
+        if (data.code === 0) {
+          this.mpMsg = '已保存'
+          await this.load()
+        } else {
+          this.mpMsg = (data && data.message) || '保存失败'
+        }
+      } catch (e) {
+        this.mpMsg = '请求失败'
+      } finally {
+        this.mpSaving = false
       }
     },
     async postAction (kind) {
@@ -231,6 +287,10 @@ export default {
 .kv td { padding: 8px 10px; border-bottom: 1px solid #334155; }
 .kv td:first-child { color: #94a3b8; width: 180px; }
 code { background: #1e293b; padding: 2px 6px; border-radius: 4px; }
+
+.mp-row { margin-top: 10px; }
+.mp-check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; color: #e2e8f0; font-size: 14px; }
+.mp-check input { margin-top: 3px; }
 
 .actions .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 .btn {

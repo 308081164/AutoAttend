@@ -43,13 +43,18 @@ public class MarketplaceProjectService {
         return u != null && Boolean.TRUE.equals(u.getCanPublishProjectInfo());
     }
 
+    /** 租户已开放发布且当前管理员具备发布权限位 */
+    public boolean canPublishProject(long tenantId, long userId) {
+        return accessService.isTenantPublishAllowed(tenantId) && canPublish(userId);
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public MarketplaceProject create(long tenantId, long userId, Map<String, Object> body) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, userId)) {
+        if (!accessService.isPublishWorkflowAllowed(tenantId, userId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
-        if (!canPublish(userId)) {
-            throw new ForbiddenException("无发布权限");
+        if (!canPublishProject(tenantId, userId)) {
+            throw new ForbiddenException("无发布权限（请确认监测台已为本租户开启发布能力，且账号已勾选可发布）");
         }
         String title = str(body.get("title"));
         if (title == null || title.isBlank()) {
@@ -94,11 +99,11 @@ public class MarketplaceProjectService {
 
     @Transactional(rollbackFor = Exception.class)
     public MarketplaceProject update(long tenantId, long userId, long projectId, Map<String, Object> body) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, userId)) {
+        if (!accessService.isPublishWorkflowAllowed(tenantId, userId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
-        if (!canPublish(userId)) {
-            throw new ForbiddenException("无发布权限");
+        if (!canPublishProject(tenantId, userId)) {
+            throw new ForbiddenException("无发布权限（请确认监测台已为本租户开启发布能力，且账号已勾选可发布）");
         }
         MarketplaceProject existing = projectMapper.findById(projectId);
         if (existing == null || !existing.getTenantId().equals(tenantId)) {
@@ -148,11 +153,11 @@ public class MarketplaceProjectService {
 
     @Transactional(rollbackFor = Exception.class)
     public void close(long tenantId, long userId, long projectId) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, userId)) {
+        if (!accessService.isPublishWorkflowAllowed(tenantId, userId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
-        if (!canPublish(userId)) {
-            throw new ForbiddenException("无发布权限");
+        if (!canPublishProject(tenantId, userId)) {
+            throw new ForbiddenException("无发布权限（请确认监测台已为本租户开启发布能力，且账号已勾选可发布）");
         }
         MarketplaceProject existing = projectMapper.findById(projectId);
         if (existing == null || !existing.getTenantId().equals(tenantId)) {
@@ -165,7 +170,7 @@ public class MarketplaceProjectService {
     }
 
     public Map<String, Object> getDetail(long tenantId, long viewerUserId, long projectId, boolean incrementView) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, viewerUserId)) {
+        if (!accessService.isModuleVisibleForAdmin(tenantId, viewerUserId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
         MarketplaceProject p = projectMapper.findById(projectId);
@@ -181,7 +186,7 @@ public class MarketplaceProjectService {
 
     public Map<String, Object> list(long tenantId, long viewerUserId, String q, String tech, String location,
                                     String sort, String statusFilter, int page, int pageSize) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, viewerUserId)) {
+        if (!accessService.isModuleVisibleForAdmin(tenantId, viewerUserId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
         int ps = Math.min(Math.max(pageSize, 1), 100);
@@ -211,11 +216,11 @@ public class MarketplaceProjectService {
     }
 
     public Map<String, Object> listMine(long tenantId, long userId, int page, int pageSize) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, userId)) {
+        if (!accessService.isPublishWorkflowAllowed(tenantId, userId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
-        if (!canPublish(userId)) {
-            throw new ForbiddenException("无发布权限");
+        if (!canPublishProject(tenantId, userId)) {
+            throw new ForbiddenException("无发布权限（请确认监测台已为本租户开启发布能力，且账号已勾选可发布）");
         }
         int ps = Math.min(Math.max(pageSize, 1), 100);
         int p = Math.max(page, 1);
@@ -235,11 +240,11 @@ public class MarketplaceProjectService {
     }
 
     public List<Map<String, Object>> listPending(long tenantId, long reviewerUserId) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, reviewerUserId)) {
+        if (!accessService.isPublishWorkflowAllowed(tenantId, reviewerUserId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
-        if (!canPublish(reviewerUserId)) {
-            throw new ForbiddenException("无审核权限（需具备发布权限的管理员）");
+        if (!canPublishProject(tenantId, reviewerUserId)) {
+            throw new ForbiddenException("无审核权限（需监测台开启本租户发布能力，且账号具备发布权限）");
         }
         List<MarketplaceProject> rows = projectMapper.listPending(tenantId);
         List<Map<String, Object>> out = new ArrayList<>();
@@ -251,10 +256,10 @@ public class MarketplaceProjectService {
 
     @Transactional(rollbackFor = Exception.class)
     public void approve(long tenantId, long reviewerUserId, long projectId) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, reviewerUserId)) {
+        if (!accessService.isPublishWorkflowAllowed(tenantId, reviewerUserId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
-        if (!canPublish(reviewerUserId)) {
+        if (!canPublishProject(tenantId, reviewerUserId)) {
             throw new ForbiddenException("无审核权限");
         }
         MarketplaceProject p = projectMapper.findById(projectId);
@@ -270,10 +275,10 @@ public class MarketplaceProjectService {
 
     @Transactional(rollbackFor = Exception.class)
     public void reject(long tenantId, long reviewerUserId, long projectId, String reason) {
-        if (!accessService.isModuleEnabledForRequest(tenantId, reviewerUserId)) {
+        if (!accessService.isPublishWorkflowAllowed(tenantId, reviewerUserId)) {
             throw new ForbiddenException("项目信息发布未开放或不在白名单内");
         }
-        if (!canPublish(reviewerUserId)) {
+        if (!canPublishProject(tenantId, reviewerUserId)) {
             throw new ForbiddenException("无审核权限");
         }
         MarketplaceProject p = projectMapper.findById(projectId);
