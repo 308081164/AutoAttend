@@ -83,8 +83,8 @@ public class TenantPenpotOnboardingService {
                     "fullname", fullname,
                     "email", email,
                     "password", password,
-                    "createWelcomeFile", false,
-                    "acceptNewsletterUpdates", false
+                    "create-welcome-file", false,
+                    "accept-newsletter-updates", false
             ));
             String token = textField(prepare, "token");
             if (!StringUtils.hasText(token)) {

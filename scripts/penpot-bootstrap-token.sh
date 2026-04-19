@@ -14,6 +14,8 @@
 set -euo pipefail
 
 PENPOT_BASE_URL="${PENPOT_BASE_URL:-http://127.0.0.1:9001}"
+PENPOT_BACKEND_DIRECT_URI="${PENPOT_BACKEND_DIRECT_URI:-}"
+CLIENT_HEADER="${PENPOT_CLIENT_HEADER:-penpot-backend}"
 EMAIL="${PENPOT_EMAIL:-}"
 PASS="${PENPOT_PASSWORD:-}"
 TOKEN_NAME="${PENPOT_TOKEN_NAME:-autoattend-bootstrap}"
@@ -23,7 +25,8 @@ if [[ -z "$EMAIL" || -z "$PASS" ]]; then
   exit 1
 fi
 
-BASE="${PENPOT_BASE_URL%/}"
+BASE_PRIMARY="${PENPOT_BASE_URL%/}"
+BASE_DIRECT="${PENPOT_BACKEND_DIRECT_URI%/}"
 COOKIE_JAR="$(mktemp)"
 trap 'rm -f "$COOKIE_JAR"' EXIT
 
@@ -35,20 +38,24 @@ LOGIN_PATHS=(
 )
 
 http_code=""
-for path in "${LOGIN_PATHS[@]}"; do
-  http_code=$(curl -sS -o /tmp/penpot-login-body.json -w '%{http_code}' \
-    -c "$COOKIE_JAR" \
-    -H 'Content-Type: application/json' \
-    -H 'Accept: application/json' \
-    -X POST "$BASE$path" \
-    -d "$login_json" || true)
-  if [[ "$http_code" == "200" ]]; then
-    break
-  fi
+for BASE in "$BASE_PRIMARY" ${BASE_DIRECT:+"$BASE_DIRECT"}; do
+  [[ -z "$BASE" ]] && continue
+  for path in "${LOGIN_PATHS[@]}"; do
+    http_code=$(curl -sS -o /tmp/penpot-login-body.json -w '%{http_code}' \
+      -c "$COOKIE_JAR" \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H "x-client: $CLIENT_HEADER" \
+      -X POST "$BASE$path" \
+      -d "$login_json" || true)
+    if [[ "$http_code" == "200" ]]; then
+      break 2
+    fi
+  done
 done
 
 if [[ "$http_code" != "200" ]]; then
-  echo "login-with-password 失败 HTTP $http_code（已尝试新/旧 RPC 路径）" >&2
+  echo "login-with-password 失败 HTTP $http_code（已尝试 PRIMARY/DIRECT 基址与新/旧 RPC 路径）" >&2
   cat /tmp/penpot-login-body.json >&2 || true
   exit 1
 fi
@@ -61,20 +68,24 @@ TOKEN_PATHS=(
 )
 
 http_code=""
-for path in "${TOKEN_PATHS[@]}"; do
-  http_code=$(curl -sS -o /tmp/penpot-token-body.json -w '%{http_code}' \
-    -b "$COOKIE_JAR" \
-    -H 'Content-Type: application/json' \
-    -H 'Accept: application/json' \
-    -X POST "$BASE$path" \
-    -d "$create_body" || true)
-  if [[ "$http_code" == "200" ]]; then
-    break
-  fi
+for BASE in "$BASE_PRIMARY" ${BASE_DIRECT:+"$BASE_DIRECT"}; do
+  [[ -z "$BASE" ]] && continue
+  for path in "${TOKEN_PATHS[@]}"; do
+    http_code=$(curl -sS -o /tmp/penpot-token-body.json -w '%{http_code}' \
+      -b "$COOKIE_JAR" \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H "x-client: $CLIENT_HEADER" \
+      -X POST "$BASE$path" \
+      -d "$create_body" || true)
+    if [[ "$http_code" == "200" ]]; then
+      break 2
+    fi
+  done
 done
 
 if [[ "$http_code" != "200" ]]; then
-  echo "create-access-token 失败 HTTP $http_code（已尝试新/旧 RPC 路径）" >&2
+  echo "create-access-token 失败 HTTP $http_code（已尝试 PRIMARY/DIRECT 基址与新/旧 RPC 路径）" >&2
   cat /tmp/penpot-token-body.json >&2 || true
   exit 1
 fi

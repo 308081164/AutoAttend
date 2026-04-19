@@ -102,6 +102,9 @@ services:
       PENPOT_TENANT_CREDENTIAL_PEPPER: ${PENPOT_TENANT_CREDENTIAL_PEPPER:-}
       # Penpot 2.12+ 为 new；旧版 legacy；默认 auto 先试新路径再试旧路径
       PENPOT_RPC_PATH_STYLE: ${PENPOT_RPC_PATH_STYLE:-auto}
+      PENPOT_CLIENT_HEADER: ${PENPOT_CLIENT_HEADER:-penpot-backend}
+      # 直连 Penpot JVM（官方 6060）；PRIMARY 误配时可作为第二 RPC 基址
+      PENPOT_BACKEND_DIRECT_URI: ${PENPOT_BACKEND_DIRECT_URI:-http://penpot-backend:6060}
       # 与库内 aa_tenant_penpot_credential 密文一致；生产请在 .env 设置长随机串并勿随意变更，否则已有 Token 无法解密
       NEXUS_CRYPTO_DEV_KEY: ${NEXUS_CRYPTO_DEV_KEY:-dev-nexus-crypto-key-change-me}
     volumes:

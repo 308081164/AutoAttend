@@ -14,8 +14,10 @@ import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,36 +54,39 @@ public class PenpotRpcClient {
         if (!props.isEnabled() || !isRpcAutoMode()) {
             return;
         }
-        String base = trimSlash(props.getEffectiveRpcBaseUrl());
-        if (!StringUtils.hasText(base)) {
+        List<String> bases = rpcBasesOrdered();
+        if (bases.isEmpty()) {
             return;
         }
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_JSON);
         h.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(h);
         HttpEntity<String> entity = new HttpEntity<>("{}", h);
         String[] kinds = new String[] { "new", "legacy" };
-        for (String kind : kinds) {
-            String url = "new".equals(kind)
-                    ? base + "/api/main/methods/get-teams"
-                    : base + "/api/rpc/command/get-teams";
-            try {
-                restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
-                noteSuccessFromKind(kind);
-                log.info("Penpot RPC path probe: locked to {} ({} responded without 404)", kind, url);
-                return;
-            } catch (HttpStatusCodeException e) {
-                int code = e.getStatusCode().value();
-                if (code == 404 || code == 405) {
-                    log.debug("Penpot RPC probe {} -> HTTP {} (try next path)", url, code);
-                    continue;
+        for (String base : bases) {
+            for (String kind : kinds) {
+                String url = "new".equals(kind)
+                        ? base + "/api/main/methods/get-teams"
+                        : base + "/api/rpc/command/get-teams";
+                try {
+                    restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+                    noteSuccessFromKind(kind);
+                    log.info("Penpot RPC path probe: locked to {} ({} responded without 404)", kind, url);
+                    return;
+                } catch (HttpStatusCodeException e) {
+                    int code = e.getStatusCode().value();
+                    if (code == 404 || code == 405) {
+                        log.debug("Penpot RPC probe {} -> HTTP {} (try next path)", url, code);
+                        continue;
+                    }
+                    noteSuccessFromKind(kind);
+                    log.info("Penpot RPC path probe: locked to {} ({} -> HTTP {}, route exists)", kind, url, code);
+                    return;
+                } catch (RestClientException e) {
+                    log.warn("Penpot RPC path probe network error for {}: {}", url, e.getMessage());
+                    return;
                 }
-                noteSuccessFromKind(kind);
-                log.info("Penpot RPC path probe: locked to {} ({} -> HTTP {}, route exists)", kind, url, code);
-                return;
-            } catch (RestClientException e) {
-                log.warn("Penpot RPC path probe network error for {}: {}", url, e.getMessage());
-                return;
             }
         }
         log.warn("Penpot RPC path probe: could not distinguish new vs legacy (Penpot down or unreachable); will try both on first RPC");
@@ -147,6 +152,7 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         applyAuth(headers, tenantAccessToken);
         String jsonBody = body == null || body.isEmpty() ? "{}" : safeWriteJson(body);
         return postCommand(methodName, headers, jsonBody, true);
@@ -157,6 +163,7 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         String jsonBody = body == null || body.isEmpty() ? "{}" : safeWriteJson(body);
         return postCommand(methodName, headers, jsonBody, false);
     }
@@ -169,6 +176,7 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         if (StringUtils.hasText(cookieHeader)) {
             headers.add(HttpHeaders.COOKIE, cookieHeader);
         }
@@ -183,34 +191,38 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         Map<String, Object> body = new HashMap<>();
         body.put("email", email.trim());
         body.put("password", password);
         String jsonBody = safeWriteJson(body);
         HttpEntity<String> entity = new HttpEntity<>(jsonBody, headers);
-        String base = trimSlash(props.getEffectiveRpcBaseUrl());
-        String[] tryUrls = loginTryUrls(base);
         HttpStatusCodeException last = null;
-        for (String url : tryUrls) {
-            try {
-                ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
-                String cookie = resp.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
-                if (cookie == null || !cookie.contains("auth-token=")) {
-                    throw new IllegalStateException("Penpot 登录未返回 auth-token Cookie，请检查账号或 PENPOT_PUBLIC_URI");
-                }
-                noteSuccessFromUrl(url);
-                return cookie.split(";", 2)[0].trim();
-            } catch (HttpStatusCodeException e) {
-                last = e;
-                if (!shouldTryAlternateRpcPath(e) || !isRpcAutoMode() || autoResolvedRpcKind != null) {
-                    break;
+        bases:
+        for (String base : rpcBasesOrdered()) {
+            for (String url : loginTryUrls(base)) {
+                try {
+                    ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+                    String cookie = resp.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
+                    if (cookie == null || !cookie.contains("auth-token=")) {
+                        throw new IllegalStateException("Penpot 登录未返回 auth-token Cookie，请检查账号或 PENPOT_PUBLIC_URI");
+                    }
+                    noteSuccessFromUrl(url);
+                    return cookie.split(";", 2)[0].trim();
+                } catch (HttpStatusCodeException e) {
+                    last = e;
+                    if (shouldTryAlternateRpcPath(e) && isRpcAutoMode()) {
+                        continue;
+                    }
+                    break bases;
                 }
             }
         }
         String hint = last != null ? last.getResponseBodyAsString() : "";
         throw new IllegalStateException("Penpot 登录失败 HTTP "
                 + (last != null ? last.getStatusCode().value() : "?")
-                + (hint != null && !hint.isBlank() ? (": " + truncate(hint, 400)) : ""));
+                + (hint != null && !hint.isBlank() ? (": " + truncate(hint, 400)) : "")
+                + rpcMisconfigHint(last));
     }
 
     /** 登录在 auto 下先试新路径再试旧路径（与 postCommand 一致）。 */
@@ -236,26 +248,26 @@ public class PenpotRpcClient {
 
     private JsonNode postCommand(String methodName, HttpHeaders headers, String jsonBody, boolean noteSuccess) {
         HttpEntity<String> entity = new HttpEntity<>(jsonBody, headers);
-        String base = trimSlash(props.getEffectiveRpcBaseUrl());
-        String[] urls = rpcTryUrls(base, methodName);
         HttpStatusCodeException last = null;
-        for (String url : urls) {
-            try {
-                ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
-                if (noteSuccess) {
-                    noteSuccessFromUrl(url);
+        for (String base : rpcBasesOrdered()) {
+            for (String url : rpcTryUrls(base, methodName)) {
+                try {
+                    ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+                    if (noteSuccess) {
+                        noteSuccessFromUrl(url);
+                    }
+                    return parseBody(methodName, resp.getBody());
+                } catch (HttpStatusCodeException e) {
+                    last = e;
+                    if (!shouldTryAlternateRpcPath(e) || !isRpcAutoMode()) {
+                        log.warn("Penpot RPC {} failed: {} body={}", methodName, e.getStatusCode(), truncate(e.getResponseBodyAsString(), 800));
+                        throw rpcException(methodName, e);
+                    }
+                } catch (IllegalStateException ex) {
+                    throw ex;
+                } catch (Exception e) {
+                    throw new IllegalStateException("Penpot RPC 异常: " + methodName + ": " + e.getMessage(), e);
                 }
-                return parseBody(methodName, resp.getBody());
-            } catch (HttpStatusCodeException e) {
-                last = e;
-                if (!shouldTryAlternateRpcPath(e) || !isRpcAutoMode() || autoResolvedRpcKind != null) {
-                    log.warn("Penpot RPC {} failed: {} body={}", methodName, e.getStatusCode(), truncate(e.getResponseBodyAsString(), 800));
-                    throw rpcException(methodName, e);
-                }
-            } catch (IllegalStateException ex) {
-                throw ex;
-            } catch (Exception e) {
-                throw new IllegalStateException("Penpot RPC 异常: " + methodName + ": " + e.getMessage(), e);
             }
         }
         if (last != null) {
@@ -297,10 +309,55 @@ public class PenpotRpcClient {
         }
     }
 
-    private static IllegalStateException rpcException(String methodName, HttpStatusCodeException e) {
+    private IllegalStateException rpcException(String methodName, HttpStatusCodeException e) {
         String hint = e.getResponseBodyAsString();
         return new IllegalStateException("Penpot RPC 失败: " + methodName + " HTTP " + e.getStatusCode().value()
-                + (hint != null && !hint.isBlank() ? (": " + truncate(hint, 500)) : ""));
+                + (hint != null && !hint.isBlank() ? (": " + truncate(hint, 500)) : "")
+                + rpcMisconfigHint(e));
+    }
+
+    /** 当 PRIMARY 指向了本应用或其它非 Penpot 服务时，/api/main/methods 往往为 404；第二基址默认可直连 penpot-backend:6060。 */
+    private String rpcMisconfigHint(HttpStatusCodeException e) {
+        if (e == null || e.getStatusCode().value() != 404) {
+            return "";
+        }
+        return "。请确认 PENPOT_INTERNAL_URI 为 Docker 内 penpot-frontend（默认 http://penpot-frontend:8080），"
+                + "勿填 AutoAttend 公网域名；或设置 PENPOT_BACKEND_DIRECT_URI=http://penpot-backend:6060 直连 Penpot 后端。";
+    }
+
+    /**
+     * RPC 基址顺序：先 {@link PenpotProperties#getEffectiveRpcBaseUrl()}，再可选直连 {@link PenpotProperties#getBackendDirectUri()}（官方默认 6060）。
+     */
+    private List<String> rpcBasesOrdered() {
+        String primary = trimSlash(props.getEffectiveRpcBaseUrl());
+        String direct = trimSlash(props.getBackendDirectUri());
+        List<String> out = new ArrayList<>(2);
+        if (StringUtils.hasText(primary)) {
+            out.add(primary);
+        }
+        if (StringUtils.hasText(direct)) {
+            boolean dup = false;
+            for (String existing : out) {
+                if (existing.equalsIgnoreCase(direct)) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (!dup) {
+                out.add(direct);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Penpot {@code sec/client-header-check}：无此头则拒绝 RPC（浏览器端由官方前端注入 {@code x-client}）。
+     */
+    private void applyPenpotClientHeader(HttpHeaders headers) {
+        String v = props.getClientHeader();
+        if (StringUtils.hasText(v)) {
+            headers.set("x-client", v.trim());
+        }
     }
 
     private void noteSuccessFromUrl(String url) {

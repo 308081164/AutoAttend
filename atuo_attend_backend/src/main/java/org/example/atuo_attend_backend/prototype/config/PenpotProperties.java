@@ -60,6 +60,17 @@ public class PenpotProperties {
      */
     private String rpcPathStyle = "auto";
 
+    /**
+     * 与官方 Penpot 前端一致：RPC 需带 {@code x-client}（启用 client-header-check 时）。
+     */
+    private String clientHeader = "penpot-backend";
+
+    /**
+     * 直连 Penpot 后端 JVM（官方镜像默认端口 6060），与 {@code penpot-frontend:8080} 上 Nginx 反代的 /api 等价。
+     * 当 {@link #getEffectiveRpcBaseUrl()} 误指向本应用或其它无 Penpot RPC 的地址时，客户端会再尝试此地址。
+     */
+    private String backendDirectUri = "http://penpot-backend:6060";
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -162,5 +173,21 @@ public class PenpotProperties {
 
     public void setRpcPathStyle(String rpcPathStyle) {
         this.rpcPathStyle = rpcPathStyle;
+    }
+
+    public String getClientHeader() {
+        return clientHeader;
+    }
+
+    public void setClientHeader(String clientHeader) {
+        this.clientHeader = clientHeader;
+    }
+
+    public String getBackendDirectUri() {
+        return backendDirectUri;
+    }
+
+    public void setBackendDirectUri(String backendDirectUri) {
+        this.backendDirectUri = backendDirectUri;
     }
 }
