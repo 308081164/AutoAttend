@@ -39,8 +39,11 @@ public class AdminMarketplaceController {
         long tid = tenantId(request);
         long uid = userId(request);
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("moduleVisible", marketplaceAccessService.isModuleEnabledForRequest(tid, uid));
-        data.put("canPublish", marketplaceProjectService.canPublish(uid));
+        data.put("platformEnabled", marketplaceAccessService.moduleEnabledFlag());
+        data.put("tenantBrowseEnabled", marketplaceAccessService.isTenantBrowseAllowed(tid));
+        data.put("tenantPublishEnabled", marketplaceAccessService.isTenantPublishAllowed(tid));
+        data.put("moduleVisible", marketplaceAccessService.isModuleVisibleForAdmin(tid, uid));
+        data.put("canPublish", marketplaceProjectService.canPublishProject(tid, uid));
         data.put("disclaimerVersion", marketplaceAccessService.disclaimerVersion());
         return ApiResponse.ok(data);
     }

@@ -26,6 +26,10 @@ public class Tenant {
     private String status;
     /** 工作台偏好 JSON（侧栏是否展示报价等） */
     private String workspacePrefsJson;
+    /** 是否对本租户开放「项目信息发布」浏览（列表/详情） */
+    private Boolean projectMarketplaceEnabled;
+    /** 本租户是否允许发布项目信息（仍须管理员账号具备发布权限位） */
+    private Boolean projectMarketplaceAllowPublish;
     /** 官方 API 池余额（元），注册赠送与兑换码增加，调用扣减 */
     private BigDecimal officialApiCnyBalance;
     private LocalDateTime createdAt;
@@ -124,6 +128,22 @@ public class Tenant {
 
     public void setWorkspacePrefsJson(String workspacePrefsJson) {
         this.workspacePrefsJson = workspacePrefsJson;
+    }
+
+    public Boolean getProjectMarketplaceEnabled() {
+        return projectMarketplaceEnabled;
+    }
+
+    public void setProjectMarketplaceEnabled(Boolean projectMarketplaceEnabled) {
+        this.projectMarketplaceEnabled = projectMarketplaceEnabled;
+    }
+
+    public Boolean getProjectMarketplaceAllowPublish() {
+        return projectMarketplaceAllowPublish;
+    }
+
+    public void setProjectMarketplaceAllowPublish(Boolean projectMarketplaceAllowPublish) {
+        this.projectMarketplaceAllowPublish = projectMarketplaceAllowPublish;
     }
 
     public BigDecimal getOfficialApiCnyBalance() {

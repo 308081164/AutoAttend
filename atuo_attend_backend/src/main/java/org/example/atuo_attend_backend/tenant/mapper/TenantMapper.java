@@ -13,6 +13,8 @@ public interface TenantMapper {
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
             + "subscription_ends_at AS subscriptionEndsAt, status, workspace_prefs_json AS workspacePrefsJson, "
+            + "project_marketplace_enabled AS projectMarketplaceEnabled, "
+            + "project_marketplace_allow_publish AS projectMarketplaceAllowPublish, "
             + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant WHERE id = #{id}")
     Tenant findById(@Param("id") long id);
 
@@ -20,6 +22,8 @@ public interface TenantMapper {
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
             + "subscription_ends_at AS subscriptionEndsAt, status, workspace_prefs_json AS workspacePrefsJson, "
+            + "project_marketplace_enabled AS projectMarketplaceEnabled, "
+            + "project_marketplace_allow_publish AS projectMarketplaceAllowPublish, "
             + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant WHERE slug = #{slug}")
     Tenant findBySlug(@Param("slug") String slug);
 
@@ -27,6 +31,8 @@ public interface TenantMapper {
             + "invite_code_redeemed AS inviteCodeRedeemed, member_points AS memberPoints, team_first_month_used AS teamFirstMonthUsed, "
             + "plan_code AS planCode, billing_baseline_plan_code AS billingBaselinePlanCode, "
             + "subscription_ends_at AS subscriptionEndsAt, status, workspace_prefs_json AS workspacePrefsJson, "
+            + "project_marketplace_enabled AS projectMarketplaceEnabled, "
+            + "project_marketplace_allow_publish AS projectMarketplaceAllowPublish, "
             + "COALESCE(official_api_cny_balance, 0) AS officialApiCnyBalance, created_at AS createdAt FROM aa_tenant ORDER BY id")
     List<Tenant> listAll();
 
@@ -103,4 +109,9 @@ public interface TenantMapper {
 
     @Update("UPDATE aa_tenant SET workspace_prefs_json = #{json} WHERE id = #{id}")
     int updateWorkspacePrefsJson(@Param("id") long id, @Param("json") String json);
+
+    @Update("UPDATE aa_tenant SET project_marketplace_enabled = #{enabled}, project_marketplace_allow_publish = #{allowPublish} WHERE id = #{id}")
+    int updateProjectMarketplacePrefs(@Param("id") long id,
+                                      @Param("enabled") boolean enabled,
+                                      @Param("allowPublish") boolean allowPublish);
 }

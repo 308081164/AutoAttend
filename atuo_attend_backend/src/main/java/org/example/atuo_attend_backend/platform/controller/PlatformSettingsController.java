@@ -15,7 +15,6 @@ import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -160,15 +159,20 @@ public class PlatformSettingsController {
         return ApiResponse.ok(null);
     }
 
-    /** 项目信息发布：平台总开关与白名单（tenant_id=0 JSON） */
+    /**
+     * 项目信息发布：仅平台级策略（总开关、先审后发、免责版本等）。
+     * 每租户是否开放浏览/发布请在「租户详情」配置（aa_tenant 列）。
+     */
     @GetMapping("/project-marketplace")
     public ApiResponse<Map<String, Object>> getProjectMarketplace() {
         Map<String, Object> raw = systemConfigService.getMarketplaceProjectInfoConfig();
-        Map<String, Object> data = new HashMap<>(raw);
-        Object tids = raw.get("tenantIds");
-        Object uids = raw.get("userIds");
-        data.put("tenantWhitelistCount", tids instanceof List<?> l ? l.size() : 0);
-        data.put("userWhitelistCount", uids instanceof List<?> l2 ? l2.size() : 0);
+        Map<String, Object> data = new HashMap<>();
+        data.put("enabled", raw.get("enabled"));
+        data.put("scope", raw.getOrDefault("scope", "all"));
+        data.put("allowGuestBrowseList", raw.get("allowGuestBrowseList"));
+        data.put("requireContentReview", raw.get("requireContentReview"));
+        data.put("disclaimerVersion", raw.get("disclaimerVersion"));
+        data.put("hint", "租户级开关请在监测台「租户详情」中配置");
         return ApiResponse.ok(data);
     }
 
@@ -179,8 +183,14 @@ public class PlatformSettingsController {
             return ApiResponse.error(40000, "请求体不能为空");
         }
         try {
-            systemConfigService.saveMarketplaceProjectInfoConfig(body);
-            audit(request, "platform.settings.project_marketplace", Map.copyOf(body));
+            Map<String, Object> patch = new HashMap<>();
+            for (String k : new String[]{"enabled", "scope", "allowGuestBrowseList", "requireContentReview", "disclaimerVersion"}) {
+                if (body.containsKey(k)) {
+                    patch.put(k, body.get(k));
+                }
+            }
+            systemConfigService.saveMarketplaceProjectInfoConfig(patch);
+            audit(request, "platform.settings.project_marketplace", Map.copyOf(patch));
             return ApiResponse.ok(null);
         } catch (JsonProcessingException e) {
             return ApiResponse.error(40000, "配置 JSON 无效");
