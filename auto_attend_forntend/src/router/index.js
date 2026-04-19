@@ -16,6 +16,7 @@ import TenantAdminManageView from '../views/TenantAdminManageView.vue'
 import CommitAnalysisView from '../views/CommitAnalysisView.vue'
 import QuoteListView from '../views/QuoteListView.vue'
 import QuoteProjectView from '../views/QuoteProjectView.vue'
+import QuoteSolutionWizardView from '../views/QuoteSolutionWizardView.vue'
 import QuoteConfigView from '../views/QuoteConfigView.vue'
 import PrototypeListView from '../views/PrototypeListView.vue'
 import PrototypeProjectView from '../views/PrototypeProjectView.vue'
@@ -130,6 +131,11 @@ const routes = [
   {
     path: '/quote/baseline-price',
     redirect: { name: 'quote-config' }
+  },
+  {
+    path: '/quote/solution-wizard',
+    name: 'quote-solution-wizard',
+    component: QuoteSolutionWizardView
   },
   {
     path: '/quote/:id',

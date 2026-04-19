@@ -95,6 +95,9 @@ public class QuoteService {
         if (p.getQuoteSubjectMode() == null) {
             p.setQuoteSubjectMode("legal_entity");
         }
+        if (p.getQuoteKind() == null) {
+            p.setQuoteKind("single");
+        }
         p.setTenantId(tid());
         projectMapper.insert(p);
         saveModules(p.getId(), dto.getModules());
@@ -126,6 +129,11 @@ public class QuoteService {
         if (dto.getQuoteSubjectMode() == null) {
             p.setQuoteSubjectMode(existing.getQuoteSubjectMode() != null ? existing.getQuoteSubjectMode() : "legal_entity");
         }
+        if (dto.getQuoteKind() == null) {
+            p.setQuoteKind(existing.getQuoteKind() != null ? existing.getQuoteKind() : "single");
+        } else {
+            p.setQuoteKind(normalizeQuoteKind(dto.getQuoteKind()));
+        }
         projectMapper.update(p);
         moduleMapper.deleteByProjectId(tid(), id);
         saveModules(id, dto.getModules());
@@ -151,6 +159,7 @@ public class QuoteService {
         if (dto.getQuoteSubjectMode() != null) {
             p.setQuoteSubjectMode(normalizeQuoteSubjectMode(dto.getQuoteSubjectMode()));
         }
+        p.setQuoteKind(normalizeQuoteKind(dto.getQuoteKind()));
         if (dto.getQuoteCalcPrefs() != null && !dto.getQuoteCalcPrefs().isEmpty()) {
             applyQuoteCalcPrefsMapToEntity(p, dto.getQuoteCalcPrefs());
         }
@@ -188,6 +197,12 @@ public class QuoteService {
         return "legal_entity";
     }
 
+    private static String normalizeQuoteKind(String k) {
+        if (k == null || k.isBlank()) return "single";
+        if ("solution".equals(k)) return "solution";
+        return "single";
+    }
+
     private void saveModules(long projectId, List<QuoteModuleSaveDto> modules) {
         if (modules == null) return;
         int mi = 0;
@@ -204,6 +219,7 @@ public class QuoteService {
             }
             m.setDeliverableKey(dk);
             m.setDeliverableLabel(trimToNull(md.getDeliverableLabel()));
+            m.setTechStack(trimToNull(md.getTechStack()));
             moduleMapper.insert(m);
             int ii = 0;
             for (QuoteItemSaveDto it : md.getItems()) {
@@ -236,6 +252,7 @@ public class QuoteService {
             mm.put("sortOrder", m.getSortOrder());
             mm.put("deliverableKey", m.getDeliverableKey() != null ? m.getDeliverableKey() : "default");
             mm.put("deliverableLabel", m.getDeliverableLabel());
+            mm.put("techStack", m.getTechStack());
             List<Map<String, Object>> items = new ArrayList<>();
             for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
                 Map<String, Object> im = new LinkedHashMap<>();
@@ -394,7 +411,11 @@ public class QuoteService {
         BigDecimal totalDays = BigDecimal.ZERO;
         for (QuoteModule m : modules) {
             for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
-                BigDecimal base = baselineMapper.findDays(tid(),p.getTechStack(), it.getComplexity());
+                String stackForLine = trimToNull(m.getTechStack());
+                if (stackForLine == null) {
+                    stackForLine = p.getTechStack();
+                }
+                BigDecimal base = baselineMapper.findDays(tid(), stackForLine, it.getComplexity());
                 if (base == null) base = baselineMapper.findDays(tid(),"other", it.getComplexity());
                 if (base == null) base = new BigDecimal("1.5");
                 BigDecimal line = base.multiply(new BigDecimal(it.getQuantity())).setScale(2, RoundingMode.HALF_UP);
@@ -597,19 +618,34 @@ public class QuoteService {
         sb.append("<p><strong>项目名称：</strong>").append(esc(p.getName())).append("</p>");
         sb.append("<p><strong>生成时间：</strong>").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))).append("</p>");
         sb.append("<p><strong>技术栈：</strong>").append(esc(p.getTechStack())).append(" &nbsp; <strong>项目类型：</strong>").append(esc(p.getProjectType())).append("</p>");
-        sb.append("<table><thead><tr><th>交付物</th><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>人天</th><th>金额(元)</th></tr></thead><tbody>");
+        boolean sol = "solution".equals(p.getQuoteKind());
+        if (sol) {
+            sb.append("<table><thead><tr><th>交付物</th><th>计价技术栈</th><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>人天</th><th>金额(元)</th></tr></thead><tbody>");
+        } else {
+            sb.append("<table><thead><tr><th>模块</th><th>功能点</th><th>复杂度</th><th>数量</th><th>人天</th><th>金额(元)</th></tr></thead><tbody>");
+        }
         for (QuoteModule m : moduleMapper.listByProjectId(tid(),p.getId())) {
             String dlab = m.getDeliverableLabel();
             String dk = m.getDeliverableKey() != null ? m.getDeliverableKey() : "default";
             String delCell = (dlab != null && !dlab.isBlank()) ? esc(dlab) : esc(dk);
+            String mts = trimToNull(m.getTechStack());
+            String stackCell = mts != null ? esc(mts) : esc(p.getTechStack());
             for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
                 String amt = it.getLinePriceAdjusted() != null ? it.getLinePriceAdjusted().toPlainString()
                         : (it.getLinePriceSnap() != null ? it.getLinePriceSnap().toPlainString() : "—");
-                sb.append("<tr><td>").append(delCell).append("</td><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
-                        .append("</td><td>").append(esc(it.getComplexity())).append("</td><td>").append(it.getQuantity())
-                        .append("</td><td>").append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0")
-                        .append("</td><td>").append(amt)
-                        .append("</td></tr>");
+                if (sol) {
+                    sb.append("<tr><td>").append(delCell).append("</td><td>").append(stackCell).append("</td><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
+                            .append("</td><td>").append(esc(it.getComplexity())).append("</td><td>").append(it.getQuantity())
+                            .append("</td><td>").append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0")
+                            .append("</td><td>").append(amt)
+                            .append("</td></tr>");
+                } else {
+                    sb.append("<tr><td>").append(esc(m.getName())).append("</td><td>").append(esc(it.getName()))
+                            .append("</td><td>").append(esc(it.getComplexity())).append("</td><td>").append(it.getQuantity())
+                            .append("</td><td>").append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0")
+                            .append("</td><td>").append(amt)
+                            .append("</td></tr>");
+                }
             }
         }
         sb.append("</tbody></table>");
@@ -862,6 +898,7 @@ public class QuoteService {
         m.put("quoteContactInfo", p.getQuoteContactInfo());
         m.put("quoteValidityNote", p.getQuoteValidityNote());
         m.put("quoteSubjectMode", p.getQuoteSubjectMode() != null ? p.getQuoteSubjectMode() : "legal_entity");
+        m.put("quoteKind", p.getQuoteKind() != null ? p.getQuoteKind() : "single");
         m.put("githubRepoFullName", p.getGithubRepoFullName());
         m.put("githubRepoHtmlUrl", p.getGithubRepoHtmlUrl());
         m.put("githubWebhookId", p.getGithubWebhookId());
@@ -1370,7 +1407,8 @@ public class QuoteService {
         StringBuilder sb = new StringBuilder();
         sb.append("### 项目属性\n");
         sb.append("- 项目类型：").append(labelProjectType(p.getProjectType())).append("\n");
-        sb.append("- 技术栈：").append(labelTechStack(p.getTechStack())).append("\n");
+        sb.append("- 报价模式：").append("solution".equals(p.getQuoteKind()) ? "解决方案级（多交付物统一签约）" : "单体项目").append("\n");
+        sb.append("- 技术栈（项目默认/共用）：").append(labelTechStack(p.getTechStack())).append("\n");
         sb.append("- 设计：").append(labelDesign(p.getDesignType())).append("；数据/对接：").append(labelDataMigration(p.getDataMigration())).append("\n");
         sb.append("- 并发量级：").append(labelConcurrency(p.getConcurrency())).append("；安全：").append(labelSecurity(p.getSecurityLevel())).append("；部署：").append(labelDeploy(p.getDeployType())).append("\n");
         String prd = p.getPrdSummary();
@@ -1378,6 +1416,9 @@ public class QuoteService {
             sb.append("\n### PRD/需求摘要\n").append(prd.trim()).append("\n");
         }
         sb.append("\n### 功能清单（模块-功能点-复杂度-数量-估算人天）\n");
+        if ("solution".equals(p.getQuoteKind())) {
+            sb.append("（解决方案级：按交付物分组；人天基准可能因交付物技术栈不同而不同）\n");
+        }
         sb.append(buildFunctionListMarkdownForPrompt(p));
         sb.append("\n### 本次报价勾选的风险项（已计入风险合计）\n");
         sb.append(formatSelectedRisksForPrompt(r));
@@ -1392,12 +1433,30 @@ public class QuoteService {
 
     private String buildFunctionListMarkdownForPrompt(QuoteProject p) {
         StringBuilder sb = new StringBuilder();
-        sb.append("| 模块 | 功能点 | 复杂度 | 数量 | 估算人天 |\n| --- | --- | --- | --- | --- |\n");
-        for (QuoteModule m : moduleMapper.listByProjectId(tid(),p.getId())) {
-            for (QuoteItem it : itemMapper.listByModuleId(tid(),m.getId())) {
-                sb.append("| ").append(escMdCell(m.getName())).append(" | ").append(escMdCell(it.getName())).append(" | ")
-                        .append(escMdCell(it.getComplexity())).append(" | ").append(it.getQuantity()).append(" | ")
-                        .append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0").append(" |\n");
+        if ("solution".equals(p.getQuoteKind())) {
+            sb.append("| 交付物 | 技术栈(计价) | 模块 | 功能点 | 复杂度 | 数量 | 估算人天 |\n| --- | --- | --- | --- | --- | --- | --- |\n");
+            for (QuoteModule m : moduleMapper.listByProjectId(tid(), p.getId())) {
+                String dk = m.getDeliverableKey() != null ? m.getDeliverableKey() : "default";
+                String dlab = m.getDeliverableLabel() != null && !m.getDeliverableLabel().isBlank()
+                        ? m.getDeliverableLabel() : dk;
+                String mts = trimToNull(m.getTechStack());
+                String stackLabel = mts != null ? labelTechStack(mts) : ("（同项目默认 " + labelTechStack(p.getTechStack()) + "）");
+                for (QuoteItem it : itemMapper.listByModuleId(tid(), m.getId())) {
+                    sb.append("| ").append(escMdCell(dlab + " (" + dk + ")")).append(" | ")
+                            .append(escMdCell(stackLabel)).append(" | ")
+                            .append(escMdCell(m.getName())).append(" | ").append(escMdCell(it.getName())).append(" | ")
+                            .append(escMdCell(it.getComplexity())).append(" | ").append(it.getQuantity()).append(" | ")
+                            .append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0").append(" |\n");
+                }
+            }
+        } else {
+            sb.append("| 模块 | 功能点 | 复杂度 | 数量 | 估算人天 |\n| --- | --- | --- | --- | --- |\n");
+            for (QuoteModule m : moduleMapper.listByProjectId(tid(), p.getId())) {
+                for (QuoteItem it : itemMapper.listByModuleId(tid(), m.getId())) {
+                    sb.append("| ").append(escMdCell(m.getName())).append(" | ").append(escMdCell(it.getName())).append(" | ")
+                            .append(escMdCell(it.getComplexity())).append(" | ").append(it.getQuantity()).append(" | ")
+                            .append(it.getEstimatedDays() != null ? it.getEstimatedDays().toPlainString() : "0").append(" |\n");
+                }
             }
         }
         return sb.toString();
@@ -1710,6 +1769,108 @@ public class QuoteService {
     }
 
     /**
+     * 解决方案向导第一步：仅拆分交付物骨架（键、名称、建议技术栈、范围摘要），不含功能点。
+     */
+    public Map<String, Object> parseDeliverablesOutlineWithAi(QuoteAiDeliverablesOutlineRequest req) {
+        if (req == null || req.getRequirementText() == null || req.getRequirementText().isBlank()) {
+            throw new IllegalArgumentException("需求描述不能为空");
+        }
+        String text = req.getRequirementText().trim();
+        if (text.length() > 20000) {
+            throw new IllegalArgumentException("需求描述过长，请控制在 20000 字以内");
+        }
+        AiAnalysisConfig cfg = aiConfigService.getConfig();
+        if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
+            throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
+        }
+        String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
+
+        StringBuilder ctx = new StringBuilder();
+        ctx.append("【项目上下文】\n");
+        ctx.append("项目类型：").append(labelProjectType(req.getProjectType()))
+                .append(" (code: ").append(nvl(req.getProjectType(), "")).append(")\n");
+        ctx.append("默认技术栈（未指定的交付物可参考）：").append(labelTechStack(req.getTechStack()))
+                .append(" (code: ").append(nvl(req.getTechStack(), "vue_node")).append(")\n");
+        if (req.getPrdSummary() != null && !req.getPrdSummary().isBlank()) {
+            String prd = req.getPrdSummary().trim();
+            if (prd.length() > 4000) {
+                prd = prd.substring(0, 4000) + "…";
+            }
+            ctx.append("PRD/摘要（节选）：\n").append(prd).append("\n");
+        }
+
+        String system = """
+你是资深软件外包需求分析师。用户要做「解决方案级」统一报价，请先只做交付物拆分骨架，不要输出功能点或模块明细。
+必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
+{"deliverables":[{"deliverableKey":"web","deliverableLabel":"Web 管理端","techStack":"vue_node","scopeSummary":"本交付物负责…"}]}
+规则：
+- deliverables：至少 2 个、通常不超过 6 个；每个代表可独立验收的子系统（如 Web 管理端、用户 App、后端 API）。
+- deliverableKey：小写英文短码，唯一（web、app、api、mini_program、admin 等）。
+- deliverableLabel：中文展示名。
+- techStack：必须是以下 code 之一：vue_node、react_java、miniprogram、flutter、other；按该交付物主要实现技术选择；不确定时用项目默认或 other。
+- scopeSummary：一两句话概括该交付物职责边界，勿写功能清单。
+""";
+
+        String userMsg = ctx + "\n【客户/需求原文】\n" + text;
+        List<DeepSeekClient.ChatMessage> messages = List.of(
+                new DeepSeekClient.ChatMessage("system", system),
+                new DeepSeekClient.ChatMessage("user", userMsg)
+        );
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 4096);
+        String content = result != null ? result.getContent() : null;
+        if (content == null || content.isBlank()) {
+            throw new IllegalStateException("AI 未返回有效内容，请稍后重试或缩短描述");
+        }
+        JsonNode root = parseAiJsonOrThrow(content, "parseDeliverablesOutline");
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (!root.has("deliverables") || !root.get("deliverables").isArray()) {
+            throw new IllegalStateException("AI 返回缺少 deliverables 数组");
+        }
+        Set<String> seen = new HashSet<>();
+        for (JsonNode del : root.get("deliverables")) {
+            String dKey = del.has("deliverableKey") ? del.get("deliverableKey").asText("").trim().toLowerCase() : "";
+            if (dKey.isEmpty() || seen.contains(dKey)) {
+                continue;
+            }
+            seen.add(dKey);
+            String dLabel = del.has("deliverableLabel") ? del.get("deliverableLabel").asText("").trim() : "";
+            String ts = del.has("techStack") ? del.get("techStack").asText("").trim() : "";
+            if (ts.isEmpty()) {
+                ts = nvl(req.getTechStack(), "vue_node");
+            }
+            String sum = del.has("scopeSummary") ? del.get("scopeSummary").asText("").trim() : "";
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("deliverableKey", dKey);
+            row.put("deliverableLabel", dLabel.isEmpty() ? dKey : dLabel);
+            row.put("techStack", normalizeTechStackCode(ts));
+            row.put("scopeSummary", sum);
+            out.add(row);
+        }
+        if (out.size() < 2) {
+            throw new IllegalStateException("交付物拆分过少，请补充更具体的多端/多子系统需求描述");
+        }
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("deliverables", out);
+        if (result != null) {
+            Map<String, Object> usage = new LinkedHashMap<>();
+            usage.put("inputTokens", result.getInputTokens());
+            usage.put("outputTokens", result.getOutputTokens());
+            usage.put("model", result.getModel() != null ? result.getModel() : model);
+            resp.put("usage", usage);
+        }
+        return resp;
+    }
+
+    private static String normalizeTechStackCode(String ts) {
+        if (ts == null) return "other";
+        String t = ts.trim().toLowerCase();
+        return switch (t) {
+            case "vue_node", "react_java", "miniprogram", "flutter", "other" -> t;
+            default -> "other";
+        };
+    }
+
+    /**
      * 自然语言 → DeepSeek JSON → 与前端/保存接口一致的 modules 结构。
      */
     public Map<String, Object> parseQuoteModulesWithAi(QuoteAiModulesParseRequest req) {
@@ -1752,7 +1913,39 @@ public class QuoteService {
         }
 
         boolean multiDel = Boolean.TRUE.equals(req.getMultiDeliverableMode());
-        String system = multiDel ? """
+        List<QuoteDeliverableHintDto> hints = req.getDeliverableHints();
+        boolean hintMode = multiDel && hints != null && !hints.isEmpty();
+        if (hintMode) {
+            ctx.append("\n【用户已确认的交付物分组（必须严格遵守，不得新增或改名 deliverableKey）】\n");
+            for (QuoteDeliverableHintDto h : hints) {
+                if (h == null || h.getDeliverableKey() == null || h.getDeliverableKey().isBlank()) {
+                    continue;
+                }
+                ctx.append("- deliverableKey=").append(h.getDeliverableKey().trim().toLowerCase());
+                if (h.getDeliverableLabel() != null && !h.getDeliverableLabel().isBlank()) {
+                    ctx.append("，展示名=").append(h.getDeliverableLabel().trim());
+                }
+                if (h.getTechStack() != null && !h.getTechStack().isBlank()) {
+                    ctx.append("，建议计价技术栈 code=").append(h.getTechStack().trim());
+                }
+                ctx.append("\n");
+            }
+        }
+
+        String system;
+        if (hintMode) {
+            system = """
+你是资深软件外包需求分析师。用户已固定交付物分组与技术栈倾向，请仅在各分组下拆解「模块 → 功能点」。
+必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
+{"deliverables":[{"deliverableKey":"web","deliverableLabel":"Web 管理端","modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}]}
+规则：
+- deliverables 数组必须与用户给出的分组一一对应：每个 deliverableKey 必须与用户列表中的键完全一致（小写），不得增删交付物。
+- deliverableLabel 与用户展示名一致（若用户未给则用键）。
+- 每个交付物下至少 1 个模块；modules 按业务域划分。
+- items：complexity 只能是 simple、standard、medium、complex、extreme；quantity 为正整数。
+""";
+        } else if (multiDel) {
+            system = """
 你是资深软件外包需求分析师。用户要做「一整套系统」的统一报价（可能含 Web、App、后端等多子系统）。
 必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
 {"deliverables":[{"deliverableKey":"web","deliverableLabel":"Web 管理端","modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}]}
@@ -1760,7 +1953,9 @@ public class QuoteService {
 - deliverables：至少 1 个交付物；deliverableKey 用小写英文短码（web、app、api、mini_program 等）；deliverableLabel 为中文展示名。
 - 每个交付物下 modules：按业务域划分，至少 1 个模块。
 - items：可交付功能粒度；complexity 只能是：simple、standard、medium、complex、extreme；quantity 为正整数。
-""" : """
+""";
+        } else {
+            system = """
 你是资深软件外包需求分析师。根据用户自然语言需求，拆解为「功能模块 → 功能点」清单，用于人天报价。
 必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
 {"modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}
@@ -1770,6 +1965,7 @@ public class QuoteService {
 - complexity 只能是英文枚举：simple、standard、medium、complex、extreme（对应 简单/标准/中等/复杂/极复杂 的工作量档位）。
 - quantity：正整数，默认 1。
 """;
+        }
 
         String userMsg = ctx + "\n【客户/需求原文】\n" + text;
 
@@ -1812,6 +2008,17 @@ public class QuoteService {
                     mm.put("sortOrder", mi++);
                     mm.put("deliverableKey", dKey);
                     mm.put("deliverableLabel", dLabel.isEmpty() ? null : dLabel);
+                    if (hintMode && hints != null) {
+                        for (QuoteDeliverableHintDto h : hints) {
+                            if (h == null || h.getDeliverableKey() == null) continue;
+                            if (dKey.equalsIgnoreCase(h.getDeliverableKey().trim())) {
+                                if (h.getTechStack() != null && !h.getTechStack().isBlank()) {
+                                    mm.put("techStack", h.getTechStack().trim());
+                                }
+                                break;
+                            }
+                        }
+                    }
                     mm.put("items", items);
                     outModules.add(mm);
                 }

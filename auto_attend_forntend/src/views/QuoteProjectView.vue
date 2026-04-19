@@ -5,12 +5,15 @@
         <router-link to="/quote" class="head-link-inline">← 报价列表</router-link>
         <router-link to="/quote/config" class="head-link-inline">{{ $t('quote.quoteConfigNav') }}</router-link>
       </div>
-      <h1>{{ isNew ? '新建解决方案报价' : '编辑解决方案报价' }}</h1>
-      <p v-if="isNew" class="solution-hero-text">
-        一次商务机会对应<strong>一套系统</strong>：可在下方按<strong>交付物</strong>（如 Web 管理端、用户 App、接口服务）分组填写模块与功能点，统一计算人天与总价；支持 AI 多交付物拆解与商务调价。
+      <h1>{{ pageTitle }}</h1>
+      <p v-if="isNew && isSolutionMode" class="solution-hero-text">
+        一次商务机会对应<strong>一套系统</strong>：若尚未规划交付物，可先走「解决方案向导」；在此页维护各交付物功能清单、统一计算与商务调价。代码仓库仅创建<strong>一个</strong>共用仓库。
+      </p>
+      <p v-else-if="isNew" class="solution-hero-text">
+        结构化录入项目维度与<strong>功能模块 / 功能点</strong>，计算人天与对外报价；适合单栈或单交付场景。
       </p>
       <p v-else class="solution-hero-text solution-hero-text--muted">
-        项目 #{{ quoteProjectIdForApi || '—' }} · 按交付物维护功能清单，保存后可在「报价计算」中生成基线价与对外价。
+        项目 #{{ quoteProjectIdForApi || '—' }} · {{ isSolutionMode ? '按交付物维护功能清单，保存后可在「报价计算」中生成基线价与对外价。' : '维护功能清单与报价计算偏好。' }}
       </p>
     </div>
 
@@ -127,9 +130,12 @@
       <party-b-profile-edit-modal :visible="showPartyBModal" @close="showPartyBModal = false" @saved="onPartyBProfileSaved" />
 
       <section class="card solution-modules-card">
-        <h2>解决方案报价 · 功能清单</h2>
-        <p class="solution-scope-lead">
-          将需求拆到不同<strong>交付物</strong>下（同一交付物键下的模块会合并为报价单中的一组）。默认「整单」为一块；需要 Web+App+后端时，点击<strong>添加交付物</strong>再分别填模块即可。
+        <h2>{{ isSolutionMode ? '解决方案 · 功能清单' : '功能清单' }}</h2>
+        <p v-if="!isSolutionMode" class="solution-scope-lead">
+          按<strong>业务模块</strong>维护功能点（复杂度、数量）。需要 AI 辅助时，使用下方「AI 智能录入」。
+        </p>
+        <p v-else class="solution-scope-lead">
+          各<strong>交付物</strong>下可有多条模块；同一交付物键下的模块会合并为报价单中的一组。需要调整交付物划分可使用<strong>解决方案向导</strong>预规划后再回到本页。
         </p>
         <div class="module-entry-mode-row" role="group" :aria-label="$t('quote.moduleEntryModeLabel')">
           <span class="module-mode-label">{{ $t('quote.moduleEntryModeLabel') }}</span>
@@ -148,10 +154,11 @@
         </div>
 
         <div v-show="moduleEntryMode === 'ai'" class="quote-ai-panel">
-          <label class="chk" style="display:block;margin-bottom:8px">
+          <label v-if="!isSolutionMode" class="chk" style="display:block;margin-bottom:8px">
             <input type="checkbox" v-model="aiMultiDeliverableMode" />
             整套系统拆解（多交付物：由 AI 输出 Web / App / 后端等分组）
           </label>
+          <p v-else class="hint" style="margin-bottom:8px">解决方案模式：AI 将按当前页面已确认的<strong>交付物键</strong>与<strong>各交付物技术栈</strong>填充模块与功能点。</p>
           <p class="hint">{{ $t('quote.aiModuleHint') }}</p>
           <label class="block">{{ $t('quote.aiModuleRequirementLabel') }}</label>
           <textarea v-model="aiRequirementText" class="textarea" rows="8" :placeholder="$t('quote.aiModulePlaceholder')"></textarea>
@@ -283,9 +290,9 @@
           :key="'dg-' + dg.key + '-' + gIdx"
           class="deliverable-group"
         >
-          <div class="deliverable-group__head">
+          <div v-if="showDeliverableGroupMeta(dg)" class="deliverable-group__head">
             <div class="deliverable-group__title">
-              <span class="deliverable-group__badge">交付物 {{ gIdx + 1 }}</span>
+              <span class="deliverable-group__badge">{{ isSolutionMode ? ('交付物 ' + (gIdx + 1)) : '功能模块' }}</span>
               <span class="deliverable-group__key-label">{{ formatDeliverableHeadTitle(dg) }}</span>
             </div>
             <div class="deliverable-group__meta">
@@ -306,8 +313,22 @@
                   @input="syncDeliverableLabel(dg.key, $event.target.value)"
                 >
               </label>
+              <label v-if="isSolutionMode" class="deliverable-inline">计价技术栈
+                <select
+                  class="inp"
+                  :value="techStackForDeliverableGroup(dg.key)"
+                  @change="syncTechStackForGroup(dg.key, $event.target.value)"
+                >
+                  <option value="vue_node">Vue+Node</option>
+                  <option value="react_java">React+Java</option>
+                  <option value="miniprogram">小程序原生</option>
+                  <option value="flutter">Flutter</option>
+                  <option value="other">其他</option>
+                </select>
+              </label>
               <button type="button" class="btn secondary btn-sm" @click="addModuleInGroup(gIdx)">在本交付物下加模块</button>
               <button
+                v-if="isSolutionMode"
                 type="button"
                 class="btn-sm danger"
                 :disabled="!canRemoveDeliverableGroup(gIdx)"
@@ -409,15 +430,16 @@
             </div>
           </div>
 
-          <div class="deliverable-group__subtotal">
+          <div v-if="showDeliverableSubtotal()" class="deliverable-group__subtotal">
             <span>本交付物金额小计（对外）：<strong>{{ deliverableSubtotalFmt(dg.key) }}</strong></span>
             <span class="hint" style="margin-left:8px">计算报价后按行金额汇总；未计算时显示 —</span>
           </div>
         </div>
 
         <div class="deliverable-global-actions">
-          <button type="button" class="btn primary" @click="addDeliverableGroup">＋ 添加交付物</button>
-          <button type="button" class="btn secondary" @click="addModuleToDefaultDeliverable">在「整单 / 默认」下加模块</button>
+          <button v-if="isSolutionMode" type="button" class="btn secondary" @click="goSolutionWizard">打开解决方案向导（规划交付物）</button>
+          <button v-if="isSolutionMode" type="button" class="btn primary" @click="addDeliverableGroup">＋ 添加交付物</button>
+          <button v-if="!isSolutionMode" type="button" class="btn secondary" @click="addModuleToDefaultDeliverable">添加模块</button>
         </div>
       </section>
 
@@ -802,6 +824,7 @@
 
             <div class="output-sidebar-section output-sidebar-section--provision">
               <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionRepo') }}</h4>
+              <p v-if="isSolutionMode" class="hint sidebar-provision-hint">解决方案级报价仍只创建<strong>一个</strong> GitHub 仓库，多端可在同一仓库分目录管理。</p>
               <p class="hint sidebar-provision-hint">{{ $t('quote.outputRepoHint') }}</p>
               <div v-if="provisionMeta.repoFullName" class="provision-meta sidebar-provision-meta">
                 <p><strong>{{ $t('quote.outputRepoLink') }}</strong><a :href="provisionMeta.repoHtmlUrl" target="_blank" rel="noopener">{{ provisionMeta.repoFullName }}</a></p>
@@ -935,6 +958,7 @@ function emptyModule () {
     sortOrder: 0,
     deliverableKey: 'default',
     deliverableLabel: '',
+    techStack: '',
     items: [{ name: '', complexity: 'standard', quantity: 1, excludedFromScale: false }]
   }
 }
@@ -1134,7 +1158,8 @@ export default {
         prdSummary: '',
         quoteSubjectMode: 'legal_entity',
         quoteVendorName: '',
-        quoteContactInfo: ''
+        quoteContactInfo: '',
+        quoteKind: 'single'
       },
       quoteValidityDays: '',
       quoteValidityDayKind: 'natural',
@@ -1276,6 +1301,15 @@ export default {
     }
   },
   computed: {
+    isSolutionMode () {
+      return (this.form.quoteKind || 'single') === 'solution'
+    },
+    pageTitle () {
+      if (this.isNew) {
+        return this.isSolutionMode ? '新建解决方案级报价' : '新建报价项目'
+      }
+      return this.isSolutionMode ? '编辑解决方案级报价' : '编辑报价项目'
+    },
     quotePreviewable () {
       return this.quoteDocType === 'quoteHtml' || this.quoteDocType === 'quotePdf'
     },
@@ -1622,6 +1656,8 @@ export default {
         await this.loadPartyBProfile()
         if (this.isNew) {
           this.projectId = null
+          const q = this.$route.query || {}
+          const modeSol = q.mode === 'solution'
           this.form = {
             ...this.form,
             id: null,
@@ -1629,7 +1665,8 @@ export default {
             prdSummary: '',
             quoteSubjectMode: 'legal_entity',
             quoteVendorName: '',
-            quoteContactInfo: ''
+            quoteContactInfo: '',
+            quoteKind: modeSol ? 'solution' : 'single'
           }
           this.quoteValidityDays = ''
           this.quoteValidityDayKind = 'natural'
@@ -1639,8 +1676,12 @@ export default {
           this.aiRequirementText = ''
           this.aiRequirementPersistedText = ''
           this.aiMergeMode = 'replace'
+          this.aiMultiDeliverableMode = false
           this.resetCalcPrefsUi()
           this.resetArtifactReady()
+          if (q.fromWizard === '1') {
+            this.applyWizardPayload()
+          }
         } else {
           this.projectId = Number(raw)
           await this.loadProject(this.projectId)
@@ -1675,6 +1716,7 @@ export default {
             this.aiRequirementPersistedText = d.aiRequirementText || ''
             this.aiRequirementText = this.aiMergeMode === 'append' ? '' : (this.aiRequirementPersistedText || '')
             this.form.quoteSubjectMode = d.quoteSubjectMode || 'legal_entity'
+            this.form.quoteKind = d.quoteKind || 'single'
             this.form.quoteVendorName = d.quoteVendorName || ''
             this.form.quoteContactInfo = d.quoteContactInfo || ''
             this.applyQuoteValidityFromServer(d.quoteValidityNote || '')
@@ -1687,6 +1729,7 @@ export default {
                 sortOrder: m.sortOrder != null ? m.sortOrder : idx,
                 deliverableKey: m.deliverableKey || 'default',
                 deliverableLabel: m.deliverableLabel || '',
+                techStack: m.techStack != null ? String(m.techStack) : '',
                 items: (m.items || []).map(it => ({
                   name: it.name,
                   complexity: it.complexity || 'standard',
@@ -2068,6 +2111,7 @@ export default {
         prdSummary: this.form.prdSummary,
         aiRequirementText: this.aiMergeMode === 'append' ? (this.aiRequirementPersistedText || '') : (this.aiRequirementText || ''),
         quoteSubjectMode: this.form.quoteSubjectMode || 'legal_entity',
+        quoteKind: this.form.quoteKind || 'single',
         quoteVendorName: this.form.quoteVendorName || '',
         quoteContactInfo: this.form.quoteContactInfo || '',
         quoteValidityNote: this.buildQuoteValidityNoteForPayload(),
@@ -2076,6 +2120,7 @@ export default {
           sortOrder: m.sortOrder != null ? m.sortOrder : mi,
           deliverableKey: (m.deliverableKey && String(m.deliverableKey).trim()) ? String(m.deliverableKey).trim() : 'default',
           deliverableLabel: m.deliverableLabel != null ? String(m.deliverableLabel).trim() : '',
+          techStack: (m.techStack && String(m.techStack).trim()) ? String(m.techStack).trim() : null,
           items: (m.items || []).filter(it => it.name && String(it.name).trim()).map(it => ({
             name: String(it.name).trim(),
             complexity: it.complexity || 'standard',
@@ -2235,11 +2280,13 @@ export default {
         }).filter(it => it.name)
         const dk = (m.deliverableKey && String(m.deliverableKey).trim()) ? String(m.deliverableKey).trim() : 'default'
         const dl = m.deliverableLabel != null ? String(m.deliverableLabel).trim() : ''
+        const ts = m.techStack != null ? String(m.techStack).trim() : ''
         return {
           name: String(m.name || '').trim(),
           sortOrder: typeof m.sortOrder === 'number' ? m.sortOrder : mi,
           deliverableKey: dk,
           deliverableLabel: dl,
+          techStack: ts,
           items: items.length ? items : [{ name: '', complexity: 'standard', quantity: 1, excludedFromScale: false }]
         }
       }).filter(m => m.name && m.items.some(it => it.name))
@@ -2551,7 +2598,10 @@ export default {
           securityLevel: this.form.securityLevel,
           deployType: this.form.deployType,
           prdSummary: this.form.prdSummary || '',
-          multiDeliverableMode: !!this.aiMultiDeliverableMode
+          multiDeliverableMode: this.isSolutionMode ? true : !!this.aiMultiDeliverableMode
+        }
+        if (this.isSolutionMode) {
+          body.deliverableHints = this.buildDeliverableHintsForAi()
         }
         const resp = await this.$http.post('/admin/quote/ai/parse-modules', body)
         if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.modules) {
@@ -2596,7 +2646,78 @@ export default {
       const lab = (dg.label || '').trim()
       if (lab) return lab
       const k = String(dg.key || 'default').trim()
+      if (!this.isSolutionMode && k === 'default') return '模块列表'
       return k === 'default' ? '整单（默认）' : k
+    },
+    showDeliverableGroupMeta (dg) {
+      if (this.isSolutionMode) return true
+      const k = dg && dg.key != null ? String(dg.key).trim() : 'default'
+      return k !== 'default'
+    },
+    showDeliverableSubtotal () {
+      return this.isSolutionMode
+    },
+    techStackForDeliverableGroup (key) {
+      const kk = (key != null && String(key).trim()) ? String(key).trim() : 'default'
+      for (const m of this.modules || []) {
+        const mk = (m.deliverableKey && String(m.deliverableKey).trim()) || 'default'
+        if (mk === kk) {
+          const ts = m.techStack != null ? String(m.techStack).trim() : ''
+          return ts || this.form.techStack || 'vue_node'
+        }
+      }
+      return this.form.techStack || 'vue_node'
+    },
+    syncTechStackForGroup (key, val) {
+      const kk = (key != null && String(key).trim()) ? String(key).trim() : 'default'
+      for (const m of this.modules) {
+        const mk = (m.deliverableKey && String(m.deliverableKey).trim()) || 'default'
+        if (mk === kk) {
+          m.techStack = val
+        }
+      }
+    },
+    goSolutionWizard () {
+      this.$router.push({ path: '/quote/solution-wizard' })
+    },
+    applyWizardPayload () {
+      try {
+        const raw = sessionStorage.getItem('quote_solution_payload')
+        if (!raw) return
+        const p = JSON.parse(raw)
+        sessionStorage.removeItem('quote_solution_payload')
+        if (p.form) {
+          if (p.form.name) this.form.name = p.form.name
+          if (p.form.projectType) this.form.projectType = p.form.projectType
+          if (p.form.techStack) this.form.techStack = p.form.techStack
+          if (p.form.quoteKind) this.form.quoteKind = p.form.quoteKind
+          if (p.form.prdSummary != null) this.form.prdSummary = p.form.prdSummary
+        }
+        if (p.aiRequirementText) {
+          this.aiRequirementText = p.aiRequirementText
+          this.aiRequirementPersistedText = p.aiRequirementText
+        }
+        if (p.modules && p.modules.length) {
+          this.modules = p.modules
+        }
+      } catch (e) {
+        void e
+      }
+    },
+    buildDeliverableHintsForAi () {
+      const hints = []
+      const seen = new Set()
+      for (const m of this.modules || []) {
+        const dk = (m.deliverableKey && String(m.deliverableKey).trim()) || 'default'
+        if (seen.has(dk)) continue
+        seen.add(dk)
+        hints.push({
+          deliverableKey: dk,
+          deliverableLabel: (m.deliverableLabel && String(m.deliverableLabel).trim()) ? String(m.deliverableLabel).trim() : null,
+          techStack: (m.techStack && String(m.techStack).trim()) ? String(m.techStack).trim() : (this.form.techStack || null)
+        })
+      }
+      return hints
     },
     deliverableLabelForGroup (key) {
       const kk = (key != null && String(key).trim()) ? String(key).trim() : 'default'
@@ -2637,6 +2758,7 @@ export default {
       const row = emptyModule()
       row.deliverableKey = (sample.deliverableKey && String(sample.deliverableKey).trim()) || 'default'
       row.deliverableLabel = sample.deliverableLabel != null ? String(sample.deliverableLabel) : ''
+      row.techStack = sample.techStack != null ? String(sample.techStack) : ''
       const lastIdx = dg.indices[dg.indices.length - 1]
       this.modules.splice(lastIdx + 1, 0, row)
     },
@@ -2663,6 +2785,7 @@ export default {
       const row = emptyModule()
       row.deliverableKey = key
       row.deliverableLabel = '新交付物'
+      row.techStack = this.form.techStack || ''
       this.modules.push(row)
     },
     canRemoveDeliverableGroup (gIdx) {
