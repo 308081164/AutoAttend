@@ -18,6 +18,10 @@ public class QuoteAiModulesParseRequest {
     private String prdSummary;
     /** 为 true 时要求 AI 按「多交付物」输出 deliverables[]（整套系统报价） */
     private Boolean multiDeliverableMode;
+    /**
+     * 与 multiDeliverableMode 联用：用户已确认的交付物键/名称/各交付物技术栈，AI 须严格按此分组拆解模块。
+     */
+    private java.util.List<QuoteDeliverableHintDto> deliverableHints;
 
     public String getRequirementText() {
         return requirementText;
@@ -97,5 +101,13 @@ public class QuoteAiModulesParseRequest {
 
     public void setMultiDeliverableMode(Boolean multiDeliverableMode) {
         this.multiDeliverableMode = multiDeliverableMode;
+    }
+
+    public java.util.List<QuoteDeliverableHintDto> getDeliverableHints() {
+        return deliverableHints;
+    }
+
+    public void setDeliverableHints(java.util.List<QuoteDeliverableHintDto> deliverableHints) {
+        this.deliverableHints = deliverableHints;
     }
 }

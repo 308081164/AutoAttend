@@ -101,6 +101,25 @@ public class AdminQuoteController {
     }
 
     /**
+     * 解决方案向导：仅 AI 拆分交付物骨架（键、名称、建议技术栈、范围摘要），不含功能点。
+     */
+    @PostMapping("/ai/parse-deliverables-outline")
+    public ApiResponse<Map<String, Object>> parseDeliverablesOutlineWithAi(@RequestBody(required = false) QuoteAiDeliverablesOutlineRequest body) {
+        if (body == null) {
+            body = new QuoteAiDeliverablesOutlineRequest();
+        }
+        try {
+            return ApiResponse.ok(quoteService.parseDeliverablesOutlineWithAi(body));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(50000, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(50000, e.getMessage() != null ? e.getMessage() : "解析失败");
+        }
+    }
+
+    /**
      * 根据当前功能清单与项目上下文生成「验收测试用例/测试清单」JSON（不落库）；与 DeepSeek、AI 配置同源。
      */
     @PostMapping("/ai/acceptance-test-cases")

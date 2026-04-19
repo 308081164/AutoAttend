@@ -28,6 +28,8 @@ public class QuoteProject {
     private String quoteValidityNote;
     /** 报价单出具方来源：legal_entity=配置法人模板，natural_person=配置自然人模板，manual=本项目手写 */
     private String quoteSubjectMode;
+    /** single=单体项目报价；solution=解决方案级报价 */
+    private String quoteKind;
     /** GitHub provision：仓库 full_name（owner/repo） */
     private String githubRepoFullName;
     /** GitHub provision：仓库页面 URL */
@@ -87,6 +89,8 @@ public class QuoteProject {
     public void setQuoteValidityNote(String quoteValidityNote) { this.quoteValidityNote = quoteValidityNote; }
     public String getQuoteSubjectMode() { return quoteSubjectMode; }
     public void setQuoteSubjectMode(String quoteSubjectMode) { this.quoteSubjectMode = quoteSubjectMode; }
+    public String getQuoteKind() { return quoteKind; }
+    public void setQuoteKind(String quoteKind) { this.quoteKind = quoteKind; }
     public String getGithubRepoFullName() { return githubRepoFullName; }
     public void setGithubRepoFullName(String githubRepoFullName) { this.githubRepoFullName = githubRepoFullName; }
     public String getGithubRepoHtmlUrl() { return githubRepoHtmlUrl; }

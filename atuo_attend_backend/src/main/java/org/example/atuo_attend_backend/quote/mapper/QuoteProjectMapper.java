@@ -11,10 +11,10 @@ public interface QuoteProjectMapper {
     @Insert("""
             INSERT INTO biz_quote_project (tenant_id, name, project_type, tech_stack, design_type, data_migration,
                 concurrency, security_level, deploy_type, status, link_table_id, prd_summary, quote_calc_prefs_json, quote_contract_context_json,
-                ai_requirement_text, quote_vendor_name, quote_contact_info, quote_validity_note, quote_subject_mode)
+                ai_requirement_text, quote_vendor_name, quote_contact_info, quote_validity_note, quote_subject_mode, quote_kind)
             VALUES (#{tenantId}, #{name}, #{projectType}, #{techStack}, #{designType}, #{dataMigration},
                 #{concurrency}, #{securityLevel}, #{deployType}, #{status}, #{linkTableId}, #{prdSummary}, #{quoteCalcPrefsJson}, #{quoteContractContextJson},
-                #{aiRequirementText}, #{quoteVendorName}, #{quoteContactInfo}, #{quoteValidityNote}, #{quoteSubjectMode})
+                #{aiRequirementText}, #{quoteVendorName}, #{quoteContactInfo}, #{quoteValidityNote}, #{quoteSubjectMode}, #{quoteKind})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(QuoteProject p);
@@ -27,7 +27,7 @@ public interface QuoteProjectMapper {
                 quote_contract_context_json=#{quoteContractContextJson},
                 ai_requirement_text=#{aiRequirementText},
                 quote_vendor_name=#{quoteVendorName}, quote_contact_info=#{quoteContactInfo}, quote_validity_note=#{quoteValidityNote},
-                quote_subject_mode=#{quoteSubjectMode},
+                quote_subject_mode=#{quoteSubjectMode}, quote_kind=#{quoteKind},
                 updated_at=CURRENT_TIMESTAMP
             WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
@@ -39,7 +39,7 @@ public interface QuoteProjectMapper {
             "quote_contract_context_json AS quoteContractContextJson, " +
             "ai_requirement_text AS aiRequirementText, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
-            "quote_subject_mode AS quoteSubjectMode, " +
+            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, " +
             "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
             "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
             "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
@@ -54,7 +54,7 @@ public interface QuoteProjectMapper {
             "quote_contract_context_json AS quoteContractContextJson, " +
             "ai_requirement_text AS aiRequirementText, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
-            "quote_subject_mode AS quoteSubjectMode, " +
+            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, " +
             "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
             "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
             "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +

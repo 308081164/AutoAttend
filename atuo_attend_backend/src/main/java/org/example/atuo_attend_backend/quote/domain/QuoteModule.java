@@ -10,6 +10,8 @@ public class QuoteModule {
     private String deliverableKey;
     /** 交付物展示名 */
     private String deliverableLabel;
+    /** 可选；为空则使用项目级 tech_stack 做人天基准（解决方案多交付物） */
+    private String techStack;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -25,4 +27,6 @@ public class QuoteModule {
     public void setDeliverableKey(String deliverableKey) { this.deliverableKey = deliverableKey; }
     public String getDeliverableLabel() { return deliverableLabel; }
     public void setDeliverableLabel(String deliverableLabel) { this.deliverableLabel = deliverableLabel; }
+    public String getTechStack() { return techStack; }
+    public void setTechStack(String techStack) { this.techStack = techStack; }
 }

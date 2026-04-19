@@ -29,6 +29,8 @@ public class QuoteProjectSaveDto {
     private String quoteValidityNote;
     /** legal_entity | natural_person | manual */
     private String quoteSubjectMode;
+    /** single | solution；默认 single */
+    private String quoteKind;
     private List<QuoteModuleSaveDto> modules = new ArrayList<>();
 
     public String getName() { return name; }
@@ -67,6 +69,8 @@ public class QuoteProjectSaveDto {
     public void setQuoteValidityNote(String quoteValidityNote) { this.quoteValidityNote = quoteValidityNote; }
     public String getQuoteSubjectMode() { return quoteSubjectMode; }
     public void setQuoteSubjectMode(String quoteSubjectMode) { this.quoteSubjectMode = quoteSubjectMode; }
+    public String getQuoteKind() { return quoteKind; }
+    public void setQuoteKind(String quoteKind) { this.quoteKind = quoteKind; }
     public List<QuoteModuleSaveDto> getModules() { return modules; }
     public void setModules(List<QuoteModuleSaveDto> modules) { this.modules = modules != null ? modules : new ArrayList<>(); }
 }

@@ -1,12 +1,13 @@
 <template>
   <div class="quote-list-page">
     <div class="page-head">
-      <h1>{{ $t('quote.listTitle') }}</h1>
-      <p class="desc">{{ $t('quote.listDesc') }}</p>
-      <p class="desc desc-sub">每个项目即一次<strong>解决方案报价</strong>：可在编辑页按<strong>交付物</strong>（Web / App / 后端等）分组维护功能清单，统一计算总价与商务调价。</p>
-      <div class="head-actions">
+      <h1>报价项目</h1>
+      <p class="desc">结构化需求 → 人天与报价 → 报价单 → AI 合同（半自动化）</p>
+      <p class="desc desc-sub">请选择创建方式：<strong>单体项目报价</strong>适合单栈/单交付；<strong>解决方案级报价</strong>适合多端/多交付物统一签约（可先规划交付物再填功能）。</p>
+      <div class="head-actions head-actions-split">
         <router-link to="/quote/config" class="secondary-button">{{ $t('quote.quoteConfigNav') }}</router-link>
-        <router-link to="/quote/new" class="primary-button">{{ $t('quote.newProject') }}</router-link>
+        <router-link to="/quote/new" class="primary-button">新建 · 单体项目报价</router-link>
+        <router-link to="/quote/solution-wizard" class="primary-button primary-button--alt">新建 · 解决方案级报价</router-link>
       </div>
     </div>
     <div v-if="loading" class="placeholder">{{ $t('quote.loading') }}</div>
@@ -16,6 +17,7 @@
         <tr>
           <th>ID</th>
           <th>{{ $t('quote.name') }}</th>
+          <th>模式</th>
           <th>{{ $t('quote.techStack') }}</th>
           <th>操作</th>
         </tr>
@@ -24,6 +26,7 @@
         <tr v-for="row in items" :key="row.id">
           <td>{{ row.id }}</td>
           <td>{{ row.name }}</td>
+          <td>{{ row.quoteKind === 'solution' ? '解决方案' : '单体' }}</td>
           <td>{{ row.techStack }}</td>
           <td>
             <router-link :to="'/quote/' + row.id">{{ $t('quote.open') }}</router-link>
@@ -117,6 +120,17 @@ export default {
   font-weight: var(--font-weight-normal);
   opacity: 0.95;
 }
+.head-actions-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.primary-button--alt {
+  background: linear-gradient(135deg, #0d9488, #0f766e);
+  border: none;
+}
+
 .head-actions {
   display: flex;
   flex-wrap: wrap;
