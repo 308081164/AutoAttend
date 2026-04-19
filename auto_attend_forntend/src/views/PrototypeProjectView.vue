@@ -107,6 +107,7 @@
                   <button type="button" class="secondary-button" :disabled="penpotProbeLoading || penpotBootstrapping || !penpotReady" @click="checkPenpotReachable">
                     {{ penpotProbeLoading ? '检测中…' : '检测 Penpot 连通' }}
                   </button>
+                  <router-link to="/prototype/penpot-diagnose" class="secondary-button diagnose-link">诊断测试</router-link>
                 </div>
                 <div v-if="penpotStatusHint" class="section-hint">{{ penpotStatusHint }}</div>
                 <div v-if="penpotError" class="error-msg">{{ penpotError }}</div>

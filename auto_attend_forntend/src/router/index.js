@@ -20,6 +20,7 @@ import QuoteSolutionWizardView from '../views/QuoteSolutionWizardView.vue'
 import QuoteConfigView from '../views/QuoteConfigView.vue'
 import PrototypeListView from '../views/PrototypeListView.vue'
 import PrototypeProjectView from '../views/PrototypeProjectView.vue'
+import PenpotDiagnoseView from '../views/PenpotDiagnoseView.vue'
 import NexusConsoleView from '../views/NexusConsoleView.vue'
 import LabView from '../views/LabView.vue'
 import CloudDevHubView from '../views/CloudDevHubView.vue'
@@ -172,6 +173,11 @@ const routes = [
     path: '/prototype/:projectId',
     name: 'prototype-project',
     component: PrototypeProjectView
+  },
+  {
+    path: '/prototype/penpot-diagnose',
+    name: 'penpot-diagnose',
+    component: PenpotDiagnoseView
   },
   {
     path: '/nexus',
