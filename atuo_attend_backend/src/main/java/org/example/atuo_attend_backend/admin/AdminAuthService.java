@@ -15,6 +15,8 @@ import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.domain.TenantAdminUser;
 import org.example.atuo_attend_backend.tenant.mapper.AdminSessionMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantAdminUserMapper;
+import org.example.atuo_attend_backend.config.SystemConfigService;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -43,6 +45,7 @@ public class AdminAuthService {
     private final AdminSmsService adminSmsService;
     private final InviteCodeService inviteCodeService;
     private final OfficialAiPoolService officialAiPoolService;
+    private final SystemConfigService systemConfigService;
 
     public AdminAuthService(TenantMapper tenantMapper,
                             TenantAdminUserMapper tenantAdminUserMapper,
@@ -51,7 +54,8 @@ public class AdminAuthService {
                             CollabAuthService collabAuthService,
                             AdminSmsService adminSmsService,
                             InviteCodeService inviteCodeService,
-                            OfficialAiPoolService officialAiPoolService) {
+                            OfficialAiPoolService officialAiPoolService,
+                            SystemConfigService systemConfigService) {
         this.tenantMapper = tenantMapper;
         this.tenantAdminUserMapper = tenantAdminUserMapper;
         this.adminSessionMapper = adminSessionMapper;
@@ -60,6 +64,7 @@ public class AdminAuthService {
         this.adminSmsService = adminSmsService;
         this.inviteCodeService = inviteCodeService;
         this.officialAiPoolService = officialAiPoolService;
+        this.systemConfigService = systemConfigService;
     }
 
     /**
@@ -148,6 +153,17 @@ public class AdminAuthService {
         tenant.setStatus("active");
         tenantMapper.insert(tenant);
         officialAiPoolService.grantRegistrationBonus(tenant.getId());
+        try {
+            TenantContext.runWithTenantId(tenant.getId(), () -> {
+                try {
+                    systemConfigService.seedPartyBLegalNameIfEmpty(tenant.getName());
+                } catch (Exception e) {
+                    // 主体模板预填失败不阻断注册
+                }
+            });
+        } catch (Exception ignored) {
+            // ignore
+        }
 
         TenantAdminUser user = new TenantAdminUser();
         user.setTenantId(tenant.getId());

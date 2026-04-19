@@ -6,6 +6,7 @@ import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.tenant.billing.TenantBillingService;
 import org.example.atuo_attend_backend.tenant.domain.SubscriptionOrder;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.mapper.ReferralCommissionMapper;
 import org.example.atuo_attend_backend.tenant.mapper.SubscriptionOrderMapper;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.example.atuo_attend_backend.ai.official.OfficialAiPoolService;
@@ -19,7 +20,9 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 租户侧：模拟支付开通会员（不跳转第三方支付）。
@@ -36,6 +39,7 @@ public class AdminTenantBillingController {
     private final InviteCodeService inviteCodeService;
     private final OfficialAiTokenRedeemService officialAiTokenRedeemService;
     private final OfficialAiPoolService officialAiPoolService;
+    private final ReferralCommissionMapper referralCommissionMapper;
 
     public AdminTenantBillingController(TenantMapper tenantMapper,
                                         TenantBillingService tenantBillingService,
@@ -44,7 +48,8 @@ public class AdminTenantBillingController {
                                         ReferralCommissionService referralCommissionService,
                                         InviteCodeService inviteCodeService,
                                         OfficialAiTokenRedeemService officialAiTokenRedeemService,
-                                        OfficialAiPoolService officialAiPoolService) {
+                                        OfficialAiPoolService officialAiPoolService,
+                                        ReferralCommissionMapper referralCommissionMapper) {
         this.tenantMapper = tenantMapper;
         this.tenantBillingService = tenantBillingService;
         this.subscriptionOrderMapper = subscriptionOrderMapper;
@@ -53,6 +58,7 @@ public class AdminTenantBillingController {
         this.inviteCodeService = inviteCodeService;
         this.officialAiTokenRedeemService = officialAiTokenRedeemService;
         this.officialAiPoolService = officialAiPoolService;
+        this.referralCommissionMapper = referralCommissionMapper;
     }
 
     private static long tenantId(HttpServletRequest request) {
@@ -200,6 +206,47 @@ public class AdminTenantBillingController {
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ApiResponse.error(40000, e.getMessage());
         }
+    }
+
+    /**
+     * 联合创始人：通过本租户邀请码注册成功的组织列表。
+     */
+    @GetMapping("/referral/invitees")
+    public ApiResponse<Map<String, Object>> referralInvitees(HttpServletRequest request) {
+        long tid = tenantId(request);
+        if (tid <= 0) {
+            return ApiResponse.error(40101, "未登录");
+        }
+        var rows = tenantMapper.listReferralInvitees(tid, 200);
+        Map<String, Object> data = new HashMap<>();
+        data.put("items", rows);
+        return ApiResponse.ok(data);
+    }
+
+    /**
+     * 邀请积分流水：被邀请方首年内模拟付费产生的分成（与 member_points 入账一致）。
+     */
+    @GetMapping("/referral/points-ledger")
+    public ApiResponse<Map<String, Object>> referralPointsLedger(HttpServletRequest request) {
+        long tid = tenantId(request);
+        if (tid <= 0) {
+            return ApiResponse.error(40101, "未登录");
+        }
+        var rows = referralCommissionMapper.listByReferrer(tid, 500);
+        List<Map<String, Object>> items = rows.stream().map(r -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", r.getId());
+            m.put("sourceTenantId", r.getSourceTenantId());
+            m.put("sourceTenantName", r.getSourceTenantName());
+            m.put("orderAmountCents", r.getOrderAmountCents());
+            m.put("commissionCents", r.getCommissionCents());
+            m.put("subscriptionOrderId", r.getSubscriptionOrderId());
+            m.put("createdAt", r.getCreatedAt());
+            return m;
+        }).collect(Collectors.toList());
+        Map<String, Object> data = new HashMap<>();
+        data.put("items", items);
+        return ApiResponse.ok(data);
     }
 
     @GetMapping("/invite/my-code")

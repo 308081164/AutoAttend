@@ -561,7 +561,7 @@
                   {{ t.label }}
                 </div>
                 <div class="lab-mini-tag">
-                  尽情期待
+                  敬请期待
                 </div>
               </div>
             </div>
@@ -607,14 +607,6 @@
             <p v-else class="hub-placeholder muted">{{ $t('dashboard.hubPrototypeEmpty') }}</p>
           </section>
 
-          <section class="hub-card console-elevated hub-chance hub-card-placeholder">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-chance" aria-hidden="true">◇</span>
-              <h2 class="hub-card-title">机会角</h2>
-            </div>
-            <p class="hub-desc"></p>
-            <span class="hub-soon">尽情期待</span>
-          </section>
         </div>
 
         <template v-if="!suppressBoardHeader">
@@ -1088,10 +1080,11 @@ export default {
 
       // 首页：增效实验室（小卡片列表）
       labTabs: [
-        { key: 'finance', label: '智能财会' },
-        { key: 'geo', label: 'GEO推流' },
-        { key: 'dashboard', label: '客户看板' },
-        { key: 'lobster', label: '龙虾智能体' }
+        { key: 'ai_native', label: 'AI原生应用和开放API' },
+        { key: 'cloud_coding', label: '流帮 Cloud Coding' },
+        { key: 'xianyu', label: '咸鱼/淘宝管家' },
+        { key: 'dr', label: '项目容灾恢复' },
+        { key: 'migrate', label: '项目迁移' }
       ],
 
       /** 当前版本默认视为已认证；后续可对接企业认证接口 */

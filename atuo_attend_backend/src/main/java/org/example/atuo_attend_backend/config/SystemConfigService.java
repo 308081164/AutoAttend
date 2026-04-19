@@ -365,6 +365,23 @@ public class SystemConfigService {
         mapper.upsert(tenantId(), KEY_QUOTE_PARTY_B_PROFILE, json);
     }
 
+    /**
+     * 注册成功后：若乙方主体模板中法人名称未填，用组织名称预填，避免用户在工作台再次手填。
+     */
+    public void seedPartyBLegalNameIfEmpty(String orgName) throws JsonProcessingException {
+        if (orgName == null || orgName.isBlank()) {
+            return;
+        }
+        Map<String, Object> cur = getQuotePartyBProfile();
+        Object ln = cur.get("legalName");
+        if (ln != null && !String.valueOf(ln).trim().isEmpty()) {
+            return;
+        }
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("legalName", orgName.trim());
+        saveQuotePartyBProfile(patch);
+    }
+
     // ===== 项目信息发布（平台级 tenant_id=0）=====
 
     /**

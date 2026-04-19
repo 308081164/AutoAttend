@@ -2,6 +2,7 @@ package org.example.atuo_attend_backend.tenant.mapper;
 
 import org.apache.ibatis.annotations.*;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.dto.ReferralInviteeRow;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -114,4 +115,14 @@ public interface TenantMapper {
     int updateProjectMarketplacePrefs(@Param("id") long id,
                                       @Param("enabled") boolean enabled,
                                       @Param("allowPublish") boolean allowPublish);
+
+    @Select("""
+            SELECT id AS tenantId, name, slug, created_at AS createdAt FROM aa_tenant
+            WHERE referrer_tenant_id = #{referrerId}
+            ORDER BY id DESC
+            LIMIT #{limit}
+            """)
+    List<ReferralInviteeRow> listReferralInvitees(
+            @Param("referrerId") long referrerId,
+            @Param("limit") int limit);
 }

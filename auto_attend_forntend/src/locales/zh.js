@@ -289,7 +289,21 @@ export default {
     planFree: '免费版',
     planTeam: '尝鲜版',
     planPro: '专业版',
-    planProPlus: '专业增强版'
+    planProPlus: '专业增强版',
+    tabPurchase: '会员采购',
+    tabReferral: '联合创始人',
+    cofounderTitle: '联合创始人',
+    cofounderHint: '通过您的邀请码成功注册的组织将显示在下方；对方首年内模拟付费时，您将获得会员积分（与积分流水一致）。',
+    cofounderEmpty: '暂无通过您邀请注册的组织。',
+    pointsLedgerTitle: '邀请积分流水',
+    pointsLedgerHint: '记录被邀请方模拟付费后，为您账户增加的会员积分（1 积分 = 1 元购买力）。',
+    pointsLedgerEmpty: '暂无分成流水；被邀请方在注册后一年内完成模拟支付后将在此展示。',
+    colOrgName: '组织名称',
+    colRegisteredAt: '注册时间',
+    colSourceOrg: '来源组织',
+    colOrderAmount: '订单金额（标价）',
+    colPointsEarned: '获得积分',
+    colRecordedAt: '入账时间'
   },
   dashboard: {
     workbenchEyebrow: '运营指挥中心',

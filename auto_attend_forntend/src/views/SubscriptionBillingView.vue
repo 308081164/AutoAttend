@@ -21,7 +21,8 @@
     <section v-if="loading" class="sub-card sub-card--panel sub-loading">{{ $t('dashboard.loading') }}…</section>
     <section v-else-if="error" class="sub-card sub-card--panel sub-error">{{ error }}</section>
 
-    <section v-else class="sub-status sub-card sub-card--panel">
+    <template v-else>
+    <section class="sub-status sub-card sub-card--panel">
       <h2 class="sub-h2">{{ $t('subscriptionPage.statusTitle') }}</h2>
       <dl class="sub-dl">
         <div>
@@ -52,7 +53,31 @@
       </ul>
     </section>
 
-    <section v-if="!loading && !error" class="sub-invite sub-card sub-card--panel">
+    <nav class="sub-billing-tabstrip" role="tablist" aria-label="会员与计费">
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="billingTab === 'purchase'"
+        class="sub-billing-tab"
+        :class="{ 'sub-billing-tab--active': billingTab === 'purchase' }"
+        @click="billingTab = 'purchase'"
+      >
+        {{ $t('subscriptionPage.tabPurchase') }}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="billingTab === 'referral'"
+        class="sub-billing-tab"
+        :class="{ 'sub-billing-tab--active': billingTab === 'referral' }"
+        @click="onReferralTab"
+      >
+        {{ $t('subscriptionPage.tabReferral') }}
+      </button>
+    </nav>
+
+    <div v-show="billingTab === 'purchase'">
+    <section class="sub-invite sub-card sub-card--panel">
       <h2 class="sub-h2">{{ $t('subscriptionPage.inviteRedeemTitle') }}</h2>
       <p class="sub-desc">{{ $t('subscriptionPage.inviteRedeemHint') }}</p>
       <div class="sub-invite-row">
@@ -64,7 +89,7 @@
       <p v-if="status.inviteCodeRedeemed" class="sub-muted">{{ $t('subscriptionPage.inviteRedeemedNote') }}</p>
     </section>
 
-    <section v-if="!loading && !error" class="sub-official sub-card sub-card--panel">
+    <section class="sub-official sub-card sub-card--panel">
       <h2 class="sub-h2">{{ $t('subscriptionPage.officialApiTitle') }}</h2>
       <p class="sub-desc">{{ $t('subscriptionPage.officialApiHint') }}</p>
       <dl class="sub-dl">
@@ -91,7 +116,7 @@
       </div>
     </section>
 
-    <section v-if="!loading && !error" class="sub-invite sub-card sub-card--panel">
+    <section class="sub-invite sub-card sub-card--panel">
       <h3 class="sub-h3 sub-h3--sm">{{ $t('subscriptionPage.myInviteCode') }}</h3>
       <p class="sub-invite-user-hint">{{ $t('subscriptionPage.myInviteCodeHint') }}</p>
       <p v-if="myInviteLoading" class="sub-muted">…</p>
@@ -194,8 +219,63 @@
         </button>
       </article>
     </section>
+    </div>
+
+    <div v-show="billingTab === 'referral'" class="sub-referral-wrap">
+      <section class="sub-card sub-card--panel sub-referral-block">
+        <h2 class="sub-h2">{{ $t('subscriptionPage.cofounderTitle') }}</h2>
+        <p class="sub-desc">{{ $t('subscriptionPage.cofounderHint') }}</p>
+        <p v-if="referralLoading" class="sub-muted">…</p>
+        <div v-else-if="referralInvitees.length" class="sub-table-scroll">
+          <table class="sub-data-table">
+            <thead>
+              <tr>
+                <th>{{ $t('subscriptionPage.colOrgName') }}</th>
+                <th>slug</th>
+                <th>{{ $t('subscriptionPage.colRegisteredAt') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in referralInvitees" :key="row.tenantId">
+                <td>{{ row.name || '—' }}</td>
+                <td><code class="sub-mono">{{ row.slug || '—' }}</code></td>
+                <td>{{ formatReferralDate(row.createdAt) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="sub-muted">{{ $t('subscriptionPage.cofounderEmpty') }}</p>
+      </section>
+      <section class="sub-card sub-card--panel sub-referral-block">
+        <h2 class="sub-h2">{{ $t('subscriptionPage.pointsLedgerTitle') }}</h2>
+        <p class="sub-desc">{{ $t('subscriptionPage.pointsLedgerHint') }}</p>
+        <p v-if="referralLoading" class="sub-muted">…</p>
+        <div v-else-if="pointsLedger.length" class="sub-table-scroll">
+          <table class="sub-data-table">
+            <thead>
+              <tr>
+                <th>{{ $t('subscriptionPage.colSourceOrg') }}</th>
+                <th>{{ $t('subscriptionPage.colOrderAmount') }}</th>
+                <th>{{ $t('subscriptionPage.colPointsEarned') }}</th>
+                <th>{{ $t('subscriptionPage.colRecordedAt') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in pointsLedger" :key="row.id">
+                <td>{{ row.sourceTenantName || ('#' + row.sourceTenantId) }}</td>
+                <td>{{ formatMoney(row.orderAmountCents) }}</td>
+                <td class="sub-dd-strong">{{ num(row.commissionCents) }}</td>
+                <td>{{ formatReferralDate(row.createdAt) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="sub-muted">{{ $t('subscriptionPage.pointsLedgerEmpty') }}</p>
+      </section>
+    </div>
 
     <p class="sub-footnote">{{ $t('subscriptionPage.footnote') }}</p>
+    </template>
   </div>
 </template>
 
@@ -243,6 +323,10 @@ export default {
   name: 'SubscriptionBillingView',
   data () {
     return {
+      billingTab: 'purchase',
+      referralInvitees: [],
+      pointsLedger: [],
+      referralLoading: false,
       loading: true,
       error: '',
       paying: '',
@@ -410,6 +494,46 @@ export default {
       } catch (e) {
         this.copyInviteHintKey = 'fail'
         setTimeout(() => { this.copyInviteHintKey = '' }, 3500)
+      }
+    },
+    onReferralTab () {
+      this.billingTab = 'referral'
+      this.loadReferralData()
+    },
+    async loadReferralData () {
+      this.referralLoading = true
+      try {
+        const [inv, led] = await Promise.all([
+          this.$http.get('/admin/billing/referral/invitees'),
+          this.$http.get('/admin/billing/referral/points-ledger')
+        ])
+        if (inv.data && inv.data.code === 0 && inv.data.data) {
+          this.referralInvitees = Array.isArray(inv.data.data.items) ? inv.data.data.items : []
+        }
+        if (led.data && led.data.code === 0 && led.data.data) {
+          this.pointsLedger = Array.isArray(led.data.data.items) ? led.data.data.items : []
+        }
+      } catch (e) {
+        this.referralInvitees = []
+        this.pointsLedger = []
+      } finally {
+        this.referralLoading = false
+      }
+    },
+    formatReferralDate (v) {
+      if (v == null || v === '') return '—'
+      try {
+        const d = new Date(v)
+        if (Number.isNaN(d.getTime())) return String(v)
+        return d.toLocaleString(this.$i18n.locale === 'en' ? 'en-US' : 'zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      } catch (e) {
+        return String(v)
       }
     },
     async load () {
@@ -877,6 +1001,62 @@ export default {
 .sub-toast-fade-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(-8px);
+}
+.sub-billing-tabstrip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0 12px;
+}
+.sub-billing-tab {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.sub-billing-tab:hover {
+  border-color: #94a3b8;
+}
+.sub-billing-tab--active {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #0f172a;
+}
+.sub-referral-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 4px;
+}
+.sub-referral-block .sub-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.sub-data-table th,
+.sub-data-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--sub-panel-border);
+  color: var(--sub-on-panel);
+}
+.sub-data-table th {
+  font-size: 12px;
+  color: var(--sub-on-panel-dim);
+  font-weight: 600;
+}
+.sub-table-scroll {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+.sub-mono {
+  font-size: 12px;
+  color: var(--sub-on-panel-muted);
 }
 .sub-footnote {
   margin-top: 20px;

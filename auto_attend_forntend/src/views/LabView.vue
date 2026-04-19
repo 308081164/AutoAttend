@@ -54,35 +54,43 @@ export default {
     return {
       labProjects: [
         {
-          key: 'finance',
-          label: '智能财会',
-          description: '基于 AI 的智能财务分析与报表生成，自动识别票据、对账、生成财务摘要。',
+          key: 'ai_native',
+          label: 'AI原生应用和开放API',
+          description: '面向业务场景的 AI 原生能力与开放接口，统一接入与治理。',
           iconBg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          iconPath: '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',
+          iconPath: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
           status: 'coming'
         },
         {
-          key: 'geo',
-          label: 'GEO 推流',
-          description: '全球化智能流量调度与分发，支持多区域容灾、灰度发布和实时流量监控。',
-          iconBg: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-          iconPath: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>',
-          status: 'coming'
-        },
-        {
-          key: 'dashboard',
-          label: '客户看板',
-          description: '面向客户的自助数据看板，支持实时数据展示、自定义指标和分享链接。',
+          key: 'cloud_coding',
+          label: '流帮 Cloud Coding',
+          description: '云端开发与协作环境，与项目资产、协作流一站式衔接。',
           iconBg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-          iconPath: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',
+          iconPath: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
           status: 'coming'
         },
         {
-          key: 'lobster',
-          label: '龙虾智能体',
-          description: '基于大语言模型的多功能 AI 智能体，支持任务编排、知识库问答和自动化工作流。',
+          key: 'xianyu',
+          label: '咸鱼/淘宝管家',
+          description: '电商侧订单与消息聚合、自动化跟进与经营辅助。',
+          iconBg: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          iconPath: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+          status: 'coming'
+        },
+        {
+          key: 'dr',
+          label: '项目容灾恢复',
+          description: '关键项目与数据的备份、演练与一键恢复编排。',
           iconBg: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-          iconPath: '<path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93"/><path d="M8 6a4 4 0 014-4"/><path d="M12 9.93V22"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/>',
+          iconPath: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+          status: 'coming'
+        },
+        {
+          key: 'migrate',
+          label: '项目迁移',
+          description: '跨仓库、跨环境的项目与数据迁移工具链与校验。',
+          iconBg: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+          iconPath: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
           status: 'coming'
         }
       ]

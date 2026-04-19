@@ -291,7 +291,21 @@ export default {
     planFree: 'Free',
     planTeam: 'Trial',
     planPro: 'Pro',
-    planProPlus: 'Pro+'
+    planProPlus: 'Pro+',
+    tabPurchase: 'Plans & purchase',
+    tabReferral: 'Co-founders',
+    cofounderTitle: 'Co-founders',
+    cofounderHint: 'Organizations that registered with your invite code appear below. Within one year of their signup, when they mock-pay, you earn member points (same as the ledger).',
+    cofounderEmpty: 'No invitees yet.',
+    pointsLedgerTitle: 'Referral points ledger',
+    pointsLedgerHint: 'Member points credited to you when invitees mock-pay (1 point = ¥1 purchasing power).',
+    pointsLedgerEmpty: 'No commission rows yet.',
+    colOrgName: 'Organization',
+    colRegisteredAt: 'Registered',
+    colSourceOrg: 'Source org',
+    colOrderAmount: 'Order amount (list)',
+    colPointsEarned: 'Points',
+    colRecordedAt: 'Recorded'
   },
   dashboard: {
     workbenchEyebrow: 'Operations hub',
