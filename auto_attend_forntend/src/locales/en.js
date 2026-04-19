@@ -293,7 +293,7 @@ export default {
     planPro: 'Pro',
     planProPlus: 'Pro+',
     tabPurchase: 'Plans & purchase',
-    tabReferral: 'Co-founders',
+    tabReferral: 'Referral redeem',
     cofounderTitle: 'Co-founders',
     cofounderHint: 'Organizations that registered with your invite code appear below. Within one year of their signup, when they mock-pay, you earn member points (same as the ledger).',
     cofounderEmpty: 'No invitees yet.',
@@ -306,6 +306,24 @@ export default {
     colOrderAmount: 'Order amount (list)',
     colPointsEarned: 'Points',
     colRecordedAt: 'Recorded'
+  },
+  labPage: {
+    feedbackCardTitle: 'Feedback',
+    feedbackCardDesc: 'Share suggestions or bug reports; attach a screenshot to help us investigate.',
+    feedbackOpen: 'Submit feedback',
+    feedbackModalTitle: 'Feedback',
+    feedbackContentLabel: 'Details',
+    feedbackContentPlaceholder: 'Describe the issue or suggestion (required)',
+    feedbackImageLabel: 'Screenshot (optional)',
+    feedbackImageHint: 'PNG, JPG, GIF, or WEBP',
+    feedbackSubmit: 'Submit',
+    feedbackCancel: 'Cancel',
+    feedbackClearImage: 'Remove image',
+    feedbackSubmitting: 'Submitting…',
+    feedbackSuccess: 'Thanks — we have received your feedback.',
+    feedbackNeedContent: 'Please enter feedback text',
+    feedbackUploadFail: 'Image upload failed',
+    feedbackSubmitFail: 'Submit failed. Try again later.'
   },
   dashboard: {
     workbenchEyebrow: 'Operations hub',

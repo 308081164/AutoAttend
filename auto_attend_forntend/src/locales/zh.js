@@ -291,7 +291,7 @@ export default {
     planPro: '专业版',
     planProPlus: '专业增强版',
     tabPurchase: '会员采购',
-    tabReferral: '联合创始人',
+    tabReferral: '联创兑换',
     cofounderTitle: '联合创始人',
     cofounderHint: '通过您的邀请码成功注册的组织将显示在下方；对方首年内模拟付费时，您将获得会员积分（与积分流水一致）。',
     cofounderEmpty: '暂无通过您邀请注册的组织。',
@@ -304,6 +304,24 @@ export default {
     colOrderAmount: '订单金额（标价）',
     colPointsEarned: '获得积分',
     colRecordedAt: '入账时间'
+  },
+  labPage: {
+    feedbackCardTitle: '问题反馈',
+    feedbackCardDesc: '提交使用建议或缺陷报告，可附带截图便于我们排查。',
+    feedbackOpen: '提交反馈',
+    feedbackModalTitle: '问题反馈',
+    feedbackContentLabel: '反馈内容',
+    feedbackContentPlaceholder: '请描述遇到的问题或建议（必填）',
+    feedbackImageLabel: '附图（选填）',
+    feedbackImageHint: '支持 PNG、JPG、GIF、WEBP',
+    feedbackSubmit: '提交',
+    feedbackCancel: '取消',
+    feedbackClearImage: '移除图片',
+    feedbackSubmitting: '提交中…',
+    feedbackSuccess: '感谢反馈，我们已收到。',
+    feedbackNeedContent: '请填写反馈内容',
+    feedbackUploadFail: '图片上传失败',
+    feedbackSubmitFail: '提交失败，请稍后重试'
   },
   dashboard: {
     workbenchEyebrow: '运营指挥中心',

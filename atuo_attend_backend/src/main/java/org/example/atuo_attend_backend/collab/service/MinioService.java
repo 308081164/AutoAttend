@@ -59,6 +59,21 @@ public class MinioService {
     }
 
     /** 项目信息发布等：独立前缀，便于访问控制 */
+    /** 增效实验室反馈附图：feedback/ 前缀 */
+    public String uploadLabFeedbackImage(String originalFilename, InputStream inputStream, long size) throws Exception {
+        String ext = originalFilename != null && originalFilename.contains(".")
+                ? originalFilename.substring(originalFilename.lastIndexOf('.')).toLowerCase() : "";
+        if (!ext.matches("^\\.(png|jpe?g|gif|webp)$")) ext = ".png";
+        String key = "feedback/" + UUID.randomUUID() + ext;
+        client.putObject(PutObjectArgs.builder()
+                .bucket(bucket)
+                .object(key)
+                .stream(inputStream, size, -1)
+                .contentType(guessContentType(originalFilename))
+                .build());
+        return key;
+    }
+
     public String uploadMarketplaceImage(String originalFilename, InputStream inputStream, long size) throws Exception {
         String ext = originalFilename != null && originalFilename.contains(".")
                 ? originalFilename.substring(originalFilename.lastIndexOf('.')).toLowerCase() : "";
