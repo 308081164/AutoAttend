@@ -79,7 +79,7 @@ docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "%{http_code}\n" 
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
 | 快原型页没有 **Penpot Beta** 标签 | 后端 `app.penpot.enabled=false`（如旧 `.env` 写死 `PENPOT_ENABLED=false`） | 去掉或改为 `PENPOT_ENABLED=true`，`docker compose up -d --force-recreate backend`；或确认已拉取含 `PENPOT_ENABLED` 默认 true 的 compose |
-| `prepare-register-profile HTTP 404` | Penpot **2.12+** 将 RPC 从 `/api/rpc/command/` 改为 **`/api/main/methods/`** | 后端 **`PENPOT_RPC_PATH_STYLE=auto`（默认）**：启动时用 `get-teams` **探测**并锁定路径；请求时若遇 404/405/502/503/504 仍会尝试另一套路径。一般 **无需改服务器配置**，部署新镜像即可 |
+| `prepare-register-profile HTTP 404` | ① Penpot **2.12+** RPC 路径变更；② 或 **未带 `x-client` 头**（启用 `client-header-check` 时后端拒 RPC，部分反代会映射成 404） | ① **`PENPOT_RPC_PATH_STYLE=auto`（默认）** 自动探测 `/api/main/methods` 与 `/api/rpc/command`；② 后端已默认发送 **`x-client: penpot-backend`**（可用 `PENPOT_CLIENT_HEADER` 覆盖）。部署含该修复的后端镜像并 `docker compose up -d --force-recreate backend` |
 | `backend` 起不来 / 一直等待 | `depends_on` 等待 `penpot-frontend` | `docker compose ps`、`docker logs penpot-postgres`、`docker logs penpot-frontend`；先单独 `up -d penpot-frontend` 看依赖是否 healthy |
 | 浏览器打开 Penpot 空白或资源 404 | `PENPOT_PUBLIC_URI` 与浏览器地址不一致 | 将 `PENPOT_PUBLIC_URI` 改为实际访问 URL（含协议与端口） |
 | 宿主机 9001 已被占用 | 端口冲突 | 设置 `PENPOT_HTTP_PORT=其他端口`，并同步修改 `PENPOT_PUBLIC_URI` 中的端口 |

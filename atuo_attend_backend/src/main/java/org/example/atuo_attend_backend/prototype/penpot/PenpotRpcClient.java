@@ -59,6 +59,7 @@ public class PenpotRpcClient {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_JSON);
         h.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(h);
         HttpEntity<String> entity = new HttpEntity<>("{}", h);
         String[] kinds = new String[] { "new", "legacy" };
         for (String kind : kinds) {
@@ -147,6 +148,7 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         applyAuth(headers, tenantAccessToken);
         String jsonBody = body == null || body.isEmpty() ? "{}" : safeWriteJson(body);
         return postCommand(methodName, headers, jsonBody, true);
@@ -157,6 +159,7 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         String jsonBody = body == null || body.isEmpty() ? "{}" : safeWriteJson(body);
         return postCommand(methodName, headers, jsonBody, false);
     }
@@ -169,6 +172,7 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         if (StringUtils.hasText(cookieHeader)) {
             headers.add(HttpHeaders.COOKIE, cookieHeader);
         }
@@ -183,6 +187,7 @@ public class PenpotRpcClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
         Map<String, Object> body = new HashMap<>();
         body.put("email", email.trim());
         body.put("password", password);
@@ -361,6 +366,16 @@ public class PenpotRpcClient {
                 throw new IllegalStateException("Penpot 未配置：请设置租户自动开户，或配置 app.penpot.access-token，或同时设置 email 与 password");
             }
             platformSessionCookie = loginFetchAuthCookie(props.getEmail(), props.getPassword());
+        }
+    }
+
+    /**
+     * Penpot {@code sec/client-header-check}：无此头则拒绝 RPC（浏览器端由官方前端注入 {@code x-client}）。
+     */
+    private void applyPenpotClientHeader(HttpHeaders headers) {
+        String v = props.getClientHeader();
+        if (StringUtils.hasText(v)) {
+            headers.set("x-client", v.trim());
         }
     }
 

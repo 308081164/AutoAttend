@@ -60,6 +60,12 @@ public class PenpotProperties {
      */
     private String rpcPathStyle = "auto";
 
+    /**
+     * 与官方前端一致：启用 {@code client-header-check-middleware} 时，RPC 必须带 {@code x-client}，否则为 403（部分反代下可能表现为 404）。
+     * 默认 {@code penpot-backend}，与浏览器端 {@code penpot-frontend/版本} 区分即可。
+     */
+    private String clientHeader = "penpot-backend";
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -162,5 +168,13 @@ public class PenpotProperties {
 
     public void setRpcPathStyle(String rpcPathStyle) {
         this.rpcPathStyle = rpcPathStyle;
+    }
+
+    public String getClientHeader() {
+        return clientHeader;
+    }
+
+    public void setClientHeader(String clientHeader) {
+        this.clientHeader = clientHeader;
     }
 }
