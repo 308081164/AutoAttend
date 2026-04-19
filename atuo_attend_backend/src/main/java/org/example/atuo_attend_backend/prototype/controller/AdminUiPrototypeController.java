@@ -402,8 +402,8 @@ public class AdminUiPrototypeController {
             config.put("rpcPathStyle", penpotProperties.getRpcPathStyle() != null ? penpotProperties.getRpcPathStyle() : "(auto)");
             config.put("clientHeader", penpotProperties.getClientHeader() != null ? penpotProperties.getClientHeader() : "(默认)");
             config.put("tenantEmailDomain", penpotProperties.getTenantEmailDomain());
-            config.put("hasAccessToken", hasText(penpotProperties.getAccessToken()));
-            config.put("hasEmailPassword", hasText(penpotProperties.getEmail()) && hasText(penpotProperties.getPassword()));
+            config.put("hasAccessToken", String.valueOf(hasText(penpotProperties.getAccessToken())));
+            config.put("hasEmailPassword", String.valueOf(hasText(penpotProperties.getEmail()) && hasText(penpotProperties.getPassword())));
 
             // 检查常见配置错误
             List<String> warnings = new ArrayList<>();
@@ -577,7 +577,7 @@ public class AdminUiPrototypeController {
             h.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
             HttpEntity<Void> entity = new HttpEntity<>(h);
             ResponseEntity<String> resp = restTemplate.exchange(baseUri + "/", HttpMethod.GET, entity, String.class);
-            int code = resp.getStatusCodeValue();
+            int code = resp.getStatusCode().value();
             if (code >= 200 && code < 500) {
                 return stepOk("HTTP " + code + " — " + label + " 基址可达（服务已响应）");
             }
@@ -596,7 +596,7 @@ public class AdminUiPrototypeController {
             }
             return stepFail("网络错误：" + truncateMsg(msg, 400));
         } catch (HttpStatusCodeException e) {
-            int code = e.getStatusCodeValue();
+            int code = e.getStatusCode().value();
             if (code >= 200 && code < 500) {
                 return stepOk("HTTP " + code + " — " + label + " 基址可达");
             }
@@ -618,7 +618,7 @@ public class AdminUiPrototypeController {
             }
             HttpEntity<String> entity = new HttpEntity<>("{}", h);
             ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
-            int code = resp.getStatusCodeValue();
+            int code = resp.getStatusCode().value();
             if (code == 401 || code == 403) {
                 return stepOk("HTTP " + code + " — RPC 路径存在（未授权，说明路由可达）");
             }
@@ -627,7 +627,7 @@ public class AdminUiPrototypeController {
             }
             return stepWarn("HTTP " + code + " — RPC 路径返回异常状态码");
         } catch (HttpStatusCodeException e) {
-            int code = e.getStatusCodeValue();
+            int code = e.getStatusCode().value();
             if (code == 401 || code == 403) {
                 return stepOk("HTTP " + code + " — RPC 路径存在（未授权，说明路由可达）");
             }
