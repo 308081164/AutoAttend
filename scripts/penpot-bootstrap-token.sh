@@ -4,7 +4,7 @@
 # 依赖：curl、python3（解析 JSON）；可选 jq。
 #
 # 用法：
-#   export PENPOT_BASE_URL=http://127.0.0.1:9001   # 或 http://penpot-frontend:8080（容器内）
+#   export PENPOT_BASE_URL=http://127.0.0.1:9001   # 或 http://penpot-frontend:80（容器内）
 #   export PENPOT_EMAIL=service@example.com
 #   export PENPOT_PASSWORD='your-password'
 #   ./scripts/penpot-bootstrap-token.sh

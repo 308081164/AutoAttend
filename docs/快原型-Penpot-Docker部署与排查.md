@@ -6,8 +6,8 @@
 
 - **合并方式**：根目录 `docker-compose.yml` 与 `docker-compose.prod.yml` 使用 `include: docker-compose.penpot.yml`，使 `penpot-*` 与 `mysql`、`backend` 等处于 **同一默认网络**，无需额外 `networks` 声明。
 - **端口**：
-  - **宿主机**：`PENPOT_HTTP_PORT`（默认 **9001**）→ 容器 `penpot-frontend:8080`。
-  - **容器内互访**：`backend` 使用 `PENPOT_INTERNAL_URI`（默认 `http://penpot-frontend:8080`）。
+  - **宿主机**：`PENPOT_HTTP_PORT`（默认 **9001**）→ 容器 `penpot-frontend:80`。
+  - **容器内互访**：`backend` 使用 `PENPOT_INTERNAL_URI`（默认 `http://penpot-frontend:80`）。
 - **对外 URL（`PENPOT_PUBLIC_URI`）**：**可选**。不配时，应用生成的「工作区链接」与内网 RPC 基址一致，**只适合调试**；若终端用户需在浏览器打开 Penpot，请设为 **https + 公网域名**（与反代一致）。可另设 `PENPOT_API_BASE_URL` 专用于后端 RPC（一般等于 `PENPOT_INTERNAL_URI`）。
 
 ### 获取 Personal Access Token（推荐：自动化，无需打开网页）
@@ -54,7 +54,7 @@ docker compose -f docker-compose.yml up -d backend frontend
 连通性（在 **backend 容器内**）：
 
 ```bash
-docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "%{http_code}\n" --connect-timeout 5 "${PENPOT_INTERNAL_URI:-http://penpot-frontend:8080}/" || echo fail'
+docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "%{http_code}\n" --connect-timeout 5 "${PENPOT_INTERNAL_URI:-http://penpot-frontend:80}/" || echo fail'
 ```
 
 期望：HTTP 状态码为 **200** 或 **302**（Penpot 可能重定向到登录页）。
@@ -79,7 +79,7 @@ docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "%{http_code}\n" 
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
 | 快原型页没有 **Penpot Beta** 标签 | 后端 `app.penpot.enabled=false`（如旧 `.env` 写死 `PENPOT_ENABLED=false`） | 去掉或改为 `PENPOT_ENABLED=true`，`docker compose up -d --force-recreate backend`；或确认已拉取含 `PENPOT_ENABLED` 默认 true 的 compose |
-| `prepare-register-profile HTTP 404` | ① **`PENPOT_INTERNAL_URI` / `PENPOT_API_BASE_URL` 误填为 AutoAttend 域名**，请求打到本应用而非 Penpot；② 路径版本；③ 缺 `x-client` | ① 改为 **`http://penpot-frontend:8080`**（或与 compose 一致的容器名）；② **`PENPOT_RPC_PATH_STYLE=auto`**；③ 后端发送 **`PENPOT_CLIENT_HEADER`**（默认 `penpot-backend`）；④ 新镜像会再试 **`PENPOT_BACKEND_DIRECT_URI`**（默认 `http://penpot-backend:6060`）直连 Penpot 后端 |
+| `prepare-register-profile HTTP 404` | ① **`PENPOT_INTERNAL_URI` / `PENPOT_API_BASE_URL` 误填为 AutoAttend 域名**，请求打到本应用而非 Penpot；② 路径版本；③ 缺 `x-client` | ① 改为 **`http://penpot-frontend:80`**（或与 compose 一致的容器名）；② **`PENPOT_RPC_PATH_STYLE=auto`**；③ 后端发送 **`PENPOT_CLIENT_HEADER`**（默认 `penpot-backend`）；④ 新镜像会再试 **`PENPOT_BACKEND_DIRECT_URI`**（默认 `http://penpot-backend:6060`）直连 Penpot 后端 |
 | `backend` 起不来 / 一直等待 | `depends_on` 等待 `penpot-frontend` | `docker compose ps`、`docker logs penpot-postgres`、`docker logs penpot-frontend`；先单独 `up -d penpot-frontend` 看依赖是否 healthy |
 | 浏览器打开 Penpot 空白或资源 404 | `PENPOT_PUBLIC_URI` 与浏览器地址不一致 | 将 `PENPOT_PUBLIC_URI` 改为实际访问 URL（含协议与端口） |
 | 宿主机 9001 已被占用 | 端口冲突 | 设置 `PENPOT_HTTP_PORT=其他端口`，并同步修改 `PENPOT_PUBLIC_URI` 中的端口 |

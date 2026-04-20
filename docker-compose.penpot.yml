@@ -1,7 +1,7 @@
 # Penpot 官方栈（精简自 https://github.com/penpot/penpot/blob/main/docker/images/docker-compose.yaml ）
 # 由 docker-compose.yml / docker-compose.prod.yml 通过 include 合并。
 # 下方 networks.autoattend_net 与主 compose 中各服务共用，保证 penpot-frontend / penpot-backend 与 autoattend-backend
-# 在同一桥接网络内，服务名 DNS 互通（PENPOT_INTERNAL_URI=http://penpot-frontend:8080、PENPOT_BACKEND_DIRECT_URI=http://penpot-backend:6060）。
+# 在同一桥接网络内，服务名 DNS 互通（PENPOT_INTERNAL_URI=http://penpot-frontend:80、PENPOT_BACKEND_DIRECT_URI=http://penpot-backend:6060）。
 #
 # 环境变量见仓库根目录 .env.example：PENPOT_PUBLIC_URI、PENPOT_SECRET_KEY、PENPOT_VERSION
 
@@ -25,7 +25,7 @@ services:
     container_name: penpot-frontend
     restart: unless-stopped
     ports:
-      - "${PENPOT_HTTP_PORT:-9001}:8080"
+      - "${PENPOT_HTTP_PORT:-9001}:80"
     volumes:
       - penpot_assets:/opt/data/assets
     depends_on:
@@ -78,7 +78,7 @@ services:
         condition: service_healthy
     environment:
       <<: [*penpot-secret-key]
-      PENPOT_PUBLIC_URI: http://penpot-frontend:8080
+      PENPOT_PUBLIC_URI: http://penpot-frontend:80
       PENPOT_REDIS_URI: redis://penpot-valkey/0
     networks:
       - autoattend_net

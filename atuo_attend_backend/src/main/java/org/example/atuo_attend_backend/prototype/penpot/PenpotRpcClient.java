@@ -341,7 +341,7 @@ public class PenpotRpcClient {
         if (e == null || e.getStatusCode().value() != 404) {
             return "";
         }
-        return "。请确认 PENPOT_INTERNAL_URI 为 Docker 内 penpot-frontend（默认 http://penpot-frontend:8080），"
+        return "。请确认 PENPOT_INTERNAL_URI 为 Docker 内 penpot-frontend（默认 http://penpot-frontend:80），"
                 + "勿填 AutoAttend 公网域名；或设置 PENPOT_BACKEND_DIRECT_URI=http://penpot-backend:6060 直连 Penpot 后端。";
     }
 

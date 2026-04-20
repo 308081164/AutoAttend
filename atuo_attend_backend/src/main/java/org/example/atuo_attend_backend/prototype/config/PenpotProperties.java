@@ -15,7 +15,7 @@ public class PenpotProperties {
      * 容器内访问 Penpot 前端（Nginx 反代 /api 至后端），RPC 默认走此地址。
      * 若需与「仅浏览器可访问的外网地址」分离，可再配 {@link #apiBaseUrl}。
      */
-    private String baseUrl = "http://penpot-frontend:8080";
+    private String baseUrl = "http://penpot-frontend:80";
 
     /**
      * 可选：仅用于后端 RPC 的基址（与 {@link #baseUrl} 二选一逻辑见 getter）。
@@ -66,7 +66,7 @@ public class PenpotProperties {
     private String clientHeader = "penpot-backend";
 
     /**
-     * 直连 Penpot 后端 JVM（官方镜像默认端口 6060），与 {@code penpot-frontend:8080} 上 Nginx 反代的 /api 等价。
+     * 直连 Penpot 后端 JVM（官方镜像默认端口 6060），与 {@code penpot-frontend:80} 上 Nginx 反代的 /api 等价。
      * 当 {@link #getEffectiveRpcBaseUrl()} 误指向本应用或其它无 Penpot RPC 的地址时，客户端会再尝试此地址。
      */
     private String backendDirectUri = "http://penpot-backend:6060";

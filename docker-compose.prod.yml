@@ -97,7 +97,7 @@ services:
       # 对外访问地址（浏览器）；容器内调 API 用 PENPOT_INTERNAL_URI
       PENPOT_PUBLIC_URI: ${PENPOT_PUBLIC_URI:-}
       PENPOT_API_BASE_URL: ${PENPOT_API_BASE_URL:-}
-      PENPOT_INTERNAL_URI: ${PENPOT_INTERNAL_URI:-http://penpot-frontend:8080}
+      PENPOT_INTERNAL_URI: ${PENPOT_INTERNAL_URI:-http://penpot-frontend:80}
       # 与 docker-compose.penpot 一并部署时建议为 true；若暂不启用 Penpot 栈可设为 false
       PENPOT_ENABLED: ${PENPOT_ENABLED:-true}
       PENPOT_ACCESS_TOKEN: ${PENPOT_ACCESS_TOKEN:-}
