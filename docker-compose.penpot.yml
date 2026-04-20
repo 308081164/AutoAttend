@@ -6,7 +6,7 @@
 # 环境变量见仓库根目录 .env.example：PENPOT_PUBLIC_URI、PENPOT_SECRET_KEY、PENPOT_VERSION
 
 x-flags: &penpot-flags
-  PENPOT_FLAGS: disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies
+  PENPOT_FLAGS: enable-registration disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies
 
 x-body-size: &penpot-http-body-size
   PENPOT_HTTP_SERVER_MAX_BODY_SIZE: 367001600
