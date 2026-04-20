@@ -170,6 +170,21 @@ public class PenpotRpcClient {
     }
 
     /**
+     * 使用租户 Cookie 会话调用 RPC（比 Token 认证更可靠）。
+     */
+    public JsonNode commandWithTenantCookie(String methodName, Map<String, Object> body, String cookie) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        applyPenpotClientHeader(headers);
+        if (StringUtils.hasText(cookie)) {
+            headers.add(HttpHeaders.COOKIE, cookie);
+        }
+        String jsonBody = body == null || body.isEmpty() ? "{}" : safeWriteJson(body);
+        return postCommand(methodName, headers, jsonBody, true);
+    }
+
+    /**
      * 使用 Cookie 会话调用（如 create-access-token）。
      * @param cookieHeader 形如 auth-token=...; Path=... 的首段或完整 Cookie
      */
@@ -456,9 +471,15 @@ public class PenpotRpcClient {
     private void applyAuth(HttpHeaders headers, String tenantAccessToken) {
         if (StringUtils.hasText(tenantAccessToken)) {
             String tok = tenantAccessToken.trim();
-            headers.set(HttpHeaders.AUTHORIZATION, "Token " + tok);
-            log.debug("Penpot RPC using tenant AccessToken (len={}): {}...", tok.length(),
-                    tok.length() > 20 ? tok.substring(0, 20) : tok);
+            // 判断是 Cookie 还是 Token：Cookie 通常以 "auth-token=" 开头
+            if (tok.startsWith("auth-token=") || tok.contains("=")) {
+                headers.add(HttpHeaders.COOKIE, tok);
+                log.debug("Penpot RPC using tenant Cookie: {}...", tok.length() > 40 ? tok.substring(0, 40) : tok);
+            } else {
+                headers.set(HttpHeaders.AUTHORIZATION, "Token " + tok);
+                log.debug("Penpot RPC using tenant AccessToken (len={}): {}...", tok.length(),
+                        tok.length() > 20 ? tok.substring(0, 20) : tok);
+            }
             return;
         }
         if (StringUtils.hasText(props.getAccessToken())) {

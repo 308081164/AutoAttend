@@ -52,6 +52,25 @@ public class TenantPenpotOnboardingService {
         return row != null && StringUtils.hasText(row.getAccessTokenEnc());
     }
 
+    /**
+     * 返回有效的租户 Penpot Cookie 会话（通过邮箱密码登录获取）。
+     * 如果租户未开户，先完成开户流程。
+     */
+    public synchronized String getOrCreateTenantCookie(long tenantId) {
+        // 确保租户已开户
+        TenantPenpotCredential row = credentialMapper.findByTenantId(tenantId);
+        if (row == null || !StringUtils.hasText(row.getPasswordEnc())) {
+            provisionTenant(tenantId);
+        }
+        row = credentialMapper.findByTenantId(tenantId);
+        if (row == null || !StringUtils.hasText(row.getPasswordEnc())) {
+            throw new IllegalStateException("Penpot 租户凭证落库失败");
+        }
+        String email = row.getPenpotEmail();
+        String password = cryptoService.decrypt(row.getPasswordEnc());
+        return rpcClient.loginFetchAuthCookie(email, password);
+    }
+
     public synchronized String getOrCreateTenantAccessToken(long tenantId) {
         TenantPenpotCredential row = credentialMapper.findByTenantId(tenantId);
         if (row != null && StringUtils.hasText(row.getAccessTokenEnc())) {

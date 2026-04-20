@@ -76,8 +76,8 @@ public class UiPrototypePenpotService {
             return false;
         }
         try {
-            String tok = tenantPenpotOnboardingService.getOrCreateTenantAccessToken(tenantId);
-            penpotRpcClient.command("get-teams", new HashMap<>(), tok);
+            String cookie = tenantPenpotOnboardingService.getOrCreateTenantCookie(tenantId);
+            penpotRpcClient.commandWithTenantCookie("get-teams", new HashMap<>(), cookie);
             return true;
         } catch (Exception e) {
             log.warn("Penpot probe failed: {}", e.getMessage());
@@ -109,7 +109,7 @@ public class UiPrototypePenpotService {
             throw new IllegalStateException("Penpot 未启用");
         }
         long tenantId = tid();
-        String tenantToken = tenantPenpotOnboardingService.getOrCreateTenantAccessToken(tenantId);
+        String tenantCookie = tenantPenpotOnboardingService.getOrCreateTenantCookie(tenantId);
         UiPrototypeProject p = projectMapper.findById(tenantId, projectId);
         if (p == null) {
             throw new IllegalArgumentException("项目不存在");
@@ -127,7 +127,7 @@ public class UiPrototypePenpotService {
         if (jobId == null) {
             throw new IllegalStateException("创建 Penpot 任务失败");
         }
-        CompletableFuture.runAsync(() -> runJobSafe(tenantId, jobId, projectId, p.getName(), prompt, note, tenantToken));
+        CompletableFuture.runAsync(() -> runJobSafe(tenantId, jobId, projectId, p.getName(), prompt, note, tenantCookie));
         return jobId;
     }
 
@@ -173,7 +173,7 @@ public class UiPrototypePenpotService {
             throw new IllegalStateException("Penpot 未启用");
         }
         long tenantId = tid();
-        String tenantToken = tenantPenpotOnboardingService.getOrCreateTenantAccessToken(tenantId);
+        String tenantCookie = tenantPenpotOnboardingService.getOrCreateTenantCookie(tenantId);
         UiPrototypeProject p = projectMapper.findById(tenantId, projectId);
         if (p == null) {
             throw new IllegalArgumentException("项目不存在");
@@ -181,15 +181,15 @@ public class UiPrototypePenpotService {
         if (!StringUtils.hasText(p.getPenpotFileId())) {
             throw new IllegalStateException("尚未生成 Penpot 文件");
         }
-        return exportBinfile(p.getPenpotFileId(), tenantToken);
+        return exportBinfile(p.getPenpotFileId(), tenantCookie);
     }
 
-    private String exportBinfile(String fileId, String tenantAccessToken) {
+    private String exportBinfile(String fileId, String tenantCookie) {
         Map<String, Object> body = new HashMap<>();
         body.put("fileId", fileId);
         body.put("includeLibraries", false);
         body.put("embedAssets", true);
-        String url = penpotRpcClient.commandForStringResult("export-binfile", body, tenantAccessToken);
+        String url = penpotRpcClient.commandForStringResult("export-binfile", body, tenantCookie);
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("export-binfile 未返回下载地址");
         }
@@ -197,9 +197,9 @@ public class UiPrototypePenpotService {
     }
 
     private void runJobSafe(long tenantId, long jobId, long projectId, String projectName, String prompt, String note,
-                            String tenantAccessToken) {
+                            String tenantCookie) {
         try {
-            TenantContext.runWithTenantId(tenantId, () -> runJob(jobId, projectId, projectName, prompt, note, tenantAccessToken));
+            TenantContext.runWithTenantId(tenantId, () -> runJob(jobId, projectId, projectName, prompt, note, tenantCookie));
         } catch (Throwable t) {
             log.error("penpot job {} crashed", jobId, t);
             try {
@@ -213,7 +213,7 @@ public class UiPrototypePenpotService {
         }
     }
 
-    private void runJob(long jobId, long projectId, String projectName, String prompt, String note, String tenantAccessToken) {
+    private void runJob(long jobId, long projectId, String projectName, String prompt, String note, String tenantCookie) {
         long tenantId = tid();
         penpotJobMapper.updateStage(jobId, tenantId, projectId, "running", "planning", 10, null);
 
@@ -244,7 +244,7 @@ public class UiPrototypePenpotService {
             tp = workspaceService.resolveTeamAndProject(
                     p.getPenpotTeamId(), p.getPenpotProjectId(),
                     projectName != null ? projectName : ("project-" + projectId),
-                    tenantAccessToken);
+                    tenantCookie);
         } catch (Exception e) {
             penpotJobMapper.updateFailed(jobId, tenantId, projectId,
                     "Penpot 团队/项目：" + (e.getMessage() != null ? e.getMessage() : ""));
@@ -254,7 +254,7 @@ public class UiPrototypePenpotService {
         String fileName = "快原型-" + projectId + "-" + System.currentTimeMillis();
         String fileId;
         try {
-            fileId = workspaceService.createDesignFile(tp.projectId(), fileName, tenantAccessToken);
+            fileId = workspaceService.createDesignFile(tp.projectId(), fileName, tenantCookie);
         } catch (Exception e) {
             penpotJobMapper.updateFailed(jobId, tenantId, projectId,
                     "创建文件失败：" + (e.getMessage() != null ? e.getMessage() : ""));
@@ -266,7 +266,7 @@ public class UiPrototypePenpotService {
         Exception lastWrite = null;
         for (int attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt++) {
             try {
-                fileWriterService.applyLayout(fileId, plan, tenantAccessToken);
+                fileWriterService.applyLayout(fileId, plan, tenantCookie);
                 lastWrite = null;
                 break;
             } catch (Exception e) {
@@ -287,7 +287,7 @@ public class UiPrototypePenpotService {
         String previewUrl = workspaceService.buildWorkspaceUrl(tp.projectId(), fileId);
         String exportUrl = null;
         try {
-            exportUrl = exportBinfile(fileId, tenantAccessToken);
+            exportUrl = exportBinfile(fileId, tenantCookie);
         } catch (Exception e) {
             log.warn("export-binfile skipped: {}", e.getMessage());
         }
