@@ -91,9 +91,13 @@ public class TenantPenpotOnboardingService {
                 throw new IllegalStateException("prepare-register-profile 未返回 token");
             }
             try {
-                rpcClient.commandNoAuth("register-profile", Map.of("token", token));
+                rpcClient.commandNoAuth("register-profile", Map.of(
+                        "token", token,
+                        "fullname", fullname
+                ));
             } catch (IllegalStateException ex) {
-                log.warn("register-profile: {}", ex.getMessage());
+                throw new IllegalStateException("Penpot 注册失败: " + ex.getMessage()
+                        + "。请确认 PENPOT_FLAGS 包含 enable-registration");
             }
             cookie = rpcClient.loginFetchAuthCookie(email, password);
         }
