@@ -1,7 +1,10 @@
 package org.example.atuo_attend_backend.prototype.penpot;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.atuo_attend_backend.prototype.penpot.dto.PenpotLayoutPlan;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -11,6 +14,9 @@ import java.util.*;
  */
 @Service
 public class PenpotFileWriterService {
+
+    private static final Logger log = LoggerFactory.getLogger(PenpotFileWriterService.class);
+    private static final ObjectMapper om = new ObjectMapper();
 
     private final PenpotRpcClient rpc;
 
@@ -72,6 +78,8 @@ public class PenpotFileWriterService {
         body.put("changes", changes);
         body.put("skipValidate", true);
 
+        log.info("Penpot update-file payload (first change): {}", safeWriteJson(changes.get(0)));
+        log.info("Penpot update-file total changes: {}", changes.size());
         rpc.command("update-file", body, tenantAccessToken);
     }
 
@@ -91,6 +99,14 @@ public class PenpotFileWriterService {
         ch.put("frameId", frameId.toString());
         ch.put("obj", obj);
         return ch;
+    }
+
+    private static String safeWriteJson(Object obj) {
+        try {
+            return om.writeValueAsString(obj);
+        } catch (Exception e) {
+            return String.valueOf(obj);
+        }
     }
 
     private static Map<String, Object> minimalFrame(String name, double x, double y, double w, double h) {
