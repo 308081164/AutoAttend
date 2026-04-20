@@ -107,8 +107,12 @@ public class TenantPenpotOnboardingService {
                 cookie);
         String accessToken = textField(tokNode, "token");
         if (!StringUtils.hasText(accessToken)) {
+            log.warn("create-access-token response: {}", tokNode);
             throw new IllegalStateException("create-access-token 未返回 token");
         }
+        log.info("Penpot Access Token created for tenant {} (len={}): {}...",
+                tenantId, accessToken.trim().length(),
+                accessToken.trim().length() > 30 ? accessToken.trim().substring(0, 30) : accessToken.trim());
 
         TenantPenpotCredential row = new TenantPenpotCredential();
         row.setTenantId(tenantId);

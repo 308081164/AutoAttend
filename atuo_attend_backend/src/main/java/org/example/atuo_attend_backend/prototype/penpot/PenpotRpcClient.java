@@ -455,7 +455,10 @@ public class PenpotRpcClient {
 
     private void applyAuth(HttpHeaders headers, String tenantAccessToken) {
         if (StringUtils.hasText(tenantAccessToken)) {
-            headers.set(HttpHeaders.AUTHORIZATION, "Token " + tenantAccessToken.trim());
+            String tok = tenantAccessToken.trim();
+            headers.set(HttpHeaders.AUTHORIZATION, "Token " + tok);
+            log.debug("Penpot RPC using tenant AccessToken (len={}): {}...", tok.length(),
+                    tok.length() > 20 ? tok.substring(0, 20) : tok);
             return;
         }
         if (StringUtils.hasText(props.getAccessToken())) {
