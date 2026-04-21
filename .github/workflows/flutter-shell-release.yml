@@ -37,6 +37,8 @@ jobs:
           sed -i "s/^version: .*/version: ${TAG}+${BUILD}/" pubspec.yaml
           grep ^version pubspec.yaml
       - run: flutter pub get
+      - name: Generate app icons
+        run: dart run flutter_launcher_icons
       - name: Build APK
         env:
           APP_SHELL_BASE_URL: ${{ vars.APP_SHELL_BASE_URL }}
@@ -70,6 +72,8 @@ jobs:
           echo "APP_BUILD=$BUILD" >> $GITHUB_ENV
           sed -i "s/^version: .*/version: ${TAG}+${BUILD}/" pubspec.yaml
       - run: flutter pub get
+      - name: Generate app icons
+        run: dart run flutter_launcher_icons
       - name: Build Windows
         env:
           APP_SHELL_BASE_URL: ${{ vars.APP_SHELL_BASE_URL }}
@@ -107,6 +111,8 @@ jobs:
           echo "APP_BUILD=$BUILD" >> $GITHUB_ENV
           sed -i "s/^version: .*/version: ${TAG}+${BUILD}/" pubspec.yaml
       - run: flutter pub get
+      - name: Generate app icons
+        run: dart run flutter_launcher_icons
       - name: Build Linux
         env:
           APP_SHELL_BASE_URL: ${{ vars.APP_SHELL_BASE_URL }}
