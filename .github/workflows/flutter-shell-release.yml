@@ -142,7 +142,7 @@ jobs:
           (cd artifacts/windows-exe && zip -r "../../dist/LiubangProject-Windows-x64-${VER}.zip" .) || true
           (cd artifacts/linux-bundle && tar czf "../../dist/LiubangProject-Linux-x64-${VER}.tar.gz" .) || true
           cd dist && sha256sum * > checksums.txt || true
-          ls -la dist
+          cd .. && ls -la dist
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
