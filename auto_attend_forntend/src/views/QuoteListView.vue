@@ -12,7 +12,8 @@
     </div>
     <div v-if="loading" class="placeholder">{{ $t('quote.loading') }}</div>
     <div v-else-if="!items.length" class="placeholder">{{ $t('quote.emptyList') }}</div>
-    <table v-else class="data-table data-table--pc">
+    <template v-else>
+    <table class="data-table data-table--pc">
       <thead>
         <tr>
           <th>ID</th>
@@ -39,7 +40,7 @@
         </tr>
       </tbody>
     </table>
-    <div v-else class="card-list card-list--mobile">
+    <div class="card-list card-list--mobile">
       <div v-for="row in items" :key="row.id" class="quote-card">
         <div class="quote-card__header">
           <span class="quote-card__id">#{{ row.id }}</span>
@@ -59,6 +60,7 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
