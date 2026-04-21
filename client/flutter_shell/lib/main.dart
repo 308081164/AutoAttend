@@ -211,6 +211,8 @@ class ShellHomePage extends StatefulWidget {
 class _ShellHomePageState extends State<ShellHomePage> {
   WebViewController? _controller;
   bool _loading = true;
+  bool _loadError = false;
+  String _errorMessage = '';
   late final Uri _startUri;
   late final String _sameHost;
 
@@ -223,7 +225,9 @@ class _ShellHomePageState extends State<ShellHomePage> {
   }
 
   void _setOrientationByDevice() {
-    final size = MediaQuery.of(context).size;
+    // 使用 WidgetsBinding 获取物理尺寸，不依赖 context（initState 中 context 可能不准确）
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final size = view.physicalSize / view.devicePixelRatio;
     final isTablet = size.shortestSide >= 600;
     if (isTablet) {
       SystemChrome.setPreferredOrientations([
@@ -273,7 +277,19 @@ class _ShellHomePageState extends State<ShellHomePage> {
             return NavigationDecision.navigate;
           },
           onPageFinished: (_) {
-            if (mounted) setState(() => _loading = false);
+            if (mounted) setState(() { _loading = false; _loadError = false; });
+          },
+          onWebResourceError: (error) {
+            // 仅处理主框架错误
+            if (error.isForMainFrame == true) {
+              if (mounted) {
+                setState(() {
+                  _loading = false;
+                  _loadError = true;
+                  _errorMessage = error.description;
+                });
+              }
+            }
           },
         ),
       )
@@ -288,7 +304,7 @@ class _ShellHomePageState extends State<ShellHomePage> {
 
   Future<void> _reload() async {
     if (_controller == null) return;
-    setState(() => _loading = true);
+    setState(() { _loading = true; _loadError = false; _errorMessage = ''; });
     await _controller!.loadRequest(_startUri);
   }
 
@@ -307,16 +323,58 @@ class _ShellHomePageState extends State<ShellHomePage> {
       ),
       body: Stack(
         children: [
-          if (_controller != null)
+          if (_loadError)
+            _buildErrorPage()
+          else if (_controller != null)
             WebViewWidget(controller: _controller!)
           else
             const Center(child: CircularProgressIndicator()),
-          if (_loading && _controller != null)
+          if (_loading && !_loadError && _controller != null)
             const Align(
               alignment: Alignment.topCenter,
               child: LinearProgressIndicator(minHeight: 2),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorPage() {
+    final isExample = _startUri.host == 'example.com';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isExample ? Icons.settings_ethernet : Icons.cloud_off,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              isExample ? '服务地址未配置' : '网页无法加载',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isExample
+                  ? '请管理员在 CI 变量 APP_SHELL_BASE_URL 中配置正确的 Web 地址后重新构建。'
+                  : '$_errorMessage\n\n请检查网络连接后重试。',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _reload,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('重试'),
+            ),
+          ],
+        ),
       ),
     );
   }
