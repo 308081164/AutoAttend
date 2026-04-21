@@ -113,7 +113,9 @@ public class AdminAgentController {
                                        HttpServletRequest httpRequest) {
         tenantIdFrom(httpRequest);
         List<AgentSession> sessions = sessionService.listByProject(projectId);
-        return ApiResponse.ok(sessions);
+        Map<String, Object> data = new HashMap<>();
+        data.put("items", sessions);
+        return ApiResponse.ok(data);
     }
 
     /**
