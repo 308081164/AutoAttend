@@ -8,6 +8,14 @@
           <span class="header-title">流帮 Project</span>
           <span v-if="tenantName" class="header-tenant">{{ tenantName }}</span>
         </div>
+        <button
+          v-if="session"
+          class="btn-finish-header"
+          @click="requestFinish"
+          :disabled="sending || messages.length === 0"
+        >
+          提交需求
+        </button>
       </div>
     </header>
 
@@ -148,7 +156,7 @@
           class="message-input"
           placeholder="请描述您的需求..."
           rows="1"
-          @keydown.enter.exact.prevent="sendMessage"
+          @keydown.enter.exact="handleEnterKey"
           @input="autoResize"
           @paste="onPaste"
           :disabled="sending"
@@ -164,17 +172,6 @@
             <path d="M22 2L11 13" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M22 2L15 22l-4-9-9-4L22 2z" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-        </button>
-      </div>
-
-      <!-- 描述完毕按钮 -->
-      <div class="finish-row">
-        <button
-          class="btn-finish"
-          @click="requestFinish"
-          :disabled="sending || messages.length === 0"
-        >
-          描述完毕，提交需求
         </button>
       </div>
     </div>
@@ -274,6 +271,16 @@ export default {
     },
 
     /**
+     * 处理回车键：移动端回车换行，PC 端回车发送
+     */
+    handleEnterKey(e) {
+      // 移动端回车换行，PC 端回车发送
+      if (window.innerWidth <= 768) return
+      e.preventDefault()
+      this.sendMessage()
+    },
+
+    /**
      * 发送消息
      */
     async sendMessage() {
@@ -333,6 +340,7 @@ export default {
           } else if (data.messages) {
             // 如果返回的是完整消息列表，则更新
             this.messages = data.messages
+            this.$nextTick(() => this.scrollToBottom())
           }
         }
 
@@ -474,8 +482,13 @@ export default {
           this.showFinishModal = true
         }
       } catch (err) {
-        const msg = (err.response && err.response.data && err.response.data.message) || err.message || '获取摘要失败'
-        this.error = msg
+        const status = err.response && err.response.status
+        const serverMsg = (err.response && err.response.data && err.response.data.message) || ''
+        if (status === 500) {
+          this.error = '服务器内部错误，请稍后重试。如果问题持续存在，请联系管理员。'
+        } else {
+          this.error = serverMsg || err.message || '获取摘要失败'
+        }
       } finally {
         this.sending = false
       }
@@ -507,8 +520,13 @@ export default {
           this.$nextTick(() => this.scrollToBottom())
         }
       } catch (err) {
-        const msg = (err.response && err.response.data && err.response.data.message) || err.message || '提交失败'
-        this.error = msg
+        const status = err.response && err.response.status
+        const serverMsg = (err.response && err.response.data && err.response.data.message) || ''
+        if (status === 500) {
+          this.error = '服务器内部错误，请稍后重试。如果问题持续存在，请联系管理员。'
+        } else {
+          this.error = serverMsg || err.message || '提交失败'
+        }
       } finally {
         this.sending = false
       }
@@ -575,7 +593,7 @@ export default {
     },
 
     /**
-     * 渲染消息内容（简单换行处理）
+     * 渲染消息内容（支持基础 Markdown 语法）
      */
     renderContent(content) {
       if (!content) return ''
@@ -584,8 +602,46 @@ export default {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-      // 换行转 <br>
+
+      // 围栏代码块 (``` ... ```) —— 必须在行内 code 之前处理
+      text = text.replace(/```([\s\S]*?)```/g, function (match, code) {
+        return '<pre><code>' + code.trim() + '</code></pre>'
+      })
+
+      // 标题 h3-h6
+      text = text.replace(/^#{3,6}\s+(.+)$/gm, function (match, heading) {
+        const level = match.trimStart().indexOf(' ')
+        return '<h' + level + '>' + heading.trim() + '</h' + level + '>'
+      })
+
+      // 粗体 **bold**
+      text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+
+      // 斜体 *italic*
+      text = text.replace(/\*(.+?)\*/g, '<em>$1</em>')
+
+      // 行内代码 `code`
+      text = text.replace(/`([^`]+)`/g, '<code>$1</code>')
+
+      // 无序列表（连续的 - 开头行）
+      text = text.replace(/((?:^- .+\n?)+)/gm, function (match) {
+        const items = match.trim().split('\n').map(function (line) {
+          return '<li>' + line.replace(/^- /, '') + '</li>'
+        }).join('')
+        return '<ul>' + items + '</ul>'
+      })
+
+      // 有序列表（连续的 数字. 开头行）
+      text = text.replace(/((?:^\d+\.\s.+\n?)+)/gm, function (match) {
+        const items = match.trim().split('\n').map(function (line) {
+          return '<li>' + line.replace(/^\d+\.\s/, '') + '</li>'
+        }).join('')
+        return '<ol>' + items + '</ol>'
+      })
+
+      // 换行转 <br>（排除已在块级元素内的换行）
       text = text.replace(/\n/g, '<br>')
+
       return text
     }
   }
@@ -665,6 +721,30 @@ export default {
   padding: 2px 8px;
   background: var(--lb-bg);
   border-radius: 4px;
+}
+
+.btn-finish-header {
+  padding: 5px 14px;
+  background: var(--lb-blue);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-finish-header:hover:not(:disabled) {
+  background: #2860e1;
+}
+
+.btn-finish-header:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ========== Project Banner ========== */

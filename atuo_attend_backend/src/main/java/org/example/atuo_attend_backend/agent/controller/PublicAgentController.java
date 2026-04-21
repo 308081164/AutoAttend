@@ -97,7 +97,7 @@ public class PublicAgentController {
     }
 
     /**
-     * 确认描述完毕
+     * 描述完毕：confirmed=false 时仅预览摘要，confirmed=true 时确认结束会话。
      */
     @PostMapping("/sessions/{publicToken}/finish")
     public ApiResponse<?> finishSession(@PathVariable String publicToken,
@@ -107,11 +107,23 @@ public class PublicAgentController {
             return ApiResponse.error(40400, "会话不存在");
         }
 
-        AgentSession updated = sessionService.confirmAndEnd(session.getId());
+        boolean confirmed = request != null && Boolean.TRUE.equals(request.getConfirmed());
 
         Map<String, Object> result = new HashMap<>();
-        result.put("session", updated);
-        result.put("summary", updated.getSummaryText());
+        if (confirmed) {
+            // 确认提交：结束会话
+            AgentSession updated = sessionService.confirmAndEnd(session.getId());
+            result.put("session", updated);
+            result.put("summary", updated.getSummaryText());
+        } else {
+            // 预览模式：仅生成摘要预览，不结束会话
+            try {
+                String summary = sessionService.generateSummaryPreview(session.getId());
+                result.put("summary", summary);
+            } catch (Exception e) {
+                return ApiResponse.error(50000, "生成摘要失败：" + (e.getMessage() != null ? e.getMessage() : "未知错误"));
+            }
+        }
 
         return ApiResponse.ok(result);
     }
