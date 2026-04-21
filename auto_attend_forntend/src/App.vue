@@ -1100,6 +1100,45 @@ body {
 
   .app-topbar {
     padding-left: 56px;
+    padding-right: var(--space-sm);
+    height: 48px;
+    min-height: 48px;
+  }
+
+  /* 顶栏文字缩小避免换行 */
+  .breadcrumb {
+    font-size: var(--font-size-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 180px;
+  }
+
+  .breadcrumb-brand {
+    display: none;
+  }
+
+  .breadcrumb-sep {
+    display: none;
+  }
+
+  .breadcrumb-current {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /* 顶栏右侧按钮缩小 */
+  .topbar-right {
+    gap: var(--space-xs);
+  }
+
+  .topbar-right .icon-btn {
+    padding: var(--space-xs);
+  }
+
+  .topbar-right .icon-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .sidebar-collapse-btn {
@@ -1111,7 +1150,17 @@ body {
   }
 
   .app-main {
-    padding: 16px;
+    padding: var(--space-sm);
+    padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 侧栏导航文字缩小 */
+  .nav-label {
+    font-size: var(--font-size-sm);
+  }
+
+  .nav-group-label {
+    font-size: var(--font-size-xs);
   }
 }
 

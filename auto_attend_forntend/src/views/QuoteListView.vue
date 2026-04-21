@@ -12,7 +12,8 @@
     </div>
     <div v-if="loading" class="placeholder">{{ $t('quote.loading') }}</div>
     <div v-else-if="!items.length" class="placeholder">{{ $t('quote.emptyList') }}</div>
-    <table v-else class="data-table">
+    <!-- PC端表格 -->
+    <table v-else class="data-table data-table--pc">
       <thead>
         <tr>
           <th>ID</th>
@@ -39,6 +40,27 @@
         </tr>
       </tbody>
     </table>
+    <!-- 移动端卡片列表 -->
+    <div v-else class="card-list card-list--mobile">
+      <div v-for="row in items" :key="row.id" class="quote-card">
+        <div class="quote-card__header">
+          <span class="quote-card__id">#{{ row.id }}</span>
+          <span class="quote-card__mode" :class="row.quoteKind === 'solution' ? 'quote-card__mode--solution' : ''">
+            {{ row.quoteKind === 'solution' ? '解决方案' : '单体' }}
+          </span>
+        </div>
+        <h3 class="quote-card__name">{{ row.name }}</h3>
+        <div class="quote-card__tech">技术栈：{{ row.techStack }}</div>
+        <div class="quote-card__actions">
+          <router-link :to="'/quote/' + row.id" class="quote-card__btn quote-card__btn--primary">打开</router-link>
+          <button
+            class="quote-card__btn quote-card__btn--danger"
+            :disabled="deletingId === row.id"
+            @click="deleteProject(row.id)"
+          >删除</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -232,5 +254,143 @@ export default {
   color: var(--text-secondary);
   font-weight: var(--font-weight-medium);
   text-align: center;
+}
+
+/* ========== 移动端卡片列表 ========== */
+.card-list--mobile {
+  display: none;
+}
+
+.quote-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.quote-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.quote-card__id {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.quote-card__mode {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.quote-card__mode--solution {
+  background: rgba(13, 148, 136, 0.1);
+  color: #0d9488;
+}
+
+.quote-card__name {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.quote-card__tech {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.quote-card__actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.quote-card__btn {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.quote-card__btn--primary {
+  background: var(--brand-blue);
+  color: #fff;
+  border: none;
+}
+
+.quote-card__btn--primary:hover {
+  background: var(--brand-blue-hover);
+}
+
+.quote-card__btn--danger {
+  background: #fff;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.quote-card__btn--danger:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.quote-card__btn--danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ========== 响应式：移动端 ========== */
+@media (max-width: 768px) {
+  .quote-list-page {
+    padding: var(--space-md);
+    padding-bottom: calc(var(--space-xl) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .page-head h1 {
+    font-size: var(--font-size-xl);
+  }
+
+  .desc {
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+  }
+
+  .desc-sub {
+    display: none;
+  }
+
+  .head-actions-split {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .head-actions-split .secondary-button,
+  .head-actions-split .primary-button {
+    width: 100%;
+    text-align: center;
+    font-size: var(--font-size-sm);
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .data-table--pc {
+    display: none;
+  }
+
+  .card-list--mobile {
+    display: block;
+  }
 }
 </style>

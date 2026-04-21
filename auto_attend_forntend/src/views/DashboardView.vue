@@ -5389,5 +5389,227 @@ export default {
   color: var(--text-disabled) !important;
 }
 
+/* ============================================================
+   移动端适配
+   ============================================================ */
+@media (max-width: 768px) {
+  .console-shell {
+    padding: 0;
+  }
+
+  .console-inner {
+    padding: var(--space-sm);
+    padding-bottom: calc(var(--space-xl) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 指挥中心 */
+  .dash-command {
+    padding: var(--space-md);
+  }
+
+  .dash-command-top {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .dash-command-intro {
+    order: 2;
+  }
+
+  .dash-command-identity {
+    order: 1;
+    width: 100%;
+  }
+
+  .dash-eyebrow {
+    font-size: var(--font-size-xs);
+  }
+
+  .dash-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .dash-mission {
+    font-size: var(--font-size-sm);
+    display: none;
+  }
+
+  /* 状态条 */
+  .dash-status-strip {
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+  }
+
+  .dash-chip {
+    font-size: var(--font-size-xs);
+    padding: 2px 6px;
+  }
+
+  .dash-workspace-prefs {
+    display: none;
+  }
+
+  /* 身份卡片 */
+  .dash-command-identity {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .dash-identity-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: var(--font-size-xl);
+    margin: 0 auto var(--space-sm);
+  }
+
+  .dash-identity-title-row {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .dash-identity-name {
+    font-size: var(--font-size-lg);
+  }
+
+  .dash-identity-edit {
+    font-size: var(--font-size-xs);
+  }
+
+  .identity-meta-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-xs);
+  }
+
+  .identity-tags {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .identity-tag {
+    font-size: var(--font-size-xs);
+    padding: 2px 6px;
+  }
+
+  /* 绑定手机面板 */
+  .dash-bind-phone-panel {
+    padding: var(--space-md);
+  }
+
+  .dash-bind-phone-title {
+    font-size: var(--font-size-md);
+  }
+
+  .dash-bind-phone-row {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .dash-bind-phone-input {
+    width: 100%;
+  }
+
+  .dash-bind-phone-code {
+    width: 100%;
+  }
+
+  /* 官方AI面板 */
+  .dash-official-ai-panel {
+    padding: var(--space-md);
+  }
+
+  .dash-official-ai-title {
+    font-size: var(--font-size-md);
+  }
+
+  .dash-official-ai-metrics {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  /* 快捷入口 */
+  .dash-shortcuts {
+    padding: var(--space-md);
+  }
+
+  .dash-shortcuts-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+
+  .dash-shortcut-card {
+    padding: var(--space-md);
+  }
+
+  .dash-shortcut-title {
+    font-size: var(--font-size-md);
+  }
+
+  /* 数据看板 */
+  .dash-cards {
+    padding: var(--space-md);
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .dash-card {
+    padding: var(--space-md);
+  }
+
+  .dash-card-header h3 {
+    font-size: var(--font-size-md);
+  }
+
+  /* 表格适配 */
+  .dash-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .dash-table th,
+  .dash-table td {
+    font-size: var(--font-size-sm);
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  /* 弹窗适配 */
+  .dash-modal {
+    width: 95%;
+    max-height: 90vh;
+    margin: var(--space-md);
+  }
+
+  .dash-modal-header h3 {
+    font-size: var(--font-size-lg);
+  }
+
+  .dash-modal-body {
+    padding: var(--space-md);
+  }
+
+  .dash-modal-footer {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .dash-modal-footer button {
+    width: 100%;
+  }
+
+  /* 表单适配 */
+  .dash-form-row {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .dash-form-row label {
+    font-size: var(--font-size-sm);
+  }
+
+  .dash-form-row input,
+  .dash-form-row select,
+  .dash-form-row textarea {
+    font-size: var(--font-size-md);
+  }
+}
 </style>
 

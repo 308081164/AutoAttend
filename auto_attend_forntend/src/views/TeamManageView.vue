@@ -7,7 +7,8 @@
 
     <div v-if="loading" class="placeholder">{{ $t('teamManage.loading') }}</div>
     <div v-else-if="!members.length" class="placeholder">{{ $t('teamManage.noMembers') }}</div>
-    <div v-else class="table-wrapper">
+    <!-- PC端表格 -->
+    <div v-else class="table-wrapper table-wrapper--pc">
       <table class="table">
         <thead>
           <tr>
@@ -38,6 +39,29 @@
           </tr>
         </tbody>
       </table>
+    </div>
+    <!-- 移动端卡片列表 -->
+    <div v-else class="member-list member-list--mobile">
+      <div v-for="u in members" :key="u.id" class="member-card">
+        <div class="member-card__main">
+          <div class="member-card__avatar">
+            <img v-if="u.avatar" :src="avatarDisplayUrl(u.avatar)" class="avatar-img" alt="">
+            <span v-else class="avatar-placeholder">{{ (u.remarkName || u.name || u.email || '?').slice(0, 1) }}</span>
+          </div>
+          <div class="member-card__info">
+            <div class="member-card__name">{{ u.remarkName || u.name || u.email }}</div>
+            <div class="member-card__email">{{ u.email }}</div>
+            <div class="member-card__meta">
+              <span v-if="u.jobTitle" class="member-card__job">{{ u.jobTitle }}</span>
+              <span class="member-card__role" :class="'member-card__role--' + u.role">{{ roleLabel(u.role) }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="member-card__actions">
+          <button class="member-card__btn" @click="openEdit(u)">编辑</button>
+          <button class="member-card__btn" @click="openProjectPermissions(u)">权限</button>
+        </div>
+      </div>
     </div>
 
     <!-- 创建成员 -->
@@ -557,5 +581,192 @@ export default {
   outline: none;
   border-color: var(--border-input-focus);
   box-shadow: 0 0 0 2px rgba(20, 86, 240, 0.15);
+}
+
+/* ========== 移动端卡片列表 ========== */
+.member-list--mobile {
+  display: none;
+}
+
+.member-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.member-card__main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
+.member-card__avatar .avatar-img,
+.member-card__avatar .avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.member-card__avatar .avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-blue);
+  color: #fff;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.member-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-card__name {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.member-card__email {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.member-card__job {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.member-card__role {
+  font-size: var(--font-size-xs);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: var(--font-weight-medium);
+}
+
+.member-card__role--super_admin {
+  background: rgba(234, 88, 12, 0.1);
+  color: #ea580c;
+}
+
+.member-card__role--sub_admin {
+  background: rgba(20, 86, 240, 0.1);
+  color: var(--brand-blue);
+}
+
+.member-card__role--member {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.member-card__actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-primary);
+}
+
+.member-card__btn {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  cursor: pointer;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  transition: var(--transition-fast);
+}
+
+.member-card__btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-input-hover);
+}
+
+/* ========== 响应式：移动端 ========== */
+@media (max-width: 768px) {
+  .team-manage {
+    padding: var(--space-md);
+    padding-bottom: calc(var(--space-xl) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-md);
+  }
+
+  .page-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .primary-button {
+    width: 100%;
+    font-size: var(--font-size-sm);
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .table-wrapper--pc {
+    display: none;
+  }
+
+  .member-list--mobile {
+    display: block;
+  }
+
+  /* 弹窗适配 */
+  .modal-card {
+    width: 95%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: var(--space-md);
+  }
+
+  .modal-card h3 {
+    font-size: var(--font-size-lg);
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .form-row label {
+    font-size: var(--font-size-sm);
+  }
+
+  .form-row input,
+  .form-row select {
+    font-size: var(--font-size-md);
+  }
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
 }
 </style>
