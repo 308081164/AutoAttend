@@ -7,7 +7,6 @@
 
     <div v-if="loading" class="placeholder">{{ $t('teamManage.loading') }}</div>
     <div v-else-if="!members.length" class="placeholder">{{ $t('teamManage.noMembers') }}</div>
-    <!-- PC端表格 -->
     <div v-else class="table-wrapper table-wrapper--pc">
       <table class="table">
         <thead>
@@ -40,7 +39,6 @@
         </tbody>
       </table>
     </div>
-    <!-- 移动端卡片列表 -->
     <div v-else class="member-list member-list--mobile">
       <div v-for="u in members" :key="u.id" class="member-card">
         <div class="member-card__main">
