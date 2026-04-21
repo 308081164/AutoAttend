@@ -550,6 +550,42 @@ public class QuoteService {
         if (p == null) throw new IllegalArgumentException("项目不存在");
         QuoteResult r = quoteResultId != null ? resultMapper.findById(tid(),quoteResultId) : resultMapper.findLatestByProjectId(tid(),projectId);
         if (r == null || r.getQuoteProjectId() != projectId) throw new IllegalArgumentException("请先计算报价或指定有效的报价结果 ID");
+
+        // 自动检测：若所有功能点 estimatedDays=0 且 linePriceSnap=null，说明尚未计算，自动执行一次
+        List<QuoteModule> modules = moduleMapper.listByProjectId(tid(), projectId);
+        boolean needsRecalc = false;
+        if (!modules.isEmpty()) {
+            for (QuoteModule m : modules) {
+                for (QuoteItem it : itemMapper.listByModuleId(tid(), m.getId())) {
+                    BigDecimal days = it.getEstimatedDays();
+                    if (days != null && days.compareTo(BigDecimal.ZERO) > 0) {
+                        needsRecalc = false;
+                        break;
+                    }
+                    if (it.getLinePriceSnap() != null) {
+                        needsRecalc = false;
+                        break;
+                    }
+                }
+                if (!needsRecalc) break;
+            }
+            if (needsRecalc) {
+                log.info("buildQuoteDocument: detected uncalculated items, auto-calculating for project {}", projectId);
+                try {
+                    QuoteCalculateRequest autoReq = new QuoteCalculateRequest();
+                    autoReq.setRiskKeys(r.getSelectedRisksJson() != null
+                            ? objectMapper.readValue(r.getSelectedRisksJson(), List.class) : null);
+                    Map<String, Object> calcResult = calculate(projectId, autoReq);
+                    r = resultMapper.findLatestByProjectId(tid(), projectId);
+                    if (r == null) {
+                        throw new IllegalStateException("自动计算报价失败");
+                    }
+                } catch (Exception e) {
+                    log.warn("buildQuoteDocument: auto-calculate failed, using existing result: {}", e.getMessage());
+                }
+            }
+        }
+
         String html = renderQuoteHtml(p, r);
         documentMapper.insert(tid(), r.getId(), "quote", html, 1);
         Map<String, Object> data = new HashMap<>();
