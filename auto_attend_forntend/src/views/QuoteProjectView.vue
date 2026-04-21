@@ -243,32 +243,34 @@
               </p>
               <p v-if="agentBgAttachError" class="hint err" style="margin-top:6px">{{ agentBgAttachError }}</p>
               <div v-if="agentBgAttachLoading" class="hint" style="margin-top:8px">加载附件列表…</div>
-              <div v-else-if="!agentBgCollabProjectId" class="hint">
-                尚未绑定协作项目，已有协作附件不可用。您仍可上传本地文件作为附件。
-              </div>
-              <div class="agent-bg-upload-row">
-                <input
-                  ref="agentBgFileInput"
-                  type="file"
-                  style="display:none"
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                  @change="onAgentBgFileSelected"
-                >
-                <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput && $refs.agentBgFileInput.click()">
-                  {{ agentBgUploading ? '上传中…' : '上传文件' }}
-                </button>
-                <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
-              </div>
-              <template v-else>
+              <template v-else-if="!agentBgCollabProjectId">
+                <div class="hint">
+                  尚未绑定协作项目，已有协作附件不可用。您仍可上传本地文件作为附件。
+                </div>
                 <div class="agent-bg-upload-row">
                   <input
-                    ref="agentBgFileInput2"
+                    ref="agentBgFileInput"
                     type="file"
                     style="display:none"
                     accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
                     @change="onAgentBgFileSelected"
                   >
-                  <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput2 && $refs.agentBgFileInput2.click()">
+                  <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput && $refs.agentBgFileInput.click()">
+                    {{ agentBgUploading ? '上传中…' : '上传文件' }}
+                  </button>
+                  <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
+                </div>
+              </template>
+              <template v-else>
+                <div class="agent-bg-upload-row">
+                  <input
+                    ref="agentBgFileInput"
+                    type="file"
+                    style="display:none"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                    @change="onAgentBgFileSelected"
+                  >
+                  <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput && $refs.agentBgFileInput.click()">
                     {{ agentBgUploading ? '上传中…' : '上传文件' }}
                   </button>
                   <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
