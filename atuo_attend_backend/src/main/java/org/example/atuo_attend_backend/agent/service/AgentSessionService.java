@@ -230,11 +230,13 @@ public class AgentSessionService {
     }
 
     /**
-     * 报价页「新建 Agent 会话」：列出当前报价关联协作项目下的附件（供勾选作为背景）。
+     * 报价页「新建 Agent 会话」：列出当前报价关联的附件。
+     * 若已绑定协作项目，列出协作项目附件；否则列出报价项目级附件。
      */
     public Map<String, Object> listBackgroundAttachmentsForQuote(long tenantId, long quoteProjectId) {
-        long collabProjectId = quoteCollabLinkService.resolveCollabProjectIdForQuote(tenantId, quoteProjectId);
-        List<BizAttachment> list = attachmentMapper.listByProjectId(collabProjectId);
+        Long collabProjectId = quoteCollabLinkService.tryResolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        long effectiveProjectId = (collabProjectId != null) ? collabProjectId : quoteProjectId;
+        List<BizAttachment> list = attachmentMapper.listByProjectId(effectiveProjectId);
         List<Map<String, Object>> items = list.stream().map(a -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", a.getId());
@@ -251,18 +253,19 @@ public class AgentSessionService {
     }
 
     /**
-     * 报价页上传背景附件：写入协作项目 MinIO，与多维表「项目级附件」一致。
+     * 报价页上传背景附件：若已绑定协作项目则写入协作项目；否则写入报价项目级别。
      */
     public Map<String, Object> uploadBackgroundAttachmentForQuote(long tenantId, long quoteProjectId,
                                                                    Long uploadedBy, MultipartFile file) throws Exception {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择文件");
         }
-        long collabProjectId = quoteCollabLinkService.resolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        Long collabProjectId = quoteCollabLinkService.tryResolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        long effectiveProjectId = (collabProjectId != null) ? collabProjectId : quoteProjectId;
         String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
-        String key = minioService.upload(collabProjectId, 0L, originalName, file.getInputStream(), file.getSize());
+        String key = minioService.upload(effectiveProjectId, 0L, originalName, file.getInputStream(), file.getSize());
         BizAttachment att = new BizAttachment();
-        att.setProjectId(collabProjectId);
+        att.setProjectId(effectiveProjectId);
         att.setRecordId(null);
         att.setFileName(originalName);
         att.setFileSize(file.getSize());
@@ -281,6 +284,7 @@ public class AgentSessionService {
 
     /**
      * 校验「背景附件」均属于当前报价关联的协作项目，并去重、限制数量。
+     * 若报价项目尚未绑定协作项目，则不允许传入附件 ID（返回空列表）。
      */
     private List<Long> validateAndNormalizeBackgroundAttachmentIds(long tenantId, long quoteProjectId, List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -293,7 +297,20 @@ public class AgentSessionService {
         if (dedup.size() > MAX_BACKGROUND_ATTACHMENTS) {
             throw new IllegalArgumentException("背景附件最多选择 " + MAX_BACKGROUND_ATTACHMENTS + " 个");
         }
-        long collabProjectId = quoteCollabLinkService.resolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        // 尝试解析协作项目 ID；若尚未绑定则不允许使用已有附件
+        Long collabProjectId = null;
+        try {
+            collabProjectId = quoteCollabLinkService.tryResolveCollabProjectIdForQuote(tenantId, quoteProjectId);
+        } catch (Exception ignored) {
+            // 尚未绑定协作项目，忽略
+        }
+        if (collabProjectId == null) {
+            // 未绑定协作项目时不允许通过已有附件 ID 引用
+            if (!dedup.isEmpty()) {
+                log.warn("Agent session created without collab project, ignoring {} attachment IDs", dedup.size());
+            }
+            return null;
+        }
         for (Long id : dedup) {
             BizAttachment att = attachmentMapper.findById(id);
             if (att == null || att.getProjectId() == null || att.getProjectId() != collabProjectId) {

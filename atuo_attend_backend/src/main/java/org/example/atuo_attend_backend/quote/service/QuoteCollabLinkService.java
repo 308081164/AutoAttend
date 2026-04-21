@@ -101,6 +101,27 @@ public class QuoteCollabLinkService {
     }
 
     /**
+     * 尝试解析协作项目 ID，未绑定时返回 null 而非抛异常。
+     */
+    public Long tryResolveCollabProjectIdForQuote(long tenantId, long quoteProjectId) {
+        QuoteProject qp = quoteProjectMapper.findById(tenantId, quoteProjectId);
+        if (qp == null) {
+            return null;
+        }
+        if (qp.getLinkTableId() != null && qp.getLinkTableId() > 0) {
+            return qp.getLinkTableId();
+        }
+        String repo = qp.getGithubRepoFullName();
+        if (repo != null && !repo.isBlank()) {
+            BizProject bp = bizProjectMapper.findByTenantAndRepoId(tenantId, repo.trim());
+            if (bp != null) {
+                return bp.getId();
+            }
+        }
+        return null;
+    }
+
+    /**
      * 从「项目调整」表（issue_tracking）拉取需求记录摘要，供报价页勾选导入。
      */
     public List<Map<String, Object>> listLinkTableRequirements(long quoteProjectId) {

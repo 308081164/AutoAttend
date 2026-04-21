@@ -154,11 +154,7 @@
         </div>
 
         <div v-show="moduleEntryMode === 'ai'" class="quote-ai-panel">
-          <label v-if="!isSolutionMode" class="chk" style="display:block;margin-bottom:8px">
-            <input type="checkbox" v-model="aiMultiDeliverableMode" />
-            整套系统拆解（多交付物：由 AI 输出 Web / App / 后端等分组）
-          </label>
-          <p v-else class="hint" style="margin-bottom:8px">解决方案模式：AI 将按当前页面已确认的<strong>交付物键</strong>与<strong>各交付物技术栈</strong>填充模块与功能点。</p>
+          <p v-if="isSolutionMode" class="hint" style="margin-bottom:8px">解决方案模式：AI 将按当前页面已确认的<strong>交付物键</strong>与<strong>各交付物技术栈</strong>填充模块与功能点。</p>
           <p class="hint">{{ $t('quote.aiModuleHint') }}</p>
           <label class="block">{{ $t('quote.aiModuleRequirementLabel') }}</label>
           <textarea v-model="aiRequirementText" class="textarea" rows="8" :placeholder="$t('quote.aiModulePlaceholder')"></textarea>
@@ -243,23 +239,36 @@
             <div class="form-group">
               <label>已有附件（可选）</label>
               <p class="hint agent-bg-hint">
-                附件归属当前报价关联的协作项目，与多维表「项目附件」一致；可勾选已有文件或上传新文件（最多 12 个）。
+                附件归属当前报价关联的协作项目（若已绑定）；可勾选已有文件或上传新文件（最多 12 个）。
               </p>
               <p v-if="agentBgAttachError" class="hint err" style="margin-top:6px">{{ agentBgAttachError }}</p>
               <div v-if="agentBgAttachLoading" class="hint" style="margin-top:8px">加载附件列表…</div>
               <div v-else-if="!agentBgCollabProjectId" class="hint">
-                尚未绑定协作项目：请先在项目中完成「创建仓库」或绑定 GitHub 仓库 / 多维表，再使用附件背景。
+                尚未绑定协作项目，已有协作附件不可用。您仍可上传本地文件作为附件。
+              </div>
+              <div class="agent-bg-upload-row">
+                <input
+                  ref="agentBgFileInput"
+                  type="file"
+                  style="display:none"
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                  @change="onAgentBgFileSelected"
+                >
+                <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput && $refs.agentBgFileInput.click()">
+                  {{ agentBgUploading ? '上传中…' : '上传文件' }}
+                </button>
+                <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
               </div>
               <template v-else>
                 <div class="agent-bg-upload-row">
                   <input
-                    ref="agentBgFileInput"
+                    ref="agentBgFileInput2"
                     type="file"
                     style="display:none"
                     accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
                     @change="onAgentBgFileSelected"
                   >
-                  <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput && $refs.agentBgFileInput.click()">
+                  <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput2 && $refs.agentBgFileInput2.click()">
                     {{ agentBgUploading ? '上传中…' : '上传文件' }}
                   </button>
                   <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
@@ -2485,9 +2494,9 @@ export default {
         if (text) {
           body.backgroundTexts = [{ label: '沟通记录', content: text }]
         }
-        const ids = idsRaw
-        if (ids.length) {
-          body.backgroundAttachmentIds = ids
+        // 仅在已绑定协作项目时才传附件 ID
+        if (idsRaw.length && this.agentBgCollabProjectId) {
+          body.backgroundAttachmentIds = idsRaw
         }
         const resp = await this.$http.post(`/admin/agent/quote/projects/${qid}/agent-sessions`, body)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
@@ -2521,7 +2530,7 @@ export default {
         const msg = (e.response && e.response.data && e.response.data.message) || ''
         this.agentBgCollabProjectId = null
         this.agentBgAvailableAttachments = []
-        this.agentBgAttachError = msg || '无法加载附件列表（请先绑定协作项目）'
+        this.agentBgAttachError = msg || '无法加载附件列表'
       } finally {
         this.agentBgAttachLoading = false
       }
