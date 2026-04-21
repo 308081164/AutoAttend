@@ -99,11 +99,9 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     // 强制竖屏（手机端启动页竖屏展示）
-    try {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
-    } catch (_) {}
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]).catchError((_) {});
 
     final size = MediaQuery.of(context).size;
     final isTablet = size.shortestSide >= 600;
@@ -225,22 +223,18 @@ class _ShellHomePageState extends State<ShellHomePage> {
   }
 
   void _setOrientationByDevice() {
-    try {
-      final size = MediaQuery.of(context).size;
-      final isTablet = size.shortestSide >= 600;
-      if (isTablet) {
-        // 平板：横屏，支持180度旋转
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
-      } else {
-        // 手机：竖屏
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-        ]);
-      }
-    } catch (_) {}
+    final size = MediaQuery.of(context).size;
+    final isTablet = size.shortestSide >= 600;
+    if (isTablet) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]).catchError((_) {});
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]).catchError((_) {});
+    }
   }
 
   Future<void> _init() async {
