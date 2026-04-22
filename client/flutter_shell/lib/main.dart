@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 /// 默认加载的生产 Web 基址；CI 传入 --dart-define=APP_BASE_URL=...
 const String kDefaultBaseUrl = String.fromEnvironment(
@@ -220,27 +221,6 @@ class _ShellHomePageState extends State<ShellHomePage> {
   void initState() {
     super.initState();
     _init();
-    // 在首帧渲染后设置屏幕方向（确保能获取正确屏幕尺寸）
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _setOrientationByDevice();
-    });
-  }
-
-  void _setOrientationByDevice() {
-    if (!mounted) return;
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final size = view.physicalSize / view.devicePixelRatio;
-    final isTablet = size.shortestSide >= 600;
-    if (isTablet) {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]).catchError((_) {});
-    } else {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]).catchError((_) {});
-    }
   }
 
   Future<void> _init() async {
@@ -296,6 +276,14 @@ class _ShellHomePageState extends State<ShellHomePage> {
         ),
       )
       ..loadRequest(uri);
+
+    // Android: 配置 WebView 允许忽略 SSL 证书错误（域名证书不匹配时仍可加载）
+    if (c.platform is AndroidWebViewController) {
+      final androidCtrl = c.platform as AndroidWebViewController;
+      androidCtrl.setOnReceivedSslErrorHandler((controller) {
+        controller.proceed(); // 忽略 SSL 错误继续加载
+      });
+    }
 
     if (mounted) {
       setState(() {
