@@ -287,16 +287,6 @@ class _ShellHomePageState extends State<ShellHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('流帮 Project'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _reload,
-            tooltip: '刷新',
-          ),
-        ],
-      ),
       body: SizedBox.expand(
         child: Stack(
           children: [
@@ -307,9 +297,21 @@ class _ShellHomePageState extends State<ShellHomePage> {
             else
               const Center(child: CircularProgressIndicator()),
             if (_loading && !_loadError && _controller != null)
-              const Align(
-                alignment: Alignment.topCenter,
-                child: LinearProgressIndicator(minHeight: 2),
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(minHeight: 3),
+              ),
+            // 悬浮刷新按钮
+            if (_controller != null && !_loadError)
+              Positioned(
+                bottom: 24,
+                right: 24,
+                child: FloatingActionButton.small(
+                  onPressed: _reload,
+                  child: const Icon(Icons.refresh, size: 20),
+                ),
               ),
           ],
         ),
