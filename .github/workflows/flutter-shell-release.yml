@@ -43,7 +43,7 @@ jobs:
         env:
           APP_SHELL_BASE_URL: ${{ vars.APP_SHELL_BASE_URL }}
         run: |
-          BASE="${APP_SHELL_BASE_URL:-https://example.com}"
+          BASE="${APP_SHELL_BASE_URL:-https://autoattend.xn--gnr55wfngz8f.com}"
           flutter build apk --release --dart-define=APP_BASE_URL="$BASE"
       - uses: actions/upload-artifact@v4
         with:
@@ -79,7 +79,7 @@ jobs:
           APP_SHELL_BASE_URL: ${{ vars.APP_SHELL_BASE_URL }}
         shell: bash
         run: |
-          BASE="${APP_SHELL_BASE_URL:-https://example.com}"
+          BASE="${APP_SHELL_BASE_URL:-https://autoattend.xn--gnr55wfngz8f.com}"
           flutter build windows --release --dart-define=APP_BASE_URL="$BASE"
       - uses: actions/upload-artifact@v4
         with:
@@ -117,7 +117,7 @@ jobs:
         env:
           APP_SHELL_BASE_URL: ${{ vars.APP_SHELL_BASE_URL }}
         run: |
-          BASE="${APP_SHELL_BASE_URL:-https://example.com}"
+          BASE="${APP_SHELL_BASE_URL:-https://autoattend.xn--gnr55wfngz8f.com}"
           flutter build linux --release --dart-define=APP_BASE_URL="$BASE"
       - uses: actions/upload-artifact@v4
         with:

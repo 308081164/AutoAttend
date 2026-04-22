@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 /// 默认加载的生产 Web 基址；CI 传入 --dart-define=APP_BASE_URL=...
 const String kDefaultBaseUrl = String.fromEnvironment(
@@ -276,14 +275,6 @@ class _ShellHomePageState extends State<ShellHomePage> {
         ),
       )
       ..loadRequest(uri);
-
-    // Android: 配置 WebView 允许忽略 SSL 证书错误（域名证书不匹配时仍可加载）
-    if (c.platform is AndroidWebViewController) {
-      final androidCtrl = c.platform as AndroidWebViewController;
-      androidCtrl.setOnReceivedSslErrorHandler((controller) {
-        controller.proceed(); // 忽略 SSL 错误继续加载
-      });
-    }
 
     if (mounted) {
       setState(() {
