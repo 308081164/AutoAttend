@@ -9,7 +9,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 /// 默认加载的生产 Web 基址；CI 传入 --dart-define=APP_BASE_URL=...
 const String kDefaultBaseUrl = String.fromEnvironment(
   'APP_BASE_URL',
-  defaultValue: 'https://example.com',
+  defaultValue: 'https://autoattend.xn--gnr55wfngz8f.com',
 );
 
 void main() {
