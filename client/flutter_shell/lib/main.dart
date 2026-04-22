@@ -9,7 +9,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 /// 默认加载的生产 Web 基址；CI 传入 --dart-define=APP_BASE_URL=...
 const String kDefaultBaseUrl = String.fromEnvironment(
   'APP_BASE_URL',
-  defaultValue: 'https://autoattend.xn--gnr55wfngz8f.com',
+  defaultValue: 'http://autoattend.xn--gnr55wfngz8f.com',
 );
 
 void main() {
@@ -98,11 +98,6 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    // 强制竖屏（手机端启动页竖屏展示）
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]).catchError((_) {});
-
     final size = MediaQuery.of(context).size;
     final isTablet = size.shortestSide >= 600;
 
