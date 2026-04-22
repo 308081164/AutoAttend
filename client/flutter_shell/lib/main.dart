@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 /// 默认加载的生产 Web 基址；CI 传入 --dart-define=APP_BASE_URL=...
 const String kDefaultBaseUrl = String.fromEnvironment(
@@ -264,16 +263,7 @@ class _ShellHomePageState extends State<ShellHomePage> {
     _startUri = uri;
     _sameHost = parsed.host.toLowerCase();
 
-    final c = WebViewController.fromPlatformCreationParams(
-      PlatformWebViewControllerCreationParams(
-        androidOnPlatformCreated: (controller) {
-          // 修复 Android WebView 缓存问题
-          controller.settings.setCacheMode(
-            android_webview.CacheMode.LOAD_DEFAULT,
-          );
-        },
-      ),
-    )
+    final c = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
