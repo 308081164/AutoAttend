@@ -60,3 +60,4 @@ schema_tenant_penpot_credential_migration.sql
 schema_nexus_extension_dns_oss_sms_icp.sql
 schema_nexus_drop_icp_site_migration.sql
 schema_lab_feedback_migration.sql
+schema_agent_attachment_independent_migration.sql
