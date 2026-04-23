@@ -6,6 +6,7 @@ public class BizAttachment {
     private Long id;
     private Long projectId;
     private Long recordId;
+    private Long agentSessionId;
     private String fileName;
     private Long fileSize;
     private String storageKey;
@@ -18,6 +19,8 @@ public class BizAttachment {
     public void setRecordId(Long recordId) { this.recordId = recordId; }
     public Long getProjectId() { return projectId; }
     public void setProjectId(Long projectId) { this.projectId = projectId; }
+    public Long getAgentSessionId() { return agentSessionId; }
+    public void setAgentSessionId(Long agentSessionId) { this.agentSessionId = agentSessionId; }
     public String getFileName() { return fileName; }
     public void setFileName(String fileName) { this.fileName = fileName; }
     public Long getFileSize() { return fileSize; }

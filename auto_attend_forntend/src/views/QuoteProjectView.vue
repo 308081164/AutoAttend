@@ -239,15 +239,10 @@
             <div class="form-group">
               <label>已有附件（可选）</label>
               <p class="hint agent-bg-hint">
-                附件归属当前报价关联的协作项目（若已绑定）；可勾选已有文件或上传新文件（最多 12 个）。
+                上传本地文件作为 Agent 背景材料，AI 将在对话中参考这些内容（最多 12 个）。
               </p>
               <p v-if="agentBgAttachError" class="hint err" style="margin-top:6px">{{ agentBgAttachError }}</p>
               <div v-if="agentBgAttachLoading" class="hint" style="margin-top:8px">加载附件列表…</div>
-              <template v-else-if="!agentBgCollabProjectId">
-                <div class="hint">
-                  尚未绑定协作项目，附件功能不可用。请先完成「创建仓库」或手动绑定协作项目。
-                </div>
-              </template>
               <template v-else>
                 <div class="agent-bg-upload-row">
                   <input
@@ -262,7 +257,7 @@
                   </button>
                   <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
                 </div>
-                <div v-if="!agentBgAvailableAttachments.length" class="hint" style="margin-top:8px">暂无项目附件，请先上传。</div>
+                <div v-if="!agentBgAvailableAttachments.length" class="hint" style="margin-top:8px">暂无附件，请先上传。</div>
                 <ul v-else class="agent-bg-att-list">
                   <li v-for="a in agentBgAvailableAttachments" :key="'abg-' + a.id" class="agent-bg-att-item">
                     <label class="agent-bg-att-label">

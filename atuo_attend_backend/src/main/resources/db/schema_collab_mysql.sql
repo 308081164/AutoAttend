@@ -126,8 +126,9 @@ CREATE TABLE IF NOT EXISTS biz_record_comment (
 
 CREATE TABLE IF NOT EXISTS biz_attachment (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    project_id BIGINT NOT NULL,
+    project_id BIGINT NULL COMMENT '所属项目（Agent附件可为NULL）',
     record_id BIGINT NULL,
+    agent_session_id BIGINT NULL COMMENT '关联的Agent会话ID',
     file_name VARCHAR(255) NOT NULL,
     file_size BIGINT NOT NULL DEFAULT 0,
     storage_key VARCHAR(512) NOT NULL,
@@ -135,7 +136,7 @@ CREATE TABLE IF NOT EXISTS biz_attachment (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_project (project_id),
     KEY idx_record (record_id),
-    FOREIGN KEY (project_id) REFERENCES biz_project(id) ON DELETE CASCADE,
+    KEY idx_agent_session (agent_session_id),
     FOREIGN KEY (record_id) REFERENCES biz_record(id) ON DELETE CASCADE,
     FOREIGN KEY (uploaded_by) REFERENCES biz_user(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
