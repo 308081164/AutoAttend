@@ -245,20 +245,7 @@
               <div v-if="agentBgAttachLoading" class="hint" style="margin-top:8px">加载附件列表…</div>
               <template v-else-if="!agentBgCollabProjectId">
                 <div class="hint">
-                  尚未绑定协作项目，已有协作附件不可用。您仍可上传本地文件作为附件。
-                </div>
-                <div class="agent-bg-upload-row">
-                  <input
-                    ref="agentBgFileInput"
-                    type="file"
-                    style="display:none"
-                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                    @change="onAgentBgFileSelected"
-                  >
-                  <button type="button" class="btn secondary small" :disabled="agentBgUploading" @click="$refs.agentBgFileInput && $refs.agentBgFileInput.click()">
-                    {{ agentBgUploading ? '上传中…' : '上传文件' }}
-                  </button>
-                  <span class="hint agent-bg-upload-note">支持图片与常见文档；上传后立即加入下列列表并默认勾选。</span>
+                  尚未绑定协作项目，附件功能不可用。请先完成「创建仓库」或手动绑定协作项目。
                 </div>
               </template>
               <template v-else>

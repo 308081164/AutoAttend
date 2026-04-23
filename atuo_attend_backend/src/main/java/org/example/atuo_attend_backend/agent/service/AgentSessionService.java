@@ -253,7 +253,7 @@ public class AgentSessionService {
     }
 
     /**
-     * 报价页上传背景附件：若已绑定协作项目则写入协作项目；否则写入报价项目级别。
+     * 报价页上传背景附件：若已绑定协作项目则写入协作项目；否则拒绝上传。
      */
     public Map<String, Object> uploadBackgroundAttachmentForQuote(long tenantId, long quoteProjectId,
                                                                    Long uploadedBy, MultipartFile file) throws Exception {
@@ -261,11 +261,13 @@ public class AgentSessionService {
             throw new IllegalArgumentException("请选择文件");
         }
         Long collabProjectId = quoteCollabLinkService.tryResolveCollabProjectIdForQuote(tenantId, quoteProjectId);
-        long effectiveProjectId = (collabProjectId != null) ? collabProjectId : quoteProjectId;
+        if (collabProjectId == null) {
+            throw new IllegalStateException("请先完成「创建仓库」或手动绑定协作项目，再上传附件");
+        }
         String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
-        String key = minioService.upload(effectiveProjectId, 0L, originalName, file.getInputStream(), file.getSize());
+        String key = minioService.upload(collabProjectId, 0L, originalName, file.getInputStream(), file.getSize());
         BizAttachment att = new BizAttachment();
-        att.setProjectId(effectiveProjectId);
+        att.setProjectId(collabProjectId);
         att.setRecordId(null);
         att.setFileName(originalName);
         att.setFileSize(file.getSize());
