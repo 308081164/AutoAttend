@@ -162,10 +162,10 @@ public class QuoteProvisionService {
             steps.add(stepOk("ensureCollabProject", "已创建/复用协作项目", Map.of("projectId", project.getId(), "repoId", project.getRepoId())));
 
             if (syncCollab) {
-                BizProjectTable table = collabTableService.getTableByProjectId(project.getId());
-                if (table == null) throw new IllegalStateException("项目未绑定表格");
-                Map<String, Object> tableWithCols = collabTableService.getTableWithColumns(project.getId());
-                int createdCount = syncQuoteItemsToCollabTable(table.getId(), tableWithCols, quoteProjectId);
+                BizProjectTable table = collabSyncService.ensureFeatureBacklogTable(project.getId());
+                if (table == null) throw new IllegalStateException("创建待开发功能清单表失败");
+                Map<String, Object> tableWithCols = collabTableService.getTableWithColumns(table.getId());
+                int createdCount = syncQuoteItemsToFeatureBacklogTable(table.getId(), tableWithCols, quoteProjectId);
                 syncedToCollab = 1;
                 syncedAt = LocalDateTime.now();
                 steps.add(stepOk("syncCollabRecords", "已同步到多维表", Map.of("createdCount", createdCount)));
@@ -263,6 +263,54 @@ public class QuoteProvisionService {
             throw new IllegalStateException("创建 Webhook 失败");
         }
         return ((Number) data.get("id")).longValue();
+    }
+
+    /**
+     * 将报价功能点同步到「待开发功能清单」多维表。
+     * 列映射：功能名称、功能描述、归属模块、开发进度、创建人、预计完成
+     */
+    private int syncQuoteItemsToFeatureBacklogTable(long tableId, Map<String, Object> tableWithCols, long quoteProjectId) {
+        int created = 0;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = tableWithCols != null ? (List<Map<String, Object>>) tableWithCols.get("columns") : null;
+        if (columns == null) throw new IllegalStateException("读取表结构失败");
+
+        Long colName = findColId(columns, "功能名称");
+        Long colDesc = findColId(columns, "功能描述");
+        Long colModule = findColId(columns, "归属模块");
+        Long colProgress = findColId(columns, "开发进度");
+        Long colCreator = findColId(columns, "创建人");
+        Long colDueDate = findColId(columns, "预计完成");
+
+        for (QuoteModule m : quoteModuleMapper.listByProjectId(tid(), quoteProjectId)) {
+            List<QuoteItem> items = quoteItemMapper.listByModuleId(tid(), m.getId());
+            for (QuoteItem it : items) {
+                Map<String, Object> fields = new HashMap<>();
+                if (colName != null) fields.put("c" + colName, it.getName());
+                if (colDesc != null) {
+                    String desc = it.getName()
+                            + "\n复杂度：" + it.getComplexity()
+                            + "\n数量：" + it.getQuantity();
+                    if (it.getEstimatedDays() != null) {
+                        desc += "\n预估人天：" + it.getEstimatedDays().toPlainString();
+                    }
+                    if (it.getLinePriceAdjusted() != null) {
+                        desc += "\n调价后金额：¥" + it.getLinePriceAdjusted().toPlainString();
+                    } else if (it.getLinePriceSnap() != null) {
+                        desc += "\n基线金额：¥" + it.getLinePriceSnap().toPlainString();
+                    }
+                    fields.put("c" + colDesc, desc);
+                }
+                if (colModule != null) fields.put("c" + colModule, m.getName());
+                if (colProgress != null) fields.put("c" + colProgress, "待开发");
+                if (colCreator != null) fields.put("c" + colCreator, "报价系统");
+                if (colDueDate != null) fields.put("c" + colDueDate, LocalDateTime.now().toString());
+
+                collabRecordService.createRecordWithAudit(tableId, null, fields, null, "quote_provision");
+                created++;
+            }
+        }
+        return created;
     }
 
     private int syncQuoteItemsToCollabTable(long tableId, Map<String, Object> tableWithCols, long quoteProjectId) {
