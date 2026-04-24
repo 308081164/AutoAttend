@@ -1424,9 +1424,19 @@ export default {
   },
   mounted () {
     document.addEventListener('click', this.closeTableHintOnOutside)
+    // 侧边栏 sticky 增强：监听滚动容器，动态切换 fixed 定位
+    this._sidebarScrollHandler = this._handleSidebarScroll.bind(this)
+    const scrollContainer = document.querySelector('.app-main')
+    if (scrollContainer) {
+      this._sidebarScrollContainer = scrollContainer
+      scrollContainer.addEventListener('scroll', this._sidebarScrollHandler, { passive: true })
+    }
   },
   beforeDestroy () {
     document.removeEventListener('click', this.closeTableHintOnOutside)
+    if (this._sidebarScrollContainer && this._sidebarScrollHandler) {
+      this._sidebarScrollContainer.removeEventListener('scroll', this._sidebarScrollHandler)
+    }
     if (this.calcPrefsDebounceTimer) clearTimeout(this.calcPrefsDebounceTimer)
     if (this.autoSaveDebounceTimer) clearTimeout(this.autoSaveDebounceTimer)
   },
@@ -1510,6 +1520,28 @@ export default {
     closeTableHintOnOutside () {
       this.openTableHint = null
       this.slaHintOpen = false
+    },
+    /** 侧边栏滚动跟随：当侧边栏顶部滚出视口时切换为 fixed 定位 */
+    _handleSidebarScroll () {
+      const sidebar = this.$el && this.$el.querySelector('.quote-output-sidebar')
+      if (!sidebar || !this._sidebarScrollContainer) return
+      const container = this._sidebarScrollContainer
+      const containerRect = container.getBoundingClientRect()
+      const sidebarRect = sidebar.getBoundingClientRect()
+      // 侧边栏原始位置（sticky top 值）
+      const stickyTop = 16
+      // 如果容器顶部在视口之上（用户已滚动），且侧边栏即将滚出视口
+      if (container.scrollTop > 0) {
+        sidebar.style.position = 'fixed'
+        sidebar.style.top = stickyTop + 'px'
+        sidebar.style.right = (containerRect.right - sidebarRect.right) + 'px'
+        sidebar.style.width = sidebarRect.width + 'px'
+      } else {
+        sidebar.style.position = ''
+        sidebar.style.top = ''
+        sidebar.style.right = ''
+        sidebar.style.width = ''
+      }
     },
     async loadPartyBProfile () {
       try {
@@ -2488,6 +2520,7 @@ export default {
           this.agentBgText = ''
           this.agentBgSelectedAttachmentIds = []
           await this.fetchAgentSessions()
+          await this.loadProject(qid)
         } else {
           alert((resp.data && resp.data.message) || '创建失败')
         }
@@ -2847,7 +2880,8 @@ export default {
         if (note) body.note = note
         const resp = await this.$http.post('/admin/quote/projects/' + pid + '/price-adjust', body)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
-          this.calcResult = { ...this.calcResult, ...resp.data.data }
+          // 不在此处设置 calcResult，避免双重渲染闪烁
+          // loadProject 会从服务端获取最新数据（含调价后的 modules 和 calcResult）
           await this.loadProject(pid)
         } else {
           alert((resp.data && resp.data.message) || '调价失败')
@@ -2888,7 +2922,7 @@ export default {
         }).catch(() => {})
         const resp = await this.$http.post('/admin/quote/projects/' + pid + '/calculate', body)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
-          this.calcResult = resp.data.data
+          // 不在此处设置 calcResult，避免双重渲染闪烁
           await this.loadProject(pid)
           await this.loadContractIfAny()
           await this.syncArtifactReadyFromServer()
