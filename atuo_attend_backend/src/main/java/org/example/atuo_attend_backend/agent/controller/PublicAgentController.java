@@ -81,8 +81,14 @@ public class PublicAgentController {
 
         // 4. 创建 Agent 会话
         List<BackgroundTextItem> backgrounds = new ArrayList<>();
-        backgrounds.add(new BackgroundTextItem("项目名称", projectName));
-        backgrounds.add(new BackgroundTextItem("报价模式", "single".equals(quoteKind) ? "单体应用" : "解决方案级"));
+        BackgroundTextItem bt1 = new BackgroundTextItem();
+        bt1.setLabel("项目名称");
+        bt1.setContent(projectName);
+        backgrounds.add(bt1);
+        BackgroundTextItem bt2 = new BackgroundTextItem();
+        bt2.setLabel("报价模式");
+        bt2.setContent("single".equals(quoteKind) ? "单体应用" : "解决方案级");
+        backgrounds.add(bt2);
 
         AgentSession session = sessionService.createSession(
                 tenantId, projectId, null, backgrounds, null
