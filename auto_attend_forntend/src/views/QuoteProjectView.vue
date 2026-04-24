@@ -1731,6 +1731,11 @@ export default {
         } else {
           this.projectId = Number(raw)
           await this.loadProject(this.projectId)
+          // 从向导跳转到已创建的项目时，应用 payload 覆盖 modules 并自动解析
+          const q = this.$route.query || {}
+          if (q.fromWizard === '1') {
+            this.applyWizardPayload()
+          }
         }
       } catch (e) {
         if (e.response && e.response.status === 401) this.$router.push({ name: 'login' })
@@ -2746,6 +2751,13 @@ export default {
         }
         if (p.modules && p.modules.length) {
           this.modules = p.modules
+        }
+        // 从向导进入时，自动触发 AI 解析功能清单（带入交付物 hints）
+        if (p.autoAiParseModules && this.aiRequirementText) {
+          this.moduleEntryMode = 'ai'
+          this.$nextTick(() => {
+            this.runAiParseModules()
+          })
         }
       } catch (e) {
         void e
