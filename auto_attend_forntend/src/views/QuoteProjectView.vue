@@ -737,8 +737,12 @@
               </div>
             </div>
 
-            <div class="output-sidebar-section">
-              <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionAttachments') }}</h4>
+            <div class="output-sidebar-section" :class="{ 'is-collapsed': sidebarCollapsedSections.attachments }">
+              <h4 class="output-sidebar-subtitle collapsible" @click="sidebarCollapsedSections.attachments = !sidebarCollapsedSections.attachments">
+                <span class="collapse-arrow" :class="{ rotated: !sidebarCollapsedSections.attachments }">▸</span>
+                {{ $t('quote.outputSectionAttachments') }}
+              </h4>
+              <div v-show="!sidebarCollapsedSections.attachments" class="collapsible-body">
               <div class="output-file-row" :class="{ 'is-ready': artifactReady.attFunction }">
                 <span class="output-file-label">{{ $t('quote.attachmentFunctionList') }}</span>
                 <div class="output-file-actions">
@@ -775,10 +779,15 @@
                   <button type="button" class="btn-tiny primary" :disabled="!projectId" @click="downloadSelectedAttachmentMilestonesDoc">{{ $t('quote.outputDownload') }}</button>
                 </div>
               </div>
+              </div>
             </div>
 
-            <div v-if="calcResult && calcResult.id" class="output-sidebar-section">
-              <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionContract') }}</h4>
+            <div v-if="calcResult && calcResult.id" class="output-sidebar-section" :class="{ 'is-collapsed': sidebarCollapsedSections.contract }">
+              <h4 class="output-sidebar-subtitle collapsible" @click="sidebarCollapsedSections.contract = !sidebarCollapsedSections.contract">
+                <span class="collapse-arrow" :class="{ rotated: !sidebarCollapsedSections.contract }">▸</span>
+                {{ $t('quote.outputSectionContract') }}
+              </h4>
+              <div v-show="!sidebarCollapsedSections.contract" class="collapsible-body">
               <div class="output-file-row output-file-row--full" :class="{ 'is-ready': artifactReady.contractAi }">
                 <span class="output-file-label">{{ $t('quote.genContract') }}</span>
                 <button type="button" class="btn-tiny primary" :disabled="contractGenLoading" @click="runGenContract">{{ contractGenLoading ? '…' : $t('quote.outputRun') }}</button>
@@ -813,10 +822,15 @@
                   >{{ $t('quote.outputDownload') }}</button>
                 </div>
               </div>
+              </div>
             </div>
 
-            <div class="output-sidebar-section output-sidebar-section--provision">
-              <h4 class="output-sidebar-subtitle">{{ $t('quote.outputSectionRepo') }}</h4>
+            <div class="output-sidebar-section output-sidebar-section--provision" :class="{ 'is-collapsed': sidebarCollapsedSections.repo }">
+              <h4 class="output-sidebar-subtitle collapsible" @click="sidebarCollapsedSections.repo = !sidebarCollapsedSections.repo">
+                <span class="collapse-arrow" :class="{ rotated: !sidebarCollapsedSections.repo }">▸</span>
+                {{ $t('quote.outputSectionRepo') }}
+              </h4>
+              <div v-show="!sidebarCollapsedSections.repo" class="collapsible-body">
               <p v-if="isSolutionMode" class="hint sidebar-provision-hint">解决方案级报价仍只创建<strong>一个</strong> GitHub 仓库，多端可在同一仓库分目录管理。</p>
               <p class="hint sidebar-provision-hint">{{ $t('quote.outputRepoHint') }}</p>
               <div v-if="provisionMeta.repoFullName" class="provision-meta sidebar-provision-meta">
@@ -849,6 +863,7 @@
                     <strong>{{ s.key }}</strong>：<span :class="s.ok ? 'ok' : 'err'">{{ s.message }}</span>
                   </li>
                 </ul>
+              </div>
               </div>
             </div>
           </div>
@@ -1224,6 +1239,12 @@ export default {
       },
       provisionCloneCopied: false,
       outputSidebarCollapsed: false,
+      /** 侧边栏可折叠板块状态 */
+      sidebarCollapsedSections: {
+        attachments: true,
+        contract: true,
+        repo: true
+      },
       artifactReady: {
         quoteHtml: false,
         quotePdf: false,
@@ -3611,6 +3632,40 @@ export default {
 .output-sidebar-subtitle.small {
   font-size: var(--font-size-xs);
   margin-top: var(--space-sm);
+}
+
+/* --- Collapsible Sections --- */
+.output-sidebar-subtitle.collapsible {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  transition: color 0.15s;
+}
+.output-sidebar-subtitle.collapsible:hover {
+  color: var(--text-primary);
+}
+.collapse-arrow {
+  display: inline-block;
+  font-size: 12px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+.collapse-arrow.rotated {
+  transform: rotate(90deg);
+}
+.output-sidebar-section.is-collapsed {
+  opacity: 0.7;
+}
+.output-sidebar-section.is-collapsed .collapsible {
+  border-bottom-color: transparent;
+}
+.collapsible-body {
+  padding-top: 10px;
 }
 
 /* --- Sidebar File Rows --- */
