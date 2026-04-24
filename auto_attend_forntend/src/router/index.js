@@ -26,6 +26,7 @@ import LabView from '../views/LabView.vue'
 import CloudDevHubView from '../views/CloudDevHubView.vue'
 import ClientBoardView from '../views/ClientBoardView.vue'
 import AgentChatView from '../views/AgentChatView.vue'
+import QuickQuoteLanding from '../views/QuickQuoteLanding.vue'
 import SubscriptionBillingView from '../views/SubscriptionBillingView.vue'
 import MarketplaceListView from '../views/MarketplaceListView.vue'
 import MarketplaceDetailView from '../views/MarketplaceDetailView.vue'
@@ -206,6 +207,12 @@ const routes = [
     path: '/agent/:publicToken',
     name: 'agent-chat',
     component: AgentChatView,
+    meta: { public: true, bareLayout: true }
+  },
+  {
+    path: '/quick-quote/:slug',
+    name: 'quick-quote-landing',
+    component: QuickQuoteLanding,
     meta: { public: true, bareLayout: true }
   }
 ]

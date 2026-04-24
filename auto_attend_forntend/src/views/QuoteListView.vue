@@ -9,6 +9,18 @@
         <router-link to="/quote/new" class="primary-button">新建 · 单体项目报价</router-link>
         <router-link to="/quote/solution-wizard" class="primary-button primary-button--alt">新建 · 解决方案级报价</router-link>
       </div>
+      <!-- 团队专属 Agent 链接 -->
+      <div v-if="quickQuoteSlug" class="quick-quote-box">
+        <div class="quick-quote-info">
+          <strong>🔗 团队专属全自动 Agent 链接</strong>
+          <span class="hint">发送给客户，客户自助创建项目并开始 AI 需求分析</span>
+        </div>
+        <div class="quick-quote-actions">
+          <code class="quick-quote-link">{{ quickQuoteUrl }}</code>
+          <button class="btn-sm primary" @click="copyQuickQuoteLink">{{ quickQuoteCopied ? '已复制 ✓' : '复制链接' }}</button>
+          <a :href="quickQuoteUrl" target="_blank" rel="noopener" class="btn-sm secondary">预览</a>
+        </div>
+      </div>
     </div>
     <div v-if="loading" class="placeholder">{{ $t('quote.loading') }}</div>
     <div v-else-if="!items.length" class="placeholder">{{ $t('quote.emptyList') }}</div>
@@ -68,10 +80,23 @@
 export default {
   name: 'QuoteListView',
   data () {
-    return { items: [], loading: true, deletingId: null }
+    return {
+      items: [],
+      loading: true,
+      deletingId: null,
+      quickQuoteSlug: '',
+      quickQuoteCopied: false
+    }
+  },
+  computed: {
+    quickQuoteUrl () {
+      if (!this.quickQuoteSlug) return ''
+      return window.location.origin + '/quick-quote/' + this.quickQuoteSlug
+    }
   },
   created () {
     this.load()
+    this.loadQuickQuoteSlug()
   },
   methods: {
     async load () {
@@ -87,6 +112,31 @@ export default {
         this.items = []
       } finally {
         this.loading = false
+      }
+    },
+    async loadQuickQuoteSlug () {
+      try {
+        const resp = await this.$http.get('/admin/auth/me')
+        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.slug) {
+          this.quickQuoteSlug = resp.data.data.slug
+        }
+      } catch (e) { void e }
+    },
+    async copyQuickQuoteLink () {
+      if (!this.quickQuoteUrl) return
+      try {
+        await navigator.clipboard.writeText(this.quickQuoteUrl)
+        this.quickQuoteCopied = true
+        setTimeout(() => { this.quickQuoteCopied = false }, 3000)
+      } catch (e) {
+        const ta = document.createElement('textarea')
+        ta.value = this.quickQuoteUrl
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+        this.quickQuoteCopied = true
+        setTimeout(() => { this.quickQuoteCopied = false }, 3000)
       }
     },
     async deleteProject (id) {
@@ -110,6 +160,52 @@ export default {
 </script>
 
 <style scoped>
+/* 团队专属链接 */
+.quick-quote-box {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--bg-muted, #f0f0ff);
+  border: 1px solid #d4d4f7;
+  border-radius: 10px;
+}
+.quick-quote-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.quick-quote-info strong { font-size: 14px; }
+.quick-quote-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quick-quote-link {
+  font-size: 12px;
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+  color: #667eea;
+}
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-sm.primary { background: #667eea; color: #fff; }
+.btn-sm.secondary { background: #f3f4f6; color: #333; border: 1px solid #ddd; }
+.hint { color: var(--text-secondary); font-size: 12px; }
+
 .quote-list-page {
   max-width: 900px;
   margin: 0 auto;
