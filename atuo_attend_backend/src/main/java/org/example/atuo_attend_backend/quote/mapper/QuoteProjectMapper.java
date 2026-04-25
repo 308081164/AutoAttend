@@ -71,7 +71,7 @@ public interface QuoteProjectMapper {
                 github_webhook_secret=#{webhookSecret},
                 provision_status=#{status},
                 provision_last_error=#{lastError},
-                provision_synced_to_collab=#{syncedToCollab},
+                provision_synced_to_collab=IFNULL(#{syncedToCollab}, 0),
                 provision_synced_at=#{syncedAt},
                 updated_at=CURRENT_TIMESTAMP
             WHERE tenant_id=#{tenantId} AND id=#{id}
