@@ -1852,13 +1852,6 @@ public class QuoteService {
 """;
 
         String userMsg = ctx + "\n【客户/需求原文】\n" + text;
-        // 分批解析时提示 AI 这是第几部分
-        if (totalChunks > 1) {
-            userMsg = ctx + "\n【注意】这是一份长需求文档的第 " + chunkIndex + "/" + totalChunks
-                    + " 部分。请仅基于本部分内容拆解模块，"
-                    + "不要遗漏本部分提到的任何功能点。\n\n【客户/需求原文（第 "
-                    + chunkIndex + "/" + totalChunks + " 部分）】\n" + text;
-        }
         List<DeepSeekClient.ChatMessage> messages = List.of(
                 new DeepSeekClient.ChatMessage("system", system),
                 new DeepSeekClient.ChatMessage("user", userMsg)
