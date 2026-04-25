@@ -155,6 +155,49 @@ public class PlatformSettingsController {
         return ApiResponse.ok(null);
     }
 
+    // ===== 团队能力展示配置 =====
+
+    @GetMapping("/showcase")
+    public ApiResponse<Map<String, Object>> getShowcase() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("enabled", systemConfigService.isShowcaseEnabled());
+        data.put("mode", systemConfigService.getShowcaseMode());
+        data.put("templateId", systemConfigService.getShowcaseTemplateId());
+        data.put("contentJson", systemConfigService.getShowcaseContentJson());
+        data.put("customHtml", systemConfigService.getShowcaseCustomHtml());
+        return ApiResponse.ok(data);
+    }
+
+    @PutMapping("/showcase")
+    public ApiResponse<Void> putShowcase(@RequestBody Map<String, Object> body) {
+        Object enabledObj = body.get("enabled");
+        Object modeObj = body.get("mode");
+        Object templateIdObj = body.get("templateId");
+        Object contentJsonObj = body.get("contentJson");
+        Object customHtmlObj = body.get("customHtml");
+        if (enabledObj != null) {
+            systemConfigService.setShowcaseEnabled(Boolean.TRUE.equals(enabledObj));
+        }
+        if (modeObj != null) {
+            systemConfigService.setShowcaseMode(String.valueOf(modeObj));
+        }
+        if (templateIdObj != null) {
+            systemConfigService.setShowcaseTemplateId(String.valueOf(templateIdObj));
+        }
+        if (contentJsonObj != null) {
+            systemConfigService.setShowcaseContentJson(String.valueOf(contentJsonObj));
+        }
+        if (customHtmlObj != null) {
+            String html = String.valueOf(customHtmlObj);
+            // 限制自定义 HTML 最大 50000 字符
+            if (html.length() > 50000) {
+                html = html.substring(0, 50000);
+            }
+            systemConfigService.setShowcaseCustomHtml(html);
+        }
+        return ApiResponse.ok(null);
+    }
+
     @GetMapping("/client-shell")
     public ApiResponse<Map<String, Object>> getClientShell() {
         Map<String, Object> data = new HashMap<>();

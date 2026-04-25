@@ -66,6 +66,13 @@ public class SystemConfigService {
     /** 是否启用来单邮件通知 */
     public static final String KEY_QUICK_QUOTE_NOTIFY_ENABLED = "quote.quick_quote.notify_enabled";
 
+    // ===== 团队能力展示配置（平台级） =====
+    public static final String KEY_SHOWCASE_ENABLED = "quote.showcase.enabled";
+    public static final String KEY_SHOWCASE_MODE = "quote.showcase.mode";
+    public static final String KEY_SHOWCASE_TEMPLATE_ID = "quote.showcase.template_id";
+    public static final String KEY_SHOWCASE_CONTENT_JSON = "quote.showcase.content_json";
+    public static final String KEY_SHOWCASE_CUSTOM_HTML = "quote.showcase.custom_html";
+
     private final SystemConfigMapper mapper;
     private final CollabPasswordService passwordHasher;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -470,5 +477,49 @@ public class SystemConfigService {
     /** 设置是否启用来单通知 */
     public void setQuickQuoteNotifyEnabled(long tenantId, boolean enabled) {
         mapper.upsert(tenantId, KEY_QUICK_QUOTE_NOTIFY_ENABLED, enabled ? "true" : "false");
+    }
+
+    // ===== 团队能力展示配置（平台级 tenant_id=0） =====
+
+    public boolean isShowcaseEnabled() {
+        return "true".equalsIgnoreCase(mapper.findByKey(0L, KEY_SHOWCASE_ENABLED));
+    }
+
+    public void setShowcaseEnabled(boolean enabled) {
+        mapper.upsert(0L, KEY_SHOWCASE_ENABLED, enabled ? "true" : "false");
+    }
+
+    public String getShowcaseMode() {
+        String v = mapper.findByKey(0L, KEY_SHOWCASE_MODE);
+        return (v != null && !v.isBlank()) ? v.trim() : "off";
+    }
+
+    public void setShowcaseMode(String mode) {
+        mapper.upsert(0L, KEY_SHOWCASE_MODE, mode != null ? mode.trim() : "off");
+    }
+
+    public String getShowcaseTemplateId() {
+        String v = mapper.findByKey(0L, KEY_SHOWCASE_TEMPLATE_ID);
+        return (v != null && !v.isBlank()) ? v.trim() : "enterprise";
+    }
+
+    public void setShowcaseTemplateId(String templateId) {
+        mapper.upsert(0L, KEY_SHOWCASE_TEMPLATE_ID, templateId != null ? templateId.trim() : "enterprise");
+    }
+
+    public String getShowcaseContentJson() {
+        return mapper.findByKey(0L, KEY_SHOWCASE_CONTENT_JSON);
+    }
+
+    public void setShowcaseContentJson(String json) {
+        mapper.upsert(0L, KEY_SHOWCASE_CONTENT_JSON, json != null ? json : "");
+    }
+
+    public String getShowcaseCustomHtml() {
+        return mapper.findByKey(0L, KEY_SHOWCASE_CUSTOM_HTML);
+    }
+
+    public void setShowcaseCustomHtml(String html) {
+        mapper.upsert(0L, KEY_SHOWCASE_CUSTOM_HTML, html != null ? html : "");
     }
 }

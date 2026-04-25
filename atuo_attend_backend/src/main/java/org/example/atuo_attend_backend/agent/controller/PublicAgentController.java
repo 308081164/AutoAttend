@@ -10,6 +10,8 @@ import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
 import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -32,6 +34,7 @@ public class PublicAgentController {
     private final QuoteProjectMapper projectMapper;
     private final MailSenderService mailSenderService;
     private final SystemConfigService systemConfigService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PublicAgentController(AgentSessionService sessionService,
                                 TenantMapper tenantMapper,
@@ -198,9 +201,50 @@ public class PublicAgentController {
             return ApiResponse.error(40300, "团队已暂停");
         }
         Map<String, Object> result = new HashMap<>();
-        result.put("teamName", tenant.getName());
-        return ApiResponse.ok(result);
+    result.put("teamName", tenant.getName());
+    return ApiResponse.ok(result);
+}
+
+/**
+ * 获取团队能力展示配置（公开接口，供 QuickQuoteLanding 页面调用）
+ */
+@GetMapping("/showcase/{slug}")
+public ApiResponse<?> getShowcase(@PathVariable String slug) {
+    Tenant tenant = tenantMapper.findBySlug(slug.trim().toLowerCase(Locale.ROOT));
+    if (tenant == null) {
+        return ApiResponse.error(40400, "团队不存在");
     }
+    if ("suspended".equalsIgnoreCase(tenant.getStatus())) {
+        return ApiResponse.error(40300, "团队已暂停");
+    }
+    Map<String, Object> data = new HashMap<>();
+    data.put("enabled", systemConfigService.isShowcaseEnabled());
+    data.put("mode", systemConfigService.getShowcaseMode());
+    data.put("templateId", systemConfigService.getShowcaseTemplateId());
+    data.put("teamName", tenant.getName());
+
+    // 解析 content JSON
+    String contentJson = systemConfigService.getShowcaseContentJson();
+    if (contentJson != null && !contentJson.isBlank()) {
+        try {
+            JsonNode node = objectMapper.readTree(contentJson);
+            data.put("content", node);
+        } catch (Exception e) {
+            data.put("content", null);
+        }
+    } else {
+        data.put("content", null);
+    }
+
+    // 自定义 HTML（仅在 mode=custom_html 时返回）
+    if ("custom_html".equals(systemConfigService.getShowcaseMode())) {
+        data.put("customHtml", systemConfigService.getShowcaseCustomHtml());
+    } else {
+        data.put("customHtml", null);
+    }
+
+    return ApiResponse.ok(data);
+}
 
     // ========== 原有 Agent 接口 ==========
 

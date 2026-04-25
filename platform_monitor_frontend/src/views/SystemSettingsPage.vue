@@ -93,6 +93,41 @@
     </section>
 
     <section class="panel">
+      <h3>🏢 团队展示区配置</h3>
+      <p class="muted small">配置客户通过 Agent 链接进入时看到的团队介绍/专业能力展示区域。支持 3 套官方模板和自定义 HTML 模式。</p>
+      <div v-if="scLoading" class="muted">加载中…</div>
+      <form v-else class="form" @submit.prevent="saveShowcase">
+        <label class="chk"><input v-model="scForm.enabled" type="checkbox"> 启用团队展示区</label>
+        <label>展示模式</label>
+        <select v-model="scForm.mode" class="inp" :disabled="!scForm.enabled">
+          <option value="template">官方模板</option>
+          <option value="custom_html">自定义 HTML</option>
+        </select>
+        <template v-if="scForm.mode === 'template'">
+          <label>模板选择</label>
+          <select v-model="scForm.templateId" class="inp" :disabled="!scForm.enabled">
+            <option value="enterprise">企业版（蓝色商务风）</option>
+            <option value="studio">工作室版（紫色创意风）</option>
+            <option value="freelancer">自由职业版（青色简约风）</option>
+          </select>
+          <label>展示内容 JSON</label>
+          <p class="hint">JSON 格式，包含 teamName、slogan、description、services、team、works、reviews 等字段。留空使用模板默认内容。</p>
+          <textarea v-model="scForm.contentJson" class="inp textarea" rows="10" placeholder='{"teamName":"示例科技","slogan":"专业软件定制","services":[...]}' :disabled="!scForm.enabled"></textarea>
+        </template>
+        <template v-if="scForm.mode === 'custom_html'">
+          <label>自定义 HTML 代码</label>
+          <p class="hint">完整的 HTML 代码，将在 iframe 中以 sandbox 模式渲染。最大 50000 字符。</p>
+          <textarea v-model="scForm.customHtml" class="inp textarea" rows="14" placeholder="<html><body>...</body></html>" :disabled="!scForm.enabled"></textarea>
+          <p v-if="scForm.customHtml && scForm.customHtml.length > 50000" class="err">HTML 内容超出 50000 字符限制</p>
+        </template>
+        <div class="btn-row">
+          <button type="submit" class="btn primary" :disabled="scSaving || !scForm.enabled">{{ scSaving ? '保存中…' : '保存展示配置' }}</button>
+          <span v-if="scMsg" :class="scOk ? 'ok' : 'err'">{{ scMsg }}</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
       <h3>日报邮件调度</h3>
       <p class="muted small">Cron 使用 Spring 6 域表达式（秒 分 时 日 月 周），保存后立即重载调度。</p>
       <div v-if="rmLoading" class="muted">加载中…</div>
@@ -305,6 +340,18 @@ export default {
         linuxDebUrl: '',
         androidApkUrl: '',
         iosNoteUrl: ''
+      },
+
+      scLoading: true,
+      scSaving: false,
+      scMsg: '',
+      scOk: true,
+      scForm: {
+        enabled: false,
+        mode: 'template',
+        templateId: 'enterprise',
+        contentJson: '',
+        customHtml: ''
       }
     }
   },
@@ -321,7 +368,8 @@ export default {
         this.loadAiPool(),
         this.loadRedeemCodes(),
         this.loadUsageByTenant(),
-        this.loadClientShell()
+        this.loadClientShell(),
+        this.loadShowcase()
       ])
     },
     parseIdList (s) {
@@ -677,6 +725,48 @@ export default {
       if (!Number.isFinite(n)) return '—'
       return n.toFixed(4)
     },
+    // ===== 团队展示区配置 =====
+    async loadShowcase () {
+      this.scLoading = true
+      try {
+        const { data } = await http.get('/platform/settings/showcase')
+        if (data.code === 0 && data.data) {
+          const d = data.data
+          this.scForm.enabled = !!d.enabled
+          this.scForm.mode = d.mode || 'template'
+          this.scForm.templateId = d.templateId || 'enterprise'
+          this.scForm.contentJson = d.contentJson || ''
+          this.scForm.customHtml = d.customHtml || ''
+        }
+      } catch (e) { void e }
+      finally { this.scLoading = false }
+    },
+    async saveShowcase () {
+      this.scSaving = true
+      this.scMsg = ''
+      try {
+        const body = {
+          enabled: !!this.scForm.enabled,
+          mode: this.scForm.mode,
+          templateId: this.scForm.templateId,
+          contentJson: (this.scForm.contentJson || '').trim(),
+          customHtml: (this.scForm.customHtml || '').trim()
+        }
+        const { data } = await http.put('/platform/settings/showcase', body)
+        if (data.code === 0) {
+          this.scMsg = '已保存'
+          this.scOk = true
+        } else {
+          this.scMsg = (data && data.message) || '保存失败'
+          this.scOk = false
+        }
+      } catch (e) {
+        this.scMsg = '请求失败'
+        this.scOk = false
+      } finally {
+        this.scSaving = false
+      }
+    },
     async saveReportMail () {
       this.rmSaving = true
       this.rmMsg = ''
@@ -757,4 +847,5 @@ export default {
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
 .tbl th, .tbl td { padding: 6px 8px; border-bottom: 1px solid #1e293b; text-align: left; }
 .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; align-items: end; }
+.textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5; }
 </style>

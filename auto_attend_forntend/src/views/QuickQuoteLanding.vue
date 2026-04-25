@@ -11,49 +11,65 @@
     </div>
 
     <!-- Step 1: 输入信息 -->
-    <div v-else-if="pageState === 'form'" class="form-card">
-      <div class="brand" v-if="teamName">
-        <span class="brand-label">{{ teamName }}</span>
-      </div>
-      <h1>快速创建报价</h1>
-      <p class="lead">为您的项目取一个代号，选择报价模式，系统将自动创建 AI 需求分析会话。</p>
-
-      <div class="form-group">
-        <label>项目名称 / 代号 <span class="required">*</span></label>
-        <input
-          v-model="projectName"
-          class="inp"
-          placeholder="例如：张总-企业官网、李经理-电商小程序"
-          maxlength="100"
-          @keyup.enter="submit"
-        />
+    <template v-else-if="pageState === 'form'">
+      <!-- 固定顶栏 CTA（三入口设计之一） -->
+      <div class="sticky-top-bar">
+        <span class="bar-team" v-if="teamName">{{ teamName }}</span>
+        <button class="bar-cta" @click="scrollToForm">需求梳理 ▶</button>
       </div>
 
-      <div class="form-group">
-        <label>报价模式</label>
-        <div class="mode-selector">
-          <label class="mode-option" :class="{ active: quoteKind === 'single' }">
-            <input type="radio" v-model="quoteKind" value="single" />
-            <div class="mode-content">
-              <strong>单体应用</strong>
-              <span>一个端 / 一个系统</span>
-            </div>
-          </label>
-          <label class="mode-option" :class="{ active: quoteKind === 'solution' }">
-            <input type="radio" v-model="quoteKind" value="solution" />
-            <div class="mode-content">
-              <strong>解决方案级</strong>
-              <span>多端 / 多交付物</span>
-            </div>
-          </label>
+      <!-- 团队展示区 -->
+      <ShowcaseSection
+        v-if="showcaseConfig"
+        :config="showcaseConfig"
+        @scroll-to-form="scrollToForm"
+      />
+
+      <!-- 报价表单 -->
+      <div class="form-card" ref="formCard">
+        <div class="brand" v-if="teamName">
+          <span class="brand-label">{{ teamName }}</span>
         </div>
-      </div>
+        <h1>快速创建报价</h1>
+        <p class="lead">为您的项目取一个代号，选择报价模式，系统将自动创建 AI 需求分析会话。</p>
 
-      <button class="btn primary btn-block" :disabled="submitting || !projectName.trim()" @click="submit">
-        {{ submitting ? '创建中…' : '创建 AI 需求分析会话' }}
-      </button>
-      <p v-if="submitMsg" :class="submitMsgOk ? 'ok' : 'err'">{{ submitMsg }}</p>
-    </div>
+        <div class="form-group">
+          <label>项目名称 / 代号 <span class="required">*</span></label>
+          <input
+            v-model="projectName"
+            class="inp"
+            placeholder="例如：张总-企业官网、李经理-电商小程序"
+            maxlength="100"
+            @keyup.enter="submit"
+          />
+        </div>
+
+        <div class="form-group">
+          <label>报价模式</label>
+          <div class="mode-selector">
+            <label class="mode-option" :class="{ active: quoteKind === 'single' }">
+              <input type="radio" v-model="quoteKind" value="single" />
+              <div class="mode-content">
+                <strong>单体应用</strong>
+                <span>一个端 / 一个系统</span>
+              </div>
+            </label>
+            <label class="mode-option" :class="{ active: quoteKind === 'solution' }">
+              <input type="radio" v-model="quoteKind" value="solution" />
+              <div class="mode-content">
+                <strong>解决方案级</strong>
+                <span>多端 / 多交付物</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <button class="btn primary btn-block" :disabled="submitting || !projectName.trim()" @click="submit">
+          {{ submitting ? '创建中…' : '开始需求梳理' }}
+        </button>
+        <p v-if="submitMsg" :class="submitMsgOk ? 'ok' : 'err'">{{ submitMsg }}</p>
+      </div>
+    </template>
 
     <!-- Step 2: 成功 - 展示链接 -->
     <div v-else-if="pageState === 'success'" class="form-card success-card">
@@ -90,9 +106,11 @@
 
 <script>
 import axios from 'axios'
+import ShowcaseSection from '../components/showcase/ShowcaseSection.vue'
 
 export default {
   name: 'QuickQuoteLanding',
+  components: { ShowcaseSection },
   data () {
     return {
       teamName: '',
@@ -104,7 +122,8 @@ export default {
       submitMsg: '',
       submitMsgOk: false,
       resultData: {},
-      copyMsg: ''
+      copyMsg: '',
+      showcaseConfig: null
     }
   },
   computed: {
@@ -126,6 +145,8 @@ export default {
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.teamName = resp.data.data.teamName || ''
           this.pageState = 'form'
+          // 加载团队展示配置
+          this.loadShowcase(slug)
         } else {
           this.pageState = 'error'
           this.errorMsg = (resp.data && resp.data.message) || '团队不存在'
@@ -133,6 +154,37 @@ export default {
       } catch (e) {
         this.pageState = 'error'
         this.errorMsg = '请求失败，请检查网络'
+      }
+    },
+    async loadShowcase (slug) {
+      try {
+        const resp = await axios.get('/public/agent/showcase/' + encodeURIComponent(slug))
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          if (d.enabled) {
+            this.showcaseConfig = {
+              enabled: true,
+              mode: d.mode || 'template',
+              templateId: d.templateId || 'enterprise',
+              teamName: this.teamName,
+              content: d.content || {},
+              customHtml: d.customHtml || ''
+            }
+          }
+        }
+      } catch (e) {
+        // 展示区加载失败不影响主流程
+      }
+    },
+    scrollToForm () {
+      const el = this.$refs.formCard
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // 聚焦到项目名称输入框
+        setTimeout(() => {
+          const inp = el.querySelector('.inp')
+          if (inp) inp.focus()
+        }, 400)
       }
     },
     async submit () {
@@ -195,17 +247,54 @@ export default {
 .quick-quote-page {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
+  padding: 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #1a1a2e;
   box-sizing: border-box;
 }
+
+/* 固定顶栏 */
+.sticky-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+.bar-team {
+  font-size: 15px;
+  font-weight: 600;
+  color: #667eea;
+}
+.bar-cta {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.bar-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
 .center-box {
   text-align: center;
   color: #fff;
+  padding: 80px 24px;
 }
 .spinner {
   width: 36px;
@@ -233,7 +322,8 @@ export default {
   border-radius: 16px;
   padding: 40px 32px;
   max-width: 460px;
-  width: 100%;
+  width: calc(100% - 32px);
+  margin: 32px auto;
   box-shadow: 0 20px 60px rgba(0,0,0,0.15);
 }
 .form-card h1 {
