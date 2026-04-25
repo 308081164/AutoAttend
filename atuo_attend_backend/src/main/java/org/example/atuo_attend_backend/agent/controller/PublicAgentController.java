@@ -128,8 +128,9 @@ public class PublicAgentController {
     private void sendQuickQuoteNotification(long tenantId, String teamName,
                                            String projectName, String quoteKind, Long projectId) {
         try {
-            if (!systemConfigService.isQuickQuoteNotifyEnabled(tenantId)) return;
-            String notifyEmail = systemConfigService.getQuickQuoteNotifyEmail(tenantId);
+            long configTenantId = systemConfigService.platformTenantId();
+            if (!systemConfigService.isQuickQuoteNotifyEnabled(configTenantId)) return;
+            String notifyEmail = systemConfigService.getQuickQuoteNotifyEmail(configTenantId);
             if (notifyEmail == null || notifyEmail.isBlank()) return;
 
             String baseUrl = systemConfigService.getPublicBaseUrl();
@@ -166,14 +167,14 @@ public class PublicAgentController {
 
             // 异步发送，不阻塞响应
             final String toEmail = notifyEmail;
-            Thread.ofVirtual().name("mail-notify").start(() -> {
+            new Thread(() -> {
                 try {
                     mailSenderService.sendHtml(toEmail, "📬 新客户来单 - " + projectName, html);
                     log.info("来单通知邮件已发送至 {}，项目：{}", toEmail, projectName);
                 } catch (Exception e) {
                     log.warn("来单通知邮件发送失败，项目：{}，错误：{}", projectName, e.getMessage());
                 }
-            });
+            }, "mail-notify").start();
         } catch (Exception e) {
             log.warn("来单通知配置读取失败：{}", e.getMessage());
         }

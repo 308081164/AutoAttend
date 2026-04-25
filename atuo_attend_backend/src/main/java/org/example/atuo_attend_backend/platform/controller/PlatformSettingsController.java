@@ -135,16 +135,15 @@ public class PlatformSettingsController {
 
     @GetMapping("/quick-quote-notify")
     public ApiResponse<Map<String, Object>> getQuickQuoteNotify() {
-        long tid = platformTenantId();
         Map<String, Object> data = new HashMap<>();
-        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(tid));
-        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(tid));
+        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(systemConfigService.platformTenantId()));
+        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(systemConfigService.platformTenantId()));
         return ApiResponse.ok(data);
     }
 
     @PutMapping("/quick-quote-notify")
     public ApiResponse<Void> putQuickQuoteNotify(@RequestBody Map<String, Object> body) {
-        long tid = platformTenantId();
+        long tid = systemConfigService.platformTenantId();
         Object enabledObj = body.get("enabled");
         Object emailObj = body.get("email");
         if (enabledObj != null) {
