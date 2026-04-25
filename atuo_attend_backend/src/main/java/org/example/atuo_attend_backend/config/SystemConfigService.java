@@ -60,6 +60,12 @@ public class SystemConfigService {
     /** 项目信息发布：平台级 JSON 配置（tenant_id=0） */
     public static final String KEY_MARKETPLACE_PROJECT_INFO_CONFIG = "marketplace.project_info.config_json";
 
+    // ===== 租户级通知配置 =====
+    /** 来单通知邮箱（租户级，按 tenantId 存储） */
+    public static final String KEY_QUICK_QUOTE_NOTIFY_EMAIL = "quote.quick_quote.notify_email";
+    /** 是否启用来单邮件通知 */
+    public static final String KEY_QUICK_QUOTE_NOTIFY_ENABLED = "quote.quick_quote.notify_enabled";
+
     private final SystemConfigMapper mapper;
     private final CollabPasswordService passwordHasher;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -436,5 +442,33 @@ public class SystemConfigService {
 
     public void upsertPlatformConfig(String key, String value) {
         mapper.upsert(platformTenantId(), key, value != null ? value : "");
+    }
+
+    // ===== 来单邮件通知（租户级） =====
+
+    /** 获取指定租户的通知邮箱 */
+    public String getQuickQuoteNotifyEmail(long tenantId) {
+        String v = mapper.findByKey(tenantId, KEY_QUICK_QUOTE_NOTIFY_EMAIL);
+        return (v != null && !v.isBlank()) ? v.trim() : null;
+    }
+
+    /** 保存通知邮箱 */
+    public void setQuickQuoteNotifyEmail(long tenantId, String email) {
+        if (email != null && !email.isBlank()) {
+            mapper.upsert(tenantId, KEY_QUICK_QUOTE_NOTIFY_EMAIL, email.trim());
+        } else {
+            mapper.upsert(tenantId, KEY_QUICK_QUOTE_NOTIFY_EMAIL, "");
+        }
+    }
+
+    /** 是否启用来单通知 */
+    public boolean isQuickQuoteNotifyEnabled(long tenantId) {
+        String v = mapper.findByKey(tenantId, KEY_QUICK_QUOTE_NOTIFY_ENABLED);
+        return "true".equalsIgnoreCase(v);
+    }
+
+    /** 设置是否启用来单通知 */
+    public void setQuickQuoteNotifyEnabled(long tenantId, boolean enabled) {
+        mapper.upsert(tenantId, KEY_QUICK_QUOTE_NOTIFY_ENABLED, enabled ? "true" : "false");
     }
 }

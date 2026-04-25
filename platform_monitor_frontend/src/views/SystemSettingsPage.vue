@@ -78,6 +78,21 @@
     </section>
 
     <section class="panel">
+      <h3>📬 来单邮件通知</h3>
+      <p class="muted small">客户通过「团队专属 Agent 链接」创建报价项目后，系统自动发送邮件通知管理员。</p>
+      <div v-if="notifyLoading" class="muted">加载中…</div>
+      <form v-else class="form" @submit.prevent="saveQuickQuoteNotify">
+        <label class="chk"><input v-model="notifyForm.enabled" type="checkbox"> 启用来单邮件通知</label>
+        <label>通知邮箱</label>
+        <input v-model="notifyForm.email" type="email" class="inp" placeholder="admin@company.com" :disabled="!notifyForm.enabled">
+        <div class="btn-row">
+          <button type="submit" class="btn primary" :disabled="notifySaving">{{ notifySaving ? '保存中…' : '保存通知设置' }}</button>
+          <span v-if="notifyMsg" :class="notifyOk ? 'ok' : 'err'">{{ notifyMsg }}</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
       <h3>日报邮件调度</h3>
       <p class="muted small">Cron 使用 Spring 6 域表达式（秒 分 时 日 月 周），保存后立即重载调度。</p>
       <div v-if="rmLoading" class="muted">加载中…</div>
@@ -220,6 +235,14 @@ export default {
       testSending: false,
       testMsg: '',
       testOk: true,
+      notifyLoading: true,
+      notifySaving: false,
+      notifyMsg: '',
+      notifyOk: true,
+      notifyForm: {
+        enabled: false,
+        email: ''
+      },
       rmLoading: true,
       rmSaving: false,
       rmMsg: '',
@@ -292,6 +315,7 @@ export default {
     async loadAll () {
       await Promise.all([
         this.loadMail(),
+        this.loadQuickQuoteNotify(),
         this.loadReportMail(),
         this.loadProjectMarketplace(),
         this.loadAiPool(),
@@ -502,6 +526,40 @@ export default {
         this.testMsg = '请求失败'
       } finally {
         this.testSending = false
+      }
+    },
+    // ===== 来单邮件通知 =====
+    async loadQuickQuoteNotify () {
+      this.notifyLoading = true
+      try {
+        const { data } = await http.get('/platform/settings/quick-quote-notify')
+        if (data.code === 0 && data.data) {
+          this.notifyForm.enabled = !!data.data.enabled
+          this.notifyForm.email = data.data.email || ''
+        }
+      } catch (e) { void e }
+      finally { this.notifyLoading = false }
+    },
+    async saveQuickQuoteNotify () {
+      this.notifySaving = true
+      this.notifyMsg = ''
+      try {
+        const { data } = await http.put('/platform/settings/quick-quote-notify', {
+          enabled: this.notifyForm.enabled,
+          email: this.notifyForm.email
+        })
+        if (data.code === 0) {
+          this.notifyMsg = '已保存'
+          this.notifyOk = true
+        } else {
+          this.notifyMsg = (data && data.message) || '保存失败'
+          this.notifyOk = false
+        }
+      } catch (e) {
+        this.notifyMsg = '请求失败'
+        this.notifyOk = false
+      } finally {
+        this.notifySaving = false
       }
     },
     async loadReportMail () {

@@ -131,6 +131,31 @@ public class PlatformSettingsController {
         }
     }
 
+    // ===== 来单邮件通知配置 =====
+
+    @GetMapping("/quick-quote-notify")
+    public ApiResponse<Map<String, Object>> getQuickQuoteNotify() {
+        long tid = platformTenantId();
+        Map<String, Object> data = new HashMap<>();
+        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(tid));
+        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(tid));
+        return ApiResponse.ok(data);
+    }
+
+    @PutMapping("/quick-quote-notify")
+    public ApiResponse<Void> putQuickQuoteNotify(@RequestBody Map<String, Object> body) {
+        long tid = platformTenantId();
+        Object enabledObj = body.get("enabled");
+        Object emailObj = body.get("email");
+        if (enabledObj != null) {
+            systemConfigService.setQuickQuoteNotifyEnabled(tid, Boolean.TRUE.equals(enabledObj));
+        }
+        if (emailObj != null) {
+            systemConfigService.setQuickQuoteNotifyEmail(tid, String.valueOf(emailObj));
+        }
+        return ApiResponse.ok(null);
+    }
+
     @GetMapping("/client-shell")
     public ApiResponse<Map<String, Object>> getClientShell() {
         Map<String, Object> data = new HashMap<>();

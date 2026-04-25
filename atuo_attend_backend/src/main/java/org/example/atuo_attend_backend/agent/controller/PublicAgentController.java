@@ -4,12 +4,18 @@ import org.example.atuo_attend_backend.agent.domain.AgentSession;
 import org.example.atuo_attend_backend.agent.dto.AgentModels.BackgroundTextItem;
 import org.example.atuo_attend_backend.agent.service.AgentSessionService;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.example.atuo_attend_backend.quote.domain.QuoteProject;
 import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
+import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -19,16 +25,24 @@ import java.util.*;
 @RequestMapping("/api/public/agent")
 public class PublicAgentController {
 
+    private static final Logger log = LoggerFactory.getLogger(PublicAgentController.class);
+
     private final AgentSessionService sessionService;
     private final TenantMapper tenantMapper;
     private final QuoteProjectMapper projectMapper;
+    private final MailSenderService mailSenderService;
+    private final SystemConfigService systemConfigService;
 
     public PublicAgentController(AgentSessionService sessionService,
                                 TenantMapper tenantMapper,
-                                QuoteProjectMapper projectMapper) {
+                                QuoteProjectMapper projectMapper,
+                                MailSenderService mailSenderService,
+                                SystemConfigService systemConfigService) {
         this.sessionService = sessionService;
         this.tenantMapper = tenantMapper;
         this.projectMapper = projectMapper;
+        this.mailSenderService = mailSenderService;
+        this.systemConfigService = systemConfigService;
     }
 
     // ========== 团队专属全自动 Agent 链接 ==========
@@ -101,7 +115,73 @@ public class PublicAgentController {
         result.put("agentUrl", "/agent/" + session.getPublicToken());
         result.put("projectName", projectName);
         result.put("quoteKind", quoteKind);
+
+        // 6. 异步发送来单通知邮件
+        sendQuickQuoteNotification(tenantId, tenant.getName(), projectName, quoteKind, projectId);
+
         return ApiResponse.ok(result);
+    }
+
+    /**
+     * 异步发送来单邮件通知（不阻塞主流程）
+     */
+    private void sendQuickQuoteNotification(long tenantId, String teamName,
+                                           String projectName, String quoteKind, Long projectId) {
+        try {
+            if (!systemConfigService.isQuickQuoteNotifyEnabled(tenantId)) return;
+            String notifyEmail = systemConfigService.getQuickQuoteNotifyEmail(tenantId);
+            if (notifyEmail == null || notifyEmail.isBlank()) return;
+
+            String baseUrl = systemConfigService.getPublicBaseUrl();
+            if (baseUrl == null) baseUrl = "";
+
+            String modeLabel = "solution".equals(quoteKind) ? "解决方案级" : "单体应用";
+            String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+            String html = "<div style=\"max-width:600px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\">"
+                    + "<div style=\"background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:24px;border-radius:12px 12px 0 0;\">"
+                    + "<h2 style=\"color:#fff;margin:0;font-size:20px;\">📬 新客户来单通知</h2>"
+                    + "</div>"
+                    + "<div style=\"background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;\">"
+                    + "<p style=\"color:#333;font-size:15px;margin:0 0 16px;\">您有新客户通过专属链接创建了报价项目，请及时前往系统跟进。</p>"
+                    + "<table style=\"width:100%;border-collapse:collapse;font-size:14px;\">"
+                    + "<tr><td style=\"padding:8px 0;color:#888;border-bottom:1px solid #f0f0f0;width:100px;\">团队</td>"
+                    + "<td style=\"padding:8px 0;border-bottom:1px solid #f0f0f0;font-weight:500;\">" + escHtml(teamName) + "</td></tr>"
+                    + "<tr><td style=\"padding:8px 0;color:#888;border-bottom:1px solid #f0f0f0;\">项目名称</td>"
+                    + "<td style=\"padding:8px 0;border-bottom:1px solid #f0f0f0;font-weight:500;\">" + escHtml(projectName) + "</td></tr>"
+                    + "<tr><td style=\"padding:8px 0;color:#888;border-bottom:1px solid #f0f0f0;\">报价模式</td>"
+                    + "<td style=\"padding:8px 0;border-bottom:1px solid #f0f0f0;font-weight:500;\">" + modeLabel + "</td></tr>"
+                    + "<tr><td style=\"padding:8px 0;color:#888;border-bottom:1px solid #f0f0f0;\">创建时间</td>"
+                    + "<td style=\"padding:8px 0;border-bottom:1px solid #f0f0f0;font-weight:500;\">" + now + "</td></tr>"
+                    + "<tr><td style=\"padding:8px 0;color:#888;\">项目 ID</td>"
+                    + "<td style=\"padding:8px 0;font-weight:500;\">" + projectId + "</td></tr>"
+                    + "</table>"
+                    + "<div style=\"margin-top:20px;text-align:center;\">"
+                    + "<a href=\"" + escHtml(baseUrl) + "/quote/" + projectId + "\" "
+                    + "style=\"display:inline-block;padding:10px 24px;background:#667eea;color:#fff;border-radius:8px;"
+                    + "text-decoration:none;font-size:14px;font-weight:500;\">立即查看项目</a>"
+                    + "</div>"
+                    + "<p style=\"color:#999;font-size:12px;margin:20px 0 0;text-align:center;\">此邮件由系统自动发送，请勿直接回复。</p>"
+                    + "</div></div>";
+
+            // 异步发送，不阻塞响应
+            final String toEmail = notifyEmail;
+            Thread.ofVirtual().name("mail-notify").start(() -> {
+                try {
+                    mailSenderService.sendHtml(toEmail, "📬 新客户来单 - " + projectName, html);
+                    log.info("来单通知邮件已发送至 {}，项目：{}", toEmail, projectName);
+                } catch (Exception e) {
+                    log.warn("来单通知邮件发送失败，项目：{}，错误：{}", projectName, e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            log.warn("来单通知配置读取失败：{}", e.getMessage());
+        }
+    }
+
+    private static String escHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     /**
