@@ -4722,6 +4722,13 @@ label.block {
 }
 
 /* --- Responsive --- */
+
+/* 全局防溢出保护 */
+.quote-project-page {
+  overflow-x: hidden;
+}
+
+/* ===== 平板 & 小桌面 (≤1100px) ===== */
 @media (max-width: 1100px) {
   .quote-project-layout {
     flex-direction: column;
@@ -4741,17 +4748,66 @@ label.block {
     min-height: auto;
     padding: 10px;
   }
+  .quote-save-bar {
+    position: relative;
+    bottom: auto;
+    border-radius: var(--radius-md);
+    margin: var(--space-md) 0;
+  }
 }
 
-@media (max-width: 720px) {
-  .contract-grid-2 {
-    grid-template-columns: 1fr;
+/* ===== 大手机 / 小平板 (≤768px) ===== */
+@media (max-width: 768px) {
+  .quote-project-page {
+    padding: var(--space-sm);
+  }
+  .quote-project-layout {
+    gap: var(--space-md);
+  }
+
+  /* 模块头部：换行堆叠 */
+  .mod-head {
+    gap: 6px;
+  }
+  .mod-name {
+    min-width: 120px;
+    flex: 1 1 100%;
+  }
+  .preset-select {
+    min-width: 140px;
+    flex: 1 1 auto;
+  }
+
+  /* 功能清单表格：隐藏不调价和金额列 */
+  .item-col-excl,
+  .item-col-lineamt {
+    display: none !important;
   }
   .item-table-head,
   .item-row {
-    grid-template-columns: 1fr 120px 72px 36px;
-    gap: 6px;
+    grid-template-columns: 1fr 100px 60px 36px;
+    gap: 4px;
   }
+
+  /* 商务调价行堆叠 */
+  .price-adjust-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .price-adjust-row label {
+    width: 100%;
+  }
+  .price-adjust-row .inp {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 双列网格改单列 */
+  .contract-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  /* 保存栏 */
   .quote-save-bar-inner {
     flex-direction: column;
     align-items: stretch;
@@ -4760,6 +4816,109 @@ label.block {
   .quote-save-all-btn {
     width: 100%;
     text-align: center;
+  }
+
+  /* 交付物分组头部 */
+  .deliverable-group__header {
+    flex-wrap: wrap;
+  }
+
+  /* 侧边栏操作按钮 */
+  .output-file-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .output-file-actions {
+    justify-content: stretch;
+  }
+  .output-file-actions .btn-tiny {
+    flex: 1;
+    text-align: center;
+  }
+  .output-file-type-select {
+    width: 100%;
+  }
+}
+
+/* ===== 手机竖屏 (≤480px) ===== */
+@media (max-width: 480px) {
+  .quote-project-page {
+    padding: 8px;
+  }
+
+  /* 功能清单表格进一步精简 */
+  .item-table-head,
+  .item-row {
+    grid-template-columns: 1fr 80px 50px 32px;
+    gap: 3px;
+    font-size: 13px;
+  }
+  .item-row .inp {
+    font-size: 13px;
+    padding: 6px 4px;
+  }
+
+  /* 模块头部更紧凑 */
+  .mod-head {
+    gap: 4px;
+  }
+  .mod-name {
+    min-width: 100px;
+    font-size: 14px;
+  }
+  .preset-select {
+    min-width: 100px;
+    font-size: 13px;
+  }
+  .mod-head .btn-sm {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  /* 通用输入框适配 */
+  .inp {
+    font-size: 14px;
+  }
+  .btn {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  /* 侧边栏输出区域 */
+  .output-sidebar-section {
+    padding: 10px 8px;
+  }
+  .output-sidebar-subtitle {
+    font-size: 13px;
+  }
+
+  /* 报价计算区域 */
+  .calc-prefs-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 验收条款表格 */
+  .acceptance-tc-table {
+    font-size: 11px;
+  }
+  .acceptance-tc-table th,
+  .acceptance-tc-table td {
+    padding: 4px 2px;
+  }
+
+  /* 数据表格 */
+  .data-table {
+    font-size: 12px;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 6px 4px;
+  }
+
+  /* 合同补充信息 */
+  .compact-contract .inp.wide {
+    min-width: 100px;
   }
 }
 /* Agent 智能引导面板 */
