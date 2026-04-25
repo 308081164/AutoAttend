@@ -223,12 +223,12 @@ public class AiAnalysisService {
         sb.append("insertions: ").append(commit.getInsertions()).append(", deletions: ").append(commit.getDeletions()).append("\n");
 
         // 提取文件路径列表，帮助 AI 做路径匹配（从 diffText 中解析）
-        String diffText = commit.getDiffText();
-        if (diffText != null && !diffText.isBlank() && !diffText.startsWith("(Diff 暂不可用")) {
+        String rawDiff = commit.getDiffText();
+        if (rawDiff != null && !rawDiff.isBlank() && !rawDiff.startsWith("(Diff 暂不可用")) {
             java.util.Set<String> fileSet = new java.util.LinkedHashSet<>();
             // git diff 格式: diff --git a/path b/path
             java.util.regex.Pattern p = java.util.regex.Pattern.compile("^diff --git\\s+a/(\\S+)\\s+b/\\S+", java.util.regex.Pattern.MULTILINE);
-            java.util.regex.Matcher m = p.matcher(diffText);
+            java.util.regex.Matcher m = p.matcher(rawDiff);
             while (m.find()) {
                 fileSet.add(m.group(1));
             }
