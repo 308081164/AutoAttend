@@ -136,14 +136,14 @@ public class PlatformSettingsController {
     @GetMapping("/quick-quote-notify")
     public ApiResponse<Map<String, Object>> getQuickQuoteNotify() {
         Map<String, Object> data = new HashMap<>();
-        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(systemConfigService.platformTenantId()));
-        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(systemConfigService.platformTenantId()));
+        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(0L));
+        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(0L));
         return ApiResponse.ok(data);
     }
 
     @PutMapping("/quick-quote-notify")
     public ApiResponse<Void> putQuickQuoteNotify(@RequestBody Map<String, Object> body) {
-        long tid = systemConfigService.platformTenantId();
+        long tid = 0L; // 平台级配置 tenant_id=0
         Object enabledObj = body.get("enabled");
         Object emailObj = body.get("email");
         if (enabledObj != null) {

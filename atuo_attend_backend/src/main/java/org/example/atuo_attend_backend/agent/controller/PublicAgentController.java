@@ -128,7 +128,7 @@ public class PublicAgentController {
     private void sendQuickQuoteNotification(long tenantId, String teamName,
                                            String projectName, String quoteKind, Long projectId) {
         try {
-            long configTenantId = systemConfigService.platformTenantId();
+            long configTenantId = 0L; // 平台级配置 tenant_id=0
             if (!systemConfigService.isQuickQuoteNotifyEnabled(configTenantId)) return;
             String notifyEmail = systemConfigService.getQuickQuoteNotifyEmail(configTenantId);
             if (notifyEmail == null || notifyEmail.isBlank()) return;
