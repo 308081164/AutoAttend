@@ -1919,7 +1919,7 @@ public class QuoteService {
 
     /**
      * 自然语言 → DeepSeek JSON → 与前端/保存接口一致的 modules 结构。
-     * 支持超长文本自动切片分批解析并合并结果。
+     * 支持超长文本：超过 10000 字时自动切片为多条消息喂给 AI，AI 看到全部内容后返回一份统一结果。
      */
     public Map<String, Object> parseQuoteModulesWithAi(QuoteAiModulesParseRequest req) {
         if (req == null || req.getRequirementText() == null || req.getRequirementText().isBlank()) {
@@ -1930,123 +1930,54 @@ public class QuoteService {
             throw new IllegalArgumentException("需求描述过长，请控制在 100,000 字以内");
         }
 
-        // 短文本（≤10000字）：直接单次解析
-        if (text.length() <= 10000) {
-            return doParseModulesWithAi(req, text, 1, 1);
-        }
-
-        // 长文本（>10000字）：按段落边界切片，分批解析后合并
-        return parseModulesWithAiChunked(req, text);
-    }
-
-    /**
-     * 超长文本切片分批解析：按段落边界切分，每片 ≤10000 字，分批调用 AI 后合并模块列表。
-     */
-    private Map<String, Object> parseModulesWithAiChunked(QuoteAiModulesParseRequest req, String fullText) {
-        int chunkSize = 10000;
-        List<String> chunks = splitTextByParagraph(fullText, chunkSize);
-        int total = chunks.size();
-
-        List<Map<String, Object>> allModules = new ArrayList<>();
-        long totalInputTokens = 0;
-        long totalOutputTokens = 0;
-        String lastModel = null;
-
-        for (int i = 0; i < total; i++) {
-            Map<String, Object> partResult = doParseModulesWithAi(req, chunks.get(i), i + 1, total);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> partModules = (List<Map<String, Object>>) partResult.get("modules");
-            if (partModules != null) {
-                // 为每批模块添加批次标识，方便前端展示
-                for (Map<String, Object> m : partModules) {
-                    m.put("chunkIndex", i);
-                }
-                allModules.addAll(partModules);
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> usage = (Map<String, Object>) partResult.get("usage");
-            if (usage != null) {
-                totalInputTokens += toLong(usage.get("inputTokens"));
-                totalOutputTokens += toLong(usage.get("outputTokens"));
-                lastModel = (String) usage.get("model");
-            }
-        }
-
-        if (allModules.isEmpty()) {
-            throw new IllegalStateException("未解析出有效功能模块，请补充更具体的需求描述");
-        }
-
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("modules", allModules);
-        out.put("chunked", true);
-        out.put("totalChunks", total);
-        Map<String, Object> usage = new LinkedHashMap<>();
-        usage.put("inputTokens", totalInputTokens);
-        usage.put("outputTokens", totalOutputTokens);
-        usage.put("model", lastModel);
-        out.put("usage", usage);
-        return out;
-    }
-
-    private static long toLong(Object v) {
-        if (v == null) return 0;
-        if (v instanceof Number) return ((Number) v).longValue();
-        try { return Long.parseLong(v.toString()); } catch (Exception e) { return 0; }
-    }
-
-    /**
-     * 按段落边界切分文本，每片不超过 maxChunkSize 字。
-     */
-    private List<String> splitTextByParagraph(String text, int maxChunkSize) {
-        List<String> chunks = new ArrayList<>();
-        // 按双换行分段
-        String[] paragraphs = text.split("\\n\\n+");
-        StringBuilder current = new StringBuilder();
-        for (String para : paragraphs) {
-            if (para.isBlank()) continue;
-            // 如果当前块加上这段会超限，且当前块非空，则先保存当前块
-            if (current.length() > 0 && current.length() + 2 + para.length() > maxChunkSize) {
-                chunks.add(current.toString());
-                current = new StringBuilder();
-            }
-            // 如果单段就超限，按行切分
-            if (para.length() > maxChunkSize) {
-                if (current.length() > 0) {
-                    chunks.add(current.toString());
-                    current = new StringBuilder();
-                }
-                String[] lines = para.split("\\n");
-                for (String line : lines) {
-                    if (current.length() > 0 && current.length() + 1 + line.length() > maxChunkSize) {
-                        chunks.add(current.toString());
-                        current = new StringBuilder();
-                    }
-                    if (current.length() > 0) current.append('\n');
-                    current.append(line);
-                }
-            } else {
-                if (current.length() > 0) current.append("\n\n");
-                current.append(para);
-            }
-        }
-        if (current.length() > 0) {
-            chunks.add(current.toString());
-        }
-        return chunks;
-    }
-
-    /**
-     * 单次 AI 解析（≤10000 字的需求文本）。
-     */
-    private Map<String, Object> doParseModulesWithAi(QuoteAiModulesParseRequest req, String text,
-                                                      int chunkIndex, int totalChunks) {
-
         AiAnalysisConfig cfg = aiConfigService.getConfig();
         if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
             throw new IllegalStateException("请先在管理后台「AI 配置」中填写 DeepSeek API Key");
         }
         String model = cfg.getModel() != null && !cfg.getModel().isBlank() ? cfg.getModel() : "deepseek-chat";
 
+        // 构建项目上下文
+        String ctx = buildProjectContext(req);
+
+        // 构建 system prompt
+        String system = buildModuleSystemPrompt(req);
+
+        // 构建 user messages：超长文本切片为多条消息
+        List<DeepSeekClient.ChatMessage> messages = new ArrayList<>();
+        messages.add(new DeepSeekClient.ChatMessage("system", system));
+
+        if (text.length() <= 10000) {
+            // 短文本：单条消息
+            messages.add(new DeepSeekClient.ChatMessage("user", ctx + "\n【客户/需求原文】\n" + text));
+        } else {
+            // 长文本：切片为多条 user 消息，AI 一次看到全部内容
+            List<String> chunks = splitTextByParagraph(text, 10000);
+            // 第一条消息带项目上下文 + 第一片
+            messages.add(new DeepSeekClient.ChatMessage("user",
+                    ctx + "\n【客户/需求原文（第 1/" + chunks.size() + " 部分）】\n" + chunks.get(0)));
+            // 后续每片作为独立 user 消息
+            for (int i = 1; i < chunks.size(); i++) {
+                messages.add(new DeepSeekClient.ChatMessage("user",
+                        "【客户/需求原文（第 " + (i + 1) + "/" + chunks.size() + " 部分）】\n" + chunks.get(i)));
+            }
+            // 最后一条消息要求 AI 综合所有部分输出结果
+            messages.add(new DeepSeekClient.ChatMessage("user",
+                    "以上是完整的客户需求文档（共 " + chunks.size() + " 部分）。请综合所有内容，输出一份完整的模块拆解 JSON。"));
+        }
+
+        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
+        String content = result != null ? result.getContent() : null;
+        if (content == null || content.isBlank()) {
+            throw new IllegalStateException("AI 未返回有效内容，请稍后重试或缩短描述");
+        }
+
+        return parseModulesResult(content, req, result, model);
+    }
+
+    /**
+     * 构建项目上下文信息（项目类型、技术栈等维度）
+     */
+    private String buildProjectContext(QuoteAiModulesParseRequest req) {
         StringBuilder ctx = new StringBuilder();
         ctx.append("【项目上下文】下列为当前报价表单已选维度（辅助拆解模块；客户原文未提及处勿臆造具体业务功能）\n");
         ctx.append("项目类型：").append(labelProjectType(req.getProjectType()))
@@ -2090,10 +2021,19 @@ public class QuoteService {
                 ctx.append("\n");
             }
         }
+        return ctx.toString();
+    }
 
-        String system;
+    /**
+     * 构建 system prompt（根据模式选择）
+     */
+    private String buildModuleSystemPrompt(QuoteAiModulesParseRequest req) {
+        boolean multiDel = Boolean.TRUE.equals(req.getMultiDeliverableMode());
+        List<QuoteDeliverableHintDto> hints = req.getDeliverableHints();
+        boolean hintMode = multiDel && hints != null && !hints.isEmpty();
+
         if (hintMode) {
-            system = """
+            return """
 你是资深软件外包需求分析师。用户已固定交付物分组与技术栈倾向，请仅在各分组下拆解「模块 → 功能点」。
 必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
 {"deliverables":[{"deliverableKey":"web","deliverableLabel":"Web 管理端","modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}]}
@@ -2104,7 +2044,7 @@ public class QuoteService {
 - items：complexity 只能是 simple、standard、medium、complex、extreme；quantity 为正整数。
 """;
         } else if (multiDel) {
-            system = """
+            return """
 你是资深软件外包需求分析师。用户要做「一整套系统」的统一报价（可能含 Web、App、后端等多子系统）。
 必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
 {"deliverables":[{"deliverableKey":"web","deliverableLabel":"Web 管理端","modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}]}
@@ -2114,7 +2054,7 @@ public class QuoteService {
 - items：可交付功能粒度；complexity 只能是：simple、standard、medium、complex、extreme；quantity 为正整数。
 """;
         } else {
-            system = """
+            return """
 你是资深软件外包需求分析师。根据用户自然语言需求，拆解为「功能模块 → 功能点」清单，用于人天报价。
 必须仅输出一个 JSON 对象，不要 Markdown 代码块，不要其它解释文字。结构严格为：
 {"modules":[{"name":"模块中文名","items":[{"name":"功能点中文名","complexity":"standard","quantity":1}]}]}
@@ -2125,18 +2065,17 @@ public class QuoteService {
 - quantity：正整数，默认 1。
 """;
         }
+    }
 
-        String userMsg = ctx + "\n【客户/需求原文】\n" + text;
+    /**
+     * 解析 AI 返回的 JSON 为统一的 modules 结构
+     */
+    private Map<String, Object> parseModulesResult(String content, QuoteAiModulesParseRequest req,
+                                                    DeepSeekClient.ChatResult result, String model) {
+        boolean multiDel = Boolean.TRUE.equals(req.getMultiDeliverableMode());
+        List<QuoteDeliverableHintDto> hints = req.getDeliverableHints();
+        boolean hintMode = multiDel && hints != null && !hints.isEmpty();
 
-        List<DeepSeekClient.ChatMessage> messages = List.of(
-                new DeepSeekClient.ChatMessage("system", system),
-                new DeepSeekClient.ChatMessage("user", userMsg)
-        );
-        DeepSeekClient.ChatResult result = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true, 8192);
-        String content = result != null ? result.getContent() : null;
-        if (content == null || content.isBlank()) {
-            throw new IllegalStateException("AI 未返回有效内容，请稍后重试或缩短描述");
-        }
         JsonNode root = parseAiJsonOrThrow(content, "parseQuoteModules");
         List<Map<String, Object>> outModules = new ArrayList<>();
         int mi = 0;
@@ -2243,6 +2182,50 @@ public class QuoteService {
             out.put("usage", usage);
         }
         return out;
+    }
+
+    private static long toLong(Object v) {
+        if (v == null) return 0;
+        if (v instanceof Number) return ((Number) v).longValue();
+        try { return Long.parseLong(v.toString()); } catch (Exception e) { return 0; }
+    }
+
+    /**
+     * 按段落边界切分文本，每片不超过 maxChunkSize 字。
+     */
+    private List<String> splitTextByParagraph(String text, int maxChunkSize) {
+        List<String> chunks = new ArrayList<>();
+        String[] paragraphs = text.split("\\n\\n+");
+        StringBuilder current = new StringBuilder();
+        for (String para : paragraphs) {
+            if (para.isBlank()) continue;
+            if (current.length() > 0 && current.length() + 2 + para.length() > maxChunkSize) {
+                chunks.add(current.toString());
+                current = new StringBuilder();
+            }
+            if (para.length() > maxChunkSize) {
+                if (current.length() > 0) {
+                    chunks.add(current.toString());
+                    current = new StringBuilder();
+                }
+                String[] lines = para.split("\\n");
+                for (String line : lines) {
+                    if (current.length() > 0 && current.length() + 1 + line.length() > maxChunkSize) {
+                        chunks.add(current.toString());
+                        current = new StringBuilder();
+                    }
+                    if (current.length() > 0) current.append('\n');
+                    current.append(line);
+                }
+            } else {
+                if (current.length() > 0) current.append("\n\n");
+                current.append(para);
+            }
+        }
+        if (current.length() > 0) {
+            chunks.add(current.toString());
+        }
+        return chunks;
     }
 
     /**
