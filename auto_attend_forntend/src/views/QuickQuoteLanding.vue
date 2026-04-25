@@ -122,7 +122,7 @@ export default {
         return
       }
       try {
-        const resp = await axios.get('/api/public/agent/quick-start/' + encodeURIComponent(slug) + '/check')
+        const resp = await axios.get('/public/agent/quick-start/' + encodeURIComponent(slug) + '/check')
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           this.teamName = resp.data.data.teamName || ''
           this.pageState = 'form'
@@ -142,7 +142,7 @@ export default {
       this.submitMsg = ''
       const slug = this.$route.params.slug
       try {
-        const resp = await axios.post('/api/public/agent/quick-start/' + encodeURIComponent(slug), {
+        const resp = await axios.post('/public/agent/quick-start/' + encodeURIComponent(slug), {
           projectName: name,
           quoteKind: this.quoteKind
         })
