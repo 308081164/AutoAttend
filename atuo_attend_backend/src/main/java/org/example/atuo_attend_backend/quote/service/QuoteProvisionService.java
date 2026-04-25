@@ -129,12 +129,38 @@ public class QuoteProvisionService {
                 qp.getProvisionSyncedAt());
 
         try {
-            Map<String, Object> created = createPersonalRepo(token, repoName, repoPrivate,
-                    req.getDescription() != null ? req.getDescription() : buildDefaultRepoDescription(qp),
-                    autoInit);
-            repoFullName = String.valueOf(created.get("full_name"));
-            repoHtmlUrl = String.valueOf(created.get("html_url"));
-            steps.add(stepOk("createRepo", "已创建仓库", Map.of("repoFullName", repoFullName, "repoHtmlUrl", repoHtmlUrl)));
+            Map<String, Object> created = null;
+            try {
+                created = createPersonalRepo(token, repoName, repoPrivate,
+                        req.getDescription() != null ? req.getDescription() : buildDefaultRepoDescription(qp),
+                        autoInit);
+            } catch (Exception e) {
+                // 仓库已存在时自动复用
+                if (e.getMessage() != null && e.getMessage().contains("already exists")) {
+                    String existingFullName = token.contains("/") ? token.split("/", 2)[0] + "/" + repoName : null;
+                    // 通过 API 获取仓库信息确认
+                    try {
+                        existingFullName = getRepoFullNameByApi(token, repoName);
+                    } catch (Exception ignored) {
+                        // 如果 API 也失败，用默认拼接
+                        if (existingFullName == null) {
+                            // 从已有 GitHub Token 配置推断用户名
+                            existingFullName = repoName;
+                        }
+                    }
+                    repoFullName = existingFullName;
+                    repoHtmlUrl = "https://github.com/" + existingFullName;
+                    created = Map.of("full_name", repoFullName, "html_url", repoHtmlUrl);
+                    steps.add(stepOk("createRepo", "仓库已存在，已复用", Map.of("repoFullName", repoFullName)));
+                } else {
+                    throw e;
+                }
+            }
+            if (repoFullName == null) {
+                repoFullName = String.valueOf(created.get("full_name"));
+                repoHtmlUrl = String.valueOf(created.get("html_url"));
+            }
+            steps.add(stepOk("createRepo", "仓库就绪", Map.of("repoFullName", repoFullName, "repoHtmlUrl", repoHtmlUrl)));
 
             if (syncMd) {
                 String md = buildRequirementMarkdown(qp.getId(), qp.getName(), repoFullName);
@@ -199,6 +225,48 @@ public class QuoteProvisionService {
         out.put("steps", steps);
         out.put("status", provisionStatus);
         return out;
+    }
+
+    /**
+     * 通过 GitHub API 获取当前用户指定名称仓库的 full_name
+     */
+    private String getRepoFullNameByApi(String token, String repoName) {
+        // 先尝试 GET /user/repos/{name}（较新 API）
+        String url = "https://api.github.com/user/repos/" + urlEncodePath(repoName);
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+            headers.setBearerAuth(token);
+            ResponseEntity<Map> resp = githubRestTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+            if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
+                return String.valueOf(resp.getBody().get("full_name"));
+            }
+        } catch (Exception ignored) {
+            // 降级：列出仓库查找
+        }
+        // 降级：遍历用户仓库列表
+        String listUrl = "https://api.github.com/user/repos";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setBearerAuth(token);
+        for (int page = 1; page <= 3; page++) {
+            try {
+                ResponseEntity<List<Map>> resp = githubRestTemplate.exchange(
+                        listUrl + "?per_page=100&page=" + page,
+                        HttpMethod.GET, new HttpEntity<>(headers), (Class<List<Map>>) (Class) List.class);
+                if (resp.getBody() != null) {
+                    for (Map repo : resp.getBody()) {
+                        if (repoName.equals(repo.get("name"))) {
+                            return String.valueOf(repo.get("full_name"));
+                        }
+                    }
+                }
+                if (resp.getBody() == null || resp.getBody().size() < 100) break;
+            } catch (Exception e) {
+                break;
+            }
+        }
+        return null;
     }
 
     private Map<String, Object> createPersonalRepo(String token, String repoName, boolean repoPrivate, String description, boolean autoInit) {
