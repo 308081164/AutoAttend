@@ -111,8 +111,11 @@ axios.interceptors.response.use(
         if (collabReq) {
           window.localStorage.removeItem('autoattend_collab_token')
         } else {
+          // 管理员 token 失效：同时清除 collabToken，
+          // 避免路由守卫检测到残留 collabToken 后将用户重定向到成员面板
           window.localStorage.removeItem('autoattend_token')
           window.localStorage.removeItem('autoattend_username')
+          window.localStorage.removeItem('autoattend_collab_token')
         }
         notifyAuthSessionChanged()
 
