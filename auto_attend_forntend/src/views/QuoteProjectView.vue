@@ -158,6 +158,10 @@
           <p class="hint">{{ $t('quote.aiModuleHint') }}</p>
           <label class="block">{{ $t('quote.aiModuleRequirementLabel') }}</label>
           <textarea v-model="aiRequirementText" class="textarea" rows="8" :placeholder="$t('quote.aiModulePlaceholder')"></textarea>
+          <div class="ai-char-count" :class="{ warn: aiCharCount > 10000, over: aiCharCount > 100000 }">
+            {{ aiCharCount.toLocaleString() }} / 100,000 字
+            <span v-if="aiCharCount > 10000">（将分批解析）</span>
+          </div>
           <div class="ai-file-row">
             <label class="btn secondary ai-file-btn">
               {{ $t('quote.aiModuleUploadText') }}
@@ -1315,6 +1319,9 @@ export default {
     }
   },
   computed: {
+    aiCharCount () {
+      return (this.aiRequirementText || '').length
+    },
     isSolutionMode () {
       return (this.form.quoteKind || 'single') === 'solution'
     },
@@ -4106,6 +4113,14 @@ label.block {
 .quote-ai-panel .hint {
   margin-top: 0;
 }
+.ai-char-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: 4px;
+}
+.ai-char-count.warn { color: #d97706; }
+.ai-char-count.over { color: #dc2626; }
 .ai-file-row {
   display: flex;
   flex-wrap: wrap;

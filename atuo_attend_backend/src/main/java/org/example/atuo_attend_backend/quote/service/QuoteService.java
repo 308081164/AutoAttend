@@ -1812,8 +1812,12 @@ public class QuoteService {
             throw new IllegalArgumentException("需求描述不能为空");
         }
         String text = req.getRequirementText().trim();
-        if (text.length() > 20000) {
-            throw new IllegalArgumentException("需求描述过长，请控制在 20000 字以内");
+        if (text.length() > 100000) {
+            throw new IllegalArgumentException("需求描述过长，请控制在 100,000 字以内");
+        }
+        // 交付物骨架解析：文本过长时截取前10000字（骨架解析不需要全文细节）
+        if (text.length() > 10000) {
+            text = text.substring(0, 10000) + "\n\n…（需求文档过长，仅截取前 10000 字用于交付物骨架分析）";
         }
         AiAnalysisConfig cfg = aiConfigService.getConfig();
         if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
@@ -1848,6 +1852,13 @@ public class QuoteService {
 """;
 
         String userMsg = ctx + "\n【客户/需求原文】\n" + text;
+        // 分批解析时提示 AI 这是第几部分
+        if (totalChunks > 1) {
+            userMsg = ctx + "\n【注意】这是一份长需求文档的第 " + chunkIndex + "/" + totalChunks
+                    + " 部分。请仅基于本部分内容拆解模块，"
+                    + "不要遗漏本部分提到的任何功能点。\n\n【客户/需求原文（第 "
+                    + chunkIndex + "/" + totalChunks + " 部分）】\n" + text;
+        }
         List<DeepSeekClient.ChatMessage> messages = List.of(
                 new DeepSeekClient.ChatMessage("system", system),
                 new DeepSeekClient.ChatMessage("user", userMsg)
@@ -1908,15 +1919,127 @@ public class QuoteService {
 
     /**
      * 自然语言 → DeepSeek JSON → 与前端/保存接口一致的 modules 结构。
+     * 支持超长文本自动切片分批解析并合并结果。
      */
     public Map<String, Object> parseQuoteModulesWithAi(QuoteAiModulesParseRequest req) {
         if (req == null || req.getRequirementText() == null || req.getRequirementText().isBlank()) {
             throw new IllegalArgumentException("需求描述不能为空");
         }
         String text = req.getRequirementText().trim();
-        if (text.length() > 20000) {
-            throw new IllegalArgumentException("需求描述过长，请控制在 20000 字以内");
+        if (text.length() > 100000) {
+            throw new IllegalArgumentException("需求描述过长，请控制在 100,000 字以内");
         }
+
+        // 短文本（≤10000字）：直接单次解析
+        if (text.length() <= 10000) {
+            return doParseModulesWithAi(req, text, 1, 1);
+        }
+
+        // 长文本（>10000字）：按段落边界切片，分批解析后合并
+        return parseModulesWithAiChunked(req, text);
+    }
+
+    /**
+     * 超长文本切片分批解析：按段落边界切分，每片 ≤10000 字，分批调用 AI 后合并模块列表。
+     */
+    private Map<String, Object> parseModulesWithAiChunked(QuoteAiModulesParseRequest req, String fullText) {
+        int chunkSize = 10000;
+        List<String> chunks = splitTextByParagraph(fullText, chunkSize);
+        int total = chunks.size();
+
+        List<Map<String, Object>> allModules = new ArrayList<>();
+        long totalInputTokens = 0;
+        long totalOutputTokens = 0;
+        String lastModel = null;
+
+        for (int i = 0; i < total; i++) {
+            Map<String, Object> partResult = doParseModulesWithAi(req, chunks.get(i), i + 1, total);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> partModules = (List<Map<String, Object>>) partResult.get("modules");
+            if (partModules != null) {
+                // 为每批模块添加批次标识，方便前端展示
+                for (Map<String, Object> m : partModules) {
+                    m.put("chunkIndex", i);
+                }
+                allModules.addAll(partModules);
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> usage = (Map<String, Object>) partResult.get("usage");
+            if (usage != null) {
+                totalInputTokens += toLong(usage.get("inputTokens"));
+                totalOutputTokens += toLong(usage.get("outputTokens"));
+                lastModel = (String) usage.get("model");
+            }
+        }
+
+        if (allModules.isEmpty()) {
+            throw new IllegalStateException("未解析出有效功能模块，请补充更具体的需求描述");
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("modules", allModules);
+        out.put("chunked", true);
+        out.put("totalChunks", total);
+        Map<String, Object> usage = new LinkedHashMap<>();
+        usage.put("inputTokens", totalInputTokens);
+        usage.put("outputTokens", totalOutputTokens);
+        usage.put("model", lastModel);
+        out.put("usage", usage);
+        return out;
+    }
+
+    private static long toLong(Object v) {
+        if (v == null) return 0;
+        if (v instanceof Number) return ((Number) v).longValue();
+        try { return Long.parseLong(v.toString()); } catch (Exception e) { return 0; }
+    }
+
+    /**
+     * 按段落边界切分文本，每片不超过 maxChunkSize 字。
+     */
+    private List<String> splitTextByParagraph(String text, int maxChunkSize) {
+        List<String> chunks = new ArrayList<>();
+        // 按双换行分段
+        String[] paragraphs = text.split("\\n\\n+");
+        StringBuilder current = new StringBuilder();
+        for (String para : paragraphs) {
+            if (para.isBlank()) continue;
+            // 如果当前块加上这段会超限，且当前块非空，则先保存当前块
+            if (current.length() > 0 && current.length() + 2 + para.length() > maxChunkSize) {
+                chunks.add(current.toString());
+                current = new StringBuilder();
+            }
+            // 如果单段就超限，按行切分
+            if (para.length() > maxChunkSize) {
+                if (current.length() > 0) {
+                    chunks.add(current.toString());
+                    current = new StringBuilder();
+                }
+                String[] lines = para.split("\\n");
+                for (String line : lines) {
+                    if (current.length() > 0 && current.length() + 1 + line.length() > maxChunkSize) {
+                        chunks.add(current.toString());
+                        current = new StringBuilder();
+                    }
+                    if (current.length() > 0) current.append('\n');
+                    current.append(line);
+                }
+            } else {
+                if (current.length() > 0) current.append("\n\n");
+                current.append(para);
+            }
+        }
+        if (current.length() > 0) {
+            chunks.add(current.toString());
+        }
+        return chunks;
+    }
+
+    /**
+     * 单次 AI 解析（≤10000 字的需求文本）。
+     */
+    private Map<String, Object> doParseModulesWithAi(QuoteAiModulesParseRequest req, String text,
+                                                      int chunkIndex, int totalChunks) {
 
         AiAnalysisConfig cfg = aiConfigService.getConfig();
         if (cfg.getApiKey() == null || cfg.getApiKey().isBlank()) {
