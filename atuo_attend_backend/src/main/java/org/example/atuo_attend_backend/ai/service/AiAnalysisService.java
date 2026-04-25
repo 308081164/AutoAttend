@@ -187,11 +187,28 @@ public class AiAnalysisService {
                 "  \"suggestions\": [\"改进建议1\", \"改进建议2\"]\n" +
                 "}";
         if (!includeCollabLinkage) return base;
-        return base + "\n\n若输入中存在 collab_records，请额外输出 related_records 数组，格式：\n" +
+        return base + "\n\n若输入中存在 collab_records，请根据以下规则判断 commit 与任务的关联并输出 related_records 数组。\n" +
+                "\n" +
+                "## 关联判断标准（按优先级从高到低）\n" +
+                "1. **文件路径匹配**：commit 修改的文件路径（files_changed_list）与任务的「归属模块」或「问题描述」中提到的模块/文件名有直接对应关系\n" +
+                "2. **关键词匹配**：commit message 或 diff 中的关键标识符（函数名、类名、变量名、API路径等）出现在任务的「问题描述」中\n" +
+                "3. **功能语义匹配**：commit 的改动内容（通过 diff 分析）与任务描述的功能需求在语义上相关\n" +
+                "\n" +
+                "## resolve_status 建议值\n" +
+                "- \"已解决\"：commit 的改动完整覆盖了任务描述中的需求\n" +
+                "- \"部分解决\"：commit 只涉及任务的一部分需求\n" +
+                "- \"进行中\"：commit 是实现该任务的阶段性工作\n" +
+                "- 不相关则不要输出该 record\n" +
+                "\n" +
+                "## accept_status 建议值\n" +
+                "- 仅当 resolve_status 为「已解决」且代码质量为 high 时才建议 \"通过验收\"\n" +
+                "- 否则不输出 accept_status 字段\n" +
+                "\n" +
+                "## 输出格式\n" +
                 "\"related_records\": [\n" +
-                "  {\"record_id\": 123, \"confidence\": \"high|medium|low\", \"resolve_status\": \"建议解决情况\", \"accept_status\": \"建议验收结果\", \"comment\": \"理由\"}\n" +
+                "  {\"record_id\": 123, \"confidence\": \"high|medium|low\", \"resolve_status\": \"建议解决情况\", \"accept_status\": \"建议验收结果（可选）\", \"match_reason\": \"匹配理由（简要说明为什么认为关联）\"}\n" +
                 "]\n" +
-                "只有在你明确判断与该记录有关时才输出该项。";
+                "注意：宁可漏判也不要误判。只有在你有较高把握时才输出 related_records。";
     }
 
     private String buildUserContent(CommitRecord commit, String diffText, List<Map<String, Object>> collabCandidates) {
@@ -203,17 +220,29 @@ public class AiAnalysisService {
         sb.append("committed_at: ").append(commit.getCommittedAt()).append("\n");
         sb.append("message: ").append(commit.getMessage()).append("\n");
         sb.append("files_changed: ").append(commit.getFilesChanged()).append("\n");
-        sb.append("insertions: ").append(commit.getInsertions()).append(", deletions: ").append(commit.getDeletions()).append("\n\n");
+        sb.append("insertions: ").append(commit.getInsertions()).append(", deletions: ").append(commit.getDeletions()).append("\n");
+
+        // 提取文件路径列表，帮助 AI 做路径匹配
+        String filesChanged = commit.getFilesChanged();
+        if (filesChanged != null && !filesChanged.isBlank()) {
+            sb.append("\nfiles_changed_list:\n");
+            // files_changed 格式通常为 "file1.java file2.vue file3.css"
+            String[] paths = filesChanged.split("\\s+");
+            for (String p : paths) {
+                if (!p.isBlank()) sb.append("  - ").append(p).append("\n");
+            }
+        }
+
         if (collabCandidates != null && !collabCandidates.isEmpty()) {
-            sb.append("collab_records(json): ");
+            sb.append("\ncollab_records(json):\n");
             try {
                 sb.append(objectMapper.writeValueAsString(collabCandidates));
             } catch (Exception e) {
                 sb.append("[]");
             }
-            sb.append("\n\n");
+            sb.append("\n");
         }
-        sb.append("--- diff ---\n").append(diffText);
+        sb.append("\n--- diff ---\n").append(diffText);
         return sb.toString();
     }
 
@@ -228,14 +257,27 @@ public class AiAnalysisService {
         long moduleCol = findColId(cols, "归属模块");
         long resolveCol = findColId(cols, "解决情况");
         long acceptCol = findColId(cols, "验收结果");
-        List<Map<String, Object>> rows = collabRecordService.listRecords(table.getId(), 1, 30);
+        long priorityCol = findColId(cols, "优先级");
+        long assigneeCol = findColId(cols, "负责人");
+        // 取最近 50 条记录，扩大候选池
+        List<Map<String, Object>> rows = collabRecordService.listRecords(table.getId(), 1, 50);
         for (Map<String, Object> r : rows) {
+            // 跳过已完成的任务（解决情况为"已解决"且验收结果为"通过验收"），减少噪音
+            String resolve = asString(r.get("c" + resolveCol));
+            String accept = asString(r.get("c" + acceptCol));
+            if (("已解决".equals(resolve) || "已完成".equals(resolve))
+                    && ("通过验收".equals(accept) || "已验收".equals(accept))) {
+                continue;
+            }
             Map<String, Object> m = new HashMap<>();
             m.put("record_id", r.get("id"));
-            m.put("problem_summary", snippet(asString(r.get("c" + problemCol)), 200));
+            m.put("problem_summary", snippet(asString(r.get("c" + problemCol)), 300));
             m.put("module", asString(r.get("c" + moduleCol)));
-            m.put("resolve_status", asString(r.get("c" + resolveCol)));
-            m.put("accept_status", asString(r.get("c" + acceptCol)));
+            m.put("resolve_status", resolve);
+            m.put("accept_status", accept);
+            m.put("priority", asString(r.get("c" + priorityCol)));
+            m.put("assignee", asString(r.get("c" + assigneeCol)));
+            m.put("created_at", r.get("createdAt"));
             out.add(m);
         }
         return out;
