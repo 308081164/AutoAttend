@@ -705,7 +705,7 @@
             type="button"
             class="sidebar-edge-toggle"
             :title="outputSidebarCollapsed ? $t('quote.outputSidebarExpand') : $t('quote.outputSidebarCollapse')"
-            @click="outputSidebarCollapsed = !outputSidebarCollapsed"
+            @click="toggleOutputSidebar"
           >{{ outputSidebarCollapsed ? '◀' : '▶' }}</button>
           <div v-show="!outputSidebarCollapsed" class="quote-output-sidebar-body">
             <h3 class="output-sidebar-title">{{ $t('quote.outputSidebarTitle') }}</h3>
@@ -1242,7 +1242,8 @@ export default {
         createAgentsMd: true
       },
       provisionCloneCopied: false,
-      outputSidebarCollapsed: false,
+      // #7 修复：侧边栏折叠状态从 localStorage 恢复
+      outputSidebarCollapsed: localStorage.getItem('quote_sidebar_collapsed') === 'true',
       /** 侧边栏可折叠板块状态 */
       sidebarCollapsedSections: {
         attachments: true,
@@ -1684,7 +1685,9 @@ export default {
         name: p.name,
         complexity: p.complexity || 'standard',
         quantity: 1,
-        excludedFromScale: false
+        excludedFromScale: false,
+        linePriceSnap: undefined,
+        linePriceAdjusted: undefined
       })
     },
     async init () {
@@ -1752,6 +1755,8 @@ export default {
     },
     async loadProject (id) {
       this.restoringProject = true
+      // #4 修复：loadProject 开始时标记 calcResult 为加载中，避免显示旧数据
+      this._calcResultLoading = true
       try {
         const resp = await this.$http.get('/admin/quote/projects/' + id)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
@@ -1779,31 +1784,90 @@ export default {
             this.form.quoteContactInfo = d.quoteContactInfo || ''
             this.applyQuoteValidityFromServer(d.quoteValidityNote || '')
             this.contractContext = normalizeContractContext(d.quoteContractContext)
+            // #1 修复：增量合并 modules，避免整体替换导致失焦和闪烁
             const mods = d.modules || []
-            if (!mods.length) this.modules = [emptyModule()]
-            else {
-              this.modules = mods.map((m, idx) => ({
-                name: m.name,
-                sortOrder: m.sortOrder != null ? m.sortOrder : idx,
-                deliverableKey: m.deliverableKey || 'default',
-                deliverableLabel: m.deliverableLabel || '',
-                techStack: m.techStack != null ? String(m.techStack) : '',
-                items: (m.items || []).map(it => ({
-                  name: it.name,
-                  complexity: it.complexity || 'standard',
-                  quantity: it.quantity || 1,
-                  excludedFromScale: !!it.excludedFromScale,
-                  linePriceSnap: it.linePriceSnap,
-                  linePriceAdjusted: it.linePriceAdjusted
-                }))
-              }))
+            if (!mods.length) {
+              this.modules = [emptyModule()]
+            } else {
+              const newModules = mods.map((m, idx) => {
+                // 尝试匹配已有模块（按名称），保留用户正在编辑的状态
+                const existing = this.modules.find(em => em.name === m.name)
+                return {
+                  name: m.name,
+                  sortOrder: m.sortOrder != null ? m.sortOrder : idx,
+                  deliverableKey: m.deliverableKey || 'default',
+                  deliverableLabel: m.deliverableLabel || '',
+                  techStack: m.techStack != null ? String(m.techStack) : '',
+                  items: (m.items || []).map(it => {
+                    // 尝试匹配已有 item（按名称），保留用户正在编辑的状态
+                    const exItem = existing ? existing.items.find(ei => ei.name === it.name) : null
+                    return {
+                      name: it.name,
+                      complexity: it.complexity || 'standard',
+                      quantity: it.quantity || 1,
+                      excludedFromScale: !!it.excludedFromScale,
+                      // 优先使用服务端返回的行金额（计算/调价后服务端有最新值）
+                      linePriceSnap: it.linePriceSnap,
+                      linePriceAdjusted: it.linePriceAdjusted
+                    }
+                  })
+                }
+              })
+              // 仅在模块数量变化时替换整个数组，否则逐个更新属性
+              if (newModules.length !== this.modules.length) {
+                this.modules = newModules
+              } else {
+                for (let i = 0; i < newModules.length; i++) {
+                  const nm = newModules[i]
+                  const om = this.modules[i]
+                  // 模块名变化时替换整个模块
+                  if (nm.name !== om.name) {
+                    this.$set(this.modules, i, nm)
+                  } else {
+                    // 逐属性更新，保留 Vue 响应性
+                    om.sortOrder = nm.sortOrder
+                    om.deliverableKey = nm.deliverableKey
+                    om.deliverableLabel = nm.deliverableLabel
+                    om.techStack = nm.techStack
+                    // 增量更新 items
+                    if (nm.items.length !== om.items.length) {
+                      om.items = nm.items
+                    } else {
+                      for (let j = 0; j < nm.items.length; j++) {
+                        const ni = nm.items[j]
+                        const oi = om.items[j]
+                        if (ni.name !== oi.name) {
+                          this.$set(om.items, j, ni)
+                        } else {
+                          // 仅更新服务端可能变化的字段（行金额），保留用户正在编辑的字段
+                          if (ni.linePriceSnap != null) oi.linePriceSnap = ni.linePriceSnap
+                          else oi.linePriceSnap = undefined
+                          if (ni.linePriceAdjusted != null) oi.linePriceAdjusted = ni.linePriceAdjusted
+                          else oi.linePriceAdjusted = undefined
+                          // 服务端字段同步（非用户编辑字段）
+                          oi.excludedFromScale = ni.excludedFromScale
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
             if (d.quoteCalcPrefs) {
               this.applyQuoteCalcPrefs(d.quoteCalcPrefs)
             }
+            // #6 修复：保留服务端返回的 riskHints 和 confidenceLevel
             if (d.latestResult) {
-              this.calcResult = { ...d.latestResult, riskHints: [], confidenceLevel: '' }
+              this.calcResult = {
+                ...d.latestResult,
+                // 仅在服务端未返回时才使用默认值
+                riskHints: d.latestResult.riskHints || [],
+                confidenceLevel: d.latestResult.confidenceLevel || ''
+              }
+            } else {
+              this.calcResult = null
             }
+            this._calcResultLoading = false
             this.provisionMeta = {
               repoFullName: d.githubRepoFullName || '',
               repoHtmlUrl: d.githubRepoHtmlUrl || '',
@@ -1819,19 +1883,25 @@ export default {
             await this.loadContractIfAny()
             await this.syncArtifactReadyFromServer()
           } finally {
-            this.$nextTick(() => {
-              this.restoringCalcPrefs = false
-              this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
-              this.restoringProject = false
-            })
+            // #3 修复：同步重置 restoringProject，不再延迟到 $nextTick
+            this.restoringCalcPrefs = false
+            this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
+            this.restoringProject = false
           }
         } else {
           this.restoringProject = false
+          this._calcResultLoading = false
         }
       } catch (e) {
         this.restoringProject = false
+        this._calcResultLoading = false
         throw e
       }
+    },
+    // #7 修复：侧边栏折叠状态持久化
+    toggleOutputSidebar () {
+      this.outputSidebarCollapsed = !this.outputSidebarCollapsed
+      localStorage.setItem('quote_sidebar_collapsed', String(this.outputSidebarCollapsed))
     },
     suggestRepoName () {
       const base = (this.form.name || '').trim()
@@ -2235,7 +2305,8 @@ export default {
       this.autoSaveDebounceTimer = setTimeout(() => this.flushProjectAutoSave(), 1200)
     },
     async flushProjectAutoSave () {
-      if (this.pageLoading || this.restoringProject || !this.projectId || this.saving) return
+      // #2 修复：添加互斥锁检查，防止与计算/调价竞态
+      if (this.pageLoading || this.restoringProject || !this.projectId || this.saving || this.calculating || this.priceAdjusting) return
       const snap = JSON.stringify(this.payload())
       if (snap === this.lastAutoSavedSnapshot) return
       try {
@@ -2890,7 +2961,8 @@ export default {
       this.modules.splice(mi, 1)
     },
     addItem (mi) {
-      this.modules[mi].items.push({ name: '', complexity: 'standard', quantity: 1, excludedFromScale: false })
+      // #5 修复：新增 item 补充 linePriceSnap/linePriceAdjusted 字段，与后端返回格式一致
+      this.modules[mi].items.push({ name: '', complexity: 'standard', quantity: 1, excludedFromScale: false, linePriceSnap: undefined, linePriceAdjusted: undefined })
     },
     formatLineAmt (it) {
       const a = it.linePriceAdjusted != null ? it.linePriceAdjusted : it.linePriceSnap
@@ -2903,6 +2975,11 @@ export default {
       const pid = this.projectId || (this.$route.params.id !== 'new' ? Number(this.$route.params.id) : null)
       if (!pid) {
         alert('请先保存项目')
+        return
+      }
+      // #2 修复：互斥锁，防止与计算报价并发
+      if (this.calculating) {
+        alert('正在计算报价中，请稍后再调价')
         return
       }
       const tgt = this.priceAdjustTarget
@@ -2948,6 +3025,12 @@ export default {
       }
       this.projectId = pid
       this.calculating = true
+      // #2 修复：互斥锁，防止与调价并发
+      if (this.priceAdjusting) {
+        alert('正在调价中，请稍后再计算')
+        this.calculating = false
+        return
+      }
       try {
         const body = {
           riskKeys: this.selectedRisks,
