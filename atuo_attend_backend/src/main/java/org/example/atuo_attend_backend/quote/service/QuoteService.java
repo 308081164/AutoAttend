@@ -205,6 +205,16 @@ public class QuoteService {
 
     private void saveModules(long projectId, List<QuoteModuleSaveDto> modules) {
         if (modules == null) return;
+        // 在删除前缓存已有 item 的行金额，避免保存项目时丢失计算结果
+        Map<String, BigDecimal> snapCache = new LinkedHashMap<>();
+        Map<String, BigDecimal> adjCache = new LinkedHashMap<>();
+        for (QuoteModule m : moduleMapper.listByProjectId(tid(), projectId)) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(), m.getId())) {
+                String key = m.getName() + "||" + it.getName();
+                if (it.getLinePriceSnap() != null) snapCache.put(key, it.getLinePriceSnap());
+                if (it.getLinePriceAdjusted() != null) adjCache.put(key, it.getLinePriceAdjusted());
+            }
+        }
         int mi = 0;
         for (QuoteModuleSaveDto md : modules) {
             if (md.getName() == null || md.getName().isBlank()) continue;
@@ -233,8 +243,10 @@ public class QuoteService {
                 item.setEstimatedDays(BigDecimal.ZERO);
                 item.setSortOrder(ii++);
                 item.setExcludedFromScale(Boolean.TRUE.equals(it.getExcludedFromScale()));
-                item.setLinePriceSnap(null);
-                item.setLinePriceAdjusted(null);
+                // 恢复缓存的行金额（按模块名+功能名匹配）
+                String key = md.getName().trim() + "||" + it.getName().trim();
+                item.setLinePriceSnap(snapCache.get(key));
+                item.setLinePriceAdjusted(adjCache.get(key));
                 itemMapper.insert(item);
             }
         }
