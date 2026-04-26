@@ -1800,7 +1800,7 @@ export default {
                   techStack: m.techStack != null ? String(m.techStack) : '',
                   items: (m.items || []).map(it => {
                     // 尝试匹配已有 item（按名称），保留用户正在编辑的状态
-                    const exItem = existing ? existing.items.find(ei => ei.name === it.name) : null
+                    existing.items.find(ei => ei.name === it.name)
                     return {
                       name: it.name,
                       complexity: it.complexity || 'standard',
