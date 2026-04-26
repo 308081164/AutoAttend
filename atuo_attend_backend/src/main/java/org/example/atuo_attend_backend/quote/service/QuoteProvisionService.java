@@ -162,6 +162,12 @@ public class QuoteProvisionService {
             }
             steps.add(stepOk("createRepo", "仓库就绪", Map.of("repoFullName", repoFullName, "repoHtmlUrl", repoHtmlUrl)));
 
+            // 仓库信息确定后立即落库（无论后续步骤是否成功，仓库信息都已持久化）
+            quoteProjectMapper.updateProvisionState(tid(), quoteProjectId, repoFullName, repoHtmlUrl,
+                    qp.getGithubWebhookId(), qp.getGithubWebhookSecret(), "provisioning", null,
+                    qp.getProvisionSyncedToCollab() != null && qp.getProvisionSyncedToCollab() ? 1 : 0,
+                    qp.getProvisionSyncedAt());
+
             if (syncMd) {
                 String md = buildRequirementMarkdown(qp.getId(), qp.getName(), repoFullName);
                 putRepoFile(token, repoFullName, "docs/需求清单.md",
