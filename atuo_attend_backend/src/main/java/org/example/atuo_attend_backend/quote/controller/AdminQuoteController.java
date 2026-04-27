@@ -783,7 +783,7 @@ public class AdminQuoteController {
 
     @GetMapping("/showcase")
     public ApiResponse<Map<String, Object>> getShowcase() {
-        long tid = TenantContext.tid();
+        long tid = TenantContext.getTenantId();
         Map<String, Object> data = new HashMap<>();
         data.put("enabled", systemConfigService.isTenantShowcaseEnabled(tid));
         data.put("mode", systemConfigService.getTenantShowcaseMode(tid));
@@ -795,7 +795,7 @@ public class AdminQuoteController {
 
     @PutMapping("/showcase")
     public ApiResponse<Void> putShowcase(@RequestBody Map<String, Object> body) {
-        long tid = TenantContext.tid();
+        long tid = TenantContext.getTenantId();
         Object enabledObj = body.get("enabled");
         Object modeObj = body.get("mode");
         Object templateIdObj = body.get("templateId");

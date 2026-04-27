@@ -16,7 +16,9 @@ import org.example.atuo_attend_backend.platform.task.PlatformReportMailScheduler
 import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.springframework.web.bind.annotation.*;
 
+import ArrayList;
 import java.util.HashMap;
+import List;
 import java.util.Map;
 
 /**
@@ -301,8 +303,8 @@ public class PlatformSettingsController {
     @GetMapping("/showcase/audit-list")
     public ApiResponse<List<Map<String, Object>>> showcaseAuditList() {
         List<Tenant> tenants = tenantMapper.listAll();
-        java.util.List<Long> disabledIds = systemConfigService.getDisabledShowcaseTenantIds();
-        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        List<Long> disabledIds = systemConfigService.getDisabledShowcaseTenantIds();
+        List<Map<String, Object>> result = new ArrayList<>();
         for (Tenant t : tenants) {
             Map<String, Object> item = new HashMap<>();
             item.put("tenantId", t.getId());
