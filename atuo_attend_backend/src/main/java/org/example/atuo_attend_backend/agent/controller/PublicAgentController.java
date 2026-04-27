@@ -207,6 +207,7 @@ public class PublicAgentController {
 
 /**
  * 获取团队能力展示配置（公开接口，供 QuickQuoteLanding 页面调用）
+ * 改为读取租户级配置，支持每个租户独立配置展示内容。
  */
 @GetMapping("/showcase/{slug}")
 public ApiResponse<?> getShowcase(@PathVariable String slug) {
@@ -217,14 +218,15 @@ public ApiResponse<?> getShowcase(@PathVariable String slug) {
     if ("suspended".equalsIgnoreCase(tenant.getStatus())) {
         return ApiResponse.error(40300, "团队已暂停");
     }
+    long tenantId = tenant.getId();
     Map<String, Object> data = new HashMap<>();
-    data.put("enabled", systemConfigService.isShowcaseEnabled());
-    data.put("mode", systemConfigService.getShowcaseMode());
-    data.put("templateId", systemConfigService.getShowcaseTemplateId());
+    data.put("enabled", systemConfigService.isTenantShowcaseEnabled(tenantId));
+    data.put("mode", systemConfigService.getTenantShowcaseMode(tenantId));
+    data.put("templateId", systemConfigService.getTenantShowcaseTemplateId(tenantId));
     data.put("teamName", tenant.getName());
 
     // 解析 content JSON
-    String contentJson = systemConfigService.getShowcaseContentJson();
+    String contentJson = systemConfigService.getTenantShowcaseContentJson(tenantId);
     if (contentJson != null && !contentJson.isBlank()) {
         try {
             JsonNode node = objectMapper.readTree(contentJson);
@@ -237,8 +239,8 @@ public ApiResponse<?> getShowcase(@PathVariable String slug) {
     }
 
     // 自定义 HTML（仅在 mode=custom_html 时返回）
-    if ("custom_html".equals(systemConfigService.getShowcaseMode())) {
-        data.put("customHtml", systemConfigService.getShowcaseCustomHtml());
+    if ("custom_html".equals(systemConfigService.getTenantShowcaseMode(tenantId))) {
+        data.put("customHtml", systemConfigService.getTenantShowcaseCustomHtml(tenantId));
     } else {
         data.put("customHtml", null);
     }

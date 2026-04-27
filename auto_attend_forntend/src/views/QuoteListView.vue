@@ -5,6 +5,7 @@
       <p class="desc">结构化需求 → 人天与报价 → 报价单 → AI 合同（半自动化）</p>
       <p class="desc desc-sub">请选择创建方式：<strong>单体项目报价</strong>适合单栈/单交付；<strong>解决方案级报价</strong>适合多端/多交付物统一签约（可先规划交付物再填功能）。</p>
       <div class="head-actions head-actions-split">
+        <router-link to="/quote/showcase-config" class="secondary-button">🏢 展示页配置</router-link>
         <router-link to="/quote/config" class="secondary-button">{{ $t('quote.quoteConfigNav') }}</router-link>
         <router-link to="/quote/new" class="primary-button">新建 · 单体项目报价</router-link>
         <router-link to="/quote/solution-wizard" class="primary-button primary-button--alt">新建 · 解决方案级报价</router-link>

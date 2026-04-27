@@ -522,4 +522,98 @@ public class SystemConfigService {
     public void setShowcaseCustomHtml(String html) {
         mapper.upsert(0L, KEY_SHOWCASE_CUSTOM_HTML, html != null ? html : "");
     }
+
+    // ===== 租户级团队能力展示配置 =====
+
+    public boolean isTenantShowcaseEnabled(long tenantId) {
+        // 先检查平台是否关停了该租户的展示功能
+        String disabled = mapper.findByKey(0L, "quote.showcase.disabled_tenants");
+        if (disabled != null) {
+            String[] ids = disabled.split(",");
+            for (String id : ids) {
+                if (id.trim().equals(String.valueOf(tenantId))) return false;
+            }
+        }
+        return "true".equalsIgnoreCase(mapper.findByKey(tenantId, KEY_SHOWCASE_ENABLED));
+    }
+
+    public String getTenantShowcaseMode(long tenantId) {
+        String v = mapper.findByKey(tenantId, KEY_SHOWCASE_MODE);
+        return (v != null && !v.isBlank()) ? v.trim() : "off";
+    }
+
+    public String getTenantShowcaseTemplateId(long tenantId) {
+        String v = mapper.findByKey(tenantId, KEY_SHOWCASE_TEMPLATE_ID);
+        return (v != null && !v.isBlank()) ? v.trim() : "enterprise";
+    }
+
+    public String getTenantShowcaseContentJson(long tenantId) {
+        return mapper.findByKey(tenantId, KEY_SHOWCASE_CONTENT_JSON);
+    }
+
+    public String getTenantShowcaseCustomHtml(long tenantId) {
+        return mapper.findByKey(tenantId, KEY_SHOWCASE_CUSTOM_HTML);
+    }
+
+    public void setTenantShowcaseEnabled(long tenantId, boolean enabled) {
+        mapper.upsert(tenantId, KEY_SHOWCASE_ENABLED, enabled ? "true" : "false");
+    }
+
+    public void setTenantShowcaseMode(long tenantId, String mode) {
+        mapper.upsert(tenantId, KEY_SHOWCASE_MODE, mode != null ? mode.trim() : "off");
+    }
+
+    public void setTenantShowcaseTemplateId(long tenantId, String templateId) {
+        mapper.upsert(tenantId, KEY_SHOWCASE_TEMPLATE_ID, templateId != null ? templateId.trim() : "enterprise");
+    }
+
+    public void setTenantShowcaseContentJson(long tenantId, String json) {
+        mapper.upsert(tenantId, KEY_SHOWCASE_CONTENT_JSON, json != null ? json : "");
+    }
+
+    public void setTenantShowcaseCustomHtml(long tenantId, String html) {
+        mapper.upsert(tenantId, KEY_SHOWCASE_CUSTOM_HTML, html != null ? html : "");
+    }
+
+    /** 平台关停某租户的展示功能 */
+    public void disableTenantShowcase(long tenantId) {
+        String disabled = mapper.findByKey(0L, "quote.showcase.disabled_tenants");
+        java.util.Set<String> set = new java.util.LinkedHashSet<>();
+        if (disabled != null && !disabled.isBlank()) {
+            for (String id : disabled.split(",")) {
+                if (!id.trim().isEmpty()) set.add(id.trim());
+            }
+        }
+        set.add(String.valueOf(tenantId));
+        mapper.upsert(0L, "quote.showcase.disabled_tenants", String.join(",", set));
+    }
+
+    /** 平台恢复某租户的展示功能 */
+    public void enableTenantShowcase(long tenantId) {
+        String disabled = mapper.findByKey(0L, "quote.showcase.disabled_tenants");
+        if (disabled == null || disabled.isBlank()) return;
+        java.util.Set<String> set = new java.util.LinkedHashSet<>();
+        for (String id : disabled.split(",")) {
+            if (!id.trim().isEmpty() && !id.trim().equals(String.valueOf(tenantId))) set.add(id.trim());
+        }
+        if (set.isEmpty()) {
+            mapper.upsert(0L, "quote.showcase.disabled_tenants", "");
+        } else {
+            mapper.upsert(0L, "quote.showcase.disabled_tenants", String.join(",", set));
+        }
+    }
+
+    /** 获取被关停展示功能的租户 ID 列表 */
+    public java.util.List<Long> getDisabledShowcaseTenantIds() {
+        String disabled = mapper.findByKey(0L, "quote.showcase.disabled_tenants");
+        java.util.List<Long> list = new java.util.ArrayList<>();
+        if (disabled != null && !disabled.isBlank()) {
+            for (String id : disabled.split(",")) {
+                if (!id.trim().isEmpty()) {
+                    try { list.add(Long.parseLong(id.trim())); } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        return list;
+    }
 }

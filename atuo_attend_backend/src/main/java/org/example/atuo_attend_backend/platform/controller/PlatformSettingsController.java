@@ -8,6 +8,8 @@ import org.example.atuo_attend_backend.client.ClientShellDownloadsConfig;
 import org.example.atuo_attend_backend.client.ClientShellPolicy;
 import org.example.atuo_attend_backend.client.ClientVersionPolicyService;
 import org.example.atuo_attend_backend.config.SystemConfigService;
+import org.example.atuo_attend_backend.tenant.domain.Tenant;
+import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
 import org.example.atuo_attend_backend.platform.auth.PlatformAuthFilter;
 import org.example.atuo_attend_backend.platform.mapper.PlatformOpsAuditMapper;
 import org.example.atuo_attend_backend.platform.task.PlatformReportMailScheduler;
@@ -29,18 +31,21 @@ public class PlatformSettingsController {
     private final PlatformReportMailScheduler platformReportMailScheduler;
     private final PlatformOpsAuditMapper platformOpsAuditMapper;
     private final ClientVersionPolicyService clientVersionPolicyService;
+    private final TenantMapper tenantMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PlatformSettingsController(SystemConfigService systemConfigService,
                                       MailSenderService mailSenderService,
                                       PlatformReportMailScheduler platformReportMailScheduler,
                                       PlatformOpsAuditMapper platformOpsAuditMapper,
-                                      ClientVersionPolicyService clientVersionPolicyService) {
+                                      ClientVersionPolicyService clientVersionPolicyService,
+                                      TenantMapper tenantMapper) {
         this.systemConfigService = systemConfigService;
         this.mailSenderService = mailSenderService;
         this.platformReportMailScheduler = platformReportMailScheduler;
         this.platformOpsAuditMapper = platformOpsAuditMapper;
         this.clientVersionPolicyService = clientVersionPolicyService;
+        this.tenantMapper = tenantMapper;
     }
 
     @GetMapping("/mail")
@@ -286,5 +291,49 @@ public class PlatformSettingsController {
         if (v == null) return null;
         if (v instanceof Number n) return n.intValue();
         try { return Integer.parseInt(String.valueOf(v)); } catch (Exception e) { return null; }
+    }
+
+    // ========== 展示页审核管理 ==========
+
+    /**
+     * 获取所有租户的展示页配置列表（供平台审核用）
+     */
+    @GetMapping("/showcase/audit-list")
+    public ApiResponse<List<Map<String, Object>>> showcaseAuditList() {
+        List<Tenant> tenants = tenantMapper.listAll();
+        java.util.List<Long> disabledIds = systemConfigService.getDisabledShowcaseTenantIds();
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (Tenant t : tenants) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("tenantId", t.getId());
+            item.put("tenantName", t.getName());
+            item.put("slug", t.getSlug());
+            item.put("status", t.getStatus());
+            boolean enabled = systemConfigService.isTenantShowcaseEnabled(t.getId());
+            item.put("showcaseEnabled", enabled);
+            item.put("platformDisabled", disabledIds.contains(t.getId()));
+            item.put("mode", systemConfigService.getTenantShowcaseMode(t.getId()));
+            item.put("templateId", systemConfigService.getTenantShowcaseTemplateId(t.getId()));
+            result.add(item);
+        }
+        return ApiResponse.ok(result);
+    }
+
+    /**
+     * 平台关停某租户的展示功能
+     */
+    @PutMapping("/showcase/{tenantId}/disable")
+    public ApiResponse<Void> disableTenantShowcase(@PathVariable long tenantId) {
+        systemConfigService.disableTenantShowcase(tenantId);
+        return ApiResponse.ok(null);
+    }
+
+    /**
+     * 平台恢复某租户的展示功能
+     */
+    @PutMapping("/showcase/{tenantId}/enable")
+    public ApiResponse<Void> enableTenantShowcase(@PathVariable long tenantId) {
+        systemConfigService.enableTenantShowcase(tenantId);
+        return ApiResponse.ok(null);
     }
 }

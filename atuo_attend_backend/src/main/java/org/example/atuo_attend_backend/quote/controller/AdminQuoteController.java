@@ -2,6 +2,7 @@ package org.example.atuo_attend_backend.quote.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.config.SystemConfigService;
 import org.example.atuo_attend_backend.quote.dto.*;
 import org.example.atuo_attend_backend.quote.mapper.QuoteBaselineMapper;
 import org.example.atuo_attend_backend.quote.mapper.QuotePriceConfigMapper;
@@ -43,6 +44,7 @@ public class AdminQuoteController {
     private final QuoteProvisionService quoteProvisionService;
     private final QuoteCollabLinkService quoteCollabLinkService;
     private final PlatformComponentEventService componentEventService;
+    private final SystemConfigService systemConfigService;
 
     public AdminQuoteController(QuoteService quoteService, QuoteDocumentExportService quoteDocumentExportService,
                                 QuoteBaselineMapper baselineMapper,
@@ -51,7 +53,8 @@ public class AdminQuoteController {
                                 QuoteCollabLinkService quoteCollabLinkService,
                                 QuoteAiAcceptanceTestCasesJobService acceptanceJobService,
                                 QuoteAiContractGenerateJobService contractJobService,
-                                PlatformComponentEventService componentEventService) {
+                                PlatformComponentEventService componentEventService,
+                                SystemConfigService systemConfigService) {
         this.quoteService = quoteService;
         this.acceptanceJobService = acceptanceJobService;
         this.contractJobService = contractJobService;
@@ -62,6 +65,7 @@ public class AdminQuoteController {
         this.quoteProvisionService = quoteProvisionService;
         this.quoteCollabLinkService = quoteCollabLinkService;
         this.componentEventService = componentEventService;
+        this.systemConfigService = systemConfigService;
     }
 
     private static long tid() {
@@ -773,5 +777,47 @@ public class AdminQuoteController {
     @GetMapping("/results/{resultId}/artifacts")
     public ApiResponse<Map<String, Object>> getArtifacts(@PathVariable long resultId) {
         return ApiResponse.ok(quoteService.getQuoteArtifactStatus(resultId));
+    }
+
+    // ========== 租户级展示页配置 ==========
+
+    @GetMapping("/showcase")
+    public ApiResponse<Map<String, Object>> getShowcase() {
+        long tid = TenantContext.tid();
+        Map<String, Object> data = new HashMap<>();
+        data.put("enabled", systemConfigService.isTenantShowcaseEnabled(tid));
+        data.put("mode", systemConfigService.getTenantShowcaseMode(tid));
+        data.put("templateId", systemConfigService.getTenantShowcaseTemplateId(tid));
+        data.put("contentJson", systemConfigService.getTenantShowcaseContentJson(tid));
+        data.put("customHtml", systemConfigService.getTenantShowcaseCustomHtml(tid));
+        return ApiResponse.ok(data);
+    }
+
+    @PutMapping("/showcase")
+    public ApiResponse<Void> putShowcase(@RequestBody Map<String, Object> body) {
+        long tid = TenantContext.tid();
+        Object enabledObj = body.get("enabled");
+        Object modeObj = body.get("mode");
+        Object templateIdObj = body.get("templateId");
+        Object contentJsonObj = body.get("contentJson");
+        Object customHtmlObj = body.get("customHtml");
+        if (enabledObj != null) {
+            systemConfigService.setTenantShowcaseEnabled(tid, Boolean.TRUE.equals(enabledObj));
+        }
+        if (modeObj != null) {
+            systemConfigService.setTenantShowcaseMode(tid, String.valueOf(modeObj));
+        }
+        if (templateIdObj != null) {
+            systemConfigService.setTenantShowcaseTemplateId(tid, String.valueOf(templateIdObj));
+        }
+        if (contentJsonObj != null) {
+            systemConfigService.setTenantShowcaseContentJson(tid, String.valueOf(contentJsonObj));
+        }
+        if (customHtmlObj != null) {
+            String html = String.valueOf(customHtmlObj);
+            if (html.length() > 50000) html = html.substring(0, 50000);
+            systemConfigService.setTenantShowcaseCustomHtml(tid, html);
+        }
+        return ApiResponse.ok(null);
     }
 }

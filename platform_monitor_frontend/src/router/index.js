@@ -6,6 +6,7 @@ import TenantsPage from '../views/TenantsPage.vue'
 import TenantDetailPage from '../views/TenantDetailPage.vue'
 import SystemSettingsPage from '../views/SystemSettingsPage.vue'
 import LabFeedbackPage from '../views/LabFeedbackPage.vue'
+import ShowcaseAuditPage from '../views/ShowcaseAuditPage.vue'
 
 Vue.use(VueRouter)
 
@@ -20,6 +21,7 @@ const router = new VueRouter({
     { path: '/tenants', name: 'tenants', component: TenantsPage },
     { path: '/tenants/:id', name: 'tenant-detail', component: TenantDetailPage },
     { path: '/system', name: 'system-settings', component: SystemSettingsPage },
+    { path: '/showcase-audit', name: 'showcase-audit', component: ShowcaseAuditPage },
     { path: '/lab-feedback', name: 'lab-feedback', component: LabFeedbackPage }
   ]
 })

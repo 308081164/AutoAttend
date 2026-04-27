@@ -15,6 +15,7 @@ import TeamManageView from '../views/TeamManageView.vue'
 import TenantAdminManageView from '../views/TenantAdminManageView.vue'
 import CommitAnalysisView from '../views/CommitAnalysisView.vue'
 import QuoteListView from '../views/QuoteListView.vue'
+import ShowcaseConfigView from '../views/ShowcaseConfigView.vue'
 import QuoteProjectView from '../views/QuoteProjectView.vue'
 import QuoteSolutionWizardView from '../views/QuoteSolutionWizardView.vue'
 import QuoteConfigView from '../views/QuoteConfigView.vue'
@@ -124,6 +125,11 @@ const routes = [
     path: '/quote',
     name: 'quote-list',
     component: QuoteListView
+  },
+  {
+    path: '/quote/showcase-config',
+    name: 'showcase-config',
+    component: ShowcaseConfigView
   },
   {
     path: '/quote/config',
