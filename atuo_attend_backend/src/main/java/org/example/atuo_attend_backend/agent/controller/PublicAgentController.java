@@ -234,8 +234,7 @@ public ApiResponse<?> getShowcase(@PathVariable String slug) {
     String contentJson = systemConfigService.getTenantShowcaseContentJson(tenantId);
     if (contentJson != null && !contentJson.isBlank()) {
         try {
-            JsonNode node = objectMapper.readTree(contentJson);
-            data.put("content", node);
+            data.put("content", objectMapper.readValue(contentJson, Map.class));
         } catch (Exception e) {
             data.put("content", null);
         }
