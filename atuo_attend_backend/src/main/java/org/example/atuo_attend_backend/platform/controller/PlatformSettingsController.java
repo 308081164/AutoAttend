@@ -16,9 +16,9 @@ import org.example.atuo_attend_backend.platform.task.PlatformReportMailScheduler
 import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.springframework.web.bind.annotation.*;
 
-import ArrayList;
+import java.util.ArrayList;
 import java.util.HashMap;
-import List;
+import java.util.List;
 import java.util.Map;
 
 /**
