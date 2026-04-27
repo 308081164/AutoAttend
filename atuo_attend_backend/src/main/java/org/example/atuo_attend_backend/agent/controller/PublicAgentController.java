@@ -90,6 +90,11 @@ public class PublicAgentController {
         project.setName(projectName);
         project.setProjectType("other");
         project.setTechStack("vue_node");
+        project.setDesignType("need_design");
+        project.setDataMigration("none");
+        project.setConcurrency("lt100");
+        project.setSecurityLevel("normal");
+        project.setDeployType("cloud");
         project.setStatus("draft");
         project.setQuoteKind(quoteKind);
         project.setQuoteSubjectMode("legal_entity");
