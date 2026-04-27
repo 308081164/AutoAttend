@@ -178,7 +178,7 @@ export default {
         customHtml: ''
       },
       content: { ...EMPTY_CONTENT, stats: [], capabilities: [], cases: [] },
-      _syncing: false
+      syncLock: false
     }
   },
   computed: {
@@ -199,25 +199,25 @@ export default {
     // 表单 → JSON 同步
     content: {
       handler () {
-        if (this._syncing) return
-        this._syncing = true
+        if (this.syncLock) return
+        this.syncLock = true
         try {
           this.form.contentJson = JSON.stringify(this.content, null, 2)
         } catch (e) { void e }
-        this.$nextTick(() => { this._syncing = false })
+        this.$nextTick(() => { this.syncLock = false })
       },
       deep: true
     },
     // JSON → 表单同步
     'form.contentJson' (val) {
-      if (this._syncing) return
+      if (this.syncLock) return
       if (!val || !val.trim()) {
         this.content = { ...EMPTY_CONTENT, stats: [], capabilities: [], cases: [] }
         return
       }
       try {
         const parsed = JSON.parse(val)
-        this._syncing = true
+        this.syncLock = true
         this.content = {
           slogan: parsed.slogan || '',
           description: parsed.description || '',
@@ -226,7 +226,7 @@ export default {
           cases: Array.isArray(parsed.cases) ? parsed.cases.map(c => ({ title: c.title || '', industry: c.industry || '', desc: c.desc || '' })) : [],
           techStack: Array.isArray(parsed.techStack) ? parsed.techStack : []
         }
-        this.$nextTick(() => { this._syncing = false })
+        this.$nextTick(() => { this.syncLock = false })
       } catch (e) { void e }
     }
   },
