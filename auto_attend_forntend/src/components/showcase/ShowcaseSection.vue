@@ -14,18 +14,17 @@
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue'
-
+// Vue 2 异步组件：直接使用 import() 返回函数
 const desktopTemplates = {
-  enterprise: defineAsyncComponent(() => import('./ShowcaseEnterprise.vue')),
-  studio: defineAsyncComponent(() => import('./ShowcaseStudio.vue')),
-  freelancer: defineAsyncComponent(() => import('./ShowcaseFreelancer.vue'))
+  enterprise: () => import('./ShowcaseEnterprise.vue'),
+  studio: () => import('./ShowcaseStudio.vue'),
+  freelancer: () => import('./ShowcaseFreelancer.vue')
 }
 
 const mobileTemplates = {
-  enterprise: defineAsyncComponent(() => import('./mobile/ShowcaseEnterpriseMobile.vue')),
-  studio: defineAsyncComponent(() => import('./mobile/ShowcaseStudioMobile.vue')),
-  freelancer: defineAsyncComponent(() => import('./mobile/ShowcaseFreelancerMobile.vue'))
+  enterprise: () => import('./mobile/ShowcaseEnterpriseMobile.vue'),
+  studio: () => import('./mobile/ShowcaseStudioMobile.vue'),
+  freelancer: () => import('./mobile/ShowcaseFreelancerMobile.vue')
 }
 
 export default {

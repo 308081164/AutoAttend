@@ -146,7 +146,7 @@
       <h3>预览效果</h3>
       <p class="hint muted">以下为客户通过 Agent 链接看到的展示页效果</p>
       <div class="preview-frame-wrap">
-        <iframe :src="previewUrl" class="preview-frame" sandbox="allow-scripts" />
+        <iframe :src="previewUrl" class="preview-frame" />
       </div>
     </div>
   </div>
