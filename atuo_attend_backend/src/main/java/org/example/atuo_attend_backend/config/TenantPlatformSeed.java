@@ -78,6 +78,7 @@ public class TenantPlatformSeed implements ApplicationRunner {
             collabAuthService.ensureBizUserForTenantAdmin(SEED_PHONE, SEED_PASSWORD);
 
             seedMarketplaceProjectInfoIfUnset();
+            seedShowcaseDefaultsIfUnset();
         } catch (Exception e) {
             log.warn("Tenant platform seed skipped: {}", e.getMessage());
         }
@@ -113,6 +114,25 @@ public class TenantPlatformSeed implements ApplicationRunner {
             }
         } catch (JsonProcessingException e) {
             log.warn("Marketplace config seed skipped: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 若 showcase 配置键尚不存在，写入默认开启（template 模式 + enterprise 模板），
+     * 使团队展示区功能在部署后立即可用，管理员可在监测台随时关闭或切换。
+     */
+    private void seedShowcaseDefaultsIfUnset() {
+        try {
+            String raw = systemConfigService.getRawPlatformConfig(SystemConfigService.KEY_SHOWCASE_ENABLED);
+            if (raw != null && !raw.isBlank()) {
+                return; // 已配置过，不覆盖
+            }
+            systemConfigService.setShowcaseEnabled(true);
+            systemConfigService.setShowcaseMode("template");
+            systemConfigService.setShowcaseTemplateId("enterprise");
+            log.info("Seeded platform showcase defaults (enabled=true, mode=template, templateId=enterprise); override in monitor if needed");
+        } catch (Exception e) {
+            log.warn("Showcase config seed skipped: {}", e.getMessage());
         }
     }
 }

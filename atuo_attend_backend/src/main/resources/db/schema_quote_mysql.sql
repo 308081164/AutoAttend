@@ -21,6 +21,15 @@ CREATE TABLE IF NOT EXISTS biz_quote_project (
     quote_contact_info VARCHAR(512) NULL COMMENT '报价联系方式',
     quote_validity_note VARCHAR(512) NULL COMMENT '报价有效期说明',
     quote_subject_mode VARCHAR(32) NOT NULL DEFAULT 'legal_entity' COMMENT '报价单主体：legal_entity|natural_person|manual',
+    quote_kind VARCHAR(32) NOT NULL DEFAULT 'single' COMMENT 'single=单体项目报价 solution=解决方案级报价',
+    github_repo_full_name VARCHAR(512) NULL COMMENT 'GitHub 仓库全名',
+    github_repo_html_url VARCHAR(512) NULL COMMENT 'GitHub 仓库 HTML URL',
+    github_webhook_id BIGINT NULL COMMENT 'GitHub Webhook ID',
+    github_webhook_secret VARCHAR(255) NULL COMMENT 'GitHub Webhook Secret',
+    provision_status VARCHAR(32) NULL COMMENT 'provisioning|done|failed',
+    provision_last_error TEXT NULL COMMENT 'provision 最后错误信息',
+    provision_synced_to_collab TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已同步到多维表',
+    provision_synced_at DATETIME NULL COMMENT '同步时间',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_updated (updated_at)
@@ -31,6 +40,9 @@ CREATE TABLE IF NOT EXISTS biz_quote_module (
     quote_project_id BIGINT NOT NULL,
     name VARCHAR(255) NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
+    deliverable_key VARCHAR(64) NOT NULL DEFAULT 'default' COMMENT '关联产出物标识',
+    deliverable_label VARCHAR(255) NULL COMMENT '产出物显示名称',
+    tech_stack VARCHAR(64) NULL COMMENT '可选；为空则使用项目级 tech_stack 做人天基准',
     KEY idx_project (quote_project_id),
     CONSTRAINT fk_quote_module_project FOREIGN KEY (quote_project_id) REFERENCES biz_quote_project (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -43,6 +55,9 @@ CREATE TABLE IF NOT EXISTS biz_quote_item (
     quantity INT NOT NULL DEFAULT 1,
     estimated_days DECIMAL(10,2) NOT NULL DEFAULT 0,
     sort_order INT NOT NULL DEFAULT 0,
+    excluded_from_scale TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否排除在规模系数外',
+    line_price_snap DECIMAL(14,2) NULL COMMENT '计算报价时的行金额快照',
+    line_price_adjusted DECIMAL(14,2) NULL COMMENT '商务调价后的行金额',
     KEY idx_module (module_id),
     CONSTRAINT fk_quote_item_module FOREIGN KEY (module_id) REFERENCES biz_quote_module (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
