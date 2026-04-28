@@ -143,26 +143,52 @@ jobs:
             export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml pull
 
-            # 同步宿主机 Nginx 配置并 reload（兼容宝塔面板 /www/server/nginx 和标准 /etc/nginx）
-            if [ -f deploy/nginx-autoattend.conf ]; then
-              NGINX_CONF_DIR=""
-              if [ -d /www/server/nginx/conf/conf.d ]; then
+            # 同步宿主机 Nginx 配置并 reload（兼容宝塔面板和标准 Nginx）
+            # 宝塔面板：配置在 /www/server/nginx/conf/vhost/ 或 nginx.conf 中
+            # 标准 Nginx：配置在 /etc/nginx/conf.d/
+            NGINX_BIN=""
+            NGINX_CONF_DIR=""
+            if [ -x /www/server/nginx/sbin/nginx ]; then
+              NGINX_BIN="/www/server/nginx/sbin/nginx"
+              # 宝塔：尝试 vhost 目录（站点配置），回退到 conf.d
+              if [ -d /www/server/nginx/conf/vhost ]; then
+                NGINX_CONF_DIR="/www/server/nginx/conf/vhost"
+              elif [ -d /www/server/nginx/conf/conf.d ]; then
                 NGINX_CONF_DIR="/www/server/nginx/conf/conf.d"
-              elif [ -d /etc/nginx/conf.d ]; then
-                NGINX_CONF_DIR="/etc/nginx/conf.d"
               fi
-              if [ -n "$NGINX_CONF_DIR" ]; then
+            elif command -v nginx &>/dev/null; then
+              NGINX_BIN="nginx"
+              NGINX_CONF_DIR="/etc/nginx/conf.d"
+            fi
+
+            if [ -n "$NGINX_BIN" ] && [ -f deploy/nginx-autoattend.conf ]; then
+              if [ -n "$NGINX_CONF_DIR" ] && [ -d "$NGINX_CONF_DIR" ]; then
                 cp deploy/nginx-autoattend.conf "$NGINX_CONF_DIR/autoattend.conf"
-                /www/server/nginx/sbin/nginx -t 2>/dev/null || nginx -t 2>/dev/null
-                if [ $? -eq 0 ]; then
-                  /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null
-                  echo "Nginx 配置已更新并 reload ($NGINX_CONF_DIR)"
-                else
-                  echo "警告: Nginx 配置语法错误，跳过 reload"
-                fi
+                echo "Nginx 配置已复制到 $NGINX_CONF_DIR/autoattend.conf"
               else
-                echo "警告: 未找到 Nginx conf.d 目录，跳过配置同步"
+                echo "警告: 未找到 Nginx 配置目录，尝试直接设置 client_max_body_size"
               fi
+              # 确保 client_max_body_size 全局生效（无论 conf.d 是否被 include）
+              NGINX_MAIN_CONF=""
+              if [ -f /www/server/nginx/conf/nginx.conf ]; then
+                NGINX_MAIN_CONF="/www/server/nginx/conf/nginx.conf"
+              elif [ -f /etc/nginx/nginx.conf ]; then
+                NGINX_MAIN_CONF="/etc/nginx/nginx.conf"
+              fi
+              if [ -n "$NGINX_MAIN_CONF" ] && ! grep -q "client_max_body_size" "$NGINX_MAIN_CONF"; then
+                sed -i '1i client_max_body_size 200M;' "$NGINX_MAIN_CONF"
+                echo "已在 $NGINX_MAIN_CONF 顶部注入 client_max_body_size 200M"
+              fi
+              # 测试并 reload
+              $NGINX_BIN -t 2>/dev/null
+              if [ $? -eq 0 ]; then
+                /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || $NGINX_BIN -s reload 2>/dev/null
+                echo "Nginx reload 成功"
+              else
+                echo "警告: Nginx 配置语法错误，跳过 reload"
+              fi
+            else
+              echo "警告: 未找到 Nginx，跳过配置同步"
             fi
 
             # 一次性对齐 networks（含 autoattend_net）、镜像与全部服务定义。

@@ -204,7 +204,7 @@
             </div>
             <div class="agent-share-row">
               <input class="inp" :value="buildAgentShareLink(activeAgentSession.publicToken)" readonly style="flex:1" />
-              <button type="button" class="btn secondary" @click="copyAgentShareLink">复制链接</button>
+              <button type="button" class="btn secondary" @click="copyAgentShareLink">{{ agentLinkCopied ? '已复制 ✓' : '复制链接' }}</button>
             </div>
             <div class="agent-actions">
               <button type="button" class="btn secondary" @click="openAgentChat(activeAgentSession.publicToken)">查看对话</button>
@@ -1242,6 +1242,7 @@ export default {
         createAgentsMd: true
       },
       provisionCloneCopied: false,
+      agentLinkCopied: false,
       // #7 修复：侧边栏折叠状态从 localStorage 恢复
       outputSidebarCollapsed: localStorage.getItem('quote_sidebar_collapsed') === 'true',
       /** 侧边栏可折叠板块状态 */
@@ -2108,6 +2109,19 @@ export default {
       } catch (e) { /* ignore */ }
       document.body.removeChild(ta)
     },
+    fallbackCopyText (text, done) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+        if (typeof done === 'function') done()
+      } catch (e) { /* ignore */ }
+      document.body.removeChild(ta)
+    },
     async runProvision () {
       if (!this.projectId) return
       const repoName = (this.provisionForm.repoName || '').trim()
@@ -2565,8 +2579,12 @@ export default {
     },
     copyAgentShareLink () {
       const link = this.buildAgentShareLink(this.activeAgentSession && this.activeAgentSession.publicToken)
-      if (link && navigator.clipboard) {
-        navigator.clipboard.writeText(link).then(() => alert('链接已复制'))
+      if (!link) return
+      const done = () => { this.agentLinkCopied = true; setTimeout(() => { this.agentLinkCopied = false }, 2000) }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(link).then(done).catch(() => this.fallbackCopyText(link, done))
+      } else {
+        this.fallbackCopyText(link, done)
       }
     },
     openAgentChat (publicToken) {
