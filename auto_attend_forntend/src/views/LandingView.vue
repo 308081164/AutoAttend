@@ -133,7 +133,7 @@
             <div class="feature-icon" aria-hidden="true">{{ card.icon }}</div>
             <h3>{{ $t(card.titleKey) }}</h3>
             <p>{{ $t(card.descKey) }}</p>
-            <router-link v-if="card.route" class="card-link" :to="card.route">{{ $t('landing.cardAction') }} →</router-link>
+            <router-link v-if="card.detailId" class="card-link" :to="{ name: 'landing-detail', params: { id: card.detailId } }">{{ $t('landing.cardAction') }} →</router-link>
           </article>
         </div>
       </section>
@@ -146,7 +146,7 @@
             <div class="feature-icon feature-icon--sm" aria-hidden="true">{{ card.icon }}</div>
             <h3>{{ $t(card.titleKey) }}</h3>
             <p>{{ $t(card.descKey) }}</p>
-            <router-link v-if="card.route" class="card-link" :to="card.route">{{ $t('landing.cardAction') }} →</router-link>
+            <router-link v-if="card.detailId" class="card-link" :to="{ name: 'landing-detail', params: { id: card.detailId } }">{{ $t('landing.cardAction') }} →</router-link>
           </article>
         </div>
       </section>
@@ -221,18 +221,18 @@ export default {
       layoutMobile: false,
       showMobileScreenHint: false,
       featureCards: [
-        { icon: '◉', titleKey: 'landing.featConsoleTitle', descKey: 'landing.featConsoleDesc', route: { name: 'dashboard' } },
-        { icon: '▦', titleKey: 'landing.featCollabTitle', descKey: 'landing.featCollabDesc', route: { name: 'collab-projects' } },
-        { icon: '¥', titleKey: 'landing.featQuoteTitle', descKey: 'landing.featQuoteDesc', route: { name: 'quote-list' } },
-        { icon: 'AI', titleKey: 'landing.featAiTitle', descKey: 'landing.featAiDesc', route: { name: 'api-config' } },
-        { icon: '◇', titleKey: 'landing.featProtoTitle', descKey: 'landing.featProtoDesc', route: { name: 'prototype-list' } },
-        { icon: '◎', titleKey: 'landing.featTeamTitle', descKey: 'landing.featTeamDesc', route: { name: 'team-manage' } }
+        { icon: '◉', titleKey: 'landing.featConsoleTitle', descKey: 'landing.featConsoleDesc', detailId: 'console' },
+        { icon: '▦', titleKey: 'landing.featCollabTitle', descKey: 'landing.featCollabDesc', detailId: 'collab' },
+        { icon: '¥', titleKey: 'landing.featQuoteTitle', descKey: 'landing.featQuoteDesc', detailId: 'quote' },
+        { icon: 'AI', titleKey: 'landing.featAiTitle', descKey: 'landing.featAiDesc', detailId: 'ai' },
+        { icon: '◇', titleKey: 'landing.featProtoTitle', descKey: 'landing.featProtoDesc', detailId: 'prototype' },
+        { icon: '◎', titleKey: 'landing.featTeamTitle', descKey: 'landing.featTeamDesc', detailId: 'team' }
       ],
       moreFeatureCards: [
-        { icon: '◎', titleKey: 'landing.featNexusTitle', descKey: 'landing.featNexusDesc', route: { name: 'nexus-console' } },
-        { icon: '☁', titleKey: 'landing.featCloudDevTitle', descKey: 'landing.featCloudDevDesc', route: { name: 'cloud-dev-hub' } },
-        { icon: '◈', titleKey: 'landing.featClientBoardTitle', descKey: 'landing.featClientBoardDesc', route: { name: 'collab-projects' } },
-        { icon: '✦', titleKey: 'landing.featAgentTitle', descKey: 'landing.featAgentDesc', route: { name: 'dashboard' } }
+        { icon: '◎', titleKey: 'landing.featNexusTitle', descKey: 'landing.featNexusDesc', detailId: 'nexus' },
+        { icon: '☁', titleKey: 'landing.featCloudDevTitle', descKey: 'landing.featCloudDevDesc', detailId: 'cloud' },
+        { icon: '◈', titleKey: 'landing.featClientBoardTitle', descKey: 'landing.featClientBoardDesc', detailId: 'client' },
+        { icon: '✦', titleKey: 'landing.featAgentTitle', descKey: 'landing.featAgentDesc', detailId: 'agent' }
       ],
       integrationRows: [
         { icon: '🔗', titleKey: 'landing.integrationWebhook', descKey: 'landing.integrationWebhookDesc' },

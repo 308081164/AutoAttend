@@ -4,6 +4,7 @@ import { notifyAuthSessionChanged } from '../utils/authSession'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import LandingView from '../views/LandingView.vue'
+import LandingDetailView from '../views/LandingDetailView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import TestView from '../views/TestView.vue'
 import AiConfigView from '../views/AiConfigView.vue'
@@ -59,6 +60,12 @@ const routes = [
     path: '/',
     name: 'landing',
     component: LandingView,
+    meta: { public: true, bareLayout: true }
+  },
+  {
+    path: '/features/:id',
+    name: 'landing-detail',
+    component: LandingDetailView,
     meta: { public: true, bareLayout: true }
   },
   {
