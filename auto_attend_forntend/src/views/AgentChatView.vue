@@ -462,7 +462,7 @@ export default {
         const chunks = []
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
 
-        const compressed = await new Promise((resolve, reject) => {
+        const compressed = await new Promise((resolve) => {
           recorder.onstop = () => {
             const blob = new Blob(chunks, { type: mimeType })
             // 如果压缩后反而更大，返回原文件
