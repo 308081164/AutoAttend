@@ -158,6 +158,16 @@ public class MinioService {
         );
     }
 
+    /**
+     * 获取对象的 InputStream（用于 Tika 等需要流式读取的场景）
+     */
+    public InputStream getObject(String storageKey) throws Exception {
+        return client.getObject(GetObjectArgs.builder()
+                .bucket(bucket)
+                .object(storageKey)
+                .build());
+    }
+
     private String guessContentType(String filename) {
         if (filename == null) return "application/octet-stream";
         String lower = filename.toLowerCase();

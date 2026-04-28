@@ -209,6 +209,8 @@
 </template>
 
 <script>
+import { compressImageFile, IMAGE_COMPRESS_PRESETS } from '@/utils/imageCompress'
+
 export default {
   name: 'AgentChatView',
 
@@ -360,17 +362,26 @@ export default {
     },
 
     /**
-     * 上传附件
+     * 上传附件（图片/视频上传前自动压缩）
      */
     async uploadFile(file) {
       if (this.uploading) return
       this.uploading = true
       this.error = ''
 
-      const formData = new FormData()
-      formData.append('file', file)
-
       try {
+        // 图片压缩：使用已有的 Canvas 压缩工具
+        if (file.type.startsWith('image/')) {
+          file = await compressImageFile(file, IMAGE_COMPRESS_PRESETS.attachment)
+        }
+        // 视频压缩：使用浏览器原生 MediaRecorder API（仅支持 MP4/WebM）
+        else if (file.type.startsWith('video/')) {
+          file = await this.compressVideoFile(file)
+        }
+
+        const formData = new FormData()
+        formData.append('file', file)
+
         const resp = await this.$http.post(
           `/public/agent/sessions/${encodeURIComponent(this.token)}/attachments`,
           formData,
@@ -394,6 +405,101 @@ export default {
         this.error = msg
       } finally {
         this.uploading = false
+      }
+    },
+
+    /**
+     * 视频压缩：使用浏览器原生 MediaRecorder API
+     * 通过 Canvas 捕获视频帧并重新录制为 WebM（VP8/VP9），降低分辨率和码率
+     * 如果浏览器不支持 MediaRecorder，则原样返回
+     */
+    async compressVideoFile(file) {
+      // 小于 10MB 的视频不压缩
+      if (file.size < 10 * 1024 * 1024) return file
+
+      try {
+        if (typeof MediaRecorder === 'undefined') return file
+
+        const video = document.createElement('video')
+        video.muted = true
+        video.playsInline = true
+        video.preload = 'auto'
+        video.src = URL.createObjectURL(file)
+
+        await new Promise((resolve, reject) => {
+          video.onloadedmetadata = resolve
+          video.onerror = reject
+        })
+
+        // 限制最大分辨率：720p
+        const maxW = 1280
+        const maxH = 720
+        let w = video.videoWidth
+        let h = video.videoHeight
+        if (w > maxW || h > maxH) {
+          const scale = Math.min(maxW / w, maxH / h)
+          w = Math.round(w * scale)
+          h = Math.round(h * scale)
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+
+        // 使用 MediaRecorder 录制
+        const stream = canvas.captureStream(30) // 30fps
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
+          : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+            ? 'video/webm;codecs=vp8'
+            : 'video/webm'
+
+        const recorder = new MediaRecorder(stream, {
+          mimeType,
+          videoBitsPerSecond: 1500000 // 1.5 Mbps
+        })
+        const chunks = []
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+
+        const compressed = await new Promise((resolve, reject) => {
+          recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: mimeType })
+            // 如果压缩后反而更大，返回原文件
+            resolve(blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]+$/, '.webm'), { type: mimeType }) : file)
+          }
+          recorder.onerror = () => resolve(file) // 压缩失败返回原文件
+          recorder.start()
+
+          video.currentTime = 0
+          video.play()
+
+          const drawFrame = () => {
+            if (video.paused || video.ended) {
+              recorder.stop()
+              video.pause()
+              URL.revokeObjectURL(video.src)
+              return
+            }
+            ctx.drawImage(video, 0, 0, w, h)
+            requestAnimationFrame(drawFrame)
+          }
+          drawFrame()
+
+          // 安全超时：60秒后强制停止
+          setTimeout(() => {
+            if (recorder.state === 'recording') {
+              recorder.stop()
+              video.pause()
+              URL.revokeObjectURL(video.src)
+            }
+          }, 60000)
+        })
+
+        return compressed
+      } catch (e) {
+        console.warn('Video compression failed, uploading original:', e)
+        return file
       }
     },
 

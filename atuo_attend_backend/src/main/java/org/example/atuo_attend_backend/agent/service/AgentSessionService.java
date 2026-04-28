@@ -1,6 +1,7 @@
 package org.example.atuo_attend_backend.agent.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.tika.Tika;
 import org.example.atuo_attend_backend.agent.domain.AgentMessage;
 import org.example.atuo_attend_backend.agent.domain.AgentSession;
 import org.example.atuo_attend_backend.agent.dto.AgentModels.BackgroundTextItem;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -347,7 +349,7 @@ public class AgentSessionService {
 
         // 4. 构建上下文
         String systemPrompt = buildSystemPrompt(session);
-        List<Map<String, String>> historyMessages = getRecentMessages(sessionId, 20);
+        List<Map<String, String>> historyMessages = getRecentMessages(sessionId, 50);
 
         // 将用户消息加入历史
         String userContent = content;
@@ -360,7 +362,7 @@ public class AgentSessionService {
         int inputTokens = 0;
         int outputTokens = 0;
         try {
-            Map<String, Object> usageResult = chatDeepSeek(session.getTenantId(), systemPrompt, historyMessages, userContent, false, null);
+            Map<String, Object> usageResult = chatDeepSeek(session.getTenantId(), systemPrompt, historyMessages, userContent, false, 8192);
             assistantReply = (String) usageResult.get("content");
             inputTokens = usageResult.get("inputTokens") != null ? ((Number) usageResult.get("inputTokens")).intValue() : 0;
             outputTokens = usageResult.get("outputTokens") != null ? ((Number) usageResult.get("outputTokens")).intValue() : 0;
@@ -599,13 +601,14 @@ public class AgentSessionService {
 
     /**
      * 处理背景材料，生成背景摘要
+     * 策略：小文档直接使用提取文本；大文档（>8000字符）利用 AI 分段摘要后拼接
      */
     private String processBackgroundMaterials(long tenantId,
                                               List<BackgroundTextItem> backgroundTexts,
                                               List<Long> attachmentIds) {
         StringBuilder allMaterials = new StringBuilder();
         int totalChars = 0;
-        int maxChars = 8000;
+        int maxChars = 32000; // 提升到 32000 字符，大文档由 AI 摘要压缩
 
         // 收集文本内容
         if (backgroundTexts != null) {
@@ -628,12 +631,25 @@ public class AgentSessionService {
                 try {
                     String desc = processAttachment(tenantId, attachmentId);
                     if (desc != null && !desc.isEmpty()) {
-                        String text = "[附件 " + attachmentId + " 描述]\n" + desc;
-                        if (totalChars + text.length() > maxChars) {
-                            text = text.substring(0, Math.max(0, maxChars - totalChars)) + "...(已截断)";
+                        // 大文档（>8000字符）使用 AI 分段摘要
+                        if (desc.length() > 8000 && totalChars + 2000 < maxChars) {
+                            String summary = summarizeLargeDocument(tenantId, desc);
+                            String text = "[附件 " + attachmentId + " 摘要]\n" + summary;
+                            allMaterials.append("\n\n").append(text);
+                            totalChars += text.length();
+                        } else if (totalChars + desc.length() <= maxChars) {
+                            String text = "[附件 " + attachmentId + " 描述]\n" + desc;
+                            allMaterials.append("\n\n").append(text);
+                            totalChars += text.length();
+                        } else {
+                            // 剩余空间不足，截断
+                            int remaining = maxChars - totalChars;
+                            if (remaining > 200) {
+                                String text = "[附件 " + attachmentId + " 描述]\n" + desc.substring(0, remaining) + "...(已截断)";
+                                allMaterials.append("\n\n").append(text);
+                                totalChars += text.length();
+                            }
                         }
-                        allMaterials.append("\n\n").append(text);
-                        totalChars += text.length();
                     }
                 } catch (Exception e) {
                     log.warn("Failed to process background attachment: id={}", attachmentId, e);
@@ -749,13 +765,78 @@ public class AgentSessionService {
     }
 
     /**
-     * 从文档中提取文本（模拟实现，实际需要 PDFBox/POI）
+     * 从文档中提取文本（使用 Apache Tika）
      */
     private String extractTextFromDocument(String storageKey) {
-        // TODO: 实际项目中使用 PDFBox 或 Apache POI 提取文本
-        // 当前为模拟实现
-        log.info("Extracting text from document: {} (simulated)", storageKey);
-        return "[文档内容已上传，具体文本提取需集成 PDFBox/POI 库]";
+        try (InputStream is = minioService.getObject(storageKey)) {
+            Tika tika = new Tika();
+            String text = tika.parseToString(is);
+            // Tika 提取的文本可能非常大，截断到合理长度
+            if (text != null && text.length() > 50000) {
+                text = text.substring(0, 50000) + "\n\n[文档内容过长，已截断前 50000 字符]";
+            }
+            return text != null ? text.trim() : "[文档内容为空]";
+        } catch (Exception e) {
+            log.error("Failed to extract text from document: storageKey={}", storageKey, e);
+            return "[文档附件，文本提取失败: " + e.getMessage() + "]";
+        }
+    }
+
+    /**
+     * 对大文档进行分段摘要：将文本分成多段，每段让 AI 生成摘要，最后合并。
+     * 利用 DeepSeek 的长上下文能力，每段最大 6000 字符，生成约 500 字摘要。
+     */
+    private String summarizeLargeDocument(long tenantId, String fullText) {
+        try {
+            int chunkSize = 6000;
+            List<String> chunks = new ArrayList<>();
+            for (int i = 0; i < fullText.length(); i += chunkSize) {
+                int end = Math.min(i + chunkSize, fullText.length());
+                chunks.add(fullText.substring(i, end));
+            }
+
+            // 如果只有 1-2 段，直接让 AI 一次性摘要
+            if (chunks.size() <= 2) {
+                String prompt = "请对以下文档内容生成一份结构化摘要（约 800 字以内），保留关键信息、数据、需求和约束条件：\n\n"
+                        + fullText.substring(0, Math.min(fullText.length(), 12000));
+                Map<String, Object> result = chatDeepSeek(tenantId,
+                        "你是一个专业的文档分析助手，擅长从技术文档中提取关键信息。",
+                        Collections.emptyList(), prompt, false, 2048);
+                String summary = (String) result.get("content");
+                return summary != null ? summary : "[文档摘要生成失败]";
+            }
+
+            // 多段：逐段摘要后合并
+            StringBuilder combinedSummary = new StringBuilder();
+            for (int i = 0; i < chunks.size(); i++) {
+                String prompt = "请对以下文档片段（第 " + (i + 1) + "/" + chunks.size() + " 部分）生成简要摘要（约 300 字），保留关键信息和数据：\n\n"
+                        + chunks.get(i);
+                Map<String, Object> result = chatDeepSeek(tenantId,
+                        "你是一个专业的文档分析助手。",
+                        Collections.emptyList(), prompt, false, 1024);
+                String partSummary = (String) result.get("content");
+                if (partSummary != null) {
+                    combinedSummary.append("\n--- 第 ").append(i + 1).append(" 部分 ---\n").append(partSummary);
+                }
+            }
+
+            // 最终合并摘要
+            if (combinedSummary.length() > 3000) {
+                String finalPrompt = "请将以下多段文档摘要合并为一份完整的项目需求摘要（约 1000 字），去重并保留所有关键信息：\n\n"
+                        + combinedSummary.toString();
+                Map<String, Object> finalResult = chatDeepSeek(tenantId,
+                        "你是一个专业的项目需求分析助手。",
+                        Collections.emptyList(), finalPrompt, false, 2048);
+                String finalSummary = (String) finalResult.get("content");
+                return finalSummary != null ? finalSummary : combinedSummary.toString();
+            }
+
+            return combinedSummary.toString();
+        } catch (Exception e) {
+            log.error("Failed to summarize large document", e);
+            // 降级：返回前 3000 字符
+            return fullText.substring(0, Math.min(fullText.length(), 3000)) + "\n\n[文档摘要生成失败，显示前 3000 字符]";
+        }
     }
 
     /**
