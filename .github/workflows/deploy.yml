@@ -97,6 +97,7 @@ jobs:
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P "${SSH_PORT}" -r \
             docker-compose.prod.yml \
             docker-compose.penpot.yml \
+            deploy/nginx-autoattend.conf \
             atuo_attend_backend \
             "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
 
@@ -141,6 +142,13 @@ jobs:
             fi
             export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml pull
+
+            # 同步宿主机 Nginx 配置并 reload
+            if [ -f deploy/nginx-autoattend.conf ]; then
+              sudo cp deploy/nginx-autoattend.conf /etc/nginx/conf.d/autoattend.conf
+              sudo nginx -t 2>/dev/null && sudo systemctl reload nginx 2>/dev/null && echo "Nginx 配置已更新并 reload" \
+                || echo "警告: Nginx reload 失败，请手动检查配置"
+            fi
 
             # 一次性对齐 networks（含 autoattend_net）、镜像与全部服务定义。
             # 当前 compose 中 frontend 已 depends_on backend: service_started，不会因等 backend 健康而永久 Waiting。
