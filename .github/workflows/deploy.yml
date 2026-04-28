@@ -143,11 +143,26 @@ jobs:
             export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml pull
 
-            # 同步宿主机 Nginx 配置并 reload
+            # 同步宿主机 Nginx 配置并 reload（兼容宝塔面板 /www/server/nginx 和标准 /etc/nginx）
             if [ -f deploy/nginx-autoattend.conf ]; then
-              sudo cp deploy/nginx-autoattend.conf /etc/nginx/conf.d/autoattend.conf
-              sudo nginx -t 2>/dev/null && sudo systemctl reload nginx 2>/dev/null && echo "Nginx 配置已更新并 reload" \
-                || echo "警告: Nginx reload 失败，请手动检查配置"
+              NGINX_CONF_DIR=""
+              if [ -d /www/server/nginx/conf/conf.d ]; then
+                NGINX_CONF_DIR="/www/server/nginx/conf/conf.d"
+              elif [ -d /etc/nginx/conf.d ]; then
+                NGINX_CONF_DIR="/etc/nginx/conf.d"
+              fi
+              if [ -n "$NGINX_CONF_DIR" ]; then
+                cp deploy/nginx-autoattend.conf "$NGINX_CONF_DIR/autoattend.conf"
+                /www/server/nginx/sbin/nginx -t 2>/dev/null || nginx -t 2>/dev/null
+                if [ $? -eq 0 ]; then
+                  /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null
+                  echo "Nginx 配置已更新并 reload ($NGINX_CONF_DIR)"
+                else
+                  echo "警告: Nginx 配置语法错误，跳过 reload"
+                fi
+              else
+                echo "警告: 未找到 Nginx conf.d 目录，跳过配置同步"
+              fi
             fi
 
             # 一次性对齐 networks（含 autoattend_net）、镜像与全部服务定义。
