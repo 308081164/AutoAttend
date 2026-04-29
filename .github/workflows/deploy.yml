@@ -182,15 +182,14 @@ jobs:
               NEW_DOMAIN="liubangproject.tech"
               if [ ! -f "/etc/letsencrypt/live/$NEW_DOMAIN/fullchain.pem" ]; then
                 echo "SSL 证书不存在，部署临时 HTTP 配置用于 ACME 验证..."
-                cat > "$NGINX_CONF_DIR/autoattend.conf" << 'TEMPCONF'
-client_max_body_size 200M;
-server {
-    listen 80;
-    server_name liubangproject.tech www.liubangproject.tech autoattend.xn--gnr55wfngz8f.com;
-    location /.well-known/acme-challenge/ { root /var/www/certbot; }
-    location / { proxy_pass http://127.0.0.1:8849; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }
-}
-TEMPCONF
+                printf '%s\n' \
+                  'client_max_body_size 200M;' \
+                  'server {' \
+                  '    listen 80;' \
+                  "    server_name liubangproject.tech www.liubangproject.tech autoattend.xn--gnr55wfngz8f.com;" \
+                  '    location /.well-known/acme-challenge/ { root /var/www/certbot; }' \
+                  '    location / { proxy_pass http://127.0.0.1:8849; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }' \
+                  '}' > "$NGINX_CONF_DIR/autoattend.conf"
               fi
               # 测试并 reload
               $NGINX_BIN -t 2>/dev/null
