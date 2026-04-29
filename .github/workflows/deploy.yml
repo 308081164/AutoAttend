@@ -161,6 +161,64 @@ jobs:
               NGINX_CONF_DIR="/etc/nginx/conf.d"
             fi
 
+            # ===== SSL 证书自动申请与续期（Let's Encrypt / certbot）=====
+            CERTBOT_BIN=""
+            if command -v certbot &>/dev/null; then
+              CERTBOT_BIN="certbot"
+            elif [ -x /usr/local/bin/certbot ]; then
+              CERTBOT_BIN="/usr/local/bin/certbot"
+            fi
+
+            NEW_DOMAIN="liubangproject.tech"
+            if [ -n "$CERTBOT_BIN" ]; then
+              echo "检测到 certbot，检查 SSL 证书..."
+              mkdir -p /var/www/certbot
+
+              # 检查证书是否存在且有效（剩余天数 > 30 天）
+              CERT_OK=false
+              if $CERTBOT_BIN certificates 2>/dev/null | grep -q "$NEW_DOMAIN"; then
+                EXPIRY=$($CERTBOT_BIN certificates 2>/dev/null | grep -A1 "$NEW_DOMAIN" | grep 'Expiry' | sed 's/.*Expiry: //;s/ (.*//')
+                if [ -n "$EXPIRY" ]; then
+                  EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || echo 0)
+                  NOW_EPOCH=$(date +%s)
+                  DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+                  echo "证书 $NEW_DOMAIN 剩余 $DAYS_LEFT 天"
+                  if [ "$DAYS_LEFT" -gt 30 ]; then
+                    CERT_OK=true
+                  fi
+                fi
+              fi
+
+              # 证书不存在或即将过期 → 申请/续期
+              if [ "$CERT_OK" = false ]; then
+                echo "申请/续期 Let's Encrypt SSL 证书: $NEW_DOMAIN"
+                $CERTBOT_BIN certonly --webroot \
+                  -w /var/www/certbot \
+                  -d "$NEW_DOMAIN" \
+                  -d "www.$NEW_DOMAIN" \
+                  --agree-tos \
+                  --non-interactive \
+                  --register-unsafely-without-email 2>/dev/null || \
+                $CERTBOT_BIN certonly --webroot \
+                  -w /var/www/certbot \
+                  -d "$NEW_DOMAIN" \
+                  -d "www.$NEW_DOMAIN" \
+                  --agree-tos \
+                  --non-interactive
+
+                # 设置自动续期 cron（每天凌晨 3 点检查）
+                if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
+                  (crontab -l 2>/dev/null; echo "0 3 * * * $CERTBOT_BIN renew --quiet --deploy-hook '$NGINX_BIN -s reload' >> /var/log/certbot-renew.log 2>&1") | crontab -
+                  echo "已添加 certbot 自动续期 cron 任务"
+                fi
+              else
+                echo "SSL 证书有效，跳过申请"
+              fi
+            else
+              echo "警告: 未安装 certbot，SSL 证书需手动申请"
+              echo "安装方法: apt install certbot（Ubuntu/Debian）或 yum install certbot（CentOS）"
+            fi
+
             if [ -n "$NGINX_BIN" ] && [ -f deploy/nginx-autoattend.conf ]; then
               if [ -n "$NGINX_CONF_DIR" ] && [ -d "$NGINX_CONF_DIR" ]; then
                 cp deploy/nginx-autoattend.conf "$NGINX_CONF_DIR/autoattend.conf"

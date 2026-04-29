@@ -104,7 +104,7 @@ const FEATURES = {
     badge: '指挥中心',
     subtitle: '一目了然掌握团队动态：API 健康状态、AI 用量、成员活跃度、仓库趋势，所有关键信息汇聚一屏。',
     tags: ['实时监控', 'AI 用量', '团队管理', '仓库集成'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/console',
+    mockUrl: 'liubangproject.tech/console',
     mockHtml: `
       <div class="mp mp--dashboard">
         <div class="mp-sidebar"><div class="mp-sidebar-item active">📊 控制台</div><div class="mp-sidebar-item">📋 协作表</div><div class="mp-sidebar-item">💰 报价</div><div class="mp-sidebar-item">🤖 AI 配置</div><div class="mp-sidebar-item">🧪 快原型</div><div class="mp-sidebar-item">👥 团队</div></div>
@@ -138,7 +138,7 @@ const FEATURES = {
     badge: '项目管理',
     subtitle: '像使用飞书多维表一样管理项目功能清单，支持 AI 智能录入、CSV 批量导入，与代码仓库深度联动。',
     tags: ['多维表格', 'AI 录入', 'CSV 导入', '权限管理', '公开阅览'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/collab/projects',
+    mockUrl: 'liubangproject.tech/collab/projects',
     mockHtml: `
       <div class="mp mp--collab">
         <div class="mp-sidebar"><div class="mp-sidebar-item active">🏠 首页看板</div><div class="mp-sidebar-item">🐛 问题追踪</div><div class="mp-sidebar-item">✅ 功能待办</div></div>
@@ -178,7 +178,7 @@ const FEATURES = {
     badge: '智能报价',
     subtitle: '从需求到报价单的全流程自动化：AI 辅助需求分析、结构化功能清单、智能计算报价、自动生成合同。',
     tags: ['需求分析', 'AI 报价', '合同生成', 'Agent 引导'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/quote',
+    mockUrl: 'liubangproject.tech/quote',
     mockHtml: `
       <div class="mp mp--quote">
         <div class="mp-main">
@@ -215,7 +215,7 @@ const FEATURES = {
     badge: 'AI 引擎',
     subtitle: '一站式管理 DeepSeek、通义千问等 AI 模型密钥，为提交分析、日报生成、多维表 AI 录入提供底层能力。',
     tags: ['DeepSeek', '通义千问', '提交分析', '日报生成'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/api-config',
+    mockUrl: 'liubangproject.tech/api-config',
     mockHtml: `
       <div class="mp mp--ai">
         <div class="mp-main">
@@ -248,7 +248,7 @@ const FEATURES = {
     badge: 'AI 原型',
     subtitle: '用 AI 快速生成交互原型：输入需求描述，自动生成 UI 规格文档，并提供可交互的在线预览。',
     tags: ['AI 生成', '在线预览', '规格文档', 'Penpot 集成'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/prototype',
+    mockUrl: 'liubangproject.tech/prototype',
     mockHtml: `
       <div class="mp mp--proto">
         <div class="mp-main">
@@ -280,7 +280,7 @@ const FEATURES = {
     badge: '组织管理',
     subtitle: '灵活的团队协作体系：多租户隔离、角色权限管理、成员邀请，适配从个人到企业的各种规模。',
     tags: ['多租户', '角色权限', '成员管理', '组织隔离'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/team',
+    mockUrl: 'liubangproject.tech/team',
     mockHtml: `
       <div class="mp mp--team">
         <div class="mp-main">
@@ -312,7 +312,7 @@ const FEATURES = {
     badge: '云运维',
     subtitle: '多云账号统一管理：实例监控、成本分析、告警规则，让运维工作一目了然。',
     tags: ['多云管理', '成本分析', '告警规则', '实例监控'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/nexus',
+    mockUrl: 'liubangproject.tech/nexus',
     mockHtml: `
       <div class="mp mp--nexus">
         <div class="mp-main">
@@ -344,7 +344,7 @@ const FEATURES = {
     badge: '智能体聚合',
     subtitle: '聚合 Cursor Cloud Agent、TRAE SOLO、OpenAI Codex 等云端智能体入口，一站式访问所有开发工具。',
     tags: ['Cursor', 'TRAE', 'Codex', '智能体'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/cloud-dev',
+    mockUrl: 'liubangproject.tech/cloud-dev',
     mockHtml: `
       <div class="mp mp--cloud">
         <div class="mp-main">
@@ -375,7 +375,7 @@ const FEATURES = {
     badge: '透明交付',
     subtitle: '面向甲方的只读看板：功能进度、开发日报、多维表阅览，让项目交付过程完全透明。',
     tags: ['只读看板', '进度追踪', '日报阅览', '多维表'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/board',
+    mockUrl: 'liubangproject.tech/board',
     mockHtml: `
       <div class="mp mp--client">
         <div class="mp-main">
@@ -408,7 +408,7 @@ const FEATURES = {
     badge: 'AI 对话',
     subtitle: '基于大模型的需求收集智能体：通过自然对话引导客户描述需求，AI 自动整理为结构化功能清单。',
     tags: ['自然对话', '需求分析', '文件上传', '自动摘要'],
-    mockUrl: 'autoattend.xn--gnr55wfngz8f.com/agent',
+    mockUrl: 'liubangproject.tech/agent',
     mockHtml: `
       <div class="mp mp--agent">
         <div class="mp-main">

@@ -24,10 +24,10 @@
 
 ---
 
-## 在线体验（测试环境）
+## 在线体验
 
-- 在线地址：<http://autoattend.广厦智汇.com>
-- 测试页面：<http://autoattend.广厦智汇.com/test>
+- 在线地址：<https://liubangproject.tech>
+- 旧域名（已重定向）：<http://autoattend.广厦智汇.com>
 
 ---
 

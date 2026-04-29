@@ -1801,7 +1801,9 @@ export default {
                   techStack: m.techStack != null ? String(m.techStack) : '',
                   items: (m.items || []).map(it => {
                     // 尝试匹配已有 item（按名称），保留用户正在编辑的状态
-                    existing.items.find(ei => ei.name === it.name)
+                    if (existing && existing.items) {
+                      existing.items.find(ei => ei.name === it.name)
+                    }
                     return {
                       name: it.name,
                       complexity: it.complexity || 'standard',
@@ -1814,45 +1816,9 @@ export default {
                   })
                 }
               })
-              // 仅在模块数量变化时替换整个数组，否则逐个更新属性
-              if (newModules.length !== this.modules.length) {
-                this.modules = newModules
-              } else {
-                for (let i = 0; i < newModules.length; i++) {
-                  const nm = newModules[i]
-                  const om = this.modules[i]
-                  // 模块名变化时替换整个模块
-                  if (nm.name !== om.name) {
-                    this.$set(this.modules, i, nm)
-                  } else {
-                    // 逐属性更新，保留 Vue 响应性
-                    om.sortOrder = nm.sortOrder
-                    om.deliverableKey = nm.deliverableKey
-                    om.deliverableLabel = nm.deliverableLabel
-                    om.techStack = nm.techStack
-                    // 增量更新 items
-                    if (nm.items.length !== om.items.length) {
-                      om.items = nm.items
-                    } else {
-                      for (let j = 0; j < nm.items.length; j++) {
-                        const ni = nm.items[j]
-                        const oi = om.items[j]
-                        if (ni.name !== oi.name) {
-                          this.$set(om.items, j, ni)
-                        } else {
-                          // 仅更新服务端可能变化的字段（行金额），保留用户正在编辑的字段
-                          if (ni.linePriceSnap != null) oi.linePriceSnap = ni.linePriceSnap
-                          else oi.linePriceSnap = undefined
-                          if (ni.linePriceAdjusted != null) oi.linePriceAdjusted = ni.linePriceAdjusted
-                          else oi.linePriceAdjusted = undefined
-                          // 服务端字段同步（非用户编辑字段）
-                          oi.excludedFromScale = ni.excludedFromScale
-                        }
-                      }
-                    }
-                  }
-                }
-              }
+              // 始终使用服务端数据替换 modules，确保数据一致性
+              // 增量更新在模块重命名/排序变化时会导致数据错乱
+              this.modules = newModules
             }
             if (d.quoteCalcPrefs) {
               this.applyQuoteCalcPrefs(d.quoteCalcPrefs)
@@ -2269,7 +2235,7 @@ export default {
             quantity: Math.max(1, Number(it.quantity) || 1),
             excludedFromScale: !!it.excludedFromScale
           }))
-        })).filter(m => m.name && String(m.name).trim() && m.items.length),
+        })).filter(m => m.name && String(m.name).trim()),
         quoteCalcPrefs: this.buildQuoteCalcPrefsPayload(),
         quoteContractContext: {
           paymentPlan: (this.contractContext.paymentPlan || []).map(p => ({
@@ -2321,11 +2287,12 @@ export default {
     async flushProjectAutoSave () {
       // #2 修复：添加互斥锁检查，防止与计算/调价竞态
       if (this.pageLoading || this.restoringProject || !this.projectId || this.saving || this.calculating || this.priceAdjusting) return
-      const snap = JSON.stringify(this.payload())
+      const body = this.payload()
+      const snap = JSON.stringify(body)
       if (snap === this.lastAutoSavedSnapshot) return
       try {
-        await this.$http.put('/admin/quote/projects/' + this.projectId, this.payload())
-        this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
+        await this.$http.put('/admin/quote/projects/' + this.projectId, body)
+        this.lastAutoSavedSnapshot = snap
         this.autoSaveStatus = 'saved'
         setTimeout(() => {
           if (this.autoSaveStatus === 'saved') this.autoSaveStatus = ''
@@ -2367,9 +2334,8 @@ export default {
             this.form.id = newId
             this.isNew = false
             await this.$router.replace({ name: 'quote-project', params: { id: String(newId) } })
-            this.$nextTick(() => {
-              this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
-            })
+            // 同步更新快照，避免 $nextTick 竞态窗口内触发多余的自动保存
+            this.lastAutoSavedSnapshot = JSON.stringify(body)
           } else {
             this.saveOk = false
             this.saveMsg = (resp.data && resp.data.message) || '失败'
@@ -2379,9 +2345,8 @@ export default {
           if (resp.data && resp.data.code === 0) {
             this.saveOk = true
             this.saveMsg = '已保存'
-            this.$nextTick(() => {
-              this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
-            })
+            // 同步更新快照，避免 $nextTick 竞态窗口内触发多余的自动保存
+            this.lastAutoSavedSnapshot = JSON.stringify(body)
           } else {
             this.saveOk = false
             this.saveMsg = (resp.data && resp.data.message) || '失败'

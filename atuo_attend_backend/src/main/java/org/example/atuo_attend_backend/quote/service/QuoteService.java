@@ -86,7 +86,7 @@ public class QuoteService {
         return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public long createProject(QuoteProjectSaveDto dto) {
         tenantResourceQuotaService.assertCanCreateQuoteProject(tid());
         QuoteProject p = toProject(dto);
@@ -100,11 +100,11 @@ public class QuoteService {
         }
         p.setTenantId(tid());
         projectMapper.insert(p);
-        saveModules(p.getId(), dto.getModules());
+        saveModules(p.getId(), dto.getModules(), null, null);
         return p.getId();
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateProject(long id, QuoteProjectSaveDto dto) {
         QuoteProject existing = projectMapper.findById(tid(), id);
         if (existing == null) throw new IllegalArgumentException("项目不存在");
@@ -135,8 +135,18 @@ public class QuoteService {
             p.setQuoteKind(normalizeQuoteKind(dto.getQuoteKind()));
         }
         projectMapper.update(p);
+        // 先缓存行金额，再删除旧模块，避免缓存查询为空
+        Map<String, BigDecimal> snapCache = new LinkedHashMap<>();
+        Map<String, BigDecimal> adjCache = new LinkedHashMap<>();
+        for (QuoteModule m : moduleMapper.listByProjectId(tid(), id)) {
+            for (QuoteItem it : itemMapper.listByModuleId(tid(), m.getId())) {
+                String key = m.getName() + "||" + it.getName();
+                if (it.getLinePriceSnap() != null) snapCache.put(key, it.getLinePriceSnap());
+                if (it.getLinePriceAdjusted() != null) adjCache.put(key, it.getLinePriceAdjusted());
+            }
+        }
         moduleMapper.deleteByProjectId(tid(), id);
-        saveModules(id, dto.getModules());
+        saveModules(id, dto.getModules(), snapCache, adjCache);
     }
 
     private QuoteProject toProject(QuoteProjectSaveDto dto) {
@@ -203,18 +213,11 @@ public class QuoteService {
         return "single";
     }
 
-    private void saveModules(long projectId, List<QuoteModuleSaveDto> modules) {
+    private void saveModules(long projectId, List<QuoteModuleSaveDto> modules,
+                             Map<String, BigDecimal> snapCache, Map<String, BigDecimal> adjCache) {
         if (modules == null) return;
-        // 在删除前缓存已有 item 的行金额，避免保存项目时丢失计算结果
-        Map<String, BigDecimal> snapCache = new LinkedHashMap<>();
-        Map<String, BigDecimal> adjCache = new LinkedHashMap<>();
-        for (QuoteModule m : moduleMapper.listByProjectId(tid(), projectId)) {
-            for (QuoteItem it : itemMapper.listByModuleId(tid(), m.getId())) {
-                String key = m.getName() + "||" + it.getName();
-                if (it.getLinePriceSnap() != null) snapCache.put(key, it.getLinePriceSnap());
-                if (it.getLinePriceAdjusted() != null) adjCache.put(key, it.getLinePriceAdjusted());
-            }
-        }
+        if (snapCache == null) snapCache = new LinkedHashMap<>();
+        if (adjCache == null) adjCache = new LinkedHashMap<>();
         int mi = 0;
         for (QuoteModuleSaveDto md : modules) {
             if (md.getName() == null || md.getName().isBlank()) continue;
