@@ -161,7 +161,50 @@ jobs:
               NGINX_CONF_DIR="/etc/nginx/conf.d"
             fi
 
-            # ===== SSL 证书自动申请与续期（Let's Encrypt / certbot）=====
+            # ===== 步骤 1：先部署 Nginx 配置（含 ACME challenge location）=====
+            if [ -n "$NGINX_BIN" ] && [ -f deploy/nginx-autoattend.conf ]; then
+              if [ -n "$NGINX_CONF_DIR" ] && [ -d "$NGINX_CONF_DIR" ]; then
+                cp deploy/nginx-autoattend.conf "$NGINX_CONF_DIR/autoattend.conf"
+                echo "Nginx 配置已复制到 $NGINX_CONF_DIR/autoattend.conf"
+              fi
+              # 确保 client_max_body_size 全局生效
+              NGINX_MAIN_CONF=""
+              if [ -f /www/server/nginx/conf/nginx.conf ]; then
+                NGINX_MAIN_CONF="/www/server/nginx/conf/nginx.conf"
+              elif [ -f /etc/nginx/nginx.conf ]; then
+                NGINX_MAIN_CONF="/etc/nginx/nginx.conf"
+              fi
+              if [ -n "$NGINX_MAIN_CONF" ] && ! grep -q "client_max_body_size" "$NGINX_MAIN_CONF"; then
+                sed -i '1i client_max_body_size 200M;' "$NGINX_MAIN_CONF"
+                echo "已在 $NGINX_MAIN_CONF 顶部注入 client_max_body_size 200M"
+              fi
+              # 如果 SSL 证书不存在，先部署纯 HTTP 临时配置让 ACME challenge 可达
+              NEW_DOMAIN="liubangproject.tech"
+              if [ ! -f "/etc/letsencrypt/live/$NEW_DOMAIN/fullchain.pem" ]; then
+                echo "SSL 证书不存在，部署临时 HTTP 配置用于 ACME 验证..."
+                cat > "$NGINX_CONF_DIR/autoattend.conf" << 'TEMPCONF'
+client_max_body_size 200M;
+server {
+    listen 80;
+    server_name liubangproject.tech www.liubangproject.tech autoattend.xn--gnr55wfngz8f.com;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { proxy_pass http://127.0.0.1:8849; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }
+}
+TEMPCONF
+              fi
+              # 测试并 reload
+              $NGINX_BIN -t 2>/dev/null
+              if [ $? -eq 0 ]; then
+                /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || $NGINX_BIN -s reload 2>/dev/null
+                echo "Nginx reload 成功"
+              else
+                echo "警告: Nginx 配置语法错误，跳过 reload"
+              fi
+            else
+              echo "警告: 未找到 Nginx，跳过配置同步"
+            fi
+
+            # ===== 步骤 2：SSL 证书自动申请与续期（Let's Encrypt / certbot）=====
             CERTBOT_BIN=""
             if command -v certbot &>/dev/null; then
               CERTBOT_BIN="certbot"
@@ -198,55 +241,38 @@ jobs:
                   -d "www.$NEW_DOMAIN" \
                   --agree-tos \
                   --non-interactive \
-                  --register-unsafely-without-email 2>/dev/null || \
-                $CERTBOT_BIN certonly --webroot \
-                  -w /var/www/certbot \
-                  -d "$NEW_DOMAIN" \
-                  -d "www.$NEW_DOMAIN" \
-                  --agree-tos \
-                  --non-interactive
+                  --register-unsafely-without-email
 
                 # 设置自动续期 cron（每天凌晨 3 点检查）
                 if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
                   (crontab -l 2>/dev/null; echo "0 3 * * * $CERTBOT_BIN renew --quiet --deploy-hook '$NGINX_BIN -s reload' >> /var/log/certbot-renew.log 2>&1") | crontab -
                   echo "已添加 certbot 自动续期 cron 任务"
                 fi
+
+                # 证书申请成功后，部署完整 HTTPS 配置
+                if [ -f "/etc/letsencrypt/live/$NEW_DOMAIN/fullchain.pem" ] && [ -n "$NGINX_BIN" ] && [ -f deploy/nginx-autoattend.conf ]; then
+                  if [ -n "$NGINX_CONF_DIR" ] && [ -d "$NGINX_CONF_DIR" ]; then
+                    cp deploy/nginx-autoattend.conf "$NGINX_CONF_DIR/autoattend.conf"
+                    echo "SSL 证书就绪，已部署完整 HTTPS Nginx 配置"
+                  fi
+                  $NGINX_BIN -t 2>/dev/null
+                  if [ $? -eq 0 ]; then
+                    /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || $NGINX_BIN -s reload 2>/dev/null
+                    echo "Nginx reload 成功（HTTPS 已启用）"
+                  fi
+                fi
               else
                 echo "SSL 证书有效，跳过申请"
+                # 证书有效但确保完整 HTTPS 配置已部署
+                if [ -n "$NGINX_BIN" ] && [ -f deploy/nginx-autoattend.conf ] && [ -n "$NGINX_CONF_DIR" ]; then
+                  cp deploy/nginx-autoattend.conf "$NGINX_CONF_DIR/autoattend.conf"
+                  $NGINX_BIN -t 2>/dev/null && ($NGINX_BIN -s reload 2>/dev/null || true)
+                  echo "已确保完整 HTTPS Nginx 配置已部署"
+                fi
               fi
             else
               echo "警告: 未安装 certbot，SSL 证书需手动申请"
               echo "安装方法: apt install certbot（Ubuntu/Debian）或 yum install certbot（CentOS）"
-            fi
-
-            if [ -n "$NGINX_BIN" ] && [ -f deploy/nginx-autoattend.conf ]; then
-              if [ -n "$NGINX_CONF_DIR" ] && [ -d "$NGINX_CONF_DIR" ]; then
-                cp deploy/nginx-autoattend.conf "$NGINX_CONF_DIR/autoattend.conf"
-                echo "Nginx 配置已复制到 $NGINX_CONF_DIR/autoattend.conf"
-              else
-                echo "警告: 未找到 Nginx 配置目录，尝试直接设置 client_max_body_size"
-              fi
-              # 确保 client_max_body_size 全局生效（无论 conf.d 是否被 include）
-              NGINX_MAIN_CONF=""
-              if [ -f /www/server/nginx/conf/nginx.conf ]; then
-                NGINX_MAIN_CONF="/www/server/nginx/conf/nginx.conf"
-              elif [ -f /etc/nginx/nginx.conf ]; then
-                NGINX_MAIN_CONF="/etc/nginx/nginx.conf"
-              fi
-              if [ -n "$NGINX_MAIN_CONF" ] && ! grep -q "client_max_body_size" "$NGINX_MAIN_CONF"; then
-                sed -i '1i client_max_body_size 200M;' "$NGINX_MAIN_CONF"
-                echo "已在 $NGINX_MAIN_CONF 顶部注入 client_max_body_size 200M"
-              fi
-              # 测试并 reload
-              $NGINX_BIN -t 2>/dev/null
-              if [ $? -eq 0 ]; then
-                /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || $NGINX_BIN -s reload 2>/dev/null
-                echo "Nginx reload 成功"
-              else
-                echo "警告: Nginx 配置语法错误，跳过 reload"
-              fi
-            else
-              echo "警告: 未找到 Nginx，跳过配置同步"
             fi
 
             # 一次性对齐 networks（含 autoattend_net）、镜像与全部服务定义。
