@@ -109,6 +109,68 @@ public class PenpotFileWriterService {
         }
     }
 
+    /**
+     * 构建 Penpot shape 的公共几何属性：selrect、points、transform。
+     * Penpot 2.x 的 update-file RPC 会对每个 add-obj 做 schema 校验，
+     * 缺少这些字段会导致 "invalid shape found after applying changes" 错误。
+     */
+    private static Map<String, Object> shapeGeometry(double x, double y, double w, double h) {
+        Map<String, Object> g = new LinkedHashMap<>();
+        // selrect: 矩形选区 {x, y, width, height}
+        Map<String, Object> selrect = new LinkedHashMap<>();
+        selrect.put("x", x);
+        selrect.put("y", y);
+        selrect.put("width", w);
+        selrect.put("height", h);
+        g.put("selrect", selrect);
+
+        // points: 四个角点坐标 [[x,y],[x+w,y],[x+w,y+h],[x,y+h]]
+        List<List<Double>> points = List.of(
+                List.of(x, y),
+                List.of(x + w, y),
+                List.of(x + w, y + h),
+                List.of(x, y + h)
+        );
+        g.put("points", points);
+
+        // transform: 单位矩阵 [1,0,0,1,0,0]
+        g.put("transform", List.of(1.0, 0.0, 0.0, 1.0, 0.0, 0.0));
+
+        // transform-inverse: 单位矩阵
+        g.put("transform-inverse", List.of(1.0, 0.0, 0.0, 1.0, 0.0, 0.0));
+
+        return g;
+    }
+
+    /**
+     * 构建 Penpot shape 的公共样式属性：fills、strokes、opacity。
+     */
+    private static Map<String, Object> shapeStyle(String fillHex, double opacity) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("opacity", opacity);
+        s.put("strokes", List.of());
+        s.put("stroke-style", "none");
+        s.put("stroke-width", 0.0);
+        s.put("stroke-alignment", "center");
+        s.put("stroke-color", "#000000");
+        s.put("stroke-opacity", 0.0);
+        s.put("hide-fill-in-output", false);
+
+        // fills
+        List<Map<String, Object>> fills = new ArrayList<>();
+        if (fillHex != null && !fillHex.isBlank()) {
+            Map<String, Object> fill = new LinkedHashMap<>();
+            fill.put("fill-color", fillHex);
+            fill.put("fill-opacity", 1.0);
+            fill.put("fill-color-gradient", null);
+            fill.put("fill-image", null);
+            fills.add(fill);
+        }
+        s.put("fills", fills);
+
+        return s;
+    }
+
     private static Map<String, Object> minimalFrame(String name, double x, double y, double w, double h) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("type", "frame");
@@ -117,6 +179,9 @@ public class PenpotFileWriterService {
         m.put("y", y);
         m.put("width", w);
         m.put("height", h);
+        m.putAll(shapeGeometry(x, y, w, h));
+        m.putAll(shapeStyle(null, 1.0));
+        m.put("hide-fill-in-output", true);
         return m;
     }
 
@@ -128,13 +193,10 @@ public class PenpotFileWriterService {
         m.put("y", y);
         m.put("width", w);
         m.put("height", h);
-        // 设置填充色，使矩形在画布中可见
-        if (fillHex != null && !fillHex.isBlank()) {
-            Map<String, Object> fill = new LinkedHashMap<>();
-            fill.put("fillColor", fillHex);
-            fill.put("fillOpacity", 1);
-            m.put("fills", List.of(fill));
-        }
+        m.put("rx", 0.0);
+        m.put("ry", 0.0);
+        m.putAll(shapeGeometry(x, y, w, h));
+        m.putAll(shapeStyle(fillHex, 1.0));
         return m;
     }
 
@@ -151,13 +213,29 @@ public class PenpotFileWriterService {
         if (t.length() > 500) {
             t = t.substring(0, 500) + "…";
         }
+        double h = Math.max(minHeight, 24);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("type", "text");
         m.put("name", "Text");
         m.put("x", x);
         m.put("y", y);
         m.put("width", maxW);
-        m.put("height", Math.max(minHeight, 24));
+        m.put("height", h);
+        m.putAll(shapeGeometry(x, y, maxW, h));
+        m.putAll(shapeStyle(null, 1.0));
+        // 文本排版属性
+        m.put("grow-type", "auto-height");
+        m.put("font-family", "sans-serif");
+        m.put("font-size", fontSize);
+        m.put("font-weight", "400");
+        m.put("font-style", "normal");
+        m.put("letter-spacing", 0.0);
+        m.put("line-height", 1.5);
+        m.put("text-align", "left");
+        m.put("text-direction", "ltr");
+        m.put("text-transform", null);
+        m.put("text-decoration", null);
+        m.put("overflow-text", "visible");
         m.put("content", Map.of(
                 "type", "root",
                 "children", List.of(Map.of(

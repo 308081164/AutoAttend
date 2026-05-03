@@ -1,22 +1,52 @@
 <template>
-  <div id="app" class="root">
-    <header class="top">
-      <div class="left">
-        <img class="brand-logo" src="/brand-logo.svg" width="28" height="28" alt="" aria-hidden="true" />
-        <span class="brand">AutoAttend 监测台</span>
-        <nav v-if="hasToken" class="nav">
-          <router-link :to="{ name: 'dashboard' }" class="nav-link" exact-active-class="active">看板</router-link>
-          <router-link :to="{ name: 'tenants' }" class="nav-link" exact-active-class="active">租户</router-link>
-          <router-link :to="{ name: 'system-settings' }" class="nav-link" exact-active-class="active">系统配置</router-link>
-          <router-link :to="{ name: 'showcase-audit' }" class="nav-link" exact-active-class="active">展示审核</router-link>
-          <router-link :to="{ name: 'lab-feedback' }" class="nav-link" exact-active-class="active">实验室反馈</router-link>
-        </nav>
-      </div>
-      <button v-if="hasToken" type="button" class="link" @click="logout">退出</button>
-    </header>
-    <main class="main">
-      <router-view />
-    </main>
+  <div id="app" class="app-container">
+    <!-- 顶部导航栏 -->
+    <el-container v-if="hasToken" class="app-layout">
+      <el-header class="app-header" height="56px">
+        <div class="header-left">
+          <img class="brand-logo" src="/brand-logo.svg" width="28" height="28" alt="" aria-hidden="true" />
+          <span class="brand-text">AutoAttend 监测台</span>
+        </div>
+        <el-menu
+          :default-active="activeMenu"
+          mode="horizontal"
+          class="header-menu"
+          router
+          @select="handleMenuSelect"
+        >
+          <el-menu-item index="/">
+            <i class="el-icon-s-data"></i>
+            <span>看板</span>
+          </el-menu-item>
+          <el-menu-item index="/tenants">
+            <i class="el-icon-s-custom"></i>
+            <span>租户</span>
+          </el-menu-item>
+          <el-menu-item index="/system">
+            <i class="el-icon-setting"></i>
+            <span>系统配置</span>
+          </el-menu-item>
+          <el-menu-item index="/showcase-audit">
+            <i class="el-icon-view"></i>
+            <span>展示审核</span>
+          </el-menu-item>
+          <el-menu-item index="/lab-feedback">
+            <i class="el-icon-chat-dot-round"></i>
+            <span>实验室反馈</span>
+          </el-menu-item>
+        </el-menu>
+        <div class="header-right">
+          <el-button type="text" class="logout-btn" @click="logout">
+            <i class="el-icon-switch-button"></i>
+            退出
+          </el-button>
+        </div>
+      </el-header>
+      <el-main class="app-main">
+        <router-view />
+      </el-main>
+    </el-container>
+    <router-view v-else />
   </div>
 </template>
 
@@ -29,81 +59,102 @@ export default {
     hasToken () {
       void this.$route.fullPath
       return typeof localStorage !== 'undefined' && !!localStorage.getItem(TOKEN_KEY)
+    },
+    activeMenu () {
+      return this.$route.path
     }
   },
   methods: {
+    handleMenuSelect (index) {
+      this.$router.push(index).catch(() => {})
+    },
     logout () {
-      localStorage.removeItem(TOKEN_KEY)
-      this.$router.push({ name: 'login' }).catch(() => {})
+      this.$confirm('确定要退出登录吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        localStorage.removeItem(TOKEN_KEY)
+        this.$router.push({ name: 'login' }).catch(() => {})
+      }).catch(() => {})
     }
   }
 }
 </script>
 
 <style>
+/* 全局样式 - 浅色主题 */
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f0f2f5;
+  color: #303133;
 }
-.root {
+.app-container {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
-.top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+.app-layout {
+  min-height: 100vh;
 }
-.left {
+.app-header {
   display: flex;
   align-items: center;
-  gap: 18px;
+  padding: 0 20px !important;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
-.brand-logo {
-  border-radius: 7px;
-  flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-}
-.brand {
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.nav {
+.header-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
-.nav-link {
-  color: #93c5fd;
-  text-decoration: none;
-  font-size: 14px;
+.brand-logo {
+  border-radius: 6px;
+  flex-shrink: 0;
 }
-.nav-link.active {
-  color: #fff;
-  border-bottom: 2px solid #60a5fa;
-  padding-bottom: 2px;
+.brand-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  white-space: nowrap;
+  margin-right: 8px;
 }
-.link {
-  background: transparent;
-  border: none;
-  color: #93c5fd;
-  cursor: pointer;
-  font-size: 14px;
-}
-.link:hover {
-  text-decoration: underline;
-}
-.main {
+.header-menu {
   flex: 1;
-  padding: 24px 20px;
+  border-bottom: none !important;
+  margin-left: 12px;
+}
+.header-menu .el-menu-item {
+  font-size: 14px;
+  height: 56px;
+  line-height: 56px;
+  padding: 0 16px;
+}
+.header-menu .el-menu-item.is-active {
+  color: #409eff;
+  border-bottom-color: #409eff;
+}
+.header-right {
+  flex-shrink: 0;
+}
+.logout-btn {
+  font-size: 14px;
+  color: #909399;
+}
+.logout-btn:hover {
+  color: #409eff;
+}
+.app-main {
+  padding: 20px;
+  background: #f0f2f5;
+  min-height: calc(100vh - 56px);
 }
 </style>

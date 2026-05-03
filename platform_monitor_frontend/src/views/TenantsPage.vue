@@ -1,65 +1,93 @@
 <template>
-  <div>
+  <div class="tenants-page">
     <PlatformOfficialInvitePanel />
-    <h2 class="title">租户列表</h2>
-    <div class="toolbar">
-      <input v-model.trim="q" type="search" class="search" placeholder="搜索名称、slug、手机…" aria-label="filter">
-      <select v-model="sortKey" class="select">
-        <option value="id">按 ID</option>
-        <option value="members">按成员数</option>
-        <option value="commits7d">按 7 日提交</option>
-        <option value="storage">按存储近似</option>
-      </select>
-      <label class="chk"><input v-model="desc" type="checkbox"> 降序</label>
-    </div>
-    <p v-if="loading" class="muted">加载中…</p>
-    <p v-else-if="error" class="err">{{ error }}</p>
-    <div v-else class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>名称</th>
-            <th>Slug</th>
-            <th>套餐</th>
-            <th>基线</th>
-            <th>权益截止</th>
-            <th>状态</th>
-            <th>成员</th>
-            <th>GH 项目</th>
-            <th>24h提交</th>
-            <th>7d提交</th>
-            <th>DAU≈</th>
-            <th>存储≈</th>
-            <th>手机</th>
-            <th>创建</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="t in filteredRows" :key="t.tenantId">
-            <td>{{ t.tenantId }}</td>
-            <td>{{ t.tenantName }}</td>
-            <td><code>{{ t.slug }}</code></td>
-            <td class="mono">{{ t.planCode }}</td>
-            <td class="mono muted-sm">{{ t.billingBaselinePlanCode || '—' }}</td>
-            <td class="small">{{ t.subscriptionEndsAt || '—' }}</td>
-            <td>{{ t.status }}</td>
-            <td>{{ t.memberCount }}</td>
-            <td>{{ t.githubLinkedProjects }}</td>
-            <td>{{ t.commits24h }}</td>
-            <td>{{ t.commits7d }}</td>
-            <td>{{ t.dauEmails24h }}</td>
-            <td class="small">{{ formatBytes(t.storageDiffBytesApprox) }}</td>
-            <td>{{ t.adminPhone || '—' }}</td>
-            <td class="small">{{ t.tenantCreatedAt || '—' }}</td>
-            <td>
-              <router-link class="link" :to="{ name: 'tenant-detail', params: { id: t.tenantId } }">详情</router-link>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    
+    <el-card shadow="hover" class="main-card">
+      <div slot="header" class="card-header">
+        <span>租户列表</span>
+        <div class="header-tools">
+          <el-input
+            v-model.trim="q"
+            size="small"
+            placeholder="搜索名称、slug、手机…"
+            prefix-icon="el-icon-search"
+            clearable
+            style="width: 220px"
+          />
+          <el-select v-model="sortKey" size="small" style="width: 140px">
+            <el-option label="按 ID" value="id" />
+            <el-option label="按成员数" value="members" />
+            <el-option label="按 7 日提交" value="commits7d" />
+            <el-option label="按存储近似" value="storage" />
+          </el-select>
+          <el-checkbox v-model="desc">降序</el-checkbox>
+        </div>
+      </div>
+
+      <el-table
+        v-loading="loading"
+        :data="filteredRows"
+        stripe
+        size="small"
+        style="width: 100%"
+        @row-click="goDetail"
+      >
+        <el-table-column prop="tenantId" label="ID" width="70" align="center" />
+        <el-table-column prop="tenantName" label="名称" min-width="120">
+          <template slot-scope="{ row }">
+            <el-link type="primary" :underline="false">{{ row.tenantName }}</el-link>
+          </template>
+        </el-table-column>
+        <el-table-column label="Slug" width="120">
+          <template slot-scope="{ row }">
+            <el-tag size="mini" effect="plain">{{ row.slug }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="planCode" label="套餐" width="90" align="center" />
+        <el-table-column prop="billingBaselinePlanCode" label="基线" width="80" align="center">
+          <template slot-scope="{ row }">
+            <span class="muted-text">{{ row.billingBaselinePlanCode || '—' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="subscriptionEndsAt" label="权益截止" width="100">
+          <template slot-scope="{ row }">
+            <span class="small-text">{{ row.subscriptionEndsAt || '—' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="80" align="center">
+          <template slot-scope="{ row }">
+            <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="mini" effect="plain">
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="memberCount" label="成员" width="60" align="center" />
+        <el-table-column prop="githubLinkedProjects" label="GH 项目" width="80" align="center" />
+        <el-table-column prop="commits24h" label="24h提交" width="80" align="center" />
+        <el-table-column prop="commits7d" label="7d提交" width="80" align="center" />
+        <el-table-column prop="dauEmails24h" label="DAU≈" width="70" align="center" />
+        <el-table-column label="存储≈" width="90" align="center">
+          <template slot-scope="{ row }">
+            <span class="small-text">{{ formatBytes(row.storageDiffBytesApprox) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="adminPhone" label="手机" width="120">
+          <template slot-scope="{ row }">
+            {{ row.adminPhone || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="tenantCreatedAt" label="创建" width="100">
+          <template slot-scope="{ row }">
+            <span class="small-text">{{ row.tenantCreatedAt || '—' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="80" fixed="right">
+          <template slot-scope="{ row }">
+            <el-button type="text" size="small" @click.stop="goDetail(row)">详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
   </div>
 </template>
 
@@ -96,19 +124,12 @@ export default {
       const dir = this.desc ? -1 : 1
       const num = (v) => (v == null || Number.isNaN(Number(v)) ? 0 : Number(v))
       list.sort((a, b) => {
-        let va
-        let vb
-        if (key === 'id') {
-          va = num(a.tenantId); vb = num(b.tenantId)
-        } else if (key === 'members') {
-          va = num(a.memberCount); vb = num(b.memberCount)
-        } else if (key === 'commits7d') {
-          va = num(a.commits7d); vb = num(b.commits7d)
-        } else if (key === 'storage') {
-          va = num(a.storageDiffBytesApprox); vb = num(b.storageDiffBytesApprox)
-        } else {
-          va = num(a.tenantId); vb = num(b.tenantId)
-        }
+        let va, vb
+        if (key === 'id') { va = num(a.tenantId); vb = num(b.tenantId) }
+        else if (key === 'members') { va = num(a.memberCount); vb = num(b.memberCount) }
+        else if (key === 'commits7d') { va = num(a.commits7d); vb = num(b.commits7d) }
+        else if (key === 'storage') { va = num(a.storageDiffBytesApprox); vb = num(b.storageDiffBytesApprox) }
+        else { va = num(a.tenantId); vb = num(b.tenantId) }
         return (va - vb) * dir
       })
       return list
@@ -129,6 +150,9 @@ export default {
     }
   },
   methods: {
+    goDetail (row) {
+      this.$router.push({ name: 'tenant-detail', params: { id: row.tenantId } })
+    },
     formatBytes (b) {
       if (b == null) return '—'
       const n = Number(b)
@@ -143,73 +167,33 @@ export default {
 </script>
 
 <style scoped>
-.title {
-  margin: 0 0 16px;
-  font-size: 18px;
+.tenants-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.main-card {
+  margin-top: 16px;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 15px;
   font-weight: 600;
 }
-.toolbar {
+.header-tools {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
-.search {
-  flex: 1;
-  min-width: 200px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #334155;
-  background: #0f172a;
-  color: #e2e8f0;
-  font-size: 14px;
+.muted-text {
+  color: #c0c4cc;
 }
-.select {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #334155;
-  background: #1e293b;
-  color: #e2e8f0;
-  font-size: 14px;
-}
-.chk { font-size: 13px; color: #94a3b8; }
-.muted { color: #94a3b8; }
-.muted-sm { color: #64748b; font-size: 12px; }
-.err { color: #fca5a5; }
-.table-wrap {
-  overflow-x: auto;
-}
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  min-width: 1100px;
-}
-th,
-td {
-  text-align: left;
-  padding: 8px 10px;
-  border-bottom: 1px solid #334155;
-  vertical-align: top;
-}
-th {
-  color: #94a3b8;
-  font-weight: 500;
-  white-space: nowrap;
-}
-code {
+.small-text {
   font-size: 12px;
-  background: #1e293b;
-  padding: 2px 6px;
-  border-radius: 4px;
+  color: #909399;
 }
-.small { font-size: 12px; white-space: nowrap; }
-.mono { font-family: ui-monospace, monospace; }
-.link {
-  color: #93c5fd;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.link:hover { text-decoration: underline; }
 </style>

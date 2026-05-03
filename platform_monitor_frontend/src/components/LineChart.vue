@@ -1,76 +1,118 @@
 <template>
-  <div class="chart-wrap">
-    <canvas ref="canvas"></canvas>
+  <div class="line-chart-wrapper">
+    <canvas ref="canvas" style="width: 100%; height: 240px;"></canvas>
   </div>
 </template>
 
 <script>
-import Chart from 'chart.js/auto'
-
 export default {
   name: 'LineChart',
   props: {
-    labels: { type: Array, required: true },
-    values: { type: Array, required: true }
-  },
-  data () {
-    return { chart: null }
-  },
-  mounted () {
-    this.renderChart()
+    labels: { type: Array, default: () => [] },
+    values: { type: Array, default: () => [] }
   },
   watch: {
-    labels () { this.renderChart() },
-    values () { this.renderChart() }
+    labels: 'draw',
+    values: 'draw'
   },
-  beforeDestroy () {
-    if (this.chart) this.chart.destroy()
+  mounted () {
+    this.draw()
   },
   methods: {
-    renderChart () {
-      if (!this.$refs.canvas) return
-      const ctx = this.$refs.canvas.getContext('2d')
-      if (this.chart) this.chart.destroy()
+    draw () {
+      const canvas = this.$refs.canvas
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      const rect = canvas.parentElement.getBoundingClientRect()
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = (rect.width || 600) * dpr
+      canvas.height = 240 * dpr
+      canvas.style.width = (rect.width || 600) + 'px'
+      canvas.style.height = '240px'
+      ctx.scale(dpr, dpr)
+      const w = canvas.width / dpr
+      const h = 240
 
-      this.chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: this.labels,
-          datasets: [
-            {
-              label: 'DAU',
-              data: this.values,
-              borderColor: '#60a5fa',
-              backgroundColor: 'rgba(96, 165, 250, 0.15)',
-              tension: 0.25,
-              pointRadius: 3,
-              pointHoverRadius: 4
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { mode: 'index', intersect: false }
-          },
-          interaction: { mode: 'nearest', axis: 'x', intersect: false },
-          scales: {
-            x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } },
-            y: { beginAtZero: true }
-          }
+      ctx.clearRect(0, 0, w, h)
+
+      const labels = this.labels || []
+      const values = this.values || []
+      if (!labels.length || !values.length) {
+        ctx.fillStyle = '#c0c4cc'
+        ctx.font = '14px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText('暂无数据', w / 2, h / 2)
+        return
+      }
+
+      const pad = { top: 20, right: 20, bottom: 30, left: 40 }
+      const chartW = w - pad.left - pad.right
+      const chartH = h - pad.top - pad.bottom
+
+      const maxVal = Math.max(...values, 1)
+      const minVal = Math.min(...values, 0)
+      const range = maxVal - minVal || 1
+
+      const xs = labels.map((_, i) => pad.left + (i / (labels.length - 1 || 1)) * chartW)
+      const ys = values.map(v => pad.top + chartH - ((v - minVal) / range) * chartH)
+
+      // grid lines
+      ctx.strokeStyle = '#f0f0f0'
+      ctx.lineWidth = 1
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (i / 4) * chartH
+        ctx.beginPath()
+        ctx.moveTo(pad.left, y)
+        ctx.lineTo(w - pad.right, y)
+        ctx.stroke()
+      }
+
+      // line
+      ctx.beginPath()
+      ctx.strokeStyle = '#409eff'
+      ctx.lineWidth = 2
+      ctx.lineJoin = 'round'
+      ctx.lineCap = 'round'
+      xs.forEach((x, i) => {
+        if (i === 0) ctx.moveTo(x, ys[i])
+        else ctx.lineTo(x, ys[i])
+      })
+      ctx.stroke()
+
+      // dots
+      ctx.fillStyle = '#409eff'
+      xs.forEach((x, i) => {
+        ctx.beginPath()
+        ctx.arc(x, ys[i], 3, 0, Math.PI * 2)
+        ctx.fill()
+      })
+
+      // labels
+      ctx.fillStyle = '#909399'
+      ctx.font = '11px sans-serif'
+      ctx.textAlign = 'center'
+      const step = Math.max(1, Math.floor(labels.length / 10))
+      labels.forEach((label, i) => {
+        if (i % step === 0 || i === labels.length - 1) {
+          ctx.fillText(label, xs[i], h - 8)
         }
       })
+
+      // y-axis labels
+      ctx.textAlign = 'right'
+      ctx.textBaseline = 'middle'
+      for (let i = 0; i <= 4; i++) {
+        const val = minVal + (range * (4 - i)) / 4
+        const y = pad.top + (i / 4) * chartH
+        ctx.fillText(Math.round(val).toString(), pad.left - 8, y)
+      }
     }
   }
 }
 </script>
 
 <style scoped>
-.chart-wrap {
+.line-chart-wrapper {
   width: 100%;
-  height: 320px;
 }
 </style>
-

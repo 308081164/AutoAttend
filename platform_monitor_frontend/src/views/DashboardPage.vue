@@ -1,117 +1,151 @@
 <template>
-  <div class="wrap">
-    <h2 class="title">平台监测看板</h2>
+  <div class="dashboard-page">
+    <div class="page-header">
+      <h2 class="page-title">平台监测看板</h2>
+    </div>
 
-    <p v-if="loading" class="muted">加载中…</p>
-    <p v-else-if="error" class="err">{{ error }}</p>
+    <el-skeleton :loading="loading" animated :count="6" v-if="loading" />
 
     <template v-else>
-      <section class="cards">
-        <div class="card">
-          <div class="card-label">DAU（今日）</div>
-          <div class="card-value">{{ overview && overview.dauToday != null ? overview.dauToday : '—' }}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">MAU（月活）</div>
-          <div class="card-value">{{ overview && overview.mauMonth != null ? overview.mauMonth : '—' }}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">总用户数量</div>
-          <div class="card-value">{{ overview && overview.totalUsers != null ? overview.totalUsers : '—' }}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">APIKey配置占比</div>
-          <div class="card-value">
-            {{ overview && overview.apiKeyConfiguredTenants != null ? overview.apiKeyConfiguredTenants : '—' }} /
-            {{ overview && overview.totalTenants != null ? overview.totalTenants : '—' }}
-          </div>
-          <div class="card-sub">{{ formatRatio(overview && overview.apiKeyConfiguredRatioPercent != null ? overview.apiKeyConfiguredRatioPercent : null) }}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">GitHubToken配置占比</div>
-          <div class="card-value">
-            {{ overview && overview.githubTokenConfiguredTenants != null ? overview.githubTokenConfiguredTenants : '—' }} /
-            {{ overview && overview.totalTenants != null ? overview.totalTenants : '—' }}
-          </div>
-          <div class="card-sub">{{ formatRatio(overview && overview.githubTokenConfiguredRatioPercent != null ? overview.githubTokenConfiguredRatioPercent : null) }}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">MRR 近似（模拟，近30天）</div>
-          <div class="card-value">{{ formatMoney(overview && overview.mrrApproxCents) }}</div>
-          <div class="card-sub">有效订阅窗口租户：{{ overview && overview.activePaidSubscriptions != null ? overview.activePaidSubscriptions : '—' }}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">已暂停租户</div>
-          <div class="card-value">{{ overview && overview.suspendedTenants != null ? overview.suspendedTenants : '—' }}</div>
-        </div>
-      </section>
+      <!-- 概览卡片 -->
+      <el-row :gutter="16" class="stat-cards">
+        <el-col :xs="12" :sm="8" :md="6" :lg="4">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-label">DAU（今日）</div>
+            <div class="stat-value">{{ overview && overview.dauToday != null ? overview.dauToday : '—' }}</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="12" :sm="8" :md="6" :lg="4">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-label">MAU（月活）</div>
+            <div class="stat-value">{{ overview && overview.mauMonth != null ? overview.mauMonth : '—' }}</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="12" :sm="8" :md="6" :lg="4">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-label">总用户数量</div>
+            <div class="stat-value">{{ overview && overview.totalUsers != null ? overview.totalUsers : '—' }}</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="12" :sm="8" :md="6" :lg="4">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-label">APIKey 配置占比</div>
+            <div class="stat-value">
+              {{ overview && overview.apiKeyConfiguredTenants != null ? overview.apiKeyConfiguredTenants : '—' }}
+              <span class="stat-divider">/</span>
+              {{ overview && overview.totalTenants != null ? overview.totalTenants : '—' }}
+            </div>
+            <div class="stat-sub">{{ formatRatio(overview && overview.apiKeyConfiguredRatioPercent) }}</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="12" :sm="8" :md="6" :lg="4">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-label">GitHubToken 配置占比</div>
+            <div class="stat-value">
+              {{ overview && overview.githubTokenConfiguredTenants != null ? overview.githubTokenConfiguredTenants : '—' }}
+              <span class="stat-divider">/</span>
+              {{ overview && overview.totalTenants != null ? overview.totalTenants : '—' }}
+            </div>
+            <div class="stat-sub">{{ formatRatio(overview && overview.githubTokenConfiguredRatioPercent) }}</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="12" :sm="8" :md="6" :lg="4">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-label">MRR 近似（近30天）</div>
+            <div class="stat-value">{{ formatMoney(overview && overview.mrrApproxCents) }}</div>
+            <div class="stat-sub">有效订阅：{{ overview && overview.activePaidSubscriptions != null ? overview.activePaidSubscriptions : '—' }}</div>
+          </el-card>
+        </el-col>
+        <el-col :xs="12" :sm="8" :md="6" :lg="4">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-label">已暂停租户</div>
+            <div class="stat-value">{{ overview && overview.suspendedTenants != null ? overview.suspendedTenants : '—' }}</div>
+          </el-card>
+        </el-col>
+      </el-row>
 
-      <section class="section">
-        <h3 class="section-title">DAU变化折线图</h3>
+      <!-- DAU 折线图 -->
+      <el-card shadow="hover" class="section-card">
+        <div slot="header" class="section-header">
+          <span>DAU 变化折线图</span>
+        </div>
         <div v-if="dauTrend.length">
           <LineChart :labels="dauTrend.map(x => x.date)" :values="dauTrend.map(x => x.count)" />
         </div>
-        <p v-else class="muted">暂无趋势数据</p>
-      </section>
+        <el-empty v-else description="暂无趋势数据" :image-size="80" />
+      </el-card>
 
-      <section class="section">
-        <h3 class="section-title">账号活跃排行（今日提交数）</h3>
-        <table class="table" v-if="activeAuthors.length">
-          <thead>
-            <tr>
-              <th>邮箱</th>
-              <th>名称</th>
-              <th>提交数</th>
-              <th>最后提交</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in activeAuthors" :key="r.authorEmail + '_' + r.lastCommittedAt">
-              <td>{{ r.authorEmail || '—' }}</td>
-              <td>{{ r.authorName || '—' }}</td>
-              <td>{{ r.commitCount }}</td>
-              <td class="mono">{{ r.lastCommittedAt || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else class="muted">暂无排行数据</p>
-      </section>
+      <!-- 账号活跃排行 -->
+      <el-card shadow="hover" class="section-card">
+        <div slot="header" class="section-header">
+          <span>账号活跃排行（今日提交数）</span>
+        </div>
+        <el-table
+          v-if="activeAuthors.length"
+          :data="activeAuthors"
+          stripe
+          size="small"
+          style="width: 100%"
+        >
+          <el-table-column prop="authorEmail" label="邮箱" min-width="180">
+            <template slot-scope="{ row }">
+              {{ row.authorEmail || '—' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="authorName" label="名称" min-width="120">
+            <template slot-scope="{ row }">
+              {{ row.authorName || '—' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="commitCount" label="提交数" width="100" align="center" />
+          <el-table-column prop="lastCommittedAt" label="最后提交" min-width="160">
+            <template slot-scope="{ row }">
+              <span class="mono-text">{{ row.lastCommittedAt || '—' }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else description="暂无排行数据" :image-size="80" />
+      </el-card>
 
-      <section class="section">
-        <h3 class="section-title">用户组件点击 / 功能使用统计</h3>
-        <p class="muted small-hint">组件名称与主应用首页「能力枢纽」卡片及控制台文案对齐（与 <code>zh.js</code> / 页面标题一致）。</p>
-        <table class="table" v-if="componentUsage && componentUsage.components && componentUsage.components.length">
-          <thead>
-            <tr>
-              <th>组件（首页 / 控制台）</th>
-              <th>点击数</th>
-              <th>核心接口调用数（usage）</th>
-              <th>核心接口明细</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in componentUsage.components" :key="c.componentKey">
-              <td>
-                <div class="comp-title">{{ componentLabel(c.componentKey) }}</div>
-                <div class="muted mono comp-key">{{ c.componentKey }}</div>
-              </td>
-              <td>{{ c.clickCount }}</td>
-              <td>{{ c.usageCount }}</td>
-              <td>
-                <div class="core-apis">
-                  <div v-for="api in c.coreApis" :key="api.coreApiKey" class="core-api-row">
-                    <span>{{ coreApiLabel(api.coreApiKey) }}</span>
-                    <span class="muted mono tiny">{{ api.coreApiKey }}</span>
-                    <span class="muted">click={{ api.clickCount }}</span>
-                    <span class="muted">usage={{ api.usageCount }}</span>
-                  </div>
+      <!-- 组件使用统计 -->
+      <el-card shadow="hover" class="section-card">
+        <div slot="header" class="section-header">
+          <span>用户组件点击 / 功能使用统计</span>
+          <el-tag size="small" type="info" effect="plain">组件名称与主应用首页「能力枢纽」卡片及控制台文案对齐</el-tag>
+        </div>
+        <el-table
+          v-if="componentUsage && componentUsage.components && componentUsage.components.length"
+          :data="componentUsage.components"
+          stripe
+          size="small"
+          style="width: 100%"
+        >
+          <el-table-column label="组件（首页 / 控制台）" min-width="200">
+            <template slot-scope="{ row }">
+              <div class="comp-cell">
+                <span class="comp-label">{{ componentLabel(row.componentKey) }}</span>
+                <el-tag size="mini" type="info" effect="plain">{{ row.componentKey }}</el-tag>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="clickCount" label="点击数" width="90" align="center" />
+          <el-table-column prop="usageCount" label="核心接口调用数" width="130" align="center" />
+          <el-table-column label="核心接口明细" min-width="300">
+            <template slot-scope="{ row }">
+              <div v-if="row.coreApis && row.coreApis.length" class="core-apis">
+                <div v-for="api in row.coreApis" :key="api.coreApiKey" class="core-api-item">
+                  <span class="core-api-label">{{ coreApiLabel(api.coreApiKey) }}</span>
+                  <el-tag size="mini" type="info" effect="plain">{{ api.coreApiKey }}</el-tag>
+                  <span class="core-api-stat">click={{ api.clickCount }}</span>
+                  <span class="core-api-stat">usage={{ api.usageCount }}</span>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else class="muted">暂无组件事件数据（需要先在主应用触发组件操作）</p>
-      </section>
+              </div>
+              <span v-else class="muted-text">—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else description="暂无组件事件数据（需要先在主应用触发组件操作）" :image-size="80" />
+      </el-card>
     </template>
   </div>
 </template>
@@ -120,12 +154,10 @@
 import { http } from '../api/http'
 import LineChart from '../components/LineChart.vue'
 
-/** 与主应用 Dashboard 首页 hub 卡片标题、控制台区块标题一致（见 auto_attend_forntend zh.js / DashboardView.vue） */
 const COMPONENT_LABELS = {
   hub_quote: '报价系统',
   hub_prototype: '快原型',
   ai_commit_analysis: 'AI 分析（单次提交）',
-  // 历史埋点 key，便于旧数据仍可读
   quote: '报价系统',
   ui_prototype: '快原型',
   ai_analysis: 'AI 分析（单次提交）'
@@ -190,7 +222,6 @@ export default {
         const { data: t } = await http.get('/platform/ops/metrics/dau-trend', { params: { days: 30 } })
         if (t && t.code === 0) this.dauTrend = Array.isArray(t.data) ? t.data : []
       } catch (e) {
-        // 只影响图表展示
         this.dauTrend = []
       }
 
@@ -215,88 +246,97 @@ export default {
 </script>
 
 <style scoped>
-.wrap {
-  max-width: 1200px;
+.dashboard-page {
+  max-width: 1400px;
   margin: 0 auto;
 }
-.title {
-  margin: 0 0 16px;
-  font-size: 22px;
-  font-weight: 700;
-}
-.muted { color: #94a3b8; }
-.small-hint { font-size: 13px; margin: 0 0 10px; }
-.comp-title { font-weight: 600; }
-.comp-key { font-size: 12px; margin-top: 4px; }
-.tiny { font-size: 11px; }
-.err { color: #fca5a5; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+.page-header {
   margin-bottom: 16px;
 }
-.card {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 14px 14px 12px;
-}
-.card-label {
-  color: #94a3b8;
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-.card-value {
+.page-title {
+  margin: 0;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 600;
+  color: #303133;
 }
-.card-sub {
+.stat-cards {
+  margin-bottom: 16px;
+}
+.stat-card {
+  margin-bottom: 16px;
+}
+.stat-card .el-card__body {
+  padding: 16px;
+}
+.stat-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1.2;
+}
+.stat-divider {
+  color: #dcdfe6;
+  margin: 0 2px;
+  font-weight: 300;
+}
+.stat-sub {
   margin-top: 6px;
-  color: #60a5fa;
+  font-size: 12px;
+  color: #409eff;
+}
+.section-card {
+  margin-bottom: 16px;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.comp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.comp-label {
+  font-weight: 600;
   font-size: 13px;
 }
-
-.section {
-  margin-top: 18px;
-  padding: 16px;
-  background: #0b1224;
-  border: 1px solid #1f2a44;
-  border-radius: 12px;
-}
-.section-title {
-  margin: 0 0 12px;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-th, td {
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid #334155;
-}
-th {
-  color: #94a3b8;
-  font-weight: 500;
-}
-
 .core-apis {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.core-api-row {
+.core-api-item {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
+  font-size: 12px;
+}
+.core-api-label {
+  font-weight: 500;
+}
+.core-api-stat {
+  color: #909399;
+  font-size: 11px;
+}
+.mono-text {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+}
+.muted-text {
+  color: #c0c4cc;
 }
 </style>
-
