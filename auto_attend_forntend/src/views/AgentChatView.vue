@@ -329,20 +329,24 @@ export default {
         )
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const data = resp.data.data
-
-          // 替换乐观消息为服务端消息
           const idx = this.messages.findIndex(m => m.id === optimisticMsg.id)
-          if (idx !== -1) {
-            this.messages.splice(idx, 1, data.userMessage || optimisticMsg)
-          }
 
-          // 添加 assistant 回复
-          if (data.assistantMessage) {
+          if (data.userMessage && data.assistantMessage) {
+            const serverUser = { ...data.userMessage, attachments: optimisticMsg.attachments }
+            if (idx !== -1) this.messages.splice(idx, 1, serverUser)
             this.messages.push(data.assistantMessage)
+          } else if (data.assistantMessage) {
+            if (idx !== -1) {
+              this.messages.splice(idx, 1, data.userMessage
+                ? { ...data.userMessage, attachments: optimisticMsg.attachments }
+                : optimisticMsg)
+            }
+            this.messages.push(data.assistantMessage)
+          } else if (data.role === 'assistant' || (data.content != null && data.id != null)) {
+            if (idx !== -1) this.messages.splice(idx, 1, optimisticMsg)
+            this.messages.push(data)
           } else if (data.messages) {
-            // 如果返回的是完整消息列表，则更新
             this.messages = data.messages
-            this.$nextTick(() => this.scrollToBottom())
           }
         }
 
@@ -382,10 +386,10 @@ export default {
         const formData = new FormData()
         formData.append('file', file)
 
+        // 勿手写 Content-Type：multipart 需带 boundary，由浏览器/axios 自动设置
         const resp = await this.$http.post(
           `/public/agent/sessions/${encodeURIComponent(this.token)}/attachments`,
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
+          formData
         )
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const data = resp.data.data
@@ -401,7 +405,11 @@ export default {
           this.selectedAttachmentIds.push(data.id || data.attachmentId)
         }
       } catch (err) {
-        const msg = (err.response && err.response.data && err.response.data.message) || err.message || '上传失败'
+        const st = err.response && err.response.status
+        let msg = (err.response && err.response.data && err.response.data.message) || err.message || '上传失败'
+        if (st === 413) {
+          msg = '文件体积超过网关允许上限（常见为 Nginx 默认 1MB）。请压缩或拆分 PDF，或由运维在反代中设置 client_max_body_size（如 200M）并重建前端容器。'
+        }
         this.error = msg
       } finally {
         this.uploading = false

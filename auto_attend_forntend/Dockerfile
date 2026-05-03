@@ -31,6 +31,8 @@ server {
   }
 
   location /api/ {
+    # 默认 1m，超过则 413；与 spring.servlet.multipart.max-* 及 deploy/nginx-autoattend.conf 对齐
+    client_max_body_size 200M;
     proxy_pass http://backend:8848;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
@@ -38,8 +40,8 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_connect_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
     # 后端重启/JVM 启动瞬间连接被拒绝时，短暂重试减轻 502
     proxy_next_upstream error timeout http_502 http_503 http_504;
     proxy_next_upstream_tries 3;

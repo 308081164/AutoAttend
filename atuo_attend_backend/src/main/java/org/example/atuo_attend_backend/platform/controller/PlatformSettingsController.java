@@ -138,26 +138,33 @@ public class PlatformSettingsController {
         }
     }
 
-    // ===== 来单邮件通知配置 =====
+    // ===== 来单邮件通知配置（租户级） =====
 
-    @GetMapping("/quick-quote-notify")
-    public ApiResponse<Map<String, Object>> getQuickQuoteNotify() {
+    /**
+     * 获取指定租户的来单通知配置。
+     * 每个租户可独立配置通知邮箱和开关。
+     */
+    @GetMapping("/tenants/{tenantId}/quick-quote-notify")
+    public ApiResponse<Map<String, Object>> getTenantQuickQuoteNotify(@PathVariable long tenantId) {
         Map<String, Object> data = new HashMap<>();
-        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(0L));
-        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(0L));
+        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(tenantId));
+        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(tenantId));
         return ApiResponse.ok(data);
     }
 
-    @PutMapping("/quick-quote-notify")
-    public ApiResponse<Void> putQuickQuoteNotify(@RequestBody Map<String, Object> body) {
-        long tid = 0L; // 平台级配置 tenant_id=0
+    /**
+     * 保存指定租户的来单通知配置。
+     */
+    @PutMapping("/tenants/{tenantId}/quick-quote-notify")
+    public ApiResponse<Void> putTenantQuickQuoteNotify(@PathVariable long tenantId,
+                                                       @RequestBody Map<String, Object> body) {
         Object enabledObj = body.get("enabled");
         Object emailObj = body.get("email");
         if (enabledObj != null) {
-            systemConfigService.setQuickQuoteNotifyEnabled(tid, Boolean.TRUE.equals(enabledObj));
+            systemConfigService.setQuickQuoteNotifyEnabled(tenantId, Boolean.TRUE.equals(enabledObj));
         }
         if (emailObj != null) {
-            systemConfigService.setQuickQuoteNotifyEmail(tid, String.valueOf(emailObj));
+            systemConfigService.setQuickQuoteNotifyEmail(tenantId, String.valueOf(emailObj));
         }
         return ApiResponse.ok(null);
     }

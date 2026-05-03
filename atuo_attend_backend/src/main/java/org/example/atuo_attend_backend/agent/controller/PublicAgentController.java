@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -131,14 +132,19 @@ public class PublicAgentController {
     }
 
     /**
-     * 异步发送来单邮件通知（不阻塞主流程）
+     * 异步发送来单邮件通知（不阻塞主流程）。
+     * <p>
+     * 配置为租户级：每个团队可独立设置通知邮箱和开关。
+     * 使用 @Async 线程池执行，避免裸创建线程。
+     * </p>
      */
-    private void sendQuickQuoteNotification(long tenantId, String teamName,
+    @Async
+    public void sendQuickQuoteNotification(long tenantId, String teamName,
                                            String projectName, String quoteKind, Long projectId) {
         try {
-            long configTenantId = 0L; // 平台级配置 tenant_id=0
-            if (!systemConfigService.isQuickQuoteNotifyEnabled(configTenantId)) return;
-            String notifyEmail = systemConfigService.getQuickQuoteNotifyEmail(configTenantId);
+            // 读取当前租户的来单通知配置（租户级）
+            if (!systemConfigService.isQuickQuoteNotifyEnabled(tenantId)) return;
+            String notifyEmail = systemConfigService.getQuickQuoteNotifyEmail(tenantId);
             if (notifyEmail == null || notifyEmail.isBlank()) return;
 
             String baseUrl = systemConfigService.getPublicBaseUrl();
@@ -173,18 +179,10 @@ public class PublicAgentController {
                     + "<p style=\"color:#999;font-size:12px;margin:20px 0 0;text-align:center;\">此邮件由系统自动发送，请勿直接回复。</p>"
                     + "</div></div>";
 
-            // 异步发送，不阻塞响应
-            final String toEmail = notifyEmail;
-            new Thread(() -> {
-                try {
-                    mailSenderService.sendHtml(toEmail, "📬 新客户来单 - " + projectName, html);
-                    log.info("来单通知邮件已发送至 {}，项目：{}", toEmail, projectName);
-                } catch (Exception e) {
-                    log.warn("来单通知邮件发送失败，项目：{}，错误：{}", projectName, e.getMessage());
-                }
-            }, "mail-notify").start();
+            mailSenderService.sendHtml(notifyEmail, "📬 新客户来单 - " + projectName, html);
+            log.info("来单通知邮件已发送至 {}，项目：{}", notifyEmail, projectName);
         } catch (Exception e) {
-            log.warn("来单通知配置读取失败：{}", e.getMessage());
+            log.warn("来单通知邮件发送失败，项目：{}，错误：{}", projectName, e.getMessage());
         }
     }
 
@@ -288,13 +286,13 @@ public ApiResponse<?> getShowcase(@PathVariable String slug) {
             return ApiResponse.error(40000, "会话已结束，无法继续发送消息");
         }
 
-        org.example.atuo_attend_backend.agent.domain.AgentMessage message = sessionService.sendMessage(
+        java.util.Map<String, Object> payload = sessionService.sendMessage(
                 session.getId(),
                 request.getContent(),
                 request.getAttachmentIds()
         );
 
-        return ApiResponse.ok(message);
+        return ApiResponse.ok(payload);
     }
 
     /**

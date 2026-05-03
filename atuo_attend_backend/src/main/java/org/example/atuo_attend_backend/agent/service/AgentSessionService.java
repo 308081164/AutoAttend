@@ -309,13 +309,12 @@ public class AgentSessionService {
     }
 
     /**
-     * 发送消息
+     * 发送消息；返回 userMessage、assistantMessage 供前端直接渲染（历史需在插入本轮 user 之前读取，避免重复一轮且无附件正文）。
      */
     @Transactional(rollbackFor = Exception.class)
-    public AgentMessage sendMessage(Long sessionId, String content, List<Long> attachmentIds) {
+    public Map<String, Object> sendMessage(Long sessionId, String content, List<Long> attachmentIds) {
         log.info("Sending message: sessionId={}", sessionId);
 
-        // 1. 查找并验证会话
         AgentSession session = sessionMapper.findById(sessionId);
         if (session == null) {
             throw new RuntimeException("会话不存在");
@@ -324,7 +323,30 @@ public class AgentSessionService {
             throw new RuntimeException("会话已结束，无法继续发送消息");
         }
 
-        // 2. 保存用户消息
+        long tenantId = session.getTenantId() != null ? session.getTenantId() : 1L;
+
+        // 1. 先处理附件（图片 VL / 文档 Tika），并校验附件属于本会话（record_id = sessionId）
+        StringBuilder attachmentDesc = new StringBuilder();
+        if (attachmentIds != null && !attachmentIds.isEmpty()) {
+            for (Long attachmentId : attachmentIds) {
+                try {
+                    String desc = processAttachment(tenantId, attachmentId, sessionId);
+                    if (desc != null && !desc.isBlank()) {
+                        attachmentDesc.append("\n\n[附件 ").append(attachmentId).append("]\n").append(desc);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to process attachment: id={}", attachmentId, e);
+                }
+            }
+        }
+        if (attachmentIds != null && !attachmentIds.isEmpty() && attachmentDesc.length() == 0) {
+            attachmentDesc.append("\n\n[系统: 用户已上传 ").append(attachmentIds.size())
+                    .append(" 个附件，但未能解析出可读文本（格式不支持、扫描件 PDF、加密或解析失败）。请友好地请用户将关键需求粘贴到对话中。]");
+        }
+
+        // 2. 在写入本轮 user 之前取历史，避免 DeepSeek 收到两条连续 user（第二条才含附件）
+        List<Map<String, String>> historyMessages = getRecentMessages(sessionId, 50);
+
         AgentMessage userMsg = new AgentMessage();
         userMsg.setSessionId(sessionId);
         userMsg.setRole("user");
@@ -332,37 +354,28 @@ public class AgentSessionService {
         userMsg.setContentType("text");
         messageMapper.insert(userMsg);
 
-        // 3. 处理附件（图片用 Qwen VL 理解）
-        StringBuilder attachmentDesc = new StringBuilder();
-        if (attachmentIds != null && !attachmentIds.isEmpty()) {
-            for (Long attachmentId : attachmentIds) {
+        String userContent = content != null ? content : "";
+        String attBlock = attachmentDesc.toString();
+        if (!attBlock.isEmpty()) {
+            if (attBlock.length() > 20000) {
                 try {
-                    String desc = processAttachment(session.getTenantId(), attachmentId);
-                    if (desc != null && !desc.isEmpty()) {
-                        attachmentDesc.append("\n\n[附件描述]: ").append(desc);
-                    }
+                    attBlock = "\n\n[附件内容较长，以下为压缩摘要]\n"
+                            + summarizeLargeDocument(tenantId, attBlock);
                 } catch (Exception e) {
-                    log.warn("Failed to process attachment: id={}", attachmentId, e);
+                    log.warn("Attachment summarize failed, truncating", e);
+                    attBlock = attBlock.substring(0, 20000) + "\n...(已截断)";
                 }
             }
+            userContent += attBlock;
         }
 
-        // 4. 构建上下文
         String systemPrompt = buildSystemPrompt(session);
-        List<Map<String, String>> historyMessages = getRecentMessages(sessionId, 50);
 
-        // 将用户消息加入历史
-        String userContent = content;
-        if (attachmentDesc.length() > 0) {
-            userContent += attachmentDesc.toString();
-        }
-
-        // 5. 调用 DeepSeek
         String assistantReply;
         int inputTokens = 0;
         int outputTokens = 0;
         try {
-            Map<String, Object> usageResult = chatDeepSeek(session.getTenantId(), systemPrompt, historyMessages, userContent, false, 8192);
+            Map<String, Object> usageResult = chatDeepSeek(tenantId, systemPrompt, historyMessages, userContent, false, 8192);
             assistantReply = (String) usageResult.get("content");
             inputTokens = usageResult.get("inputTokens") != null ? ((Number) usageResult.get("inputTokens")).intValue() : 0;
             outputTokens = usageResult.get("outputTokens") != null ? ((Number) usageResult.get("outputTokens")).intValue() : 0;
@@ -371,7 +384,6 @@ public class AgentSessionService {
             assistantReply = "抱歉，我暂时无法回复，请稍后再试。";
         }
 
-        // 6. 保存 assistant 回复
         AgentMessage assistantMsg = new AgentMessage();
         assistantMsg.setSessionId(sessionId);
         assistantMsg.setRole("assistant");
@@ -381,23 +393,24 @@ public class AgentSessionService {
         assistantMsg.setOutputTokens(outputTokens);
         messageMapper.insert(assistantMsg);
 
-        // 7. 更新会话统计
         session.setTotalMessages(session.getTotalMessages() + 2);
         session.setTotalInputTokens(session.getTotalInputTokens() + inputTokens);
         session.setTotalOutputTokens(session.getTotalOutputTokens() + outputTokens);
         sessionMapper.update(session);
 
-        // 8. 记录 token 用量
         try {
-            AiAnalysisConfig dsCfg = requireDeepSeekConfig(session.getTenantId());
+            AiAnalysisConfig dsCfg = requireDeepSeekConfig(tenantId);
             String modelLabel = dsCfg != null && dsCfg.getModel() != null && !dsCfg.getModel().isBlank()
                     ? dsCfg.getModel() : "deepseek-chat";
-            recordTokenUsage(session.getTenantId(), modelLabel, PROVIDER_DEEPSEEK, inputTokens, outputTokens);
+            recordTokenUsage(tenantId, modelLabel, PROVIDER_DEEPSEEK, inputTokens, outputTokens);
         } catch (Exception e) {
             log.warn("Failed to record token usage", e);
         }
 
-        return assistantMsg;
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("userMessage", userMsg);
+        out.put("assistantMessage", assistantMsg);
+        return out;
     }
 
     /**
@@ -629,7 +642,7 @@ public class AgentSessionService {
         if (attachmentIds != null && totalChars < maxChars) {
             for (Long attachmentId : attachmentIds) {
                 try {
-                    String desc = processAttachment(tenantId, attachmentId);
+                    String desc = processAttachment(tenantId, attachmentId, null);
                     if (desc != null && !desc.isEmpty()) {
                         // 大文档（>8000字符）使用 AI 分段摘要
                         if (desc.length() > 8000 && totalChars + 2000 < maxChars) {
@@ -685,20 +698,22 @@ public class AgentSessionService {
     }
 
     /**
-     * 处理单个附件
+     * 处理单个附件。{@code requiredSessionId} 非空时，仅处理 record_id 等于该会话的附件（防止猜测 ID 读取他人文件）。
      */
-    private String processAttachment(long tenantId, Long attachmentId) {
-        // 查询附件信息
+    private String processAttachment(long tenantId, Long attachmentId, Long requiredSessionId) {
         BizAttachment attachment = attachmentMapper.findById(attachmentId);
         if (attachment == null) {
             log.warn("Attachment not found: id={}", attachmentId);
+            return null;
+        }
+        if (requiredSessionId != null && !Objects.equals(attachment.getRecordId(), requiredSessionId)) {
+            log.warn("Attachment {} recordId={} not allowed for session {}", attachmentId, attachment.getRecordId(), requiredSessionId);
             return null;
         }
 
         String fileName = attachment.getFileName();
         String storageKey = attachment.getStorageKey();
 
-        // 如果是图片，调用 Qwen VL 生成描述
         if (isImageFile(fileName)) {
             try {
                 AiAnalysisConfig qCfg = requireQwenConfig(tenantId);
@@ -723,17 +738,23 @@ public class AgentSessionService {
             }
         }
 
-        // 如果是文档，提取文本（模拟）
         if (isDocumentFile(fileName)) {
             try {
-                return extractTextFromDocument(storageKey);
+                String text = extractTextFromDocument(storageKey);
+                if (text == null || text.isBlank()) {
+                    return "《" + (fileName != null ? fileName : "文档") + "》未提取到可读文本（常见于扫描版 PDF、加密或空白文件）。";
+                }
+                if (text.startsWith("[文档附件，文本提取失败")) {
+                    return text;
+                }
+                return text;
             } catch (Exception e) {
                 log.error("Failed to extract text from document: attachmentId={}", attachmentId, e);
                 return "[文档附件，文本提取失败]";
             }
         }
 
-        return "[不支持的附件类型]";
+        return "[不支持的附件类型: " + (fileName != null ? fileName : "") + "]";
     }
 
     /**
@@ -761,7 +782,11 @@ public class AgentSessionService {
                 || lower.endsWith(".doc") || lower.endsWith(".docx")
                 || lower.endsWith(".xls") || lower.endsWith(".xlsx")
                 || lower.endsWith(".ppt") || lower.endsWith(".pptx")
-                || lower.endsWith(".txt");
+                || lower.endsWith(".txt")
+                || lower.endsWith(".md") || lower.endsWith(".markdown")
+                || lower.endsWith(".csv") || lower.endsWith(".json")
+                || lower.endsWith(".html") || lower.endsWith(".htm")
+                || lower.endsWith(".xml") || lower.endsWith(".rtf");
     }
 
     /**
@@ -775,7 +800,11 @@ public class AgentSessionService {
             if (text != null && text.length() > 50000) {
                 text = text.substring(0, 50000) + "\n\n[文档内容过长，已截断前 50000 字符]";
             }
-            return text != null ? text.trim() : "[文档内容为空]";
+            if (text == null) {
+                return "";
+            }
+            text = text.trim();
+            return text.isEmpty() ? "" : text;
         } catch (Exception e) {
             log.error("Failed to extract text from document: storageKey={}", storageKey, e);
             return "[文档附件，文本提取失败: " + e.getMessage() + "]";
@@ -854,6 +883,8 @@ public class AgentSessionService {
         prompt.append("- 每次回复控制在合理长度，避免过长\n");
         prompt.append("- 主动引导对话方向，不要被动等待\n");
         prompt.append("- 对技术细节给出专业建议\n");
+        prompt.append("\n【附件与上传材料】当用户消息末尾出现「[附件」开头的段落、或「从文档提取」的正文时，");
+        prompt.append("必须将其视为用户已提供的材料进行分析、归纳与追问；不得声称「无法读取附件」，除非材料中明确没有任何可读文字。\n");
 
         // 添加项目上下文
         if (session.getProjectContext() != null && !session.getProjectContext().isEmpty()) {
