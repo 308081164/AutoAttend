@@ -774,6 +774,18 @@ export default {
     saveFailed: '保存失败',
     loading: '加载中...'
   },
+  quickQuoteNotify: {
+    title: '来单邮件通知',
+    desc: '当客户通过「快速报价」页面提交询价时，系统将自动发送邮件通知到指定邮箱。需先在平台监测台「系统配置」中配置 SMTP 发信参数。',
+    enabledLabel: '启用来单通知',
+    emailLabel: '通知邮箱',
+    emailPlaceholder: '填写接收通知的邮箱地址',
+    save: '保存',
+    saving: '保存中...',
+    saveSuccess: '保存成功',
+    saveFailed: '保存失败',
+    loading: '加载中...'
+  },
   mailConfig: {
     title: '发信参数',
     desc: '用于项目日报、开发者日报等。SMTP 主机、端口、账号密码请与您的邮箱服务商文档一致；「系统公网地址」用于邮件内链接与退订。',

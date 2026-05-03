@@ -4,6 +4,8 @@ import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.config.SystemConfigService;
+import org.example.atuo_attend_backend.tenant.context.TenantConstants;
+import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -126,6 +128,41 @@ public class AdminConfigController {
         data.put("githubToken", systemConfigService.getGitHubToken());
         data.put("smtpPassword", systemConfigService.getMailSmtpPassword());
         return ApiResponse.ok(data);
+    }
+
+    // ===== 来单邮件通知配置（租户级，租户管理员自行配置） =====
+
+    /**
+     * 获取当前租户的来单通知配置。
+     */
+    @GetMapping("/quick-quote-notify")
+    public ApiResponse<Map<String, Object>> getQuickQuoteNotify() {
+        long tenantId = tenantId();
+        Map<String, Object> data = new HashMap<>();
+        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(tenantId));
+        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(tenantId));
+        return ApiResponse.ok(data);
+    }
+
+    /**
+     * 保存当前租户的来单通知配置。
+     */
+    @PutMapping("/quick-quote-notify")
+    public ApiResponse<Void> putQuickQuoteNotify(@RequestBody Map<String, Object> body) {
+        long tenantId = tenantId();
+        Object enabledObj = body.get("enabled");
+        Object emailObj = body.get("email");
+        if (enabledObj != null) {
+            systemConfigService.setQuickQuoteNotifyEnabled(tenantId, Boolean.TRUE.equals(enabledObj));
+        }
+        if (emailObj != null) {
+            systemConfigService.setQuickQuoteNotifyEmail(tenantId, String.valueOf(emailObj));
+        }
+        return ApiResponse.ok(null);
+    }
+
+    private static long tenantId() {
+        return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
     }
 
     private static String asString(Object v) {

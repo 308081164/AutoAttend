@@ -138,37 +138,6 @@ public class PlatformSettingsController {
         }
     }
 
-    // ===== 来单邮件通知配置（租户级） =====
-
-    /**
-     * 获取指定租户的来单通知配置。
-     * 每个租户可独立配置通知邮箱和开关。
-     */
-    @GetMapping("/tenants/{tenantId}/quick-quote-notify")
-    public ApiResponse<Map<String, Object>> getTenantQuickQuoteNotify(@PathVariable long tenantId) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("enabled", systemConfigService.isQuickQuoteNotifyEnabled(tenantId));
-        data.put("email", systemConfigService.getQuickQuoteNotifyEmail(tenantId));
-        return ApiResponse.ok(data);
-    }
-
-    /**
-     * 保存指定租户的来单通知配置。
-     */
-    @PutMapping("/tenants/{tenantId}/quick-quote-notify")
-    public ApiResponse<Void> putTenantQuickQuoteNotify(@PathVariable long tenantId,
-                                                       @RequestBody Map<String, Object> body) {
-        Object enabledObj = body.get("enabled");
-        Object emailObj = body.get("email");
-        if (enabledObj != null) {
-            systemConfigService.setQuickQuoteNotifyEnabled(tenantId, Boolean.TRUE.equals(enabledObj));
-        }
-        if (emailObj != null) {
-            systemConfigService.setQuickQuoteNotifyEmail(tenantId, String.valueOf(emailObj));
-        }
-        return ApiResponse.ok(null);
-    }
-
     // ===== 团队能力展示配置 =====
 
     @GetMapping("/showcase")

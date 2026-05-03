@@ -393,6 +393,40 @@
       </form>
     </div>
     </section>
+
+    <section class="ai-section" aria-labelledby="quick-quote-notify-heading">
+      <div class="ai-section-head">
+        <h2 id="quick-quote-notify-heading" class="ai-section-title">{{ $t('quickQuoteNotify.title') }}</h2>
+        <p class="ai-section-desc">{{ $t('quickQuoteNotify.desc') }}</p>
+      </div>
+      <div class="config-card ai-section-card">
+        <div v-if="quickQuoteNotifyLoading" class="placeholder small">{{ $t('quickQuoteNotify.loading') }}</div>
+        <template v-else>
+          <form @submit.prevent="saveQuickQuoteNotify">
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="quickQuoteNotifyForm.enabled">
+                <span>{{ $t('quickQuoteNotify.enabledLabel') }}</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="form-label">{{ $t('quickQuoteNotify.emailLabel') }}</label>
+              <input
+                v-model="quickQuoteNotifyForm.email"
+                type="email"
+                autocomplete="off"
+                :placeholder="$t('quickQuoteNotify.emailPlaceholder')"
+                class="form-input"
+              >
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary-button" :disabled="quickQuoteNotifySaving">{{ quickQuoteNotifySaving ? $t('quickQuoteNotify.saving') : $t('quickQuoteNotify.save') }}</button>
+              <span v-if="quickQuoteNotifyMessage" class="save-message" :class="quickQuoteNotifySuccess ? 'success' : 'error'">{{ quickQuoteNotifyMessage }}</span>
+            </div>
+          </form>
+        </template>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -469,7 +503,15 @@ export default {
       exportSubmitting: false,
       exportSubmitError: '',
       exportResultJson: '',
-      exportCopied: false
+      exportCopied: false,
+      quickQuoteNotifyLoading: false,
+      quickQuoteNotifyForm: {
+        enabled: false,
+        email: ''
+      },
+      quickQuoteNotifySaving: false,
+      quickQuoteNotifyMessage: '',
+      quickQuoteNotifySuccess: false
     }
   },
   created () {
@@ -481,6 +523,7 @@ export default {
     this.loadUsageQwen()
     this.loadUsageDaily()
     this.loadUsageQwenDaily()
+    this.loadQuickQuoteNotify()
   },
   mounted () {
     this.$nextTick(() => {
@@ -1032,6 +1075,44 @@ export default {
         this.githubSaveSuccess = false
       } finally {
         this.githubSaving = false
+      }
+    },
+    async loadQuickQuoteNotify () {
+      this.quickQuoteNotifyLoading = true
+      try {
+        const resp = await this.$http.get('/admin/config/quick-quote-notify')
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          this.quickQuoteNotifyForm.enabled = d.enabled === true || d.enabled === 'true' || d.enabled === 1
+          this.quickQuoteNotifyForm.email = d.email || ''
+        }
+      } catch (e) {
+        // 静默
+      } finally {
+        this.quickQuoteNotifyLoading = false
+      }
+    },
+    async saveQuickQuoteNotify () {
+      this.quickQuoteNotifySaving = true
+      this.quickQuoteNotifyMessage = ''
+      try {
+        const payload = {
+          enabled: !!this.quickQuoteNotifyForm.enabled,
+          email: this.quickQuoteNotifyForm.email || ''
+        }
+        const resp = await this.$http.put('/admin/config/quick-quote-notify', payload)
+        if (resp.data && resp.data.code === 0) {
+          this.quickQuoteNotifyMessage = this.$t('quickQuoteNotify.saveSuccess')
+          this.quickQuoteNotifySuccess = true
+        } else {
+          this.quickQuoteNotifyMessage = (resp.data && resp.data.message) || this.$t('quickQuoteNotify.saveFailed')
+          this.quickQuoteNotifySuccess = false
+        }
+      } catch (e) {
+        this.quickQuoteNotifyMessage = (e.response && e.response.data && e.response.data.message) || this.$t('quickQuoteNotify.saveFailed')
+        this.quickQuoteNotifySuccess = false
+      } finally {
+        this.quickQuoteNotifySaving = false
       }
     }
   }
