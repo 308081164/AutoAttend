@@ -38,6 +38,12 @@ public class PenpotRpcClient {
     /** 平台账号：login-with-password 成功后复用 */
     private volatile String platformSessionCookie;
 
+    /** 平台 Cookie 过期时间戳（毫秒），默认 1 小时后过期 */
+    private volatile long platformCookieExpiryMs;
+
+    /** Cookie 有效期：23 小时（Penpot 默认会话时长） */
+    private static final long COOKIE_TTL_MS = 23 * 60 * 60 * 1000L;
+
     /** auto 模式下解析出的路径：new = /api/main/methods，legacy = /api/rpc/command */
     private volatile String autoResolvedRpcKind;
 
@@ -454,18 +460,26 @@ public class PenpotRpcClient {
         if (StringUtils.hasText(props.getAccessToken())) {
             return;
         }
-        if (platformSessionCookie != null) {
+        // 检查 Cookie 是否已过期
+        if (platformSessionCookie != null && !isPlatformCookieExpired()) {
             return;
         }
         synchronized (this) {
-            if (platformSessionCookie != null) {
+            if (platformSessionCookie != null && !isPlatformCookieExpired()) {
                 return;
             }
             if (!StringUtils.hasText(props.getEmail()) || !StringUtils.hasText(props.getPassword())) {
                 throw new IllegalStateException("Penpot 未配置：请设置租户自动开户，或配置 app.penpot.access-token，或同时设置 email 与 password");
             }
             platformSessionCookie = loginFetchAuthCookie(props.getEmail(), props.getPassword());
+            platformCookieExpiryMs = System.currentTimeMillis() + COOKIE_TTL_MS;
+            log.info("Penpot 平台会话已刷新，有效期至 {}", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                    .format(new java.util.Date(platformCookieExpiryMs)));
         }
+    }
+
+    private boolean isPlatformCookieExpired() {
+        return platformCookieExpiryMs > 0 && System.currentTimeMillis() >= platformCookieExpiryMs;
     }
 
     private void applyAuth(HttpHeaders headers, String tenantAccessToken) {

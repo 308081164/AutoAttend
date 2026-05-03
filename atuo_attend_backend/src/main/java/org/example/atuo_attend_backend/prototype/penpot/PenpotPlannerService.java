@@ -51,10 +51,21 @@ public class PenpotPlannerService {
         String raw = null;
         String lastErr = null;
         for (int attempt = 1; attempt <= 3; attempt++) {
-            List<DeepSeekClient.ChatMessage> messages = List.of(
-                    new DeepSeekClient.ChatMessage("system", system),
-                    new DeepSeekClient.ChatMessage("user", user)
-            );
+            // 构建消息列表：首次仅 system+user；重试时追加 assistant+user 对话历史以传递错误反馈
+            List<DeepSeekClient.ChatMessage> messages;
+            if (attempt == 1) {
+                messages = List.of(
+                        new DeepSeekClient.ChatMessage("system", system),
+                        new DeepSeekClient.ChatMessage("user", user)
+                );
+            } else {
+                messages = List.of(
+                        new DeepSeekClient.ChatMessage("system", system),
+                        new DeepSeekClient.ChatMessage("user", user),
+                        new DeepSeekClient.ChatMessage("assistant", raw != null ? raw : ""),
+                        new DeepSeekClient.ChatMessage("user", "上一次 JSON 无效，错误：" + lastErr + "。请严格只输出合法 JSON 对象，不要包含任何 Markdown 代码块围栏。")
+                );
+            }
             DeepSeekClient.ChatResult res = deepSeekClient.chatWithUsage(cfg.getApiKey(), model, messages, true);
             raw = res != null ? res.getContent() : null;
             if (raw == null || raw.isBlank()) {
@@ -66,7 +77,6 @@ public class PenpotPlannerService {
                 return objectMapper.treeToValue(node, PenpotLayoutPlan.class);
             } catch (Exception e) {
                 lastErr = e.getMessage() != null ? e.getMessage() : e.toString();
-                user = user + "\n\n上一次 JSON 无效，错误：" + lastErr + "。请严格只输出合法 JSON 对象。";
             }
         }
         throw new IllegalStateException("布局规划失败：" + (lastErr != null ? lastErr : "未知错误"));

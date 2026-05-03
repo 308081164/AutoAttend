@@ -16,12 +16,14 @@ import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Service
 public class UiPrototypePenpotService {
@@ -37,6 +39,7 @@ public class UiPrototypePenpotService {
     private final UiPrototypeProjectMapper projectMapper;
     private final UiPrototypePenpotJobMapper penpotJobMapper;
     private final TenantPenpotOnboardingService tenantPenpotOnboardingService;
+    private final Executor penpotTaskExecutor;
 
     public UiPrototypePenpotService(PenpotProperties penpotProperties,
                                     PenpotRpcClient penpotRpcClient,
@@ -45,7 +48,9 @@ public class UiPrototypePenpotService {
                                     PenpotFileWriterService fileWriterService,
                                     UiPrototypeProjectMapper projectMapper,
                                     UiPrototypePenpotJobMapper penpotJobMapper,
-                                    TenantPenpotOnboardingService tenantPenpotOnboardingService) {
+                                    TenantPenpotOnboardingService tenantPenpotOnboardingService,
+                                    @Qualifier("penpotTaskExecutor") Executor penpotTaskExecutor) {
+        this.penpotTaskExecutor = penpotTaskExecutor;
         this.penpotProperties = penpotProperties;
         this.penpotRpcClient = penpotRpcClient;
         this.workspaceService = workspaceService;
@@ -127,7 +132,8 @@ public class UiPrototypePenpotService {
         if (jobId == null) {
             throw new IllegalStateException("创建 Penpot 任务失败");
         }
-        CompletableFuture.runAsync(() -> runJobSafe(tenantId, jobId, projectId, p.getName(), prompt, note, tenantCookie));
+        CompletableFuture.runAsync(() -> runJobSafe(tenantId, jobId, projectId, p.getName(), prompt, note, tenantCookie),
+                penpotTaskExecutor);
         return jobId;
     }
 

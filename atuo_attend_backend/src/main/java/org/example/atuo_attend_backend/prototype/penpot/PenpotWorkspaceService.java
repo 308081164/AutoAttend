@@ -65,7 +65,15 @@ public class PenpotWorkspaceService {
         }
         JsonNode teams = rpc.command("get-teams", Map.of(), tenantAccessToken);
         if (!teams.isArray() || teams.isEmpty()) {
-            throw new IllegalStateException("Penpot get-teams 为空：请确认服务账号已加入团队");
+            // 新注册的租户账号可能还没有团队，自动创建默认团队
+            log.warn("Penpot get-teams 为空，将自动创建默认团队");
+            Map<String, Object> body = new HashMap<>();
+            body.put("name", "AutoAttend Team");
+            JsonNode created = rpc.command("create-team", body, tenantAccessToken);
+            if (created.has("id") && !created.get("id").isNull()) {
+                return created.get("id").asText();
+            }
+            throw new IllegalStateException("Penpot 自动创建团队失败，请检查租户账号权限");
         }
         for (JsonNode t : teams) {
             if (t.has("isDefault") && t.get("isDefault").asBoolean()) {

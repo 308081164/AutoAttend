@@ -128,6 +128,13 @@ public class PenpotFileWriterService {
         m.put("y", y);
         m.put("width", w);
         m.put("height", h);
+        // 设置填充色，使矩形在画布中可见
+        if (fillHex != null && !fillHex.isBlank()) {
+            Map<String, Object> fill = new LinkedHashMap<>();
+            fill.put("fillColor", fillHex);
+            fill.put("fillOpacity", 1);
+            m.put("fills", List.of(fill));
+        }
         return m;
     }
 
