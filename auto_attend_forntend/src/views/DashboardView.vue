@@ -40,7 +40,7 @@
               <div v-if="workspacePrefs" class="dash-workspace-prefs">
                 <label class="dash-pref-label">
                   <input type="checkbox" v-model="workspacePrefs.quoteNavVisible" @change="saveWorkspacePrefs" />
-                  侧栏显示「报价系统」（自研团队可关闭以减少打扰）
+                  侧栏显示「商务系统」（自研团队可关闭以减少打扰）
                 </label>
               </div>
             </div>
