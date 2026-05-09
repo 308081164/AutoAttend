@@ -40,7 +40,7 @@ public class OpportunityController {
         body.setId(id);
         body.setTenantId(tid());
         opportunityMapper.update(body);
-        return ApiResponse.ok();
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/{id}")
@@ -80,6 +80,6 @@ public class OpportunityController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable long id) {
         opportunityMapper.deleteById(tid(), id);
-        return ApiResponse.ok();
+        return ApiResponse.ok(null);
     }
 }

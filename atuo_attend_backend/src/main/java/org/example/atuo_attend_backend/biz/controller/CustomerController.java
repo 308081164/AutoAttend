@@ -46,7 +46,7 @@ public class CustomerController {
         body.setId(id);
         body.setTenantId(tid());
         customerMapper.update(body);
-        return ApiResponse.ok();
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/{id}")
@@ -81,7 +81,7 @@ public class CustomerController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable long id) {
         customerMapper.deleteById(tid(), id);
-        return ApiResponse.ok();
+        return ApiResponse.ok(null);
     }
 
     // ---- 跟进记录 ----
