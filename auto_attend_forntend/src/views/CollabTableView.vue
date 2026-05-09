@@ -1109,6 +1109,12 @@ import { compressImageFile, IMAGE_COMPRESS_PRESETS, shouldCompressAsRasterImage 
 import { buildWordCloudItems } from '@/utils/collabDashboardText'
 import { redirectCollabUnauthorized } from '@/utils/httpAuth'
 import { subscribeAuthSession } from '@/utils/authSession'
+import {
+  getCollabAttachmentPreviewUrl,
+  rememberCollabAttachmentPreview,
+  invalidateCollabAttachmentPreview,
+  clearCollabAttachmentPreviewCache
+} from '@/utils/collabAttachmentPreviewCache'
 import DashboardView from './DashboardView.vue'
 
 ChartJS.register(...registerables)
@@ -1293,11 +1299,10 @@ export default {
     clientBoardPublicUrl () {
       return this.getClientBoardPublicUrl()
     },
+    /** 与后端筛选一致：仅 text / single_select（存 value_text，SQL 可按文本匹配） */
     filterableColumns () {
-      const allowed = this.tablePurpose === 'feature_backlog'
-        ? ['重要程度', '开发进度']
-        : ['重要程度', '当前状态', '验收结果']
-      return Array.isArray(this.columns) ? this.columns.filter(c => allowed.includes(c.name)) : []
+      const ok = new Set(['single_select', 'text'])
+      return Array.isArray(this.columns) ? this.columns.filter(c => ok.has(c.columnType)) : []
     },
     /** 仅管理员 JWT 存在时调用 /admin/* 配置接口；纯成员会话无此 token，避免 401 触发全局登出 */
     hasAdminSession () {
@@ -1377,6 +1382,7 @@ export default {
     this.detachStatusPickerScrollClose()
     this.closeImagePreview()
     this.revokeListAttachmentPreviewUrls()
+    clearCollabAttachmentPreviewCache()
     this.destroyDashboardCharts()
   },
   methods: {
@@ -2586,7 +2592,14 @@ export default {
           const resp = await this.$http.get(`/collab/projects/${this.projectId}/records`, {
             params: { ...baseParams, page, pageSize }
           })
-          if (!resp.data || resp.data.code !== 0) break
+          if (!resp.data || resp.data.code !== 0) {
+            if (page === 1) {
+              const msg = (resp.data && resp.data.message) || ''
+              if (msg) alert(msg)
+              return
+            }
+            break
+          }
           const data = resp.data.data || {}
           const batch = Array.isArray(data.items) ? data.items : []
           all.push(...batch)
@@ -2671,9 +2684,6 @@ export default {
       return list.find(a => a.id === id || a.id === attachmentId)
     },
     revokeListAttachmentPreviewUrls () {
-      Object.values(this.listAttachmentPreviewUrls).forEach(u => {
-        try { URL.revokeObjectURL(u) } catch (_e) { /* ignore */ }
-      })
       this.listAttachmentPreviewUrls = {}
       this.recordAttachmentsMap = {}
     },
@@ -2694,13 +2704,20 @@ export default {
             for (const a of resp.data.data.items) {
               if (!a.isImage) continue
               try {
+                const cached = getCollabAttachmentPreviewUrl(a.id)
+                if (cached) {
+                  this.$set(this.listAttachmentPreviewUrls, a.id, cached)
+                  continue
+                }
                 const r = await fetch(base + '/collab/attachments/' + a.id + '/preview', {
                   headers: { Authorization: 'Bearer ' + token }
                 })
                 if (r.ok) {
                   const blob = await r.blob()
                   if (blob.type && blob.type.startsWith('image/')) {
-                    this.$set(this.listAttachmentPreviewUrls, a.id, URL.createObjectURL(blob))
+                    const url = URL.createObjectURL(blob)
+                    rememberCollabAttachmentPreview(a.id, url)
+                    this.$set(this.listAttachmentPreviewUrls, a.id, url)
                   }
                 }
               } catch (e) { /* ignore */ }
@@ -2797,9 +2814,6 @@ export default {
       }).catch(() => {})
     },
     revokeAttachmentPreviewUrls () {
-      Object.values(this.attachmentPreviewUrls).forEach(u => {
-        try { URL.revokeObjectURL(u) } catch (_e) { /* revoke may throw in edge cases */ }
-      })
       this.attachmentPreviewUrls = {}
     },
     isTextLike (col) {
@@ -3196,13 +3210,20 @@ export default {
           for (const a of this.attachments) {
             if (!a.isImage) continue
             try {
+              const cached = getCollabAttachmentPreviewUrl(a.id)
+              if (cached) {
+                this.$set(this.attachmentPreviewUrls, a.id, cached)
+                continue
+              }
               const r = await fetch(base + '/collab/attachments/' + a.id + '/preview', {
                 headers: { Authorization: 'Bearer ' + token }
               })
               if (r.ok) {
                 const blob = await r.blob()
                 if (blob.type && blob.type.startsWith('image/')) {
-                  this.$set(this.attachmentPreviewUrls, a.id, URL.createObjectURL(blob))
+                  const url = URL.createObjectURL(blob)
+                  rememberCollabAttachmentPreview(a.id, url)
+                  this.$set(this.attachmentPreviewUrls, a.id, url)
                 }
               }
             } catch (e) { /* ignore */ }
@@ -3272,6 +3293,7 @@ export default {
       if (!window.confirm(this.$t('collabTable.confirmDeleteAttachment') || '确定删除该附件吗？')) return
       try {
         await this.$http.delete(`/collab/attachments/${a.id}`)
+        invalidateCollabAttachmentPreview(a.id)
       } catch (e) { /* ignore */ }
       this.loadAttachments()
     },

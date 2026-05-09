@@ -171,7 +171,8 @@ public class CollabRecordService {
         }
 
         Set<String> allowedOps = Set.of("eq", "ne", "contains", "not_contains", "empty", "not_empty");
-        Set<String> allowedColNames = Set.of("重要程度", "当前状态", "验收结果");
+        /** 与 {@link BizRecordMapper} 中按 value_text 匹配一致：仅允许存于 value_text 的列类型 */
+        Set<String> filterableColumnTypes = Set.of("single_select", "text");
 
         List<CollabRecordFilterRule> out = new ArrayList<>();
         for (CollabRecordFilterRule r : rules) {
@@ -181,7 +182,10 @@ public class CollabRecordService {
 
             BizTableColumn col = colMap.get(r.getColumnId());
             if (col == null) throw new IllegalArgumentException("filters.columnId 不存在");
-            if (!allowedColNames.contains(col.getName())) throw new IllegalArgumentException("本版本仅支持筛选重要程度/当前状态/验收结果");
+            String ct = col.getColumnType() == null ? "" : col.getColumnType();
+            if (!filterableColumnTypes.contains(ct)) {
+                throw new IllegalArgumentException("该列类型不支持筛选（仅支持单选、文本）");
+            }
 
             String op = r.getOp();
             if (!"empty".equals(op) && !"not_empty".equals(op)) {
