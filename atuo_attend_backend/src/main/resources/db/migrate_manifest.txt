@@ -62,3 +62,4 @@ schema_nexus_drop_icp_site_migration.sql
 schema_lab_feedback_migration.sql
 schema_agent_attachment_independent_migration.sql
 schema_biz_crm_migration.sql
+schema_xianyu_guard_migration.sql

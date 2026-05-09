@@ -104,9 +104,21 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">工作台</span>
               </router-link>
-              <router-link v-if="quoteNavVisible" to="/quote" class="nav-item" :class="{ 'is-active': isNavActive('/quote') }" @click.native="onNavClick">
+              <router-link v-if="quoteNavVisible" to="/quote" class="nav-item" :class="{ 'is-active': isQuoteHubActive }" @click.native="onNavClick">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">商务系统</span>
+              </router-link>
+              <router-link v-if="quoteNavVisible" to="/quote/biz-dashboard" class="nav-item nav-item--indent" :class="{ 'is-active': $route.path === '/quote/biz-dashboard' }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">数据看板</span>
+              </router-link>
+              <router-link v-if="quoteNavVisible" to="/quote/customers" class="nav-item nav-item--indent" :class="{ 'is-active': isBizCustomersNavActive }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">客户管理</span>
+              </router-link>
+              <router-link v-if="quoteNavVisible" to="/quote/opportunities" class="nav-item nav-item--indent" :class="{ 'is-active': $route.path === '/quote/opportunities' }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">商机看板</span>
               </router-link>
               <router-link to="/collab/projects" class="nav-item" :class="{ 'is-active': isNavActive('/collab/projects') }" @click.native="onNavClick">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></span>
@@ -149,6 +161,10 @@
               <router-link to="/lab" class="nav-item" :class="{ 'is-active': isNavActive('/lab') }" @click.native="onNavClick">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">增效实验室</span>
+              </router-link>
+              <router-link to="/xianyu" class="nav-item" :class="{ 'is-active': isNavActive('/xianyu') }" @click.native="onNavClick">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="2" y="2" width="20" height="20" rx="4"/><path d="M8 12h8M12 8v8"/></svg></span>
+                <span class="nav-label" v-show="!sidebarCollapsed">咸鱼值守</span>
               </router-link>
             </div>
             </template>
@@ -275,17 +291,30 @@ export default {
     bareLayout () {
       return !!(this.$route.meta && this.$route.meta.bareLayout)
     },
+    isQuoteHubActive () {
+      const p = this.$route.path
+      if (p === '/quote' || p === '/quote/new' || p === '/quote/solution-wizard') return true
+      return /^\/quote\/\d+$/.test(p)
+    },
+    isBizCustomersNavActive () {
+      const p = this.$route.path
+      return p === '/quote/customers' || /^\/quote\/customers\/[^/]+$/.test(p)
+    },
     currentPageName () {
       const path = this.$route.path
       if (path === '/cloud-dev') {
         return this.$t('cloudDev.navTitle')
       }
+      if (/^\/quote\/customers\/[^/]+$/.test(path)) {
+        return '客户详情'
+      }
+      if (path === '/quote' || path === '/quote/new' || path === '/quote/solution-wizard' || /^\/quote\/\d+$/.test(path)) {
+        return '商务系统'
+      }
       const map = {
         '/console': '工作台',
-        '/quote': '商务系统',
         '/quote/config': '商务配置',
         '/quote/customers': '客户管理',
-        '/quote/customers/': '客户详情',
         '/quote/opportunities': '商机看板',
         '/quote/biz-dashboard': '商务数据',
         '/collab/projects': this.memberLayout ? this.$t('app.sidebarProjects') : '项目管理',
@@ -296,7 +325,8 @@ export default {
         '/prototype': '快原型',
         '/nexus': '快捷运维',
         '/lab': this.memberLayout ? this.$t('app.sidebarLab') : '增效实验室',
-        '/member': this.$t('memberHome.title')
+        '/member': this.$t('memberHome.title'),
+        '/xianyu': '咸鱼值守'
       }
       for (const [prefix, name] of Object.entries(map)) {
         if (path === prefix || path.startsWith(prefix + '/')) return name
@@ -693,6 +723,15 @@ body {
   background: transparent;
   font-family: inherit;
   text-align: left;
+}
+
+.nav-item--indent {
+  padding-left: 40px;
+  font-size: 13px;
+}
+
+.app-sidebar.is-collapsed .nav-item--indent {
+  padding-left: 0;
 }
 
 .app-sidebar.is-collapsed .nav-item {

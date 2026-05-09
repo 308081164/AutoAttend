@@ -80,6 +80,15 @@
             </select>
           </label>
         </div>
+        <label class="block">关联客户</label>
+        <select
+          class="inp inp--customer"
+          :value="form.customerId != null ? String(form.customerId) : ''"
+          @change="onCustomerLinkChange"
+        >
+          <option value="">不关联</option>
+          <option v-for="c in customerOptions" :key="c.id" :value="String(c.id)">{{ c.name }}{{ c.company ? ' · ' + c.company : '' }}</option>
+        </select>
         <label class="block">{{ $t('quote.prdSummary') }}</label>
         <textarea v-model="form.prdSummary" class="textarea" rows="4" placeholder="PRD 或需求摘要，有助于提高置信度"></textarea>
       </section>
@@ -1167,6 +1176,7 @@ export default {
         deployType: 'cloud',
         status: 'draft',
         linkTableId: null,
+        customerId: null,
         prdSummary: '',
         quoteSubjectMode: 'legal_entity',
         quoteVendorName: '',
@@ -1206,6 +1216,8 @@ export default {
       contractOk: false,
       /** 仅启用项，供「从预设添加」下拉（在「报价配置」页维护） */
       presetItems: [],
+      /** CRM 客户下拉（商务 Phase A） */
+      customerOptions: [],
       restoringCalcPrefs: false,
       restoringProject: false,
       lastAutoSavedSnapshot: '',
@@ -1585,6 +1597,22 @@ export default {
         this.partyBProfile = {}
       }
     },
+    async loadCustomerOptions () {
+      try {
+        const resp = await this.$http.get('/admin/biz/customers', { params: { page: 1, pageSize: 500 } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.customerOptions = resp.data.data.items || []
+        } else {
+          this.customerOptions = []
+        }
+      } catch (e) {
+        this.customerOptions = []
+      }
+    },
+    onCustomerLinkChange (e) {
+      const v = (e && e.target && e.target.value) || ''
+      this.form.customerId = v === '' ? null : Number(v)
+    },
     onPartyBProfileSaved () {
       this.loadPartyBProfile()
     },
@@ -1711,6 +1739,7 @@ export default {
         if (r3.data && r3.data.code === 0) this.applyPresetPickerPayload(r3.data.data)
         else this.presetItems = []
         await this.loadPartyBProfile()
+        await this.loadCustomerOptions()
         if (this.isNew) {
           this.projectId = null
           const q = this.$route.query || {}
@@ -1720,6 +1749,7 @@ export default {
             id: null,
             name: '',
             prdSummary: '',
+            customerId: null,
             quoteSubjectMode: 'legal_entity',
             quoteVendorName: '',
             quoteContactInfo: '',
@@ -1776,6 +1806,7 @@ export default {
             this.form.deployType = d.deployType || 'cloud'
             this.form.status = d.status || 'draft'
             this.form.linkTableId = d.linkTableId
+            this.form.customerId = d.customerId != null ? Number(d.customerId) : null
             this.form.prdSummary = d.prdSummary || ''
             this.aiRequirementPersistedText = d.aiRequirementText || ''
             this.aiRequirementText = this.aiMergeMode === 'append' ? '' : (this.aiRequirementPersistedText || '')
@@ -2216,6 +2247,7 @@ export default {
         deployType: this.form.deployType,
         status: this.form.status,
         linkTableId: this.form.linkTableId,
+        customerId: this.form.customerId != null ? this.form.customerId : null,
         prdSummary: this.form.prdSummary,
         aiRequirementText: this.aiMergeMode === 'append' ? (this.aiRequirementPersistedText || '') : (this.aiRequirementText || ''),
         quoteSubjectMode: this.form.quoteSubjectMode || 'legal_entity',
@@ -3908,6 +3940,12 @@ label.block {
 }
 .inp.num {
   max-width: 120px;
+}
+.inp--customer {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: var(--space-md);
 }
 .block-inp {
   width: 100%;

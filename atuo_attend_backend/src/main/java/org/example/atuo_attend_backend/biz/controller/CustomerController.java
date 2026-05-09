@@ -5,12 +5,16 @@ import org.example.atuo_attend_backend.biz.domain.CustomerFollowup;
 import org.example.atuo_attend_backend.biz.mapper.CustomerFollowupMapper;
 import org.example.atuo_attend_backend.biz.mapper.CustomerMapper;
 import org.example.atuo_attend_backend.common.ApiResponse;
+import org.example.atuo_attend_backend.quote.domain.QuoteProject;
+import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
 import org.example.atuo_attend_backend.tenant.context.TenantConstants;
 import org.example.atuo_attend_backend.tenant.context.TenantContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,10 +24,13 @@ public class CustomerController {
 
     private final CustomerMapper customerMapper;
     private final CustomerFollowupMapper followupMapper;
+    private final QuoteProjectMapper quoteProjectMapper;
 
-    public CustomerController(CustomerMapper customerMapper, CustomerFollowupMapper followupMapper) {
+    public CustomerController(CustomerMapper customerMapper, CustomerFollowupMapper followupMapper,
+                              QuoteProjectMapper quoteProjectMapper) {
         this.customerMapper = customerMapper;
         this.followupMapper = followupMapper;
+        this.quoteProjectMapper = quoteProjectMapper;
     }
 
     private static long tid() {
@@ -53,6 +60,25 @@ public class CustomerController {
     public ApiResponse<Customer> get(@PathVariable long id) {
         Customer c = customerMapper.findById(tid(), id);
         return c != null ? ApiResponse.ok(c) : ApiResponse.error(404, "客户不存在");
+    }
+
+    /** 该客户关联的报价项目（用于客户详情「报价历史」） */
+    @GetMapping("/{customerId}/quote-projects")
+    public ApiResponse<List<Map<String, Object>>> listQuoteProjects(@PathVariable long customerId) {
+        if (customerMapper.findById(tid(), customerId) == null) {
+            return ApiResponse.error(404, "客户不存在");
+        }
+        List<QuoteProject> list = quoteProjectMapper.listByCustomerId(tid(), customerId);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (QuoteProject p : list) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", p.getId());
+            m.put("name", p.getName());
+            m.put("status", p.getStatus());
+            m.put("updatedAt", p.getUpdatedAt());
+            rows.add(m);
+        }
+        return ApiResponse.ok(rows);
     }
 
     @GetMapping

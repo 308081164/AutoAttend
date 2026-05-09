@@ -15,6 +15,8 @@ public class QuoteProjectSaveDto {
     private String deployType;
     private String status;
     private Long linkTableId;
+    /** 关联客户 ID，可为 null 表示不关联 */
+    private Long customerId;
     private String prdSummary;
     private String aiRequirementText;
     /** 可选：报价计算偏好，与 PATCH calc-prefs 结构一致 */
@@ -53,6 +55,8 @@ public class QuoteProjectSaveDto {
     public void setStatus(String status) { this.status = status; }
     public Long getLinkTableId() { return linkTableId; }
     public void setLinkTableId(Long linkTableId) { this.linkTableId = linkTableId; }
+    public Long getCustomerId() { return customerId; }
+    public void setCustomerId(Long customerId) { this.customerId = customerId; }
     public String getPrdSummary() { return prdSummary; }
     public void setPrdSummary(String prdSummary) { this.prdSummary = prdSummary; }
     public String getAiRequirementText() { return aiRequirementText; }

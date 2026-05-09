@@ -15,6 +15,8 @@ public class QuoteProject {
     private String deployType;
     private String status;
     private Long linkTableId;
+    /** 关联 CRM 客户（aa_customer.id） */
+    private Long customerId;
     private String prdSummary;
     /** AI 智能录入原文（用户可回显编辑；也用于快原型信息库补充） */
     private String aiRequirementText;
@@ -73,6 +75,8 @@ public class QuoteProject {
     public void setStatus(String status) { this.status = status; }
     public Long getLinkTableId() { return linkTableId; }
     public void setLinkTableId(Long linkTableId) { this.linkTableId = linkTableId; }
+    public Long getCustomerId() { return customerId; }
+    public void setCustomerId(Long customerId) { this.customerId = customerId; }
     public String getPrdSummary() { return prdSummary; }
     public void setPrdSummary(String prdSummary) { this.prdSummary = prdSummary; }
     public String getAiRequirementText() { return aiRequirementText; }

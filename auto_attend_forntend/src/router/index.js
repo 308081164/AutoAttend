@@ -30,6 +30,11 @@ import ClientBoardView from '../views/ClientBoardView.vue'
 import AgentChatView from '../views/AgentChatView.vue'
 import QuickQuoteLanding from '../views/QuickQuoteLanding.vue'
 import SubscriptionBillingView from '../views/SubscriptionBillingView.vue'
+import XianyuGuardView from '../views/XianyuGuardView.vue'
+import BizDashboardView from '../views/BizDashboardView.vue'
+import BizCustomersView from '../views/BizCustomersView.vue'
+import BizCustomerDetailView from '../views/BizCustomerDetailView.vue'
+import BizOpportunitiesView from '../views/BizOpportunitiesView.vue'
 import MarketplaceListView from '../views/MarketplaceListView.vue'
 import MarketplaceDetailView from '../views/MarketplaceDetailView.vue'
 import MarketplaceMineView from '../views/MarketplaceMineView.vue'
@@ -153,6 +158,26 @@ const routes = [
     component: QuoteSolutionWizardView
   },
   {
+    path: '/quote/biz-dashboard',
+    name: 'biz-dashboard',
+    component: BizDashboardView
+  },
+  {
+    path: '/quote/customers',
+    name: 'biz-customers',
+    component: BizCustomersView
+  },
+  {
+    path: '/quote/customers/:id',
+    name: 'biz-customer-detail',
+    component: BizCustomerDetailView
+  },
+  {
+    path: '/quote/opportunities',
+    name: 'biz-opportunities',
+    component: BizOpportunitiesView
+  },
+  {
     path: '/quote/:id',
     name: 'quote-project',
     component: QuoteProjectView
@@ -227,6 +252,11 @@ const routes = [
     name: 'quick-quote-landing',
     component: QuickQuoteLanding,
     meta: { public: true, bareLayout: true }
+  },
+  {
+    path: '/xianyu',
+    name: 'xianyu-guard',
+    component: XianyuGuardView
   }
 ]
 
@@ -255,7 +285,8 @@ router.beforeEach(async (to, from, next) => {
       p.startsWith('/prototype') ||
       p.startsWith('/marketplace') ||
       p.startsWith('/nexus') ||
-      p.startsWith('/tenant-admins')
+      p.startsWith('/tenant-admins') ||
+      p.startsWith('/xianyu')
     ) {
       next({ name: 'member-home' })
       return

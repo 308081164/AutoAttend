@@ -12,6 +12,7 @@ import org.example.atuo_attend_backend.ai.client.DeepSeekClient;
 import org.example.atuo_attend_backend.ai.domain.AiAnalysisConfig;
 import org.example.atuo_attend_backend.ai.service.AiAnalysisConfigService;
 import org.example.atuo_attend_backend.config.SystemConfigService;
+import org.example.atuo_attend_backend.biz.mapper.CustomerMapper;
 import org.example.atuo_attend_backend.quote.domain.*;
 import org.example.atuo_attend_backend.quote.dto.*;
 import org.example.atuo_attend_backend.quote.mapper.*;
@@ -50,6 +51,7 @@ public class QuoteService {
     private final DeepSeekClient deepSeekClient;
     private final SystemConfigService systemConfigService;
     private final TenantResourceQuotaService tenantResourceQuotaService;
+    private final CustomerMapper customerMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
     /** 模型偶发在字符串内输出未转义控制字符时，尽量放宽解析（仍须为合法 JSON 结构）。 */
     private final ObjectMapper lenientJsonMapper = new ObjectMapper(
@@ -65,7 +67,8 @@ public class QuoteService {
                         QuotePresetItemMapper presetItemMapper,
                         AiAnalysisConfigService aiConfigService, DeepSeekClient deepSeekClient,
                         SystemConfigService systemConfigService,
-                        TenantResourceQuotaService tenantResourceQuotaService) {
+                        TenantResourceQuotaService tenantResourceQuotaService,
+                        CustomerMapper customerMapper) {
         this.projectMapper = projectMapper;
         this.moduleMapper = moduleMapper;
         this.itemMapper = itemMapper;
@@ -80,16 +83,27 @@ public class QuoteService {
         this.deepSeekClient = deepSeekClient;
         this.systemConfigService = systemConfigService;
         this.tenantResourceQuotaService = tenantResourceQuotaService;
+        this.customerMapper = customerMapper;
     }
 
     private static long tid() {
         return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
     }
 
+    private void assertCustomerBelongsToTenant(Long customerId) {
+        if (customerId == null) {
+            return;
+        }
+        if (customerMapper.findById(tid(), customerId) == null) {
+            throw new IllegalArgumentException("客户不存在或不属于当前租户");
+        }
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public long createProject(QuoteProjectSaveDto dto) {
         tenantResourceQuotaService.assertCanCreateQuoteProject(tid());
         QuoteProject p = toProject(dto);
+        assertCustomerBelongsToTenant(p.getCustomerId());
         if (p.getName() == null || p.getName().isBlank()) throw new IllegalArgumentException("项目名称不能为空");
         if (p.getStatus() == null) p.setStatus("draft");
         if (p.getQuoteSubjectMode() == null) {
@@ -111,6 +125,7 @@ public class QuoteService {
         QuoteProject p = toProject(dto);
         p.setId(id);
         p.setTenantId(tid());
+        assertCustomerBelongsToTenant(p.getCustomerId());
         if (dto.getQuoteCalcPrefs() == null) {
             p.setQuoteCalcPrefsJson(existing.getQuoteCalcPrefsJson());
         }
@@ -161,6 +176,7 @@ public class QuoteService {
         p.setDeployType(nvl(dto.getDeployType(), "cloud"));
         p.setStatus(nvl(dto.getStatus(), "draft"));
         p.setLinkTableId(dto.getLinkTableId());
+        p.setCustomerId(dto.getCustomerId());
         p.setPrdSummary(dto.getPrdSummary());
         p.setAiRequirementText(dto.getAiRequirementText());
         p.setQuoteVendorName(trimToNull(dto.getQuoteVendorName()));
@@ -943,6 +959,7 @@ public class QuoteService {
         m.put("deployType", p.getDeployType());
         m.put("status", p.getStatus());
         m.put("linkTableId", p.getLinkTableId());
+        m.put("customerId", p.getCustomerId());
         m.put("prdSummary", p.getPrdSummary());
         m.put("aiRequirementText", p.getAiRequirementText());
         m.put("quoteVendorName", p.getQuoteVendorName());

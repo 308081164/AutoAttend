@@ -10,6 +10,12 @@
         <router-link to="/quote/new" class="primary-button">新建 · 单体项目报价</router-link>
         <router-link to="/quote/solution-wizard" class="primary-button primary-button--alt">新建 · 解决方案级报价</router-link>
       </div>
+      <div class="head-actions head-actions-biz">
+        <router-link to="/quote/biz-dashboard" class="secondary-button">数据看板</router-link>
+        <router-link to="/quote/customers" class="secondary-button">客户管理</router-link>
+        <router-link to="/quote/opportunities" class="secondary-button">商机看板</router-link>
+        <router-link to="/xianyu" class="secondary-button">咸鱼值守</router-link>
+      </div>
       <!-- 团队专属 Agent 链接 -->
       <div v-if="quickQuoteSlug" class="quick-quote-box">
         <div class="quick-quote-info">
@@ -245,6 +251,13 @@ export default {
   gap: 10px;
   align-items: center;
 }
+.head-actions-biz {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
 .primary-button--alt {
   background: linear-gradient(135deg, #0d9488, #0f766e);
   border: none;
@@ -475,7 +488,8 @@ export default {
   }
 
   .head-actions-split .secondary-button,
-  .head-actions-split .primary-button {
+  .head-actions-split .primary-button,
+  .head-actions-biz .secondary-button {
     width: 100%;
     text-align: center;
     font-size: var(--font-size-sm);

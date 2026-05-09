@@ -10,10 +10,10 @@ public interface QuoteProjectMapper {
 
     @Insert("""
             INSERT INTO biz_quote_project (tenant_id, name, project_type, tech_stack, design_type, data_migration,
-                concurrency, security_level, deploy_type, status, link_table_id, prd_summary, quote_calc_prefs_json, quote_contract_context_json,
+                concurrency, security_level, deploy_type, status, link_table_id, customer_id, prd_summary, quote_calc_prefs_json, quote_contract_context_json,
                 ai_requirement_text, quote_vendor_name, quote_contact_info, quote_validity_note, quote_subject_mode, quote_kind)
             VALUES (#{tenantId}, #{name}, #{projectType}, #{techStack}, #{designType}, #{dataMigration},
-                #{concurrency}, #{securityLevel}, #{deployType}, #{status}, #{linkTableId}, #{prdSummary}, #{quoteCalcPrefsJson}, #{quoteContractContextJson},
+                #{concurrency}, #{securityLevel}, #{deployType}, #{status}, #{linkTableId}, #{customerId}, #{prdSummary}, #{quoteCalcPrefsJson}, #{quoteContractContextJson},
                 #{aiRequirementText}, #{quoteVendorName}, #{quoteContactInfo}, #{quoteValidityNote}, #{quoteSubjectMode}, #{quoteKind})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -23,7 +23,7 @@ public interface QuoteProjectMapper {
             UPDATE biz_quote_project SET name=#{name}, project_type=#{projectType}, tech_stack=#{techStack},
                 design_type=#{designType}, data_migration=#{dataMigration}, concurrency=#{concurrency},
                 security_level=#{securityLevel}, deploy_type=#{deployType}, status=#{status},
-                link_table_id=#{linkTableId}, prd_summary=#{prdSummary}, quote_calc_prefs_json=#{quoteCalcPrefsJson},
+                link_table_id=#{linkTableId}, customer_id=#{customerId}, prd_summary=#{prdSummary}, quote_calc_prefs_json=#{quoteCalcPrefsJson},
                 quote_contract_context_json=#{quoteContractContextJson},
                 ai_requirement_text=#{aiRequirementText},
                 quote_vendor_name=#{quoteVendorName}, quote_contact_info=#{quoteContactInfo}, quote_validity_note=#{quoteValidityNote},
@@ -35,7 +35,7 @@ public interface QuoteProjectMapper {
 
     @Select("SELECT id, tenant_id AS tenantId, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
             "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
-            "status, link_table_id AS linkTableId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
+            "status, link_table_id AS linkTableId, customer_id AS customerId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
             "quote_contract_context_json AS quoteContractContextJson, " +
             "ai_requirement_text AS aiRequirementText, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
@@ -50,7 +50,7 @@ public interface QuoteProjectMapper {
 
     @Select("SELECT id, tenant_id AS tenantId, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
             "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
-            "status, link_table_id AS linkTableId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
+            "status, link_table_id AS linkTableId, customer_id AS customerId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
             "quote_contract_context_json AS quoteContractContextJson, " +
             "ai_requirement_text AS aiRequirementText, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
@@ -62,6 +62,21 @@ public interface QuoteProjectMapper {
             "created_at AS createdAt, updated_at AS updatedAt " +
             "FROM biz_quote_project WHERE tenant_id = #{tenantId} ORDER BY updated_at DESC LIMIT #{limit} OFFSET #{offset}")
     List<QuoteProject> listPaged(@Param("tenantId") long tenantId, @Param("offset") int offset, @Param("limit") int limit);
+
+    @Select("SELECT id, tenant_id AS tenantId, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
+            "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
+            "status, link_table_id AS linkTableId, customer_id AS customerId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
+            "quote_contract_context_json AS quoteContractContextJson, " +
+            "ai_requirement_text AS aiRequirementText, " +
+            "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
+            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, " +
+            "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
+            "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
+            "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
+            "provision_synced_to_collab AS provisionSyncedToCollab, provision_synced_at AS provisionSyncedAt, " +
+            "created_at AS createdAt, updated_at AS updatedAt " +
+            "FROM biz_quote_project WHERE tenant_id = #{tenantId} AND customer_id = #{customerId} ORDER BY updated_at DESC")
+    List<QuoteProject> listByCustomerId(@Param("tenantId") long tenantId, @Param("customerId") long customerId);
 
     @Update("""
             UPDATE biz_quote_project
