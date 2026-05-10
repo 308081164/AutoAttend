@@ -60,43 +60,35 @@
         <ul class="portal-items" id="portal-items" aria-label="快捷链接"></ul>
       </div>
 
-      <!-- L1：项目摘要（含简介 / 开发者 / 技术栈） -->
-      <div class="l1-band l1-band--single">
-        <article class="summary-card summary-card--rich">
-          <h2 class="summary-card__title">项目摘要</h2>
-          <dl class="summary-card__grid">
-            <div><dt>仓库</dt><dd id="summary-repo">—</dd></div>
-            <div><dt>分支</dt><dd id="summary-branch">—</dd></div>
-            <div><dt>阶段</dt><dd id="summary-phase">—</dd></div>
-            <div><dt>负责人</dt><dd id="summary-owner">—</dd></div>
-            <div><dt>创建时间</dt><dd id="summary-created">—</dd></div>
-          </dl>
-          <div class="summary-card__block">
-            <h3 class="summary-card__subheading">简介</h3>
-            <p class="summary-card__intro" id="summary-intro">—</p>
-          </div>
-          <div class="summary-card__block summary-card__block--split">
-            <div>
-              <h3 class="summary-card__subheading">开发者</h3>
-              <ul class="summary-card__tags" id="summary-developers"></ul>
+      <!-- 项目摘要（50%）+ 每日总结/风险轮播（50%）同排 -->
+      <div class="dashboard-split">
+        <div class="dashboard-split__summary">
+          <article class="summary-card summary-card--rich">
+            <h2 class="summary-card__title">项目摘要</h2>
+            <dl class="summary-card__grid">
+              <div><dt>仓库</dt><dd id="summary-repo">—</dd></div>
+              <div><dt>分支</dt><dd id="summary-branch">—</dd></div>
+              <div><dt>阶段</dt><dd id="summary-phase">—</dd></div>
+              <div><dt>负责人</dt><dd id="summary-owner">—</dd></div>
+              <div><dt>创建时间</dt><dd id="summary-created">—</dd></div>
+            </dl>
+            <div class="summary-card__block">
+              <h3 class="summary-card__subheading">简介</h3>
+              <p class="summary-card__intro" id="summary-intro">—</p>
             </div>
-            <div>
-              <h3 class="summary-card__subheading">技术栈</h3>
-              <ul class="summary-card__tags summary-card__tags--mono" id="summary-tech"></ul>
+            <div class="summary-card__block summary-card__block--split">
+              <div>
+                <h3 class="summary-card__subheading">开发者</h3>
+                <ul class="summary-card__tags" id="summary-developers"></ul>
+              </div>
+              <div>
+                <h3 class="summary-card__subheading">技术栈</h3>
+                <ul class="summary-card__tags summary-card__tags--mono" id="summary-tech"></ul>
+              </div>
             </div>
-          </div>
-        </article>
-      </div>
-
-      <!-- L2 KPI -->
-      <section class="l2-kpi" aria-label="关键指标">
-        <h2 class="l2-kpi__heading">关键指标</h2>
-        <div class="kpi-row" id="kpi-row"></div>
-      </section>
-
-      <!-- L3：每日总结与风险轮播（同区） + 控制台看板纵向堆叠，避免宽屏双栏错位 -->
-      <div class="l3-wrap">
-        <section class="spotlight-card" aria-roledescription="carousel" aria-label="每日总结与风险与阻塞">
+          </article>
+        </div>
+        <section class="spotlight-card dashboard-split__spotlight" aria-roledescription="carousel" aria-label="每日总结与风险与阻塞">
           <div class="spotlight-card__head">
             <h2 class="spotlight-card__title" id="spotlight-heading">每日总结</h2>
             <div class="spotlight-card__actions">
@@ -111,6 +103,16 @@
             <span class="spotlight-card__pause-hint" id="spotlight-pause-hint">悬停暂停</span>
           </div>
         </section>
+      </div>
+
+      <!-- L2 KPI -->
+      <section class="l2-kpi" aria-label="关键指标">
+        <h2 class="l2-kpi__heading">关键指标</h2>
+        <div class="kpi-row" id="kpi-row"></div>
+      </section>
+
+      <!-- L3：控制台看板单独通栏 -->
+      <div class="l3-wrap">
         <aside class="embed-board" aria-label="内嵌数据看板占位">
           <div class="embed-board__head">
             <h3 class="embed-board__title">控制台数据看板</h3>

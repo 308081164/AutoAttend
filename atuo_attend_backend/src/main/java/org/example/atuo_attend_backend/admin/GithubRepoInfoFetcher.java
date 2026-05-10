@@ -67,6 +67,7 @@ public class GithubRepoInfoFetcher {
             out.put("fullName", repo.get("full_name"));
             out.put("description", repo.get("description"));
             out.put("htmlUrl", repo.get("html_url"));
+            out.put("defaultBranch", repo.get("default_branch"));
 
             Map<String, Long> languages = fetchLanguages(repoFullName.trim(), headers);
             out.put("languages", languages != null ? languages : Collections.emptyMap());

@@ -40,13 +40,44 @@
       </p>
     </aside>
     <div class="collab-table-main">
-    <div class="table-header">
+    <template v-if="showHomeDashboard">
+      <div class="collab-home-chrome">
+        <header class="collab-home-topbar" aria-label="project">
+          <div class="collab-home-topbar-inner">
+            <div class="collab-home-topbar-row-main">
+              <div class="collab-home-brand">
+                <span class="collab-home-brand-mark" aria-hidden="true">◇</span>
+                <div class="collab-home-brand-texts">
+                  <div class="collab-home-title">{{ (projectName || '').trim() || $t('collabTable.sidebarHomeBoard') }}</div>
+                  <div class="collab-home-subtitle">{{ homeHeaderSubtitle }}</div>
+                </div>
+              </div>
+              <div class="collab-home-topbar-actions">
+                <span class="collab-home-env-pill">{{ $t('collabTable.homePhaseValue') }}</span>
+                <button type="button" class="secondary-button small" :disabled="homeDashboardRefreshing" @click="refreshHomeDashboard">
+                  {{ homeDashboardRefreshing ? '…' : $t('collabTable.homeRefresh') }}
+                </button>
+              </div>
+            </div>
+            <div class="collab-home-topbar-row-sub">
+              <div class="collab-home-session" aria-label="session">
+                <div class="collab-home-avatar" aria-hidden="true">{{ homeUserInitial }}</div>
+                <div class="collab-home-session-meta">
+                  <div class="collab-home-session-name">{{ (currentUser && currentUser.name) ? currentUser.name : '—' }}</div>
+                  <div class="collab-home-session-hint">{{ hasAdminSession ? $t('collabTable.homeSessionAdmin') : $t('collabTable.homeSessionMember') }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+      </div>
+    </template>
+    <div v-else class="table-header">
       <div class="header-left">
         <div class="title-block">
           <div class="title-row">
             <h2 class="table-title">{{ pageTableTitle }}</h2>
             <button
-              v-if="!showHomeDashboard"
               type="button"
               class="secondary-button filter-title-button"
               @click="openFilterModal"
@@ -55,7 +86,7 @@
               {{ $t('collabTable.filter') }}<span v-if="activeFilters && activeFilters.length">({{ activeFilters.length }})</span>
             </button>
           </div>
-          <div v-if="!showHomeDashboard && activeFilters && activeFilters.length" class="active-filter-chips">
+          <div v-if="activeFilters && activeFilters.length" class="active-filter-chips">
             <span v-for="(f, idx) in activeFilters" :key="'af-' + idx" class="filter-chip">
               <span class="filter-chip-text">{{ formatActiveFilterLabel(f) }}</span>
               <button
@@ -69,7 +100,7 @@
           </div>
         </div>
       </div>
-      <div class="header-actions" v-if="!showHomeDashboard">
+      <div class="header-actions">
         <button
           v-if="tablePurpose === 'issue_tracking'"
           type="button"
@@ -114,6 +145,94 @@
             <span v-if="!portalLinks.length" class="home-portal-empty">{{ $t('collabTable.homeBoardPortalEmpty') }}</span>
           </div>
         </section>
+
+        <div class="collab-dashboard-split">
+          <div class="collab-dashboard-split__summary">
+            <article class="home-surface home-summary-rich" aria-label="summary">
+              <h3 class="home-summary-rich__title">{{ $t('collabTable.homeProjectSummary') }}</h3>
+              <dl class="home-summary-rich__grid">
+                <div><dt>{{ $t('collabTable.homeRepo') }}</dt><dd>{{ projectRepoId || '—' }}</dd></div>
+                <div><dt>{{ $t('collabTable.homeBranch') }}</dt><dd>{{ homeRepoDefaultBranch || '—' }}</dd></div>
+                <div><dt>{{ $t('collabTable.homePhase') }}</dt><dd>{{ $t('collabTable.homePhaseValue') }}</dd></div>
+                <div><dt>{{ $t('collabTable.homeOwner') }}</dt><dd>{{ homeProjectOwnerLabel }}</dd></div>
+                <div><dt>{{ $t('collabTable.homeCreated') }}</dt><dd>{{ formatProjectCreatedAt }}</dd></div>
+              </dl>
+              <div class="home-summary-rich__block">
+                <h4 class="home-summary-rich__sub">{{ $t('collabTable.homeIntro') }}</h4>
+                <p class="home-summary-rich__intro">{{ (projectDescription || '').trim() || $t('collabTable.homeIntroEmpty') }}</p>
+              </div>
+              <div class="home-summary-rich__block home-summary-rich__block--split">
+                <div>
+                  <h4 class="home-summary-rich__sub">{{ $t('collabTable.homeDevelopers') }}</h4>
+                  <ul v-if="projectMembers.length" class="home-summary-rich__tags">
+                    <li v-for="m in projectMembers" :key="'dev-' + m.userId">{{ m.name || m.email || ('#' + m.userId) }}</li>
+                  </ul>
+                  <p v-else class="text-muted small">{{ $t('collabTable.homeNoDevelopers') }}</p>
+                </div>
+                <div>
+                  <h4 class="home-summary-rich__sub">{{ $t('collabTable.homeTechStack') }}</h4>
+                  <ul v-if="homeTechStack.length" class="home-summary-rich__tags home-summary-rich__tags--mono">
+                    <li v-for="(t, ti) in homeTechStack" :key="'ts-' + ti">{{ t }}</li>
+                  </ul>
+                  <p v-else class="text-muted small">{{ $t('collabTable.homeTechStackEmpty') }}</p>
+                </div>
+              </div>
+            </article>
+          </div>
+          <section
+            class="home-surface home-spotlight-card"
+            aria-roledescription="carousel"
+            aria-label="spotlight"
+            @mouseenter="pauseHomeSpotlight"
+            @mouseleave="resumeHomeSpotlight"
+          >
+            <div class="home-spotlight-head">
+              <h3 class="home-spotlight-title">{{ homeSpotlightHeading }}</h3>
+              <div class="home-spotlight-actions">
+                <button
+                  v-if="homeOlderDailySummaries.length > 0 && homeSpotlightIndex === 1"
+                  type="button"
+                  class="secondary-button small"
+                  @click="homeDailyMoreOpen = true"
+                >{{ $t('collabTable.homeDailyMore') }}</button>
+              </div>
+            </div>
+            <div class="home-spotlight-viewport">
+              <div v-show="homeSpotlightIndex === 0" class="home-spotlight-slide" role="group">
+                <div class="home-spotlight-eyebrow">{{ $t('collabTable.homeSpotlightRisks') }}（{{ $t('collabTable.homeSpotlightRiskCount', { n: homeSpotlightRiskItems.length }) }}）</div>
+                <ul v-if="homeSpotlightRiskItems.length" class="home-spotlight-risk-list">
+                  <li v-for="(r, ri) in homeSpotlightRiskItems" :key="'risk-' + ri">
+                    <span class="home-risk-dot" :class="'home-risk-dot--' + (r.level || 'med')" aria-hidden="true"></span>
+                    <span>{{ r.text }}</span>
+                  </li>
+                </ul>
+                <p v-else class="text-muted small home-spotlight-empty">{{ $t('collabTable.homeSpotlightNoRisks') }}</p>
+              </div>
+              <div v-show="homeHasDailySlide && homeSpotlightIndex === 1" class="home-spotlight-slide" role="group">
+                <template v-if="homeLatestDailySummary">
+                  <div class="home-spotlight-eyebrow">{{ $t('collabTable.homeSpotlightDaily') }} · {{ formatDailySummaryDate(homeLatestDailySummary.summaryDate) }}</div>
+                  <h4 class="home-spotlight-daily-title">{{ homeLatestDailySummary.title || '—' }}</h4>
+                  <p v-if="homeDailySummariesLoading" class="text-muted small">{{ $t('collabTable.homeDailyLoading') }}</p>
+                  <p v-else-if="homeLatestDailySummary.commitCount != null" class="home-spotlight-daily-meta text-muted small">commits: {{ homeLatestDailySummary.commitCount }}</p>
+                </template>
+              </div>
+            </div>
+            <div v-if="homeSpotlightPageCount > 1" class="home-spotlight-footer">
+              <div class="home-spotlight-dots" role="tablist">
+                <button
+                  v-for="p in homeSpotlightPageCount"
+                  :key="'dot-' + p"
+                  type="button"
+                  class="home-spotlight-dotbtn"
+                  :class="{ active: homeSpotlightIndex === p - 1 }"
+                  :aria-label="'page ' + p"
+                  @click="goHomeSpotlight(p - 1)"
+                />
+              </div>
+              <span class="text-muted small">{{ $t('collabTable.homeSpotlightPauseHint') }}</span>
+            </div>
+          </section>
+        </div>
 
         <section class="home-surface home-settings-surface" aria-label="settings">
           <div class="home-settings-bar">
@@ -223,6 +342,7 @@
           <template v-else>
             <p class="text-muted small" style="margin-bottom:10px">
               开启后生成独立网页链接，客户无需登录即可查看（内容由下方选项控制）。AI 录入使用企业「API 配置」中的通义 Key，费用由配置方承担。
+              {{ $t('collabTable.clientBoardPortalAutoHint') }}
             </p>
             <div class="form-row">
               <label class="checkbox-label">
@@ -1029,6 +1149,28 @@
     </div>
     </div>
 
+    <!-- 历史每日总结（首页轮播「更多」） -->
+    <div v-if="homeDailyMoreOpen" class="drawer-mask" @click.self="homeDailyMoreOpen = false">
+      <div class="drawer drawer-wide" @click.stop>
+        <div class="drawer-header">
+          <h3>{{ $t('collabTable.homeDailyMoreTitle') }}</h3>
+          <button type="button" class="close-btn" @click="homeDailyMoreOpen = false">×</button>
+        </div>
+        <div class="drawer-body">
+          <p class="text-muted small">{{ $t('collabTable.homeDailyMoreDesc') }}</p>
+          <ul class="home-daily-more-list">
+            <li v-for="(row, idx) in homeOlderDailySummaries" :key="'hdm-' + idx + '-' + (row.id != null ? row.id : idx)">
+              <div class="home-daily-more-date">{{ formatDailySummaryDate(row.summaryDate) }}</div>
+              <div class="home-daily-more-title">{{ row.title || '—' }}</div>
+            </li>
+          </ul>
+          <div class="drawer-actions">
+            <button type="button" class="primary-button" @click="homeDailyMoreOpen = false">{{ $t('collabTable.homeDailyMoreClose') }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 图片在线预览（字段 / 附件 / 列表缩略图） -->
     <div v-if="imagePreviewOpen" class="image-preview-backdrop" @click.self="closeImagePreview">
       <div class="image-preview-modal" @click.stop>
@@ -1256,10 +1398,34 @@ export default {
         showFeatureBacklog: false,
         showAiTableEntry: false,
         aiPurpose: 'issue_tracking'
-      }
+      },
+
+      /** 首页看板：项目简介、日报、仓库语言、轮播 */
+      projectDescription: '',
+      projectCreatedAt: null,
+      homeTechStack: [],
+      homeRepoDefaultBranch: '',
+      homeDailySummaryItems: [],
+      homeDailySummariesLoading: false,
+      homeDashboardRefreshing: false,
+      homeSpotlightIndex: 0,
+      homeSpotlightPaused: false,
+      homeSpotlightTimer: null,
+      homeDailyMoreOpen: false
     }
   },
   watch: {
+    showHomeDashboard (v) {
+      if (v) {
+        this.homeSpotlightIndex = 0
+        this.$nextTick(() => {
+          this.loadHomeDashboardExtras()
+          this.startHomeSpotlightTimer()
+        })
+      } else {
+        this.stopHomeSpotlightTimer()
+      }
+    },
     '$route.query.purpose' () {
       this.syncPurposeFromRoute()
       this.loadTable()
@@ -1272,6 +1438,70 @@ export default {
     }
   },
   computed: {
+    homeHeaderSubtitle () {
+      const r = (this.projectRepoId || '').trim()
+      return r || this.$t('collabTable.homeMergedSubtitle')
+    },
+    homeUserInitial () {
+      const n = (this.currentUser && this.currentUser.name) ? String(this.currentUser.name).trim() : ''
+      return n ? n.charAt(0).toUpperCase() : '?'
+    },
+    formatProjectCreatedAt () {
+      return this.formatTime(this.projectCreatedAt) || '—'
+    },
+    homeProjectOwnerLabel () {
+      const items = this.projectMembers || []
+      const pref = items.find(m => {
+        const role = String(m.role || '').toLowerCase()
+        return role === 'owner' || role === 'admin'
+      })
+      if (pref) return (pref.name || pref.email || '').trim() || '—'
+      if (items.length) return (items[0].name || items[0].email || '').trim() || '—'
+      return '—'
+    },
+    homeLatestDailySummary () {
+      const items = this.homeDailySummaryItems || []
+      return items.length ? items[0] : null
+    },
+    homeOlderDailySummaries () {
+      return (this.homeDailySummaryItems || []).slice(1)
+    },
+    homeHasDailySlide () {
+      return this.homeLatestDailySummary != null
+    },
+    homeSpotlightPageCount () {
+      return this.homeHasDailySlide ? 2 : 1
+    },
+    homeSpotlightHeading () {
+      return this.homeSpotlightIndex === 0
+        ? this.$t('collabTable.homeSpotlightRisks')
+        : this.$t('collabTable.homeSpotlightDaily')
+    },
+    homeSpotlightRiskItems () {
+      if (!this.showHomeDashboard || !Array.isArray(this.columns) || !this.columns.length) return []
+      if (!Array.isArray(this.records) || !this.records.length) return []
+      const by = (n) => this.columns.find(c => (c.name || '').trim() === n)
+      const problemCol = by('问题描述')
+      const impCol = by('重要程度')
+      const statusCol = by('当前状态')
+      if (!problemCol) return []
+      const out = []
+      for (const row of this.records) {
+        const imp = impCol ? String(this.formatCell(row['c' + impCol.id], impCol) || '') : ''
+        const st = statusCol ? String(this.formatCell(row['c' + statusCol.id], statusCol) || '') : ''
+        const pr = this.formatCell(row['c' + problemCol.id], problemCol)
+        const text = (pr != null && String(pr).trim()) ? String(pr).trim() : ('#' + row.id)
+        const urgent = /严重|紧急|阻塞/.test(imp) || /阻塞|风险/.test(st)
+        const follow = (/阶段性|优先|待办/.test(imp) && /开发中|测试中|修复|已创建/.test(st))
+        if (!urgent && !follow) continue
+        let level = 'med'
+        if (/严重|紧急/.test(imp) || /阻塞/.test(st)) level = 'high'
+        else if (/等待|下一阶段|排期/.test(imp)) level = 'low'
+        out.push({ level, text: text.length > 160 ? text.slice(0, 157) + '…' : text })
+        if (out.length >= 12) break
+      }
+      return out
+    },
     dashboardAvgResolveHasData () {
       const s = this.avgResolveSeries
       if (!s || !Array.isArray(s.avgs)) return false
@@ -1345,7 +1575,12 @@ export default {
   created () {
     this.projectId = Number(this.$route.params.projectId)
     this.syncPurposeFromRoute()
-    this.loadProjectSummary()
+    this.loadProjectSummary().then(() => {
+      if (this.showHomeDashboard) {
+        this.loadHomeDashboardExtras()
+        this.$nextTick(() => this.startHomeSpotlightTimer())
+      }
+    })
     this.loadTable()
     this.loadRecords()
     this.loadProjectMembers()
@@ -1355,6 +1590,7 @@ export default {
     }
     this.loadPortalLinks()
     this.loadClientBoard()
+    this.loadCollabMe()
   },
   mounted () {
     this._unsubAuthSession = subscribeAuthSession(() => {
@@ -1377,8 +1613,115 @@ export default {
     this.revokeListAttachmentPreviewUrls()
     clearCollabAttachmentPreviewCache()
     this.destroyDashboardCharts()
+    this.stopHomeSpotlightTimer()
   },
   methods: {
+    formatDailySummaryDate (d) {
+      if (d == null) return ''
+      return String(d).slice(0, 10)
+    },
+    async loadCollabMe () {
+      try {
+        const meResp = await this.$http.get('/collab/auth/me')
+        if (meResp.data && meResp.data.code === 0 && meResp.data.data) {
+          this.currentUser = meResp.data.data
+        }
+      } catch (e) {
+        this.currentUser = null
+      }
+    },
+    async loadHomeDashboardExtras () {
+      if (!this.showHomeDashboard || !this.projectId) return
+      await Promise.all([this.loadHomeDailySummaries(), this.loadHomeRepoTech()])
+    },
+    async refreshHomeDashboard () {
+      this.homeDashboardRefreshing = true
+      try {
+        await Promise.all([
+          this.loadProjectSummary(),
+          this.loadPortalLinks(),
+          this.loadHomeDashboardExtras(),
+          this.loadRecords(),
+          this.loadProjectMembers()
+        ])
+      } finally {
+        this.homeDashboardRefreshing = false
+      }
+    },
+    async loadHomeDailySummaries () {
+      if (!this.projectId || !(this.projectRepoId || '').trim()) {
+        this.homeDailySummaryItems = []
+        return
+      }
+      this.homeDailySummariesLoading = true
+      try {
+        const resp = await this.$http.get(`/collab/data-board/projects/${this.projectId}/ai-analysis/daily-summaries`, {
+          params: { repoFullName: this.projectRepoId.trim(), page: 1, pageSize: 40 }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data && Array.isArray(resp.data.data.items)) {
+          this.homeDailySummaryItems = resp.data.data.items
+        } else {
+          this.homeDailySummaryItems = []
+        }
+      } catch (e) {
+        this.homeDailySummaryItems = []
+      } finally {
+        this.homeDailySummariesLoading = false
+      }
+      if (this.homeSpotlightPageCount < 2 && this.homeSpotlightIndex > 0) {
+        this.homeSpotlightIndex = 0
+      }
+      this.$nextTick(() => this.startHomeSpotlightTimer())
+    },
+    async loadHomeRepoTech () {
+      this.homeTechStack = []
+      this.homeRepoDefaultBranch = ''
+      if (!this.projectId || !(this.projectRepoId || '').trim()) return
+      try {
+        const resp = await this.$http.get(`/collab/data-board/projects/${this.projectId}/stats/repo-info`, {
+          params: { repoFullName: this.projectRepoId.trim() }
+        })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          const d = resp.data.data
+          if (d.defaultBranch) this.homeRepoDefaultBranch = String(d.defaultBranch)
+          const langs = d.languages
+          if (langs && typeof langs === 'object') {
+            this.homeTechStack = Object.entries(langs)
+              .sort((a, b) => Number(b[1]) - Number(a[1]))
+              .slice(0, 12)
+              .map(([k]) => k)
+          }
+        }
+      } catch (e) {
+        this.homeTechStack = []
+      }
+    },
+    startHomeSpotlightTimer () {
+      this.stopHomeSpotlightTimer()
+      if (this.homeSpotlightPageCount < 2) return
+      this.homeSpotlightTimer = window.setInterval(() => {
+        if (this.homeSpotlightPaused) return
+        this.homeSpotlightIndex = (this.homeSpotlightIndex + 1) % this.homeSpotlightPageCount
+      }, 5500)
+    },
+    stopHomeSpotlightTimer () {
+      if (this.homeSpotlightTimer != null) {
+        window.clearInterval(this.homeSpotlightTimer)
+        this.homeSpotlightTimer = null
+      }
+    },
+    goHomeSpotlight (i) {
+      const n = this.homeSpotlightPageCount
+      this.homeSpotlightIndex = ((Number(i) % n) + n) % n
+      this.stopHomeSpotlightTimer()
+      this.startHomeSpotlightTimer()
+    },
+    pauseHomeSpotlight () {
+      this.homeSpotlightPaused = true
+    },
+    resumeHomeSpotlight () {
+      this.homeSpotlightPaused = false
+    },
     syncPurposeFromRoute () {
       const p = this.$route.query.purpose
       this.showDashboard = false
@@ -1562,6 +1905,7 @@ export default {
           this.clientBoardToken = d.publicToken || ''
           this.clientBoardMessageOk = true
           this.clientBoardMessage = '已保存'
+          await this.loadPortalLinks()
         } else {
           this.clientBoardMessageOk = false
           this.clientBoardMessage = (resp.data && resp.data.message) || '保存失败'
@@ -1591,6 +1935,7 @@ export default {
           this.clientBoardToken = resp.data.data.publicToken || ''
           this.clientBoardMessageOk = true
           this.clientBoardMessage = '已重新生成令牌'
+          await this.loadPortalLinks()
         } else {
           this.clientBoardMessageOk = false
           this.clientBoardMessage = (resp.data && resp.data.message) || '操作失败'
@@ -2409,8 +2754,11 @@ export default {
       try {
         const resp = await this.$http.get(`/collab/projects/${this.projectId}`)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
-          this.projectName = resp.data.data.name != null ? String(resp.data.data.name) : ''
-          this.projectRepoId = resp.data.data.repoId != null ? String(resp.data.data.repoId) : ''
+          const d = resp.data.data
+          this.projectName = d.name != null ? String(d.name) : ''
+          this.projectRepoId = d.repoId != null ? String(d.repoId) : ''
+          this.projectDescription = d.description != null ? String(d.description) : ''
+          this.projectCreatedAt = d.createdAt != null ? d.createdAt : null
         }
       } catch (e) {
         if (e.response && e.response.status === 401) redirectCollabUnauthorized(this.$router)
@@ -4980,6 +5328,371 @@ export default {
   border: 1px solid var(--border-primary);
   background: var(--bg-page);
   padding: var(--space-sm) var(--space-md) var(--space-md);
+}
+
+/* 首页：合并顶栏 + 摘要/轮播 50-50 */
+.collab-home-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-primary);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  margin-bottom: var(--space-md, 12px);
+}
+
+.collab-home-topbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 16px 12px;
+}
+
+.collab-home-topbar-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.collab-home-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.collab-home-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(20, 86, 240, 0.1);
+  color: var(--brand-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.collab-home-title {
+  font-weight: var(--font-weight-semibold);
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.collab-home-subtitle {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  word-break: break-all;
+}
+
+.collab-home-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.collab-home-env-pill {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  color: var(--text-tertiary);
+  background: var(--bg-page);
+}
+
+.collab-home-topbar-row-sub {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.collab-home-session {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.collab-home-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(20, 86, 240, 0.1);
+  color: var(--brand-blue);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.collab-home-session-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: 15px;
+}
+
+.collab-home-session-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.collab-dashboard-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .collab-dashboard-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.collab-dashboard-split__summary,
+.collab-dashboard-split .home-spotlight-card {
+  min-width: 0;
+}
+
+.home-summary-rich {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-summary-rich__title {
+  margin: 0 0 var(--space-sm);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.home-summary-rich__grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.home-summary-rich__grid dt {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.home-summary-rich__grid dd {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.home-summary-rich__block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.home-summary-rich__block--split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .home-summary-rich__block--split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-summary-rich__sub {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-summary-rich__intro {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-summary-rich__tags {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.home-summary-rich__tags li {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-page);
+}
+
+.home-summary-rich__tags--mono li {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.home-spotlight-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.home-spotlight-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.home-spotlight-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.home-spotlight-viewport {
+  flex: 1;
+  min-height: 100px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-page);
+  padding: 12px 14px;
+}
+
+.home-spotlight-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-blue);
+  margin-bottom: 8px;
+}
+
+.home-spotlight-daily-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+}
+
+.home-spotlight-risk-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-spotlight-risk-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.home-risk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.home-risk-dot--high {
+  background: #ef4444;
+}
+
+.home-risk-dot--med {
+  background: #f59e0b;
+}
+
+.home-risk-dot--low {
+  background: #94a3b8;
+}
+
+.home-spotlight-empty {
+  margin: 0;
+}
+
+.home-spotlight-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.home-spotlight-dotbtn {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--border-primary);
+  cursor: pointer;
+}
+
+.home-spotlight-dotbtn.active {
+  background: var(--brand-blue);
+  transform: scale(1.15);
+}
+
+.home-daily-more-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow: auto;
+}
+
+.home-daily-more-list li {
+  padding: 10px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-page);
+}
+
+.home-daily-more-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-blue);
+}
+
+.home-daily-more-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 4px;
 }
 
 /* ===================== Mail Notify / Config Panels ===================== */

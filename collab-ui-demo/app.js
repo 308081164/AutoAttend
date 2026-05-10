@@ -35,6 +35,23 @@
     set('summary-phase', p.phase)
     set('summary-owner', p.owner)
     set('summary-created', p.createdAt)
+
+    const introEl = document.getElementById('summary-intro')
+    if (introEl) introEl.textContent = p.intro || '—'
+
+    const devUl = document.getElementById('summary-developers')
+    if (devUl) {
+      devUl.innerHTML = Array.isArray(p.developers)
+        ? p.developers.map((d) => `<li>${esc(d)}</li>`).join('')
+        : '<li>—</li>'
+    }
+
+    const techUl = document.getElementById('summary-tech')
+    if (techUl) {
+      techUl.innerHTML = Array.isArray(p.techStack)
+        ? p.techStack.map((t) => `<li>${esc(t)}</li>`).join('')
+        : '<li>—</li>'
+    }
   }
 
   function initKpis() {
@@ -65,19 +82,189 @@
       .join('')
   }
 
-  function initDaily() {
-    const wrap = document.getElementById('daily-scroll')
-    if (!wrap || !Array.isArray(D.dailySummaries)) return
-    wrap.innerHTML = D.dailySummaries
-      .map(
-        (d) => `
-      <article class="daily-card">
-        <div class="daily-card__date">${esc(d.date)}</div>
-        <h3 class="daily-card__title">${esc(d.title)}</h3>
-        <p class="daily-card__summary">${esc(d.summary)}</p>
-      </article>`
-      )
+  function initSpotlightCarousel() {
+    const dailies = [...(D.dailySummaries || [])].sort((a, b) =>
+      String(b.date || '').localeCompare(String(a.date || ''))
+    )
+    const latest = dailies[0]
+    const olderDailies = dailies.slice(1)
+    const risks = D.risks || []
+    /** 固定两页逻辑：第 1 页汇总全部风险，第 2 页仅最新每日总结（若数据缺失则只显示有内容的一页） */
+    const slides = []
+    if (risks.length > 0) slides.push({ type: 'risk', data: risks })
+    if (latest) slides.push({ type: 'daily', data: latest })
+
+    const track = document.getElementById('spotlight-track')
+    const dotsWrap = document.getElementById('spotlight-dots')
+    const heading = document.getElementById('spotlight-heading')
+    const moreBtn = document.getElementById('btn-daily-more')
+    const viewport = document.getElementById('spotlight-viewport')
+    const cardRoot = viewport ? viewport.closest('.spotlight-card') : null
+    const footerEl = cardRoot ? cardRoot.querySelector('.spotlight-card__footer') : null
+
+    if (moreBtn) {
+      moreBtn.hidden = olderDailies.length === 0
+    }
+
+    if (!track) return
+
+    if (slides.length === 0) {
+      track.innerHTML =
+        '<div class="spotlight-slide spotlight-slide--daily is-active"><p class="spotlight-slide__body">暂无每日总结与风险数据。</p></div>'
+      if (dotsWrap) dotsWrap.innerHTML = ''
+      if (footerEl) footerEl.classList.add('is-collapsed')
+      return
+    }
+
+    if (footerEl) {
+      footerEl.classList.toggle('is-collapsed', slides.length < 2)
+    }
+
+    function dotClass(level) {
+      if (level === 'high') return 'high'
+      if (level === 'low') return 'low'
+      return 'med'
+    }
+
+    track.innerHTML = slides
+      .map(function (s, i) {
+        if (s.type === 'daily') {
+          const d = s.data
+          return `<div class="spotlight-slide spotlight-slide--daily${i === 0 ? ' is-active' : ''}" data-index="${i}" role="group" aria-roledescription="slide">
+        <div class="spotlight-slide__eyebrow">每日总结 · ${esc(d.date)}</div>
+        <h3 class="spotlight-slide__title">${esc(d.title)}</h3>
+        <p class="spotlight-slide__body">${esc(d.summary)}</p>
+      </div>`
+        }
+        const list = (s.data || [])
+          .map(function (r) {
+            const dc = dotClass(r.level)
+            return `<li><span class="risk-card__dot risk-card__dot--${dc}" aria-hidden="true"></span><span>${esc(r.text)}</span></li>`
+          })
+          .join('')
+        return `<div class="spotlight-slide spotlight-slide--risk${i === 0 ? ' is-active' : ''}" data-index="${i}" role="group" aria-roledescription="slide">
+        <div class="spotlight-slide__eyebrow">风险与阻塞（${s.data.length} 项）</div>
+        <ul class="spotlight-risk-list">${list}</ul>
+      </div>`
+      })
       .join('')
+
+    const slideEls = track.querySelectorAll('.spotlight-slide')
+    let current = 0
+    let timer = null
+
+    function setHeading() {
+      if (!heading) return
+      const s = slides[current]
+      heading.textContent = s && s.type === 'risk' ? '风险与阻塞' : '每日总结'
+      if (moreBtn) {
+        moreBtn.hidden = olderDailies.length === 0 || (s && s.type === 'risk')
+      }
+    }
+
+    function showSlide(i) {
+      current = (i + slides.length) % slides.length
+      slideEls.forEach(function (el, j) {
+        el.classList.toggle('is-active', j === current)
+      })
+      if (dotsWrap) {
+        dotsWrap.querySelectorAll('.spotlight-card__dot').forEach(function (dot, j) {
+          dot.classList.toggle('is-active', j === current)
+          dot.setAttribute('aria-selected', j === current ? 'true' : 'false')
+        })
+      }
+      setHeading()
+    }
+
+    if (dotsWrap) {
+      dotsWrap.innerHTML = slides
+        .map(function (_, i) {
+          return `<button type="button" class="spotlight-card__dot${i === 0 ? ' is-active' : ''}" data-go="${i}" role="tab" aria-label="第 ${i + 1} 页" aria-selected="${i === 0 ? 'true' : 'false'}"></button>`
+        })
+        .join('')
+      dotsWrap.querySelectorAll('.spotlight-card__dot').forEach(function (dot) {
+        dot.addEventListener('click', function () {
+          const go = parseInt(dot.getAttribute('data-go'), 10)
+          if (!Number.isNaN(go)) {
+            showSlide(go)
+            restartTimer()
+          }
+        })
+      })
+    }
+
+    function startTimer() {
+      stopTimer()
+      if (slides.length < 2) return
+      timer = window.setInterval(function () {
+        showSlide(current + 1)
+      }, 5500)
+    }
+
+    function stopTimer() {
+      if (timer != null) {
+        window.clearInterval(timer)
+        timer = null
+      }
+    }
+
+    function restartTimer() {
+      startTimer()
+    }
+
+    if (cardRoot) {
+      cardRoot.addEventListener('mouseenter', stopTimer)
+      cardRoot.addEventListener('mouseleave', startTimer)
+    }
+
+    startTimer()
+    setHeading()
+
+    const listEl = document.getElementById('daily-more-list')
+    const modal = document.getElementById('daily-more-modal')
+    const closeBtn = document.getElementById('daily-more-close')
+
+    if (listEl && olderDailies.length) {
+      listEl.innerHTML = olderDailies
+        .map(function (d) {
+          return `<li>
+          <div class="daily-more-list__date">${esc(d.date)}</div>
+          <div class="daily-more-list__title">${esc(d.title)}</div>
+          <p class="daily-more-list__summary">${esc(d.summary)}</p>
+        </li>`
+        })
+        .join('')
+    } else if (listEl) {
+      listEl.innerHTML = '<li><p class="daily-more-list__summary">无更早记录。</p></li>'
+    }
+
+    function openDailyMore() {
+      if (modal) {
+        modal.classList.add('is-open')
+        modal.setAttribute('aria-hidden', 'false')
+      }
+    }
+
+    function closeDailyMore() {
+      if (modal) {
+        modal.classList.remove('is-open')
+        modal.setAttribute('aria-hidden', 'true')
+      }
+    }
+
+    if (moreBtn) moreBtn.addEventListener('click', openDailyMore)
+    if (closeBtn) closeBtn.addEventListener('click', closeDailyMore)
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeDailyMore()
+      })
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) {
+        closeDailyMore()
+      }
+    })
   }
 
   function initEmbedDashboard() {
@@ -378,7 +565,7 @@
     initSummary()
     initKpis()
     initPortalItems()
-    initDaily()
+    initSpotlightCarousel()
     initEmbedDashboard()
     initIssueTable()
     initFeatureTable()
