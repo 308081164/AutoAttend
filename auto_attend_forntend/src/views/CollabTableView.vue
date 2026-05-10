@@ -174,7 +174,7 @@
       </article>
       <article class="home-setting-card mail-notify-panel">
         <div class="mail-notify-head">
-          <div class="mail-notify-title">提交联动任务状态更新（AI）</div>
+          <div class="mail-notify-title">提交与多维表联动（AI）</div>
           <button type="button" class="secondary-button small" @click="toggleAiLinkageOpen">
             {{ aiLinkageOpen ? '收起' : '配置' }}
           </button>
@@ -183,29 +183,23 @@
           <div v-if="aiLinkageLoading" class="text-muted small">加载中…</div>
           <template v-else>
             <div class="form-row">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="aiLinkageForm.enabled">
-                <span>启用提交联动任务状态更新</span>
-              </label>
-            </div>
-            <div class="form-row">
-              <label class="form-label">联动模式</label>
-              <select v-model="aiLinkageForm.mode" class="form-input">
-                <option value="auto">自动更新任务状态</option>
-                <option value="confirm">仅输出建议（待人工确认）</option>
-                <option value="suggest_only">仅分析不更新</option>
+              <label class="form-label">自动化模式</label>
+              <select v-model="aiLinkageForm.automationMode" class="form-input">
+                <option value="analysis_only">仅提交分析（不注入多维候选、不自动改表）</option>
+                <option value="auto_status">自动更新任务状态（项目调整表「当前状态」或功能清单「开发进度」）</option>
+                <option value="disabled">关闭本项目 Commit AI 分析</option>
               </select>
             </div>
             <div class="form-row">
               <label class="form-label">最小置信度</label>
-              <select v-model="aiLinkageForm.minConfidence" class="form-input">
+              <select v-model="aiLinkageForm.minConfidence" class="form-input" :disabled="aiLinkageForm.automationMode !== 'auto_status'">
                 <option value="high">高</option>
                 <option value="medium">中</option>
                 <option value="low">低</option>
               </select>
             </div>
-            <div v-if="aiLinkageForm.enabled" class="text-muted small" style="color:#b91c1c;">
-              AI的分析可能不准确，请仔细辨别。
+            <div v-if="aiLinkageForm.automationMode === 'auto_status'" class="text-muted small" style="color:#b91c1c;">
+              自动更新仅改状态列；「验收结果」仅可由管理员手动维护。AI 判断可能不准确，请留意审计来源「commit_ai_linkage」。
             </div>
             <div class="form-actions">
               <button type="button" class="primary-button" :disabled="aiLinkageSaving" @click="saveAiLinkageConfig">
@@ -1233,8 +1227,7 @@ export default {
       aiLinkageMessage: '',
       aiLinkageMessageOk: false,
       aiLinkageForm: {
-        enabled: false,
-        mode: 'auto',
+        automationMode: 'analysis_only',
         minConfidence: 'medium'
       },
 
@@ -1492,8 +1485,7 @@ export default {
         const resp = await this.$http.get(`/admin/ai-analysis/projects/${this.projectId}/linkage-config`)
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const d = resp.data.data
-          this.aiLinkageForm.enabled = d.enabled === true
-          this.aiLinkageForm.mode = d.mode || 'auto'
+          this.aiLinkageForm.automationMode = d.automationMode || 'analysis_only'
           this.aiLinkageForm.minConfidence = d.minConfidence || 'medium'
         }
       } catch (e) {
@@ -1509,8 +1501,7 @@ export default {
       this.aiLinkageMessage = ''
       try {
         const payload = {
-          enabled: !!this.aiLinkageForm.enabled,
-          mode: this.aiLinkageForm.mode || 'auto',
+          automationMode: this.aiLinkageForm.automationMode || 'analysis_only',
           minConfidence: this.aiLinkageForm.minConfidence || 'medium'
         }
         const resp = await this.$http.put(`/admin/ai-analysis/projects/${this.projectId}/linkage-config`, payload)

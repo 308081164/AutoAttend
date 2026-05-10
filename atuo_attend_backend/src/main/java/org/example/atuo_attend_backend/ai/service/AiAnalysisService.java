@@ -11,6 +11,7 @@ import org.example.atuo_attend_backend.ai.domain.AiAnalysisResult;
 import org.example.atuo_attend_backend.ai.mapper.AiAnalysisJobMapper;
 import org.example.atuo_attend_backend.ai.mapper.AiAnalysisResultMapper;
 import org.example.atuo_attend_backend.ai.mapper.ProjectAiLinkageConfigMapper;
+import org.example.atuo_attend_backend.collab.CollabTablePurpose;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectTable;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
@@ -25,10 +26,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -110,6 +111,16 @@ public class AiAnalysisService {
         if (diffText.length() > maxChars) {
             diffText = diffText.substring(0, maxChars) + "\n\n... (diff 已截断)";
         }
+        BizProject linkedProject = projectMapper.findByTenantAndRepoId(tid(), repoFullName);
+        ProjectAiLinkageConfig linkageCfg = linkedProject != null
+                ? projectAiLinkageConfigMapper.findByProjectId(linkedProject.getId())
+                : null;
+        String automationMode = normalizeProjectAutomationMode(linkageCfg);
+        if (ProjectAiLinkageConfig.AUTOMATION_DISABLED.equals(automationMode)) {
+            log.debug("Commit AI skipped: project automation disabled, repo={}", repoFullName);
+            return Optional.empty();
+        }
+
         AiAnalysisJob job = jobMapper.findByRepoAndSha(tid(), repoFullName, commitSha);
         if (job == null) {
             job = new AiAnalysisJob();
@@ -128,16 +139,14 @@ public class AiAnalysisService {
             job.setLastError(null);
             jobMapper.update(job);
         }
-        BizProject linkedProject = projectMapper.findByTenantAndRepoId(tid(), repoFullName);
-        ProjectAiLinkageConfig linkageCfg = linkedProject != null
-                ? projectAiLinkageConfigMapper.findByProjectId(linkedProject.getId())
-                : null;
-        boolean linkageEnabled = linkageCfg != null && Boolean.TRUE.equals(linkageCfg.getEnabled());
-        List<Map<String, Object>> collabCandidates = linkageEnabled && linkedProject != null
+
+        boolean injectCollab = linkedProject != null
+                && ProjectAiLinkageConfig.AUTOMATION_AUTO_STATUS.equals(automationMode);
+        List<Map<String, Object>> collabCandidates = injectCollab
                 ? buildCollabCandidates(linkedProject.getId())
                 : List.of();
 
-        String systemPrompt = buildSystemPrompt(linkageEnabled);
+        String systemPrompt = buildSystemPrompt(injectCollab);
         String userContent = buildUserContent(commit, diffText, collabCandidates);
         List<DeepSeekClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new DeepSeekClient.ChatMessage("system", systemPrompt));
@@ -162,7 +171,7 @@ public class AiAnalysisService {
         }
         result.setTenantId(tid());
         resultMapper.insert(result);
-        if (linkedProject != null && linkageEnabled) {
+        if (linkedProject != null && injectCollab) {
             applyLinkageSuggestion(linkedProject.getId(), linkageCfg, response);
         }
         job.setStatus("success");
@@ -187,27 +196,27 @@ public class AiAnalysisService {
                 "  \"suggestions\": [\"改进建议1\", \"改进建议2\"]\n" +
                 "}";
         if (!includeCollabLinkage) return base;
-        return base + "\n\n若输入中存在 collab_records，请根据以下规则判断 commit 与任务的关联并输出 related_records 数组。\n" +
+        return base + "\n\n若输入中存在 collab_records（每条含 table_kind、summary、module、status_current 等），请判断 commit 与记录的关联并输出 related_records 数组。\n" +
+                "\n" +
+                "## collab_records 中 table_kind 含义\n" +
+                "- issue_tracking：项目调整表；status_current 对应列「当前状态」；accept_status_context 为「验收结果」当前值（**只作上下文，禁止在输出中建议修改**）。\n" +
+                "- feature_backlog：待开发功能清单；status_current 对应列「开发进度」。\n" +
                 "\n" +
                 "## 关联判断标准（按优先级从高到低）\n" +
-                "1. **文件路径匹配**：commit 修改的文件路径（files_changed_list）与任务的「归属模块」或「问题描述」中提到的模块/文件名有直接对应关系\n" +
-                "2. **关键词匹配**：commit message 或 diff 中的关键标识符（函数名、类名、变量名、API路径等）出现在任务的「问题描述」中\n" +
-                "3. **功能语义匹配**：commit 的改动内容（通过 diff 分析）与任务描述的功能需求在语义上相关\n" +
+                "1. **文件路径匹配**：files_changed_list 与「归属模块」或 summary（问题描述/功能描述）中提到的路径或模块一致或明显相关。\n" +
+                "2. **关键词匹配**：commit message 或 diff 中的标识符出现在 summary 中。\n" +
+                "3. **功能语义匹配**：diff 与 summary 所描述功能语义相关。\n" +
                 "\n" +
-                "## resolve_status 建议值\n" +
-                "- \"已解决\"：commit 的改动完整覆盖了任务描述中的需求\n" +
-                "- \"部分解决\"：commit 只涉及任务的一部分需求\n" +
-                "- \"进行中\"：commit 是实现该任务的阶段性工作\n" +
-                "- 不相关则不要输出该 record\n" +
+                "## suggested_status 填写规则（系统**仅**可能自动写入该状态列；**绝不会**自动写入「验收结果」）\n" +
+                "- table_kind=issue_tracking 时：suggested_status 为写入「当前状态」的值，须与该任务当前可选状态语义一致（如：已创建、开发中、修复中、待测试、测试中、已验收等，以输入为准）。\n" +
+                "- table_kind=feature_backlog 时：suggested_status 为写入「开发进度」的值（如：待开发、开发中、联调中、测试中、已完成、阻塞等，以输入为准）。\n" +
+                "- 不相关则不要输出该 record。\n" +
                 "\n" +
-                "## accept_status 建议值\n" +
-                "- 仅当 resolve_status 为「已解决」且代码质量为 high 时才建议 \"通过验收\"\n" +
-                "- 否则不输出 accept_status 字段\n" +
-                "\n" +
-                "## 输出格式\n" +
+                "## 输出格式（related_records 内**禁止**出现 accept_status 或任何验收相关写入字段）\n" +
                 "\"related_records\": [\n" +
-                "  {\"record_id\": 123, \"confidence\": \"high|medium|low\", \"resolve_status\": \"建议解决情况\", \"accept_status\": \"建议验收结果（可选）\", \"match_reason\": \"匹配理由（简要说明为什么认为关联）\"}\n" +
+                "  {\"record_id\": 123, \"table_kind\": \"issue_tracking|feature_backlog\", \"confidence\": \"high|medium|low\", \"suggested_status\": \"建议写入状态列的取值\", \"match_reason\": \"简要匹配理由\"}\n" +
                 "]\n" +
+                "为兼容旧客户端，若缺少 suggested_status 可回退读取 resolve_status 作为同一含义字段。\n" +
                 "注意：宁可漏判也不要误判。只有在你有较高把握时才输出 related_records。";
     }
 
@@ -253,36 +262,91 @@ public class AiAnalysisService {
         return sb.toString();
     }
 
+    private static final int LINKAGE_CANDIDATE_FETCH = 80;
+    private static final int LINKAGE_CANDIDATE_MAX_PER_PURPOSE = 40;
+
+    private static String normalizeProjectAutomationMode(ProjectAiLinkageConfig cfg) {
+        if (cfg == null || cfg.getAutomationMode() == null || cfg.getAutomationMode().isBlank()) {
+            return ProjectAiLinkageConfig.AUTOMATION_ANALYSIS_ONLY;
+        }
+        String m = cfg.getAutomationMode().trim().toLowerCase(Locale.ROOT);
+        if (ProjectAiLinkageConfig.AUTOMATION_DISABLED.equals(m)) {
+            return ProjectAiLinkageConfig.AUTOMATION_DISABLED;
+        }
+        if (ProjectAiLinkageConfig.AUTOMATION_AUTO_STATUS.equals(m)) {
+            return ProjectAiLinkageConfig.AUTOMATION_AUTO_STATUS;
+        }
+        return ProjectAiLinkageConfig.AUTOMATION_ANALYSIS_ONLY;
+    }
+
     private List<Map<String, Object>> buildCollabCandidates(long projectId) {
-        List<Map<String, Object>> out = new ArrayList<>();
-        BizProjectTable table = collabTableService.getTableByProjectIdAndPurpose(projectId, "issue_tracking");
-        if (table == null) return out;
-        Map<String, Object> twc = collabTableService.getTableWithColumns(projectId, "issue_tracking");
+        List<Map<String, Object>> out = new ArrayList<>(buildIssueTrackingCandidates(projectId));
+        out.addAll(buildFeatureBacklogCandidates(projectId));
+        return out;
+    }
+
+    private List<Map<String, Object>> buildIssueTrackingCandidates(long projectId) {
+        BizProjectTable table = collabTableService.getTableByProjectIdAndPurpose(projectId, CollabTablePurpose.ISSUE_TRACKING);
+        if (table == null) return List.of();
+        Map<String, Object> twc = collabTableService.getTableWithColumns(projectId, CollabTablePurpose.ISSUE_TRACKING);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> cols = twc != null ? (List<Map<String, Object>>) twc.get("columns") : List.of();
         long problemCol = findColId(cols, "问题描述");
         long moduleCol = findColId(cols, "归属模块");
-        long resolveCol = findColId(cols, "解决情况");
+        long statusCol = findColId(cols, "当前状态");
         long acceptCol = findColId(cols, "验收结果");
-        long priorityCol = findColId(cols, "优先级");
+        long importantCol = findColId(cols, "重要程度");
         long assigneeCol = findColId(cols, "负责人");
-        // 取最近 50 条记录，扩大候选池
-        List<Map<String, Object>> rows = collabRecordService.listRecords(table.getId(), 1, 50);
+        List<Map<String, Object>> rows = collabRecordService.listRecords(table.getId(), 1, LINKAGE_CANDIDATE_FETCH);
+        List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : rows) {
-            // 跳过已完成的任务（解决情况为"已解决"且验收结果为"通过验收"），减少噪音
-            String resolve = asString(r.get("c" + resolveCol));
+            if (out.size() >= LINKAGE_CANDIDATE_MAX_PER_PURPOSE) break;
+            String curStatus = asString(r.get("c" + statusCol));
             String accept = asString(r.get("c" + acceptCol));
-            if (("已解决".equals(resolve) || "已完成".equals(resolve))
-                    && ("通过验收".equals(accept) || "已验收".equals(accept))) {
-                continue;
-            }
+            if (isIssueRowClosedForLinkage(curStatus, accept)) continue;
             Map<String, Object> m = new HashMap<>();
+            m.put("table_kind", CollabTablePurpose.ISSUE_TRACKING);
             m.put("record_id", r.get("id"));
-            m.put("problem_summary", snippet(asString(r.get("c" + problemCol)), 300));
+            m.put("summary", snippet(asString(r.get("c" + problemCol)), 300));
             m.put("module", asString(r.get("c" + moduleCol)));
-            m.put("resolve_status", resolve);
-            m.put("accept_status", accept);
-            m.put("priority", asString(r.get("c" + priorityCol)));
+            m.put("status_current", curStatus);
+            m.put("important_level", asString(r.get("c" + importantCol)));
+            m.put("assignee", asString(r.get("c" + assigneeCol)));
+            m.put("accept_status_context", accept);
+            m.put("created_at", r.get("createdAt"));
+            out.add(m);
+        }
+        return out;
+    }
+
+    private List<Map<String, Object>> buildFeatureBacklogCandidates(long projectId) {
+        BizProjectTable table = collabTableService.getTableByProjectIdAndPurpose(projectId, CollabTablePurpose.FEATURE_BACKLOG);
+        if (table == null) return List.of();
+        Map<String, Object> twc = collabTableService.getTableWithColumns(projectId, CollabTablePurpose.FEATURE_BACKLOG);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> cols = twc != null ? (List<Map<String, Object>>) twc.get("columns") : List.of();
+        long nameCol = findColId(cols, "功能名称");
+        long descCol = findColId(cols, "功能描述");
+        long moduleCol = findColId(cols, "归属模块");
+        long progressCol = findColId(cols, "开发进度");
+        long importantCol = findColId(cols, "重要程度");
+        long assigneeCol = findColId(cols, "负责人");
+        List<Map<String, Object>> rows = collabRecordService.listRecords(table.getId(), 1, LINKAGE_CANDIDATE_FETCH);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            if (out.size() >= LINKAGE_CANDIDATE_MAX_PER_PURPOSE) break;
+            String progress = asString(r.get("c" + progressCol));
+            if (isFeatureRowClosedForLinkage(progress)) continue;
+            String title = asString(r.get("c" + nameCol));
+            String desc = asString(r.get("c" + descCol));
+            String combined = ((title != null ? title : "") + " " + (desc != null ? desc : "")).trim();
+            Map<String, Object> m = new HashMap<>();
+            m.put("table_kind", CollabTablePurpose.FEATURE_BACKLOG);
+            m.put("record_id", r.get("id"));
+            m.put("summary", snippet(combined.isEmpty() ? null : combined, 300));
+            m.put("module", asString(r.get("c" + moduleCol)));
+            m.put("status_current", progress);
+            m.put("important_level", asString(r.get("c" + importantCol)));
             m.put("assignee", asString(r.get("c" + assigneeCol)));
             m.put("created_at", r.get("createdAt"));
             out.add(m);
@@ -290,32 +354,67 @@ public class AiAnalysisService {
         return out;
     }
 
+    private static boolean isIssueRowClosedForLinkage(String currentStatus, String acceptResult) {
+        String s = currentStatus != null ? currentStatus.trim() : "";
+        String a = acceptResult != null ? acceptResult.trim() : "";
+        if ("已验收".equals(s)) return true;
+        return "通过任务关闭".equals(a);
+    }
+
+    private static boolean isFeatureRowClosedForLinkage(String devProgress) {
+        String p = devProgress != null ? devProgress.trim() : "";
+        return "已完成".equals(p);
+    }
+
     private void applyLinkageSuggestion(long projectId, ProjectAiLinkageConfig cfg, String rawResponse) {
-        if (cfg == null || !"auto".equalsIgnoreCase(cfg.getMode())) return;
+        if (cfg == null || !ProjectAiLinkageConfig.AUTOMATION_AUTO_STATUS.equalsIgnoreCase(cfg.getAutomationMode())) {
+            return;
+        }
         try {
             JsonNode root = objectMapper.readTree(extractJson(rawResponse));
             JsonNode arr = root.get("related_records");
             if (arr == null || !arr.isArray()) return;
-            Map<String, Object> table = collabTableService.getTableWithColumns(projectId, "issue_tracking");
-            if (table == null) return;
+
+            Map<String, Object> issueTwc = collabTableService.getTableWithColumns(projectId, CollabTablePurpose.ISSUE_TRACKING);
+            Map<String, Object> featTwc = collabTableService.getTableWithColumns(projectId, CollabTablePurpose.FEATURE_BACKLOG);
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> cols = (List<Map<String, Object>>) table.get("columns");
-            long resolveCol = findColId(cols, "解决情况");
-            long acceptCol = findColId(cols, "验收结果");
-            if (resolveCol <= 0 && acceptCol <= 0) return;
+            List<Map<String, Object>> issueCols = issueTwc != null ? (List<Map<String, Object>>) issueTwc.get("columns") : List.of();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> featCols = featTwc != null ? (List<Map<String, Object>>) featTwc.get("columns") : List.of();
+            long issueStatusColId = findColId(issueCols, "当前状态");
+            long featureProgressColId = findColId(featCols, "开发进度");
+            if (issueStatusColId <= 0 && featureProgressColId <= 0) return;
+
             for (JsonNode n : arr) {
                 long recordId = n.path("record_id").asLong(0);
                 if (recordId <= 0) continue;
                 if (collabRecordService.getProjectIdByRecordId(recordId) != projectId) continue;
                 if (!confidencePass(n.path("confidence").asText("medium"), cfg.getMinConfidence())) continue;
-                Map<String, Object> fields = new HashMap<>();
-                String resolveStatus = n.path("resolve_status").asText(null);
-                String acceptStatus = n.path("accept_status").asText(null);
-                if (resolveCol > 0 && resolveStatus != null && !resolveStatus.isBlank()) fields.put("c" + resolveCol, resolveStatus.trim());
-                if (acceptCol > 0 && acceptStatus != null && !acceptStatus.isBlank()) fields.put("c" + acceptCol, acceptStatus.trim());
-                if (!fields.isEmpty()) {
-                    collabRecordService.updateRecordWithAudit(recordId, fields, null, "commit_ai_linkage");
+
+                String suggestedStatus = n.path("suggested_status").asText(null);
+                if (suggestedStatus == null || suggestedStatus.isBlank()) {
+                    suggestedStatus = n.path("resolve_status").asText(null);
                 }
+                if (suggestedStatus == null || suggestedStatus.isBlank()) continue;
+
+                String tableKind = n.path("table_kind").asText(null);
+                if (tableKind != null) {
+                    tableKind = tableKind.trim();
+                }
+                if (tableKind == null || tableKind.isBlank()) {
+                    tableKind = collabRecordService.getTablePurposeForRecord(recordId);
+                }
+                long targetCol = -1;
+                if (CollabTablePurpose.ISSUE_TRACKING.equals(tableKind)) {
+                    targetCol = issueStatusColId;
+                } else if (CollabTablePurpose.FEATURE_BACKLOG.equals(tableKind)) {
+                    targetCol = featureProgressColId;
+                }
+                if (targetCol <= 0) continue;
+
+                Map<String, Object> fields = new HashMap<>();
+                fields.put("c" + targetCol, suggestedStatus.trim());
+                collabRecordService.updateRecordWithAudit(recordId, fields, null, "commit_ai_linkage");
             }
         } catch (Exception e) {
             log.warn("Apply commit linkage suggestion failed: {}", e.getMessage());

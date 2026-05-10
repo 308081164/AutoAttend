@@ -7,7 +7,8 @@ import org.example.atuo_attend_backend.ai.domain.ProjectAiLinkageConfig;
 public interface ProjectAiLinkageConfigMapper {
 
     @Select("""
-            SELECT id, project_id AS projectId, enabled, mode, min_confidence AS minConfidence,
+            SELECT id, project_id AS projectId, automation_mode AS automationMode,
+                   min_confidence AS minConfidence,
                    created_at AS createdAt, updated_at AS updatedAt
             FROM aa_project_ai_linkage_config
             WHERE project_id = #{projectId}
@@ -16,14 +17,12 @@ public interface ProjectAiLinkageConfigMapper {
     ProjectAiLinkageConfig findByProjectId(@Param("projectId") long projectId);
 
     @Insert("""
-            INSERT INTO aa_project_ai_linkage_config (project_id, enabled, mode, min_confidence)
-            VALUES (#{projectId}, #{enabled}, #{mode}, #{minConfidence})
+            INSERT INTO aa_project_ai_linkage_config (project_id, automation_mode, min_confidence)
+            VALUES (#{projectId}, #{automationMode}, #{minConfidence})
             ON DUPLICATE KEY UPDATE
-              enabled = VALUES(enabled),
-              mode = VALUES(mode),
+              automation_mode = VALUES(automation_mode),
               min_confidence = VALUES(min_confidence),
               updated_at = CURRENT_TIMESTAMP
             """)
     int upsert(ProjectAiLinkageConfig cfg);
 }
-

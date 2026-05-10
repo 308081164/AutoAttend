@@ -89,6 +89,14 @@ public class CollabRecordService {
         return t != null ? t.getProjectId() : -1;
     }
 
+    /** 返回记录所在多维表的 {@code biz_project_table.purpose}，未知时返回 {@code null} */
+    public String getTablePurposeForRecord(long recordId) {
+        BizRecord r = recordMapper.findById(recordId);
+        if (r == null) return null;
+        BizProjectTable t = tableMapper.findById(r.getTableId());
+        return t != null ? t.getPurpose() : null;
+    }
+
     public List<Map<String, Object>> listRecords(long tableId, int page, int pageSize) {
         int offset = (page - 1) * pageSize;
         List<BizRecord> records = recordMapper.listByTableId(tableId, offset, pageSize);

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>协作看板 UI Demo · 迁移级还原</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="topbar__brand">
+        <span class="topbar__logo" aria-hidden="true">◇</span>
+        <div>
+          <div class="topbar__title" id="demo-project-name">协作看板</div>
+          <div class="topbar__subtitle" id="demo-project-sub">仓库 / 分支 / 阶段</div>
+        </div>
+      </div>
+      <div class="topbar__actions">
+        <span class="topbar__pill" id="demo-env-pill">环境</span>
+        <button type="button" class="btn btn--ghost btn--sm" disabled title="Demo 占位">刷新</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="identity-strip" aria-label="当前会话">
+    <div class="identity-strip__inner">
+      <div class="identity-strip__avatar" id="demo-avatar" aria-hidden="true">D</div>
+      <div class="identity-strip__meta">
+        <div class="identity-strip__name" id="demo-user-name">Demo 用户</div>
+        <div class="identity-strip__hint" id="demo-user-hint">以成员身份浏览 · 顶栏 Tab 导航</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="session-demo-bar">
+    <label title="对应 CollabTableView 中 hasAdminSession 为真时显示的协作配置">
+      <input type="checkbox" id="demo-admin-session" />
+      <span>模拟管理员会话（显示邮件 / AI / 客户看板配置）</span>
+    </label>
+  </div>
+
+  <nav class="view-tabs" role="tablist" aria-label="主视图">
+    <button type="button" class="view-tabs__btn is-active" role="tab" aria-selected="true" data-view="dashboard">开发与数据看板</button>
+    <button type="button" class="view-tabs__btn" role="tab" aria-selected="false" data-view="adjust">项目调整表</button>
+    <button type="button" class="view-tabs__btn" role="tab" aria-selected="false" data-view="features">功能清单</button>
+  </nav>
+
+  <main class="main">
+    <!-- 首页：对齐方案 4.1 + CollabTableView showHomeDashboard -->
+    <section id="panel-dashboard" class="panel is-visible" role="tabpanel" aria-labelledby="tab-dashboard">
+      <!-- L0 传送门（home-portal-surface） -->
+      <div class="home-portal-surface">
+        <div class="home-portal-surface__toolbar">
+          <h2 class="home-portal-surface__title">传送门</h2>
+          <div class="toolbar-row__right">
+            <button type="button" class="btn btn--ghost btn--sm" id="btn-open-portal-modal">配置传送门</button>
+          </div>
+        </div>
+        <ul class="portal-items" id="portal-items" aria-label="快捷链接"></ul>
+      </div>
+
+      <!-- L1：项目摘要 + 风险 -->
+      <div class="l1-band">
+        <article class="summary-card">
+          <h2 class="summary-card__title">项目摘要</h2>
+          <dl class="summary-card__grid">
+            <div><dt>仓库</dt><dd id="summary-repo">—</dd></div>
+            <div><dt>分支</dt><dd id="summary-branch">—</dd></div>
+            <div><dt>阶段</dt><dd id="summary-phase">—</dd></div>
+            <div><dt>负责人</dt><dd id="summary-owner">—</dd></div>
+            <div><dt>创建时间</dt><dd id="summary-created">—</dd></div>
+          </dl>
+        </article>
+        <article class="risk-card">
+          <h2 class="risk-card__title">风险与阻塞</h2>
+          <ul class="risk-card__list">
+            <li><span class="risk-card__dot risk-card__dot--high"></span>短信配额审批阻塞联调窗口</li>
+            <li><span class="risk-card__dot risk-card__dot--med"></span>预发回归清单与业务口径待对齐</li>
+            <li><span class="risk-card__dot risk-card__dot--low"></span>客户阅览看板 HTTPS 复制提示待优化</li>
+          </ul>
+        </article>
+      </div>
+
+      <!-- L2 KPI -->
+      <section class="l2-kpi" aria-label="关键指标">
+        <h2 class="l2-kpi__heading">关键指标</h2>
+        <div class="kpi-row" id="kpi-row"></div>
+      </section>
+
+      <!-- L3：每日总结 + 内嵌控制台数据看板（DashboardView 占位） -->
+      <div class="l3-split">
+        <div class="l3-daily">
+          <h2 class="l2-kpi__heading" style="margin-bottom:12px;">每日总结</h2>
+          <div class="daily-scroll" id="daily-scroll" aria-label="横向滚动每日卡片"></div>
+        </div>
+        <aside class="embed-board" aria-label="内嵌数据看板占位">
+          <div class="embed-board__head">
+            <h3 class="embed-board__title">控制台数据看板</h3>
+            <span class="badge badge--muted">compact</span>
+          </div>
+          <p class="embed-board__hint">生产环境对应 <code>DashboardView</code> 嵌入（<code>fixedRepoFullName</code>、<code>collab-data-board-only</code>、<code>embedded-compact</code>）。此处为静态占位，迁移时整区替换为组件即可。</p>
+          <div class="embed-board__grid" id="embed-dashboard-grid"></div>
+        </aside>
+      </div>
+
+      <!-- L4：协作配置（管理员可见） -->
+      <section class="l4-config admin-only" aria-label="协作高级配置">
+        <h2 class="l2-kpi__heading">协作配置</h2>
+        <div class="l4-stack">
+          <details class="advanced-details" open>
+            <summary class="advanced-details__summary">
+              <span class="advanced-details__title">邮件通知</span>
+              <span class="badge badge--ok">已启用</span>
+            </summary>
+            <div class="advanced-details__body">
+              <p class="advanced-details__hint" id="mail-smtp-hint"></p>
+              <div class="mock-form">
+                <label class="mock-form__row">
+                  <span>绑定仓库（full_name）</span>
+                  <input type="text" id="mail-repo" readonly />
+                </label>
+                <label class="mock-form__row mock-form__row--check">
+                  <input type="checkbox" id="mail-enabled" checked />
+                  <span>启用邮件日报</span>
+                </label>
+                <label class="mock-form__row mock-form__row--check">
+                  <input type="checkbox" id="mail-managers" checked />
+                  <span>发送给管理员 / 负责人</span>
+                </label>
+                <label class="mock-form__row mock-form__row--check">
+                  <input type="checkbox" id="mail-devs" checked />
+                  <span>发送给参与开发的成员</span>
+                </label>
+                <label class="mock-form__row">
+                  <span>管理员 / 负责人邮箱（每行一个）</span>
+                  <textarea id="mail-managers-text" rows="3" style="font:inherit;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);"></textarea>
+                </label>
+                <div class="config-inline-actions">
+                  <button type="button" class="btn btn--primary btn--sm">保存配置</button>
+                  <button type="button" class="btn btn--ghost btn--sm">发送测试邮件</button>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="advanced-details">
+            <summary class="advanced-details__summary">
+              <span class="advanced-details__title">提交与多维表联动（AI）</span>
+              <span class="badge badge--muted">置信度</span>
+            </summary>
+            <div class="advanced-details__body">
+              <p class="advanced-details__hint">对应 <code>automationMode</code> / <code>minConfidence</code>。自动更新状态前请确认多维表字段与分支策略。</p>
+              <div class="mock-form">
+                <label class="mock-form__row">
+                  <span>自动化模式</span>
+                  <select id="ai-automation-mode">
+                    <option value="off">关闭</option>
+                    <option value="suggest_only">仅建议</option>
+                    <option value="auto_status" selected>自动更新状态</option>
+                  </select>
+                </label>
+                <label class="mock-form__row">
+                  <span>最低置信度</span>
+                  <select id="ai-min-confidence">
+                    <option value="low">低</option>
+                    <option value="medium" selected>中</option>
+                    <option value="high">高</option>
+                  </select>
+                </label>
+                <div class="config-inline-actions">
+                  <button type="button" class="btn btn--primary btn--sm">保存</button>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="advanced-details">
+            <summary class="advanced-details__summary">
+              <span class="advanced-details__title">客户阅览看板</span>
+              <span class="badge badge--ok">已开启</span>
+            </summary>
+            <div class="advanced-details__body">
+              <div class="mock-form">
+                <label class="mock-form__row mock-form__row--check">
+                  <input type="checkbox" id="client-enabled" checked />
+                  <span>启用客户阅览看板</span>
+                </label>
+                <label class="mock-form__row mock-form__row--check">
+                  <input type="checkbox" id="client-show-progress" checked />
+                  <span>展示进度多维表</span>
+                </label>
+                <label class="mock-form__row mock-form__row--check">
+                  <input type="checkbox" id="client-show-backlog" checked />
+                  <span>展示功能清单</span>
+                </label>
+                <label class="mock-form__row mock-form__row--check">
+                  <input type="checkbox" id="client-show-ai" />
+                  <span>展示 AI 目标表入口</span>
+                </label>
+                <label class="mock-form__row">
+                  <span>AI 目标表用途</span>
+                  <select id="client-ai-purpose">
+                    <option value="issue_tracking" selected>问题跟踪</option>
+                    <option value="feature_backlog">功能清单</option>
+                  </select>
+                </label>
+                <label class="mock-form__row">
+                  <span>公开链接</span>
+                  <input type="text" id="client-public-url" readonly />
+                </label>
+                <label class="mock-form__row">
+                  <span>访问令牌</span>
+                  <input type="text" id="client-token" readonly />
+                </label>
+                <div class="config-inline-actions">
+                  <button type="button" class="btn btn--ghost btn--sm">复制链接</button>
+                  <button type="button" class="btn btn--ghost btn--sm">在新窗口打开</button>
+                  <button type="button" class="btn btn--primary btn--sm">保存</button>
+                  <button type="button" class="btn btn--ghost btn--sm">重新生成令牌</button>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <p class="advanced-details__hint" style="margin-top:20px;">
+        以上区块与 <code>CollabTableView.vue</code> 中 <code>showHomeDashboard</code> 区域一一对应；表格态内嵌图表看板请切换到「项目调整表 / 功能清单」Tab 查看子视图占位。
+      </p>
+    </section>
+
+    <!-- 项目调整表 -->
+    <section id="panel-adjust" class="panel" role="tabpanel" hidden>
+      <div class="table-shell">
+        <p class="table-shell__crumb">
+          <a href="#" class="link-muted" data-view-link="dashboard">← 返回开发与数据看板</a>
+          <span class="placeholder"> · 当前表：<strong>项目调整表</strong></span>
+        </p>
+        <div class="toolbar-row">
+          <div class="toolbar-row__left">
+            <button type="button" class="btn btn--ghost btn--sm">筛选</button>
+            <div class="btn-group" role="group" aria-label="行操作">
+              <button type="button" class="btn btn--ghost btn--sm">新建行</button>
+              <button type="button" class="btn btn--ghost btn--sm">AI 录入</button>
+            </div>
+            <button type="button" class="btn btn--ghost btn--sm">导出 CSV</button>
+            <button type="button" class="btn btn--ghost btn--sm">本表数据看板</button>
+          </div>
+          <div class="toolbar-row__right">
+            <span class="badge badge--muted">多维表</span>
+          </div>
+        </div>
+        <div class="inner-tabs" role="tablist" data-inner-panel="adjust">
+          <button type="button" class="is-active" data-inner="table">表格</button>
+          <button type="button" data-inner="board">数据看板</button>
+        </div>
+        <div class="panel-sub is-visible" data-inner-content="adjust-table">
+          <div class="table-wrap">
+            <table class="data-table" aria-label="项目调整表">
+              <thead>
+                <tr>
+                  <th>问题描述</th>
+                  <th>归属模块</th>
+                  <th>当前状态</th>
+                  <th>验收结果</th>
+                  <th>重要程度</th>
+                  <th>负责人</th>
+                </tr>
+              </thead>
+              <tbody id="issue-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel-sub" data-inner-content="adjust-board">
+          <p class="table-shell__toolbar">对应表格内 <code>showDashboard</code> 切换后的多卡片画布区域（Canvas）。</p>
+          <div class="chart-board-grid" id="chart-adjust-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 功能清单 -->
+    <section id="panel-features" class="panel" role="tabpanel" hidden>
+      <div class="table-shell">
+        <p class="table-shell__crumb">
+          <a href="#" class="link-muted" data-view-link="dashboard">← 返回开发与数据看板</a>
+          <span class="placeholder"> · 当前表：<strong>功能清单</strong></span>
+        </p>
+        <div class="toolbar-row">
+          <div class="toolbar-row__left">
+            <button type="button" class="btn btn--ghost btn--sm">筛选</button>
+            <div class="btn-group" role="group" aria-label="行操作">
+              <button type="button" class="btn btn--ghost btn--sm">新建行</button>
+              <button type="button" class="btn btn--ghost btn--sm">AI 录入</button>
+            </div>
+            <button type="button" class="btn btn--ghost btn--sm">导出 CSV</button>
+            <button type="button" class="btn btn--ghost btn--sm">本表数据看板</button>
+          </div>
+          <div class="toolbar-row__right">
+            <span class="badge badge--muted">多维表</span>
+          </div>
+        </div>
+        <div class="inner-tabs" role="tablist" data-inner-panel="features">
+          <button type="button" class="is-active" data-inner="table">表格</button>
+          <button type="button" data-inner="board">数据看板</button>
+        </div>
+        <div class="panel-sub is-visible" data-inner-content="features-table">
+          <div class="table-wrap">
+            <table class="data-table" aria-label="功能清单">
+              <thead>
+                <tr>
+                  <th>功能名称</th>
+                  <th>功能描述</th>
+                  <th>归属模块</th>
+                  <th>开发进度</th>
+                  <th>重要程度</th>
+                  <th>负责人</th>
+                </tr>
+              </thead>
+              <tbody id="feature-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel-sub" data-inner-content="features-board">
+          <p class="table-shell__toolbar">功能清单表内图表看板占位（与调整表画布结构一致）。</p>
+          <div class="chart-board-grid" id="chart-features-grid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>静态 Demo · 数据来自 <code>mock-data.js</code>（<code>window.COLLAB_DEMO</code>）。迁移时删除本目录并将样式迁入设计系统。</p>
+    <p>对照：<code>auto_attend_forntend/src/views/CollabTableView.vue</code> · <code>docs/项目协作UI优化方案.md</code></p>
+  </footer>
+
+  <!-- 传送门配置模态 -->
+  <div class="modal-overlay" id="portal-modal" role="dialog" aria-modal="true" aria-labelledby="portal-modal-title">
+    <div class="modal-dialog">
+      <h2 id="portal-modal-title">配置传送门</h2>
+      <p class="modal-dialog__desc">与生产端「传送门」弹层字段对齐：标签、URL、排序。Demo 不持久化。</p>
+      <p style="margin:0 0 12px">
+        <button type="button" class="btn btn--ghost btn--sm" id="portal-modal-add">添加链接</button>
+      </p>
+      <ul class="portal-edit-list" id="portal-edit-list"></ul>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost" id="portal-modal-close">取消</button>
+        <button type="button" class="btn btn--primary" id="portal-modal-save">保存（仅关闭）</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="mock-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

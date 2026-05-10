@@ -23,10 +23,10 @@ public class AdminProjectAiLinkageConfigController {
         ProjectAiLinkageConfig cfg = mapper.findByProjectId(projectId);
         Map<String, Object> data = new HashMap<>();
         data.put("projectId", projectId);
-        data.put("enabled", cfg != null && Boolean.TRUE.equals(cfg.getEnabled()));
-        data.put("mode", cfg != null && cfg.getMode() != null ? cfg.getMode() : "auto");
+        data.put("automationMode", cfg != null && cfg.getAutomationMode() != null
+                ? cfg.getAutomationMode() : ProjectAiLinkageConfig.AUTOMATION_ANALYSIS_ONLY);
         data.put("minConfidence", cfg != null && cfg.getMinConfidence() != null ? cfg.getMinConfidence() : "medium");
-        data.put("riskTip", "AI的分析可能不准确，请仔细辨别");
+        data.put("riskTip", "AI 的分析可能不准确；验收结果仅可由管理员在多维表中手动维护。");
         return ApiResponse.ok(data);
     }
 
@@ -34,8 +34,7 @@ public class AdminProjectAiLinkageConfigController {
     public ApiResponse<?> saveConfig(@PathVariable long projectId, @RequestBody Map<String, Object> body) {
         ProjectAiLinkageConfig cfg = new ProjectAiLinkageConfig();
         cfg.setProjectId(projectId);
-        cfg.setEnabled(asBool(body != null ? body.get("enabled") : null));
-        cfg.setMode(normalizeMode(asString(body != null ? body.get("mode") : null)));
+        cfg.setAutomationMode(normalizeAutomationMode(asString(body != null ? body.get("automationMode") : null)));
         cfg.setMinConfidence(normalizeConfidence(asString(body != null ? body.get("minConfidence") : null)));
         mapper.upsert(cfg);
         return ApiResponse.ok(null);
@@ -45,19 +44,12 @@ public class AdminProjectAiLinkageConfigController {
         return v == null ? null : String.valueOf(v);
     }
 
-    private static Boolean asBool(Object v) {
-        if (v == null) return false;
-        if (v instanceof Boolean b) return b;
-        if (v instanceof Number n) return n.intValue() != 0;
-        String s = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
-        return "true".equals(s) || "1".equals(s) || "y".equals(s) || "yes".equals(s);
-    }
-
-    private static String normalizeMode(String s) {
-        if (s == null) return "auto";
+    private static String normalizeAutomationMode(String s) {
+        if (s == null) return ProjectAiLinkageConfig.AUTOMATION_ANALYSIS_ONLY;
         String t = s.trim().toLowerCase(Locale.ROOT);
-        if ("confirm".equals(t) || "suggest_only".equals(t) || "auto".equals(t)) return t;
-        return "auto";
+        if (ProjectAiLinkageConfig.AUTOMATION_AUTO_STATUS.equals(t)) return ProjectAiLinkageConfig.AUTOMATION_AUTO_STATUS;
+        if (ProjectAiLinkageConfig.AUTOMATION_DISABLED.equals(t)) return ProjectAiLinkageConfig.AUTOMATION_DISABLED;
+        return ProjectAiLinkageConfig.AUTOMATION_ANALYSIS_ONLY;
     }
 
     private static String normalizeConfidence(String s) {
@@ -67,4 +59,3 @@ public class AdminProjectAiLinkageConfigController {
         return "medium";
     }
 }
-
