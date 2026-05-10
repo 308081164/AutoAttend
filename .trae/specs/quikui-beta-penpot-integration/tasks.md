@@ -3,9 +3,9 @@
 ## 任务 1：创建 quikUI_beta 分支
 
 - [x] 1.1 提交当前未暂存的更改到 main 分支
-- [ ] 1.2 从 main 创建 quikUI_beta 分支
-- [ ] 1.3 切换到 quikUI_beta 分支
-- [ ] 1.4 验证分支状态
+- [x] 1.2 从 main 创建 quikUI_beta 分支
+- [x] 1.3 切换到 quikUI_beta 分支
+- [x] 1.4 验证分支状态
 
 ## 任务 2：环境准备与 Docker 栈验证
 

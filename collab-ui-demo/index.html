@@ -7,44 +7,44 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar__inner">
-      <div class="topbar__brand">
-        <span class="topbar__logo" aria-hidden="true">◇</span>
-        <div>
-          <div class="topbar__title" id="demo-project-name">协作看板</div>
-          <div class="topbar__subtitle" id="demo-project-sub">仓库 / 分支 / 阶段</div>
+  <div class="layout-chrome">
+    <header class="topbar topbar--merged" aria-label="项目与当前会话">
+      <div class="topbar__inner topbar__inner--merged">
+        <div class="topbar__row-main">
+          <div class="topbar__brand">
+            <span class="topbar__logo" aria-hidden="true">◇</span>
+            <div class="topbar__titles">
+              <div class="topbar__title" id="demo-project-name">协作看板</div>
+              <div class="topbar__subtitle" id="demo-project-sub">仓库 / 分支 / 阶段</div>
+            </div>
+          </div>
+          <div class="topbar__actions">
+            <span class="topbar__pill" id="demo-env-pill">环境</span>
+            <button type="button" class="btn btn--ghost btn--sm" disabled title="Demo 占位">刷新</button>
+          </div>
+        </div>
+        <div class="topbar__row-sub">
+          <div class="topbar__session" aria-label="当前用户">
+            <div class="topbar__avatar" id="demo-avatar" aria-hidden="true">D</div>
+            <div class="topbar__session-meta">
+              <div class="topbar__session-name" id="demo-user-name">Demo 用户</div>
+              <div class="topbar__session-hint" id="demo-user-hint">以成员身份浏览 · 顶栏 Tab 导航</div>
+            </div>
+          </div>
+          <label class="topbar__admin-toggle" title="对应 CollabTableView 中 hasAdminSession">
+            <input type="checkbox" id="demo-admin-session" />
+            <span class="topbar__admin-toggle-text">模拟管理员会话</span>
+          </label>
         </div>
       </div>
-      <div class="topbar__actions">
-        <span class="topbar__pill" id="demo-env-pill">环境</span>
-        <button type="button" class="btn btn--ghost btn--sm" disabled title="Demo 占位">刷新</button>
-      </div>
-    </div>
-  </header>
+    </header>
 
-  <section class="identity-strip" aria-label="当前会话">
-    <div class="identity-strip__inner">
-      <div class="identity-strip__avatar" id="demo-avatar" aria-hidden="true">D</div>
-      <div class="identity-strip__meta">
-        <div class="identity-strip__name" id="demo-user-name">Demo 用户</div>
-        <div class="identity-strip__hint" id="demo-user-hint">以成员身份浏览 · 顶栏 Tab 导航</div>
-      </div>
-    </div>
-  </section>
-
-  <div class="session-demo-bar">
-    <label title="对应 CollabTableView 中 hasAdminSession 为真时显示的协作配置">
-      <input type="checkbox" id="demo-admin-session" />
-      <span>模拟管理员会话（显示邮件 / AI / 客户看板配置）</span>
-    </label>
-  </div>
-
-  <nav class="view-tabs" role="tablist" aria-label="主视图">
+    <nav class="view-tabs" role="tablist" aria-label="主视图">
     <button type="button" class="view-tabs__btn is-active" role="tab" aria-selected="true" data-view="dashboard">开发与数据看板</button>
     <button type="button" class="view-tabs__btn" role="tab" aria-selected="false" data-view="adjust">项目调整表</button>
     <button type="button" class="view-tabs__btn" role="tab" aria-selected="false" data-view="features">功能清单</button>
-  </nav>
+    </nav>
+  </div>
 
   <main class="main">
     <!-- 首页：对齐方案 4.1 + CollabTableView showHomeDashboard -->
@@ -60,9 +60,9 @@
         <ul class="portal-items" id="portal-items" aria-label="快捷链接"></ul>
       </div>
 
-      <!-- L1：项目摘要 + 风险 -->
-      <div class="l1-band">
-        <article class="summary-card">
+      <!-- L1：项目摘要（含简介 / 开发者 / 技术栈） -->
+      <div class="l1-band l1-band--single">
+        <article class="summary-card summary-card--rich">
           <h2 class="summary-card__title">项目摘要</h2>
           <dl class="summary-card__grid">
             <div><dt>仓库</dt><dd id="summary-repo">—</dd></div>
@@ -71,14 +71,20 @@
             <div><dt>负责人</dt><dd id="summary-owner">—</dd></div>
             <div><dt>创建时间</dt><dd id="summary-created">—</dd></div>
           </dl>
-        </article>
-        <article class="risk-card">
-          <h2 class="risk-card__title">风险与阻塞</h2>
-          <ul class="risk-card__list">
-            <li><span class="risk-card__dot risk-card__dot--high"></span>短信配额审批阻塞联调窗口</li>
-            <li><span class="risk-card__dot risk-card__dot--med"></span>预发回归清单与业务口径待对齐</li>
-            <li><span class="risk-card__dot risk-card__dot--low"></span>客户阅览看板 HTTPS 复制提示待优化</li>
-          </ul>
+          <div class="summary-card__block">
+            <h3 class="summary-card__subheading">简介</h3>
+            <p class="summary-card__intro" id="summary-intro">—</p>
+          </div>
+          <div class="summary-card__block summary-card__block--split">
+            <div>
+              <h3 class="summary-card__subheading">开发者</h3>
+              <ul class="summary-card__tags" id="summary-developers"></ul>
+            </div>
+            <div>
+              <h3 class="summary-card__subheading">技术栈</h3>
+              <ul class="summary-card__tags summary-card__tags--mono" id="summary-tech"></ul>
+            </div>
+          </div>
         </article>
       </div>
 
@@ -88,12 +94,23 @@
         <div class="kpi-row" id="kpi-row"></div>
       </section>
 
-      <!-- L3：每日总结 + 内嵌控制台数据看板（DashboardView 占位） -->
-      <div class="l3-split">
-        <div class="l3-daily">
-          <h2 class="l2-kpi__heading" style="margin-bottom:12px;">每日总结</h2>
-          <div class="daily-scroll" id="daily-scroll" aria-label="横向滚动每日卡片"></div>
-        </div>
+      <!-- L3：每日总结与风险轮播（同区） + 控制台看板纵向堆叠，避免宽屏双栏错位 -->
+      <div class="l3-wrap">
+        <section class="spotlight-card" aria-roledescription="carousel" aria-label="每日总结与风险与阻塞">
+          <div class="spotlight-card__head">
+            <h2 class="spotlight-card__title" id="spotlight-heading">每日总结</h2>
+            <div class="spotlight-card__actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-daily-more" hidden>更多</button>
+            </div>
+          </div>
+          <div class="spotlight-card__viewport" id="spotlight-viewport">
+            <div class="spotlight-card__track" id="spotlight-track"></div>
+          </div>
+          <div class="spotlight-card__footer">
+            <div class="spotlight-card__dots" id="spotlight-dots" role="tablist" aria-label="轮播页"></div>
+            <span class="spotlight-card__pause-hint" id="spotlight-pause-hint">悬停暂停</span>
+          </div>
+        </section>
         <aside class="embed-board" aria-label="内嵌数据看板占位">
           <div class="embed-board__head">
             <h3 class="embed-board__title">控制台数据看板</h3>
@@ -346,6 +363,18 @@
       <div class="modal-actions">
         <button type="button" class="btn btn--ghost" id="portal-modal-close">取消</button>
         <button type="button" class="btn btn--primary" id="portal-modal-save">保存（仅关闭）</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史每日总结 -->
+  <div class="modal-overlay" id="daily-more-modal" role="dialog" aria-modal="true" aria-labelledby="daily-more-title">
+    <div class="modal-dialog modal-dialog--wide">
+      <h2 id="daily-more-title">历史每日总结</h2>
+      <p class="modal-dialog__desc">除当前轮播展示的最新一条外，其余日期记录如下。</p>
+      <ul class="daily-more-list" id="daily-more-list"></ul>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--primary" id="daily-more-close">关闭</button>
       </div>
     </div>
   </div>

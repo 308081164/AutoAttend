@@ -11,8 +11,18 @@ window.COLLAB_DEMO = {
     phase: '迭代 · Sprint 12',
     owner: '张敏（PM）',
     createdAt: '2025-11-08',
-    envLabel: '生产稳定'
+    envLabel: '生产稳定',
+    intro:
+      '面向企业的考勤与协作一体化产品：支持多维表驱动的问题跟踪、客户阅览看板与控制台指标对齐，本仓库为前后端单体协作示例。',
+    developers: ['张敏（PM）', '李工（后端）', '赵前端', '王采购（业务）'],
+    techStack: ['Vue 3', 'Spring Boot', 'MySQL', 'Redis', 'Vite']
   },
+  /** 与轮播「风险与阻塞」共用数据源（原 L1 右侧列表迁入） */
+  risks: [
+    { level: 'high', text: '短信配额审批阻塞联调窗口' },
+    { level: 'med', text: '预发回归清单与业务口径待对齐' },
+    { level: 'low', text: '客户阅览看板 HTTPS 复制提示待优化' }
+  ],
   portalLinks: [
     { id: 1, label: '需求文档', url: 'https://example.com/wiki', sortOrder: 1 },
     { id: 2, label: '代码仓库', url: 'https://github.com/guangsha/AutoAttend', sortOrder: 2 },

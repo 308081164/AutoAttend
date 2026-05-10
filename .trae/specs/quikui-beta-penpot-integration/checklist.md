@@ -2,9 +2,9 @@
 
 ## 分支管理
 
-- [ ] quikUI_beta 分支已从 main 创建
+- [x] quikUI_beta 分支已从 main 创建
 - [x] 所有未暂存的更改已提交
-- [ ] 分支状态正常
+- [x] 分支状态正常
 
 ## Docker 环境
 
