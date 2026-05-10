@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { CodingHeartbeatItem, CodingTimeTracker } from "./codingTimeTracker";
 
 type ApiEnvelope<T> = { code: number; message?: string; data?: T };
 type LoginResponse = { token?: string; collabToken?: string };
@@ -75,6 +76,24 @@ class AutoAttendApiClient {
     return data?.items || [];
   }
 
+  async postCodingHeartbeats(items: CodingHeartbeatItem[]): Promise<number> {
+    if (!items.length) return 0;
+    const json = await this.collabRequest("/api/collab/coding-time/heartbeats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items })
+    });
+    const accepted = (json?.data as { accepted?: number })?.accepted;
+    return typeof accepted === "number" ? accepted : items.length;
+  }
+
+  async getCodingSummary(projectId: number, day?: string): Promise<{ totalSeconds: number; day?: string }> {
+    let path = `/api/collab/coding-time/summary?projectId=${encodeURIComponent(String(projectId))}`;
+    if (day) path += `&day=${encodeURIComponent(day)}`;
+    const data = await this.collabGet<{ totalSeconds?: number; day?: string }>(path);
+    return { totalSeconds: data?.totalSeconds ?? 0, day: data?.day };
+  }
+
   private async collabGet<T>(path: string): Promise<T | undefined> {
     const result = await this.collabRequest(path, { method: "GET" });
     return result?.data as T | undefined;
@@ -119,7 +138,11 @@ class SidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "autoAttend.sidebarView";
   private _view?: vscode.WebviewView;
 
-  constructor(private readonly context: vscode.ExtensionContext, private readonly api: AutoAttendApiClient) {}
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly api: AutoAttendApiClient,
+    private readonly getCodingTracker: () => CodingTimeTracker | undefined
+  ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this._view = webviewView;
@@ -142,7 +165,17 @@ class SidebarProvider implements vscode.WebviewViewProvider {
     const baseUrl = await this.api.getBaseUrl();
     const loggedIn = await this.api.hasCollabToken();
     const projects = loggedIn ? await this.api.listProjects().catch(() => []) : [];
-    this.post({ type: "state", payload: { baseUrl, loggedIn, projects } });
+    const cfg = vscode.workspace.getConfiguration();
+    const codingTimeEnabled = cfg.get<boolean>("autoAttend.codingTime.enabled", false);
+    const codingProjectId = await CodingTimeTracker.getProjectId(this.context);
+    let codingSummarySeconds: number | undefined;
+    if (loggedIn && codingProjectId) {
+      codingSummarySeconds = await this.api.getCodingSummary(codingProjectId).then((r) => r.totalSeconds).catch(() => undefined);
+    }
+    this.post({
+      type: "state",
+      payload: { baseUrl, loggedIn, projects, codingTimeEnabled, codingProjectId, codingSummarySeconds }
+    });
   }
 
   private post(msg: unknown): void {
@@ -203,6 +236,29 @@ class SidebarProvider implements vscode.WebviewViewProvider {
         await vscode.env.openExternal(vscode.Uri.parse(url));
         return;
       }
+      case "setCodingEnabled": {
+        const enabled = !!msg?.enabled;
+        await vscode.workspace
+          .getConfiguration()
+          .update("autoAttend.codingTime.enabled", enabled, vscode.ConfigurationTarget.Global);
+        this.getCodingTracker()?.start();
+        await this.refreshState();
+        return;
+      }
+      case "setCodingProject": {
+        const id = Number(msg?.projectId || 0);
+        await CodingTimeTracker.setProjectId(this.context, id > 0 ? id : undefined);
+        this.getCodingTracker()?.bump();
+        await this.refreshState();
+        return;
+      }
+      case "loadCodingSummary": {
+        const pid = Number(msg?.projectId || 0) || (await CodingTimeTracker.getProjectId(this.context));
+        if (!pid) throw new Error("请先选择编码统计绑定项目");
+        const sum = await this.api.getCodingSummary(pid);
+        this.post({ type: "codingSummary", payload: sum });
+        return;
+      }
       default:
         break;
     }
@@ -211,14 +267,30 @@ class SidebarProvider implements vscode.WebviewViewProvider {
 
 export function activate(context: vscode.ExtensionContext): void {
   const api = new AutoAttendApiClient(context);
-  const provider = new SidebarProvider(context, api);
+  let codingTracker: CodingTimeTracker | undefined;
+  const provider = new SidebarProvider(context, api, () => codingTracker);
+  codingTracker = new CodingTimeTracker(context, api);
+  codingTracker.start();
   context.subscriptions.push(
+    codingTracker,
     vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider),
     vscode.commands.registerCommand("autoAttend.openPanel", () => provider.reveal()),
     vscode.commands.registerCommand("autoAttend.logout", async () => {
       await api.clearTokens();
       await provider.refreshState();
       vscode.window.showInformationMessage("AutoAttend 已退出登录");
+    }),
+    vscode.commands.registerCommand("autoAttend.toggleCodingTime", async () => {
+      const cfg = vscode.workspace.getConfiguration();
+      const cur = cfg.get<boolean>("autoAttend.codingTime.enabled", false);
+      await cfg.update("autoAttend.codingTime.enabled", !cur, vscode.ConfigurationTarget.Global);
+      vscode.window.showInformationMessage(cur ? "已关闭编码统计" : "已开启编码统计");
+      codingTracker?.start();
+      await provider.refreshState();
+    }),
+    vscode.commands.registerCommand("autoAttend.flushCodingQueue", async () => {
+      await codingTracker?.tryFlushQueue();
+      vscode.window.showInformationMessage("已尝试上报编码队列");
     })
   );
 }
@@ -268,6 +340,18 @@ function getWebviewHtml(webview: vscode.Webview): string {
   </div>
 
   <div class="card">
+    <div><b>编码统计（MVP）</b></div>
+    <label class="muted" style="display:flex;align-items:center;gap:6px;margin:6px 0">
+      <input type="checkbox" id="codingEnabled" /> 启用编码时长采集
+    </label>
+    <div class="muted">基于窗口焦点与活动编辑器推断，默认不上报文件指纹；汇总按 UTC 日。</div>
+    <label class="muted" for="codingProjectSelect">绑定协作项目</label>
+    <select id="codingProjectSelect"><option value="">请选择项目...</option></select>
+    <button id="refreshCodingBtn">刷新今日汇总</button>
+    <div class="muted" id="codingSummaryLine">—</div>
+  </div>
+
+  <div class="card">
     <div><b>加载网页工作台（Webview）</b></div>
     <div class="row">
       <button id="loadProjectsBtn">加载项目</button>
@@ -300,6 +384,24 @@ function getWebviewHtml(webview: vscode.Webview): string {
         o.textContent = p.name ? p.name + " (#" + p.id + ")" : ("项目#" + p.id);
         s.appendChild(o);
       });
+      const cps = el("codingProjectSelect");
+      if (cps) {
+        const prev = cps.value;
+        cps.innerHTML = '<option value="">请选择项目...</option>';
+        (items || []).forEach(p => {
+          const o = document.createElement("option");
+          o.value = String(p.id);
+          o.textContent = p.name ? p.name + " (#" + p.id + ")" : ("项目#" + p.id);
+          cps.appendChild(o);
+        });
+        if (prev) cps.value = prev;
+      }
+    }
+
+    function formatCodingDuration(sec) {
+      const s = Number(sec) || 0;
+      if (s < 60) return s + " 秒";
+      return Math.round(s / 60) + " 分钟";
     }
 
     window.addEventListener("message", (event) => {
@@ -309,6 +411,13 @@ function getWebviewHtml(webview: vscode.Webview): string {
           el("baseUrl").value = msgIn.payload.baseUrl || "";
           el("stateLine").textContent = msgIn.payload.loggedIn ? "已登录" : "未登录";
           renderProjects(msgIn.payload.projects || []);
+          if (el("codingEnabled")) el("codingEnabled").checked = !!msgIn.payload.codingTimeEnabled;
+          if (el("codingProjectSelect") && msgIn.payload.codingProjectId) {
+            el("codingProjectSelect").value = String(msgIn.payload.codingProjectId);
+          }
+          if (el("codingSummaryLine") && msgIn.payload.codingSummarySeconds != null) {
+            el("codingSummaryLine").textContent = "今日(UTC) " + formatCodingDuration(msgIn.payload.codingSummarySeconds);
+          }
           break;
         case "projects":
           renderProjects(msgIn.payload || []);
@@ -317,6 +426,12 @@ function getWebviewHtml(webview: vscode.Webview): string {
         case "embedUrl":
           el("embedFrame").src = msgIn.payload.url;
           msg("已打开 Webview 嵌入页面", "ok");
+          break;
+        case "codingSummary":
+          if (el("codingSummaryLine")) {
+            const pl = msgIn.payload || {};
+            el("codingSummaryLine").textContent = (pl.day ? ("「" + pl.day + "」(UTC) ") : "今日(UTC) ") + formatCodingDuration(pl.totalSeconds);
+          }
           break;
         case "error":
           msg(msgIn.message || "操作失败", "error");
@@ -338,6 +453,18 @@ function getWebviewHtml(webview: vscode.Webview): string {
         username: el("account").value || ""
       });
     };
+
+    if (el("codingEnabled")) {
+      el("codingEnabled").onchange = () => vscode.postMessage({ type: "setCodingEnabled", enabled: el("codingEnabled").checked });
+    }
+    if (el("codingProjectSelect")) {
+      el("codingProjectSelect").onchange = () =>
+        vscode.postMessage({ type: "setCodingProject", projectId: Number(el("codingProjectSelect").value || 0) });
+    }
+    if (el("refreshCodingBtn")) {
+      el("refreshCodingBtn").onclick = () =>
+        vscode.postMessage({ type: "loadCodingSummary", projectId: Number(el("codingProjectSelect").value || 0) });
+    }
 
     vscode.postMessage({ type: "init" });
   </script>

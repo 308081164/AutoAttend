@@ -11,9 +11,12 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:autoAttend.sidebarView",
     "onCommand:autoAttend.openPanel",
-    "onCommand:autoAttend.logout"
+    "onCommand:autoAttend.logout",
+    "onCommand:autoAttend.toggleCodingTime",
+    "onCommand:autoAttend.flushCodingQueue"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -25,6 +28,14 @@
       {
         "command": "autoAttend.logout",
         "title": "AutoAttend: 退出登录"
+      },
+      {
+        "command": "autoAttend.toggleCodingTime",
+        "title": "AutoAttend: 切换编码统计开关"
+      },
+      {
+        "command": "autoAttend.flushCodingQueue",
+        "title": "AutoAttend: 立即上报编码队列"
       }
     ],
     "viewsContainers": {
@@ -52,6 +63,23 @@
           "type": "string",
           "default": "http://localhost:8080",
           "description": "AutoAttend 后端服务地址"
+        },
+        "autoAttend.codingTime.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用 WakaTime 类编码时长采集（窗口焦点 + 活动编辑器启发式），需登录并绑定协作项目"
+        },
+        "autoAttend.codingTime.heartbeatSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 30,
+          "maximum": 120,
+          "description": "在持续编辑态下，每隔多少秒切一段心跳上报"
+        },
+        "autoAttend.codingTime.sendFileFingerprint": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否在心跳中附带文档 URI 的 SHA-256 短指纹（默认关闭以保护隐私）"
         }
       }
     }
