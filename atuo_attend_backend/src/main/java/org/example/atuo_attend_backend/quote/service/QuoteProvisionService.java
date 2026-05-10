@@ -323,7 +323,8 @@ public class QuoteProvisionService {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", "web");
         body.put("active", true);
-        body.put("events", List.of("push"));
+        // push：同步提交；workflow_run：CI 非成功时写入协作「项目调整」表（见 GithubActionsCiWebhookService）
+        body.put("events", List.of("push", "workflow_run"));
         body.put("config", cfg);
 
         HttpHeaders headers = new HttpHeaders();
