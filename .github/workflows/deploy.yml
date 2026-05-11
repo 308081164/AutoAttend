@@ -118,7 +118,9 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 3h
+          # 必须用引号：否则 YAML 可能把 3h 解析成非预期类型，回退为默认 10m，长镜像拉取+双次 backend 冷启动时易「Run Command Timeout」
+          command_timeout: "3h"
+          timeout: 2m
           envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
@@ -211,11 +213,9 @@ jobs:
             mkdir -p /var/www/certbot
             echo "SSL 证书自动申请已移除，请手动配置。如需 HTTPS，请确保 /etc/letsencrypt/live/liubangproject.tech/fullchain.pem 存在。"
 
-            # 一次性对齐 networks（含 autoattend_net）、镜像与全部服务定义。
-            # 当前 compose 中 frontend 已 depends_on backend: service_started，不会因等 backend 健康而永久 Waiting。
-            docker compose -f docker-compose.prod.yml up -d
-
-            # 数据库迁移：强制重建 backend 跑 migrate_manifest.txt
+            # 先起 backend 的依赖（含 penpot-frontend: started），再单次强制重建 backend。
+            # 避免「先全量 up -d 已启动 backend，再 force-recreate backend」导致迁移脚本与 JVM 冷启动跑两遍、8848 迟迟不可用并挤爆 SSH 总时长。
+            docker compose -f docker-compose.prod.yml up -d mysql minio penpot-frontend
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
 
             # 以宿主机访问 8848 为准（映射端口），不依赖 Docker Health（避免 unhealthy 无输出时脚本也过不了）
