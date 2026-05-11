@@ -62,26 +62,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # GHCR 偶发「Client.Timeout exceeded while awaiting headers」；Buildx + 推送重试缓解
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push backend
-        uses: docker/build-push-action@v5
+        uses: nick-fields/retry@v3
         with:
-          context: ./atuo_attend_backend
-          push: true
-          tags: ${{ steps.images.outputs.backend }}
+          timeout_minutes: 45
+          max_attempts: 4
+          retry_wait_seconds: 45
+          warning_on_retry: true
+          command: docker buildx build --push -t "${{ steps.images.outputs.backend }}" ./atuo_attend_backend
 
       - name: Build and push frontend
-        uses: docker/build-push-action@v5
+        uses: nick-fields/retry@v3
         with:
-          context: ./auto_attend_forntend
-          push: true
-          tags: ${{ steps.images.outputs.frontend }}
+          timeout_minutes: 45
+          max_attempts: 4
+          retry_wait_seconds: 45
+          warning_on_retry: true
+          command: docker buildx build --push -t "${{ steps.images.outputs.frontend }}" ./auto_attend_forntend
 
       - name: Build and push platform monitor frontend
-        uses: docker/build-push-action@v5
+        uses: nick-fields/retry@v3
         with:
-          context: ./platform_monitor_frontend
-          push: true
-          tags: ${{ steps.images.outputs.platform_monitor_frontend }}
+          timeout_minutes: 45
+          max_attempts: 4
+          retry_wait_seconds: 45
+          warning_on_retry: true
+          command: docker buildx build --push -t "${{ steps.images.outputs.platform_monitor_frontend }}" ./platform_monitor_frontend
 
       - name: Deploy to server
         env:
