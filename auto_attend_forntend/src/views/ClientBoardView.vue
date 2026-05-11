@@ -487,12 +487,14 @@
 import { Chart as ChartJS, registerables } from 'chart.js'
 import MarkdownIt from 'markdown-it'
 import { shouldCompressAsRasterImage, compressImageFile } from '@/utils/imageCompress'
+import trackClickMixin from '@/mixins/trackClickMixin'
 
 ChartJS.register(...registerables)
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
 export default {
   name: 'ClientBoardView',
+  mixins: [trackClickMixin],
   data () {
     return {
       loading: true,
@@ -890,6 +892,7 @@ export default {
       this.aiDrafts.splice(idx, 1)
     },
     async runAiPreview () {
+      this.$trackClick('client_board.ai.generate_draft')
       const raw = (this.aiText || '').trim()
       if (!raw && !this.aiSelectedAttIds.length) return
       this.aiBusy = true; this.aiDrafts = []
@@ -918,6 +921,7 @@ export default {
       finally { this.aiBusy = false }
     },
     async commitAi () {
+      this.$trackClick('client_board.ai.commit')
       if (!this.aiDrafts.length) return
       this.aiCommitting = true
       try {

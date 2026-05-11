@@ -1245,6 +1245,7 @@ import { compressImageFile, IMAGE_COMPRESS_PRESETS, shouldCompressAsRasterImage 
 import { buildWordCloudItems } from '@/utils/collabDashboardText'
 import { redirectCollabUnauthorized } from '@/utils/httpAuth'
 import { subscribeAuthSession } from '@/utils/authSession'
+import trackClickMixin from '@/mixins/trackClickMixin'
 import {
   getCollabAttachmentPreviewUrl,
   rememberCollabAttachmentPreview,
@@ -1260,6 +1261,7 @@ export default {
   components: {
     DashboardView
   },
+  mixins: [trackClickMixin],
   data () {
     return {
       projectId: null,
@@ -1763,6 +1765,7 @@ export default {
       }
     },
     async saveMailNotifyConfig () {
+      this.$trackClick('collab.home.save_mail_config')
       if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.mailNotifySaving = true
@@ -1794,6 +1797,7 @@ export default {
       }
     },
     async sendMailNotifyTest () {
+      this.$trackClick('collab.home.send_test_mail')
       if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.mailNotifySendingTest = true
@@ -1838,6 +1842,7 @@ export default {
       }
     },
     async saveAiLinkageConfig () {
+      this.$trackClick('collab.home.save_ai_linkage')
       if (!this.hasAdminSession) return
       if (!this.projectId) return
       this.aiLinkageSaving = true
@@ -1888,6 +1893,7 @@ export default {
       }
     },
     async saveClientBoard () {
+      this.$trackClick('collab.home.save_client_board')
       if (!this.projectId) return
       this.clientBoardSaving = true
       this.clientBoardMessage = ''
@@ -2021,6 +2027,7 @@ export default {
       }
     },
     openClientBoardInNewTab () {
+      this.$trackClick('collab.home.open_board_tab')
       const url = this.getClientBoardPublicUrl()
       if (!url) return
       try {
@@ -2272,6 +2279,7 @@ export default {
       }
     },
     openAiInput (mode) {
+      this.$trackClick('collab.ai.open_input')
       this.aiModalMode = mode === 'csv' ? 'csv' : 'text'
       this.showAiModal = true
       this.csvImportMode = 'ai'
@@ -2294,6 +2302,7 @@ export default {
       this.clearQuickCsvState()
     },
     openFilterModal () {
+      this.$trackClick('collab.filter.open_modal')
       // 从当前激活的筛选规则恢复编辑
       this.filterRules = Array.isArray(this.activeFilters) ? this.activeFilters.map(r => ({ ...r })) : []
       if (!this.filterRules.length) {
@@ -2390,6 +2399,7 @@ export default {
       return payload
     },
     async applyFilters () {
+      this.$trackClick('collab.filter.apply')
       if (!this.filterRules.length) {
         this.activeFilters = []
         this.closeFilterModal()
@@ -2447,6 +2457,7 @@ export default {
       this.quickCsvMappings = out
     },
     async analyzeQuickCsv () {
+      this.$trackClick('collab.csv.quick_analyze')
       if (!this.csvAiFile) return
       this.csvAiLoading = true
       this.csvAiWarnings = []
@@ -2474,6 +2485,7 @@ export default {
       }
     },
     async commitQuickCsvImport () {
+      this.$trackClick('collab.csv.quick_commit')
       if (!this.quickCsvSessionId) {
         alert(this.$t('collabTable.csvQuickNeedAnalyze'))
         return
@@ -2514,6 +2526,7 @@ export default {
       }
     },
     async runCsvAiPreview () {
+      this.$trackClick('collab.csv.ai_parse')
       if (!this.csvAiFile) return
       this.csvAiLoading = true
       this.csvAiWarnings = []
@@ -2586,6 +2599,7 @@ export default {
       }
     },
     async runAiPreview () {
+      this.$trackClick('collab.ai.generate_drafts')
       if (!this.aiInputText || !this.aiInputText.trim()) return
       this.aiLoading = true
       try {
@@ -2623,6 +2637,7 @@ export default {
       this.aiTasks.splice(idx, 1)
     },
     async commitAiTasks () {
+      this.$trackClick('collab.ai.commit_tasks')
       if (!this.aiTasks.length) return
       this.aiCommitting = true
       try {
@@ -2778,6 +2793,7 @@ export default {
       }
     },
     async openPortalModal () {
+      this.$trackClick('collab.portal.open_modal')
       this.portalModalOpen = true
       this.portalMessage = ''
       this.portalMessageOk = false
@@ -2813,6 +2829,7 @@ export default {
       this.portalEditItems.splice(idx, 1)
     },
     async savePortalLinks () {
+      this.$trackClick('collab.portal.save')
       if (!this.projectId) return
       this.portalSaving = true
       this.portalMessage = ''
@@ -2863,6 +2880,7 @@ export default {
       }
     },
     async importPortalLinks () {
+      this.$trackClick('collab.portal.import')
       if (!this.projectId || !this.portalImportFromProjectId) return
       if (!window.confirm('导入将覆盖当前项目的全部传送门链接，是否继续？')) return
       this.portalImporting = true
@@ -2977,6 +2995,7 @@ export default {
       this.rowSelection = {}
     },
     confirmBatchDelete () {
+      this.$trackClick('collab.record.batch_delete')
       const ids = Object.keys(this.rowSelection).map(Number)
       if (!ids.length) return
       if (!window.confirm(this.$t('collabTable.confirmBatchDelete', { n: ids.length }))) return
@@ -3488,6 +3507,7 @@ export default {
       return v
     },
     async saveRecord () {
+      this.$trackClick('collab.record.save')
       if (!this.drawerRecord || this.drawerSaving) return
       this.drawerSaving = true
       try {
@@ -3514,6 +3534,7 @@ export default {
       this.drawerRecord = null
     },
     confirmDeleteRow (row) {
+      this.$trackClick('collab.record.delete')
       if (!window.confirm(this.$t('collabTable.confirmDelete'))) return
       this.doDeleteRecord(row.id)
     },
@@ -3594,6 +3615,7 @@ export default {
       return this.$t('collabTable.historyActionUpdate')
     },
     async submitComment () {
+      this.$trackClick('collab.record.submit_comment')
       if (!this.drawerRecord || !this.newComment.trim()) return
       try {
         await this.$http.post(`/collab/records/${this.drawerRecord.id}/comments`, {
@@ -3694,6 +3716,7 @@ export default {
       return String(t).slice(0, 19).replace('T', ' ')
     },
     async openAddRecord () {
+      this.$trackClick('collab.record.open_add_modal')
       if (this.newRecordImagePreviewUrl) {
         try { URL.revokeObjectURL(this.newRecordImagePreviewUrl) } catch (_err) { /* ignore */ }
       }
@@ -3731,6 +3754,7 @@ export default {
       })
     },
     async createRecord () {
+      this.$trackClick('collab.record.create')
       if (this.createSaving) return
       this.createSaving = true
       try {

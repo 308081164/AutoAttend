@@ -146,6 +146,42 @@
         </el-table>
         <el-empty v-else description="暂无组件事件数据（需要先在主应用触发组件操作）" :image-size="80" />
       </el-card>
+
+      <!-- 功能点击热度排行 -->
+      <el-card shadow="hover" class="section-card">
+        <div slot="header" class="section-header">
+          <span>功能点击热度排行（跨组件 Top 50）</span>
+          <el-tag size="small" type="success" effect="plain">按点击量降序，统计独立用户数与租户数</el-tag>
+        </div>
+        <el-table
+          v-if="heatRank && heatRank.items && heatRank.items.length"
+          :data="heatRank.items"
+          stripe
+          size="small"
+          style="width: 100%"
+          :default-sort="{ prop: 'clickCount', order: 'descending' }"
+        >
+          <el-table-column prop="rank" label="排名" width="60" align="center" />
+          <el-table-column label="功能名称" min-width="260">
+            <template slot-scope="{ row }">
+              <div class="comp-cell">
+                <span class="comp-label">{{ coreApiLabel(row.coreApiKey) }}</span>
+                <el-tag size="mini" type="info" effect="plain">{{ row.coreApiKey }}</el-tag>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="所属模块" width="120" align="center">
+            <template slot-scope="{ row }">
+              <el-tag size="mini" :type="row.componentKey === 'collab' ? 'success' : ''" effect="plain">{{ componentLabel(row.componentKey) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="clickCount" label="点击数" width="90" align="center" sortable />
+          <el-table-column prop="usageCount" label="使用数" width="90" align="center" sortable />
+          <el-table-column prop="userCount" label="独立用户数" width="100" align="center" sortable />
+          <el-table-column prop="tenantCount" label="涉及租户数" width="100" align="center" sortable />
+        </el-table>
+        <el-empty v-else description="暂无热度数据（需要先在主应用触发功能操作）" :image-size="80" />
+      </el-card>
     </template>
   </div>
 </template>
@@ -160,7 +196,8 @@ const COMPONENT_LABELS = {
   ai_commit_analysis: 'AI 分析（单次提交）',
   quote: '报价系统',
   ui_prototype: '快原型',
-  ai_analysis: 'AI 分析（单次提交）'
+  ai_analysis: 'AI 分析（单次提交）',
+  collab: '项目协作'
 }
 
 const CORE_API_LABELS = {
@@ -168,7 +205,43 @@ const CORE_API_LABELS = {
   quote_calculate: '报价计算（Calculate）',
   ui_prototype_generate_spec: '生成规格（Spec）',
   ui_prototype_generate_mockup: '生成页面原型（Mockup）',
-  ai_analysis_run: '运行单次提交 AI 分析'
+  ai_analysis_run: '运行单次提交 AI 分析',
+  // 项目协作 - 记录操作
+  'collab.record.open_add_modal': '新建记录（打开弹窗）',
+  'collab.record.create': '新建记录（确认创建）',
+  'collab.record.open_detail': '打开记录详情',
+  'collab.record.save': '保存记录修改',
+  'collab.record.delete': '删除记录',
+  'collab.record.batch_delete': '批量删除记录',
+  'collab.record.submit_comment': '提交评论',
+  // 项目协作 - 表格操作
+  'collab.table.toggle_dashboard': '切换仪表盘/表格视图',
+  'collab.filter.open_modal': '打开筛选弹窗',
+  'collab.filter.apply': '应用筛选',
+  // 项目协作 - AI 功能
+  'collab.ai.open_input': '打开 AI 录入',
+  'collab.ai.generate_drafts': 'AI 生成任务草稿',
+  'collab.ai.commit_tasks': 'AI 任务提交到表格',
+  'collab.csv.ai_parse': 'CSV AI 解析',
+  'collab.csv.quick_analyze': 'CSV 快速分析',
+  'collab.csv.quick_commit': 'CSV 快速导入提交',
+  // 项目协作 - 首页配置
+  'collab.home.save_mail_config': '保存邮件通知配置',
+  'collab.home.send_test_mail': '发送测试邮件',
+  'collab.home.save_ai_linkage': '保存 AI 联动配置',
+  'collab.home.save_client_board': '保存客户看板配置',
+  'collab.home.copy_client_link': '复制客户访问链接',
+  'collab.home.open_board_tab': '打开客户看板',
+  'collab.home.regenerate_token': '重新生成看板令牌',
+  // 项目协作 - 传送门
+  'collab.portal.open_modal': '打开传送门配置',
+  'collab.portal.save': '保存传送门链接',
+  'collab.portal.import': '导入传送门链接',
+  // 客户看板
+  'client_board.ai.generate_draft': '客户 AI 生成草稿',
+  'client_board.ai.commit': '客户 AI 提交任务',
+  'client_board.table.switch_purpose': '切换表格用途',
+  'client_board.daily.open_detail': '打开日报详情'
 }
 
 export default {
@@ -181,7 +254,8 @@ export default {
       overview: null,
       dauTrend: [],
       activeAuthors: [],
-      componentUsage: { components: [] }
+      componentUsage: { components: [] },
+      heatRank: { items: [] }
     }
   },
   async mounted () {
@@ -237,6 +311,13 @@ export default {
         if (c && c.code === 0) this.componentUsage = c.data || { components: [] }
       } catch (e) {
         this.componentUsage = { components: [] }
+      }
+
+      try {
+        const { data: h } = await http.get('/platform/ops/metrics/heat-rank', { params: { days: 30, limit: 50 } })
+        if (h && h.code === 0) this.heatRank = h.data || { items: [] }
+      } catch (e) {
+        this.heatRank = { items: [] }
       } finally {
         this.loading = false
       }

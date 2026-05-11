@@ -80,9 +80,11 @@
 <script>
 import { getStoredCollabActingUserId, setStoredCollabActingUserId } from '@/utils/collabActingUser'
 import { subscribeAuthSession, notifyAuthSessionChanged } from '@/utils/authSession'
+import trackClickMixin from '@/mixins/trackClickMixin'
 
 export default {
   name: 'CollabProjectListView',
+  mixins: [trackClickMixin],
   data () {
     return {
       authSessionTick: 0,

@@ -173,5 +173,40 @@ public class PlatformOpsMetricsController {
         out.put("components", components);
         return ApiResponse.ok(out);
     }
+
+    @GetMapping("/heat-rank")
+    public ApiResponse<Map<String, Object>> heatRank(
+            @RequestParam(value = "days", defaultValue = "30") int days,
+            @RequestParam(value = "limit", defaultValue = "50") int limit) {
+        days = Math.min(Math.max(days, 1), 180);
+        limit = Math.min(Math.max(limit, 5), 200);
+        OffsetDateTime startToday = todayStart();
+        OffsetDateTime since = startToday.minusDays(days - 1L);
+
+        List<PlatformComponentEventMapper.HeatRankRow> rows = componentEventMapper.listHeatRank(since, limit);
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        if (rows != null) {
+            int rank = 0;
+            for (PlatformComponentEventMapper.HeatRankRow r : rows) {
+                rank++;
+                Map<String, Object> m = new HashMap<>();
+                m.put("rank", rank);
+                m.put("coreApiKey", r.getCoreApiKey());
+                m.put("componentKey", r.getComponentKey());
+                m.put("clickCount", r.getClickCount());
+                m.put("usageCount", r.getUsageCount());
+                m.put("tenantCount", r.getTenantCount());
+                m.put("userCount", r.getUserCount());
+                items.add(m);
+            }
+        }
+
+        Map<String, Object> out = new HashMap<>();
+        out.put("since", since.toString());
+        out.put("total", items.size());
+        out.put("items", items);
+        return ApiResponse.ok(out);
+    }
 }
 
