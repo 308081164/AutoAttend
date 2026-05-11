@@ -17,6 +17,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     permissions:
@@ -103,7 +104,9 @@ jobs:
 
       # 可选：若 ghcr.io 镜像为私有，请在仓库 Secrets 中配置 GHCR_USERNAME + GHCR_READ_TOKEN（PAT 勾选 read:packages），
       # 否则服务器上 docker compose pull 可能报 unauthorized。
-      - name: Start containers on server
+      # appleboy/ssh-action 内置 drone-ssh 对 command_timeout 的解析在部分版本下不支持「3h」，易回退为默认 10m；
+      # 长镜像 pull 与 backend 冷启动等待叠在同一会话里会触发「Run Command Timeout」。拆成 pull 与编排两步，并仅用 Xm。
+      - name: Pull service images on server
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
@@ -118,16 +121,46 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          # 必须用引号：否则 YAML 可能把 3h 解析成非预期类型，回退为默认 10m，长镜像拉取+双次 backend 冷启动时易「Run Command Timeout」
-          command_timeout: "3h"
-          timeout: 2m
+          command_timeout: "45m"
+          timeout: "5m"
           envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
             DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
             cd "$DPATH"
             mkdir -p "$DPATH/git-repos"
-            echo "DEPLOY_SCRIPT_TAG=v5-staged-host-probe SHA=${GITHUB_SHA:-unknown}"
+            echo "DEPLOY_STAGE=pull SHA=${GITHUB_SHA:-unknown}"
+            if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            fi
+            export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
+            docker compose -f docker-compose.prod.yml pull
+            echo "DEPLOY_STAGE=pull OK"
+
+      - name: Compose up and verify backend on server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
+          IMAGE_FRONTEND: ${{ steps.images.outputs.frontend }}
+          IMAGE_PLATFORM_MONITOR_FRONTEND: ${{ steps.images.outputs.platform_monitor_frontend }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GHCR_USER: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: "60m"
+          timeout: "5m"
+          envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
+          script: |
+            set -e
+            DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
+            cd "$DPATH"
+            mkdir -p "$DPATH/git-repos"
+            echo "DEPLOY_SCRIPT_TAG=v6-split-pull-probe SHA=${GITHUB_SHA:-unknown}"
 
             set +e
             sc=$(grep -c 'condition: service_started' docker-compose.prod.yml 2>/dev/null)
@@ -143,7 +176,6 @@ jobs:
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
             export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
-            docker compose -f docker-compose.prod.yml pull
 
             # 同步宿主机 Nginx 配置并 reload（兼容宝塔面板和标准 Nginx）
             # 宝塔面板：配置在 /www/server/nginx/conf/vhost/ 或 nginx.conf 中
@@ -221,11 +253,18 @@ jobs:
             # 以宿主机访问 8848 为准（映射端口），不依赖 Docker Health（避免 unhealthy 无输出时脚本也过不了）
             # 循环上限：每轮 sleep 2s，共 WAIT_ROUNDS 轮 → 最长约 $((WAIT_ROUNDS * 2)) 秒（超时后打印诊断并失败，不会无限等待）
             WAIT_ROUNDS=600
-            echo "等待 127.0.0.1:8848 可访问（curl/wget 宿主机）；最长约 $((WAIT_ROUNDS * 2)) 秒..."
+            host_backend_http_ok () {
+              u="http://127.0.0.1:8848"
+              curl -sS --connect-timeout 3 -o /dev/null "${u}/" 2>/dev/null && return 0
+              curl -sS --connect-timeout 3 -o /dev/null "${u}/actuator/health/liveness" 2>/dev/null && return 0
+              curl -sS --connect-timeout 3 -o /dev/null "${u}/actuator/health" 2>/dev/null && return 0
+              wget -q -O /dev/null --timeout=3 "${u}/" 2>/dev/null && return 0
+              return 1
+            }
+            echo "等待 127.0.0.1:8848（根路径或 Actuator health）可访问；最长约 $((WAIT_ROUNDS * 2)) 秒..."
             status=""
             for i in $(seq 1 "$WAIT_ROUNDS"); do
-              if curl -sS --connect-timeout 3 -o /dev/null http://127.0.0.1:8848/ 2>/dev/null \
-                || wget -q -O /dev/null --timeout=3 http://127.0.0.1:8848/ 2>/dev/null; then
+              if host_backend_http_ok; then
                 echo "backend 已对宿主机 8848 响应 HTTP"
                 status=ready
                 break
@@ -250,6 +289,7 @@ jobs:
               docker inspect autoattend-backend --format='{{json .State.Health}}' 2>/dev/null || true
               echo "---- 容器内 curl 8848 ----"
               docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "http_code=%{http_code}\n" --connect-timeout 3 http://127.0.0.1:8848/ || echo curl_fail' 2>&1 || true
+              docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "liveness_http_code=%{http_code}\n" --connect-timeout 3 http://127.0.0.1:8848/actuator/health/liveness || echo curl_liveness_fail' 2>&1 || true
               echo "---- autoattend-backend 日志 ----"
               docker logs --tail 200 autoattend-backend 2>&1 || true
               exit 1
