@@ -261,69 +261,49 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
             echo "DEPLOY_STAGE=backend_container_started"
 
-      - name: Wait for backend 8848 on server
-        uses: appleboy/ssh-action@v1.2.5
+      # drone-ssh 单条远程会话在部分环境下仍有 ~90s 上限；8848 未就绪时需长等。改为 Runner 上短 SSH 轮询（每轮独立连接），避免误杀并周期性打出后端日志便于排查。
+      - name: Wait for backend 8848 (runner SSH poll)
         env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
           GITHUB_SHA: ${{ github.sha }}
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 7200s
-          timeout: 300s
-          envs: DEPLOY_PATH,GITHUB_SHA
-          script: |
-            set -e
-            DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
-            cd "$DPATH"
-            echo "DEPLOY_SCRIPT_TAG=v7-wait-8848 SHA=${GITHUB_SHA:-unknown}"
+        run: |
+          set -e
+          PORT="${SSH_PORT:-22}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_wait_key
+          chmod 600 ~/.ssh/deploy_wait_key
+          ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "DEPLOY_SCRIPT_TAG=v8-wait-runner-ssh SHA=${GITHUB_SHA:-unknown}"
+          echo "等待宿主机 127.0.0.1:8848（每 10s 一轮短 SSH，最多 120 轮 ≈1200s）。若失败请根据下方日志在服务器继续排查。"
 
-            # 以宿主机访问 8848 为准（映射端口），不依赖 Docker Health（避免 unhealthy 无输出时脚本也过不了）
-            # 循环上限：每轮 sleep 2s，共 WAIT_ROUNDS 轮 → 最长约 $((WAIT_ROUNDS * 2)) 秒（超时后打印诊断并失败，不会无限等待）
-            WAIT_ROUNDS=600
-            host_backend_http_ok () {
-              u="http://127.0.0.1:8848"
-              curl -sS --connect-timeout 3 -o /dev/null "${u}/" 2>/dev/null && return 0
-              curl -sS --connect-timeout 3 -o /dev/null "${u}/actuator/health/liveness" 2>/dev/null && return 0
-              curl -sS --connect-timeout 3 -o /dev/null "${u}/actuator/health" 2>/dev/null && return 0
-              wget -q -O /dev/null --timeout=3 "${u}/" 2>/dev/null && return 0
-              return 1
-            }
-            echo "等待 127.0.0.1:8848（根路径或 Actuator health）可访问；最长约 $((WAIT_ROUNDS * 2)) 秒..."
-            status=""
-            for i in $(seq 1 "$WAIT_ROUNDS"); do
-              if host_backend_http_ok; then
-                echo "backend 已对宿主机 8848 响应 HTTP"
-                status=ready
-                break
-              fi
-              hb=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' autoattend-backend 2>/dev/null || echo "missing")
-              if [ "$hb" = "healthy" ]; then
-                echo "backend Docker Health=healthy"
-                status=ready
-                break
-              fi
-              # 约每 30s 打一行，避免长时间无输出被误认为卡死
-              if [ "$((i % 15))" -eq 0 ]; then
-                echo "[wait] 已等待约 $((i * 2))s / 至多 $((WAIT_ROUNDS * 2))s，8848 仍不可达，Docker.Health=$hb"
-                docker inspect autoattend-backend --format='Status={{.State.Status}} Exit={{.State.ExitCode}}' 2>/dev/null || true
-              fi
-              sleep 2
-            done
+          run_ssh () {
+            ssh -i ~/.ssh/deploy_wait_key -o StrictHostKeyChecking=no -p "$PORT" "$SSH_USER@$SSH_HOST" "$@"
+          }
 
-            if [ "$status" != "ready" ]; then
-              echo "8848 在预期时间内不可访问"
-              echo "---- State.Health JSON ----"
-              docker inspect autoattend-backend --format='{{json .State.Health}}' 2>/dev/null || true
-              echo "---- 容器内 curl 8848 ----"
-              docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "http_code=%{http_code}\n" --connect-timeout 3 http://127.0.0.1:8848/ || echo curl_fail' 2>&1 || true
-              docker exec autoattend-backend sh -c 'curl -sS -o /dev/null -w "liveness_http_code=%{http_code}\n" --connect-timeout 3 http://127.0.0.1:8848/actuator/health/liveness || echo curl_liveness_fail' 2>&1 || true
-              echo "---- autoattend-backend 日志 ----"
-              docker logs --tail 200 autoattend-backend 2>&1 || true
-              exit 1
+          chk='curl -sS --connect-timeout 4 -o /dev/null http://127.0.0.1:8848/actuator/health/liveness || curl -sS --connect-timeout 4 -o /dev/null http://127.0.0.1:8848/actuator/health || curl -sS --connect-timeout 4 -o /dev/null http://127.0.0.1:8848/ || (command -v wget >/dev/null 2>&1 && wget -q -O /dev/null --timeout=4 http://127.0.0.1:8848/)'
+
+          for round in $(seq 1 120); do
+            if run_ssh "$chk"; then
+              echo "backend 已对宿主机 8848 响应 HTTP（第 ${round} 轮）"
+              exit 0
             fi
+            echo "[wait] 第 ${round} 轮 / 120，8848 仍不可达"
+            run_ssh "docker inspect autoattend-backend 2>/dev/null | head -c 4000 || true" || true
+            if [ "$((round % 3))" -eq 0 ]; then
+              echo "---- backend 最近日志 ----"
+              run_ssh "docker logs --tail 100 autoattend-backend 2>&1" || true
+            fi
+            sleep 10
+          done
+
+          echo "==== 8848 在预期时间内仍不可访问：以下为 CI 从服务器抓取的信息；请 SSH 登录后继续排查 ===="
+          run_ssh "docker inspect autoattend-backend 2>/dev/null | head -c 8000 || true" || true
+          run_ssh "docker exec autoattend-backend curl -sS -o /dev/null --connect-timeout 3 http://127.0.0.1:8848/ || echo in_container_curl_fail" || true
+          run_ssh "docker logs --tail 300 autoattend-backend 2>&1" || true
+          exit 1
 
       - name: Recreate frontends on server
         uses: appleboy/ssh-action@v1.2.5
