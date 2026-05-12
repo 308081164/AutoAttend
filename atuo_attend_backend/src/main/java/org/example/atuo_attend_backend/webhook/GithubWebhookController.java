@@ -35,7 +35,8 @@ public class GithubWebhookController {
     private final CommitService commitService;
     private final CollabSyncService collabSyncService;
     private final TenantMapper tenantMapper;
-    private final ObjectMapper objectMapper;
+    /** Spring Boot 4 下默认上下文未必注册可注入的 ObjectMapper Bean，与项目内其它类一致使用本地实例 */
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final GithubActionsCiWebhookService githubActionsCiWebhookService;
 
     /** 与 GitHub Webhook Secret 一致时校验 {@code X-Hub-Signature-256}；未配置则不校验 */
@@ -44,13 +45,11 @@ public class GithubWebhookController {
     public GithubWebhookController(CommitService commitService,
                                    CollabSyncService collabSyncService,
                                    TenantMapper tenantMapper,
-                                   ObjectMapper objectMapper,
                                    GithubActionsCiWebhookService githubActionsCiWebhookService,
                                    @Value("${app.github.webhook.hmac-secret:}") String githubWebhookHmacSecret) {
         this.commitService = commitService;
         this.collabSyncService = collabSyncService;
         this.tenantMapper = tenantMapper;
-        this.objectMapper = objectMapper;
         this.githubActionsCiWebhookService = githubActionsCiWebhookService;
         this.githubWebhookHmacSecret = githubWebhookHmacSecret;
     }
