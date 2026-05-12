@@ -114,10 +114,9 @@ jobs:
 
       # 可选：若 ghcr.io 镜像为私有，请在仓库 Secrets 中配置 GHCR_USERNAME + GHCR_READ_TOKEN（PAT 勾选 read:packages），
       # 否则服务器上 docker compose pull 可能报 unauthorized。
-      # v1.0.3 在 Docker 内跑 drone-ssh 时，command_timeout 带「m」偶发被误解析（约 60s 即杀远程脚本），与真实等待无关。
-      # 升级到 v1.2.x（composite）+ 秒级 command_timeout；并将「等 8848」单独一步，避免与 compose 争同一限时。
-      - name: Pull service images on server
-        uses: appleboy/ssh-action@v1.2.5
+      # drone-ssh 对 command_timeout 的解析不稳定，带「3600s」时可能仍回落到默认 10m，大镜像 pull 易「Run Command Timeout」。
+      # 与「等 8848」一致：用 Runner 原生 OpenSSH 跑整段 pull，无单条远程命令时长上限（仅受 job timeout 约束）。
+      - name: Pull service images on server (runner SSH)
         env:
           IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
           IMAGE_FRONTEND: ${{ steps.images.outputs.frontend }}
@@ -126,26 +125,39 @@ jobs:
           GHCR_USER: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 3600s
-          timeout: 300s
-          envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
-          script: |
-            set -e
-            DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
-            cd "$DPATH"
-            mkdir -p "$DPATH/git-repos"
-            echo "DEPLOY_STAGE=pull SHA=${GITHUB_SHA:-unknown}"
-            if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -e
+          PORT="${SSH_PORT:-22}"
+          DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_pull_key
+          chmod 600 ~/.ssh/deploy_pull_key
+          ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "DEPLOY_STAGE=pull SHA=${GITHUB_SHA:-unknown} (runner SSH; ServerAlive 防长时间 pull 断连)"
+
+          {
+            echo 'set -e'
+            echo "cd $(printf %q "$DPATH")"
+            echo "mkdir -p $(printf %q "${DPATH}/git-repos")"
+            echo "echo DEPLOY_STAGE=pull SHA=$(printf %q "${GITHUB_SHA:-unknown}")"
+            if [ -n "${GHCR_TOKEN:-}" ] && [ -n "${GHCR_USER:-}" ]; then
+              echo "echo $(printf %q "$GHCR_TOKEN") | docker login ghcr.io -u $(printf %q "$GHCR_USER") --password-stdin"
             fi
-            export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
-            docker compose -f docker-compose.prod.yml pull
-            echo "DEPLOY_STAGE=pull OK"
+            echo "export IMAGE_BACKEND=$(printf %q "$IMAGE_BACKEND")"
+            echo "export IMAGE_FRONTEND=$(printf %q "$IMAGE_FRONTEND")"
+            echo "export IMAGE_PLATFORM_MONITOR_FRONTEND=$(printf %q "$IMAGE_PLATFORM_MONITOR_FRONTEND")"
+            echo "docker compose -f docker-compose.prod.yml pull"
+            echo "echo DEPLOY_STAGE=pull OK"
+          } | ssh -i ~/.ssh/deploy_pull_key \
+              -o StrictHostKeyChecking=no \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=360 \
+              -p "$PORT" \
+              "$SSH_USER@$SSH_HOST" bash -s
 
       - name: Deploy stack on server (nginx + backend)
         uses: appleboy/ssh-action@v1.2.5
@@ -162,8 +174,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 2400s
-          timeout: 300s
+          command_timeout: 2h
+          timeout: 2m
           envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
@@ -320,8 +332,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 1200s
-          timeout: 300s
+          command_timeout: 45m
+          timeout: 2m
           envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
