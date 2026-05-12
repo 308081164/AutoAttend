@@ -114,10 +114,10 @@ jobs:
 
       # 可选：若 ghcr.io 镜像为私有，请在仓库 Secrets 中配置 GHCR_USERNAME + GHCR_READ_TOKEN（PAT 勾选 read:packages），
       # 否则服务器上 docker compose pull 可能报 unauthorized。
-      # appleboy/ssh-action 内置 drone-ssh 对 command_timeout 的解析在部分版本下不支持「3h」，易回退为默认 10m；
-      # 长镜像 pull 与 backend 冷启动等待叠在同一会话里会触发「Run Command Timeout」。拆成 pull 与编排两步，并仅用 Xm。
+      # v1.0.3 在 Docker 内跑 drone-ssh 时，command_timeout 带「m」偶发被误解析（约 60s 即杀远程脚本），与真实等待无关。
+      # 升级到 v1.2.x（composite）+ 秒级 command_timeout；并将「等 8848」单独一步，避免与 compose 争同一限时。
       - name: Pull service images on server
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         env:
           IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
           IMAGE_FRONTEND: ${{ steps.images.outputs.frontend }}
@@ -131,8 +131,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: "45m"
-          timeout: "5m"
+          command_timeout: 3600s
+          timeout: 300s
           envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
@@ -147,8 +147,8 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             echo "DEPLOY_STAGE=pull OK"
 
-      - name: Compose up and verify backend on server
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy stack on server (nginx + backend)
+        uses: appleboy/ssh-action@v1.2.5
         env:
           IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
           IMAGE_FRONTEND: ${{ steps.images.outputs.frontend }}
@@ -162,15 +162,15 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: "60m"
-          timeout: "5m"
+          command_timeout: 2400s
+          timeout: 300s
           envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
             DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
             cd "$DPATH"
             mkdir -p "$DPATH/git-repos"
-            echo "DEPLOY_SCRIPT_TAG=v6-split-pull-probe SHA=${GITHUB_SHA:-unknown}"
+            echo "DEPLOY_SCRIPT_TAG=v7-stack SHA=${GITHUB_SHA:-unknown}"
 
             set +e
             sc=$(grep -c 'condition: service_started' docker-compose.prod.yml 2>/dev/null)
@@ -259,6 +259,26 @@ jobs:
             # 避免「先全量 up -d 已启动 backend，再 force-recreate backend」导致迁移脚本与 JVM 冷启动跑两遍、8848 迟迟不可用并挤爆 SSH 总时长。
             docker compose -f docker-compose.prod.yml up -d mysql minio penpot-frontend
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
+            echo "DEPLOY_STAGE=backend_container_started"
+
+      - name: Wait for backend 8848 on server
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GITHUB_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 7200s
+          timeout: 300s
+          envs: DEPLOY_PATH,GITHUB_SHA
+          script: |
+            set -e
+            DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
+            cd "$DPATH"
+            echo "DEPLOY_SCRIPT_TAG=v7-wait-8848 SHA=${GITHUB_SHA:-unknown}"
 
             # 以宿主机访问 8848 为准（映射端口），不依赖 Docker Health（避免 unhealthy 无输出时脚本也过不了）
             # 循环上限：每轮 sleep 2s，共 WAIT_ROUNDS 轮 → 最长约 $((WAIT_ROUNDS * 2)) 秒（超时后打印诊断并失败，不会无限等待）
@@ -305,4 +325,32 @@ jobs:
               exit 1
             fi
 
+      - name: Recreate frontends on server
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          IMAGE_BACKEND: ${{ steps.images.outputs.backend }}
+          IMAGE_FRONTEND: ${{ steps.images.outputs.frontend }}
+          IMAGE_PLATFORM_MONITOR_FRONTEND: ${{ steps.images.outputs.platform_monitor_frontend }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GHCR_USER: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 1200s
+          timeout: 300s
+          envs: IMAGE_BACKEND,IMAGE_FRONTEND,IMAGE_PLATFORM_MONITOR_FRONTEND,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,GITHUB_SHA
+          script: |
+            set -e
+            DPATH="${DEPLOY_PATH:-/mnt/newdisk/app/AutoAttend}"
+            cd "$DPATH"
+            echo "DEPLOY_SCRIPT_TAG=v7-frontends SHA=${GITHUB_SHA:-unknown}"
+            if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            fi
+            export IMAGE_BACKEND IMAGE_FRONTEND IMAGE_PLATFORM_MONITOR_FRONTEND
             docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate frontend platform-monitor-frontend
+
