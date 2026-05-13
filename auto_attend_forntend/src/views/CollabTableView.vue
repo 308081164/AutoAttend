@@ -1,47 +1,7 @@
 <template>
-  <div class="collab-table-page collab-table-layout">
-    <aside v-if="projectId" class="collab-sidebar" :class="{ collapsed: sidebarCollapsed }" aria-label="多维表切换">
-      <button
-        type="button"
-        class="collab-sidebar-collapse"
-        :title="sidebarCollapsed ? $t('collabTable.sidebarExpand') : $t('collabTable.sidebarCollapse')"
-        @click="sidebarCollapsed = !sidebarCollapsed"
-      >{{ sidebarCollapsed ? '▶' : '◀' }}</button>
-
-      <nav class="collab-sidebar-nav">
-        <router-link
-          class="collab-sidebar-link collab-sidebar-link-btn"
-          :class="{ active: showHomeDashboard }"
-          :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: {} }"
-        >
-          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarHomeBoard') }}</span>
-          <span v-else>B</span>
-        </router-link>
-        <router-link
-          class="collab-sidebar-link"
-          :class="{ active: !showHomeDashboard && tablePurpose === 'issue_tracking' }"
-          :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'issue_tracking' } }"
-        >
-          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarIssue') }}</span>
-          <span v-else>I</span>
-        </router-link>
-        <router-link
-          class="collab-sidebar-link"
-          :class="{ active: !showHomeDashboard && tablePurpose === 'feature_backlog' }"
-          :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'feature_backlog' } }"
-        >
-          <span v-if="!sidebarCollapsed">{{ $t('collabTable.sidebarFeature') }}</span>
-          <span v-else>F</span>
-        </router-link>
-      </nav>
-
-      <p v-if="!sidebarCollapsed && !showHomeDashboard" class="collab-sidebar-hint">
-        {{ tablePurpose === 'feature_backlog' ? $t('collabTable.sidebarHintFeature') : $t('collabTable.sidebarHintIssue') }}
-      </p>
-    </aside>
+  <div class="collab-table-page collab-table-layout collab-table-layout--topnav">
     <div class="collab-table-main">
-    <template v-if="showHomeDashboard">
-      <div class="collab-home-chrome">
+      <div v-if="projectId" class="collab-layout-chrome">
         <header class="collab-home-topbar" aria-label="project">
           <div class="collab-home-topbar-inner">
             <div class="collab-home-topbar-row-main">
@@ -70,8 +30,27 @@
             </div>
           </div>
         </header>
+        <nav class="collab-view-tabs" role="tablist" :aria-label="$t('collabTable.viewTabsLabel')">
+          <router-link
+            class="collab-view-tabs__btn"
+            :class="{ 'is-active': showHomeDashboard }"
+            :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: {} }"
+          >{{ $t('collabTable.sidebarHomeBoard') }}</router-link>
+          <router-link
+            class="collab-view-tabs__btn"
+            :class="{ 'is-active': !showHomeDashboard && tablePurpose === 'issue_tracking' }"
+            :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'issue_tracking' } }"
+          >{{ $t('collabTable.sidebarIssue') }}</router-link>
+          <router-link
+            class="collab-view-tabs__btn"
+            :class="{ 'is-active': !showHomeDashboard && tablePurpose === 'feature_backlog' }"
+            :to="{ name: 'collab-table', params: { projectId: String(projectId) }, query: { purpose: 'feature_backlog' } }"
+          >{{ $t('collabTable.sidebarFeature') }}</router-link>
+        </nav>
       </div>
-    </template>
+    <div v-if="!showHomeDashboard && projectId" class="collab-table-subnav-hint text-muted small">
+      {{ tablePurpose === 'feature_backlog' ? $t('collabTable.sidebarHintFeature') : $t('collabTable.sidebarHintIssue') }}
+    </div>
     <div v-else class="table-header">
       <div class="header-left">
         <div class="title-block">
@@ -124,6 +103,12 @@
 
     <div v-if="showHomeDashboard" class="collab-home-dashboard">
       <div class="collab-home-stack">
+        <section class="home-surface home-l1-snapshot" aria-label="snapshot">
+          <div class="home-l1-snapshot__head">
+            <h3 class="home-l1-snapshot__title">{{ $t('collabTable.homeL1Title') }}</h3>
+          </div>
+          <p class="home-l1-snapshot__text">{{ homeL1LeadText }}</p>
+        </section>
         <section class="home-surface home-portal-surface" aria-label="portal">
           <div class="home-surface-toolbar">
             <span class="home-surface-kicker">{{ $t('collabTable.homeBoardPortalKicker') }}</span>
@@ -234,20 +219,34 @@
           </section>
         </div>
 
-        <section class="home-surface home-settings-surface" aria-label="settings">
-          <div class="home-settings-bar">
-            <h3 class="home-settings-heading">{{ $t('collabTable.homeBoardSettings') }}</h3>
+        <section class="home-surface home-l2-kpi" aria-label="kpi">
+          <h3 class="home-l2-kpi__heading">{{ $t('collabTable.homeKpiHeading') }}</h3>
+          <div class="home-kpi-row">
+            <article
+              v-for="(card, ci) in homeKpiCards"
+              :key="'hk-' + ci"
+              class="home-kpi-card"
+            >
+              <p class="home-kpi-card__label">{{ card.label }}</p>
+              <p class="home-kpi-card__value">{{ card.value }}</p>
+            </article>
           </div>
+        </section>
+
+        <details class="collab-l4-details">
+          <summary class="collab-l4-details__summary">
+            <span class="collab-l4-details__title">{{ $t('collabTable.homeL4SummaryOpen') }}</span>
+            <span class="collab-l4-details__chev" aria-hidden="true"></span>
+            <span class="collab-l4-details__muted">{{ $t('collabTable.homeL4SummaryClosed') }}</span>
+          </summary>
+          <div class="collab-l4-details__body">
           <div class="home-settings-grid">
       <template v-if="hasAdminSession">
       <article class="home-setting-card mail-notify-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">邮件通知</div>
-          <button type="button" class="secondary-button small" @click="toggleMailNotifyOpen">
-            {{ mailNotifyOpen ? '收起' : '配置' }}
-          </button>
         </div>
-        <div v-if="mailNotifyOpen" class="mail-notify-body">
+        <div class="mail-notify-body">
           <div v-if="mailNotifyLoading" class="text-muted small">加载中…</div>
           <template v-else>
             <div v-if="mailNotifyConfig && mailNotifyConfig.mailConfigured === false" class="text-muted small">
@@ -294,11 +293,8 @@
       <article class="home-setting-card mail-notify-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">提交与多维表联动（AI）</div>
-          <button type="button" class="secondary-button small" @click="toggleAiLinkageOpen">
-            {{ aiLinkageOpen ? '收起' : '配置' }}
-          </button>
         </div>
-        <div v-if="aiLinkageOpen" class="mail-notify-body">
+        <div class="mail-notify-body">
           <div v-if="aiLinkageLoading" class="text-muted small">加载中…</div>
           <template v-else>
             <div class="form-row">
@@ -333,11 +329,8 @@
       <article class="home-setting-card mail-notify-panel client-board-panel">
         <div class="mail-notify-head">
           <div class="mail-notify-title">客户项目阅览看板</div>
-          <button type="button" class="secondary-button small" @click="toggleClientBoardOpen">
-            {{ clientBoardOpen ? '收起' : '配置' }}
-          </button>
         </div>
-        <div v-if="clientBoardOpen" class="mail-notify-body">
+        <div class="mail-notify-body">
           <div v-if="clientBoardLoading" class="text-muted small">加载中…</div>
           <template v-else>
             <p class="text-muted small" style="margin-bottom:10px">
@@ -415,7 +408,8 @@
         </div>
       </article>
           </div>
-        </section>
+          </div>
+        </details>
 
         <section class="home-surface home-data-surface" aria-label="data">
           <div class="home-data-bar">
@@ -1268,7 +1262,6 @@ export default {
       projectName: '',
       projectRepoId: '',
       showHomeDashboard: false,
-      sidebarCollapsed: false,
       authSessionTick: 0,
       tableBaseName: '',
       columns: [],
@@ -1351,7 +1344,6 @@ export default {
       tablePurpose: 'issue_tracking',
 
       // ===== 项目级日报邮件通知（开发与数据看板）=====
-      mailNotifyOpen: false,
       mailNotifyLoading: false,
       mailNotifySaving: false,
       mailNotifySendingTest: false,
@@ -1365,7 +1357,6 @@ export default {
         sendToDevelopers: true,
         managerEmailsText: ''
       },
-      aiLinkageOpen: false,
       aiLinkageLoading: false,
       aiLinkageSaving: false,
       aiLinkageMessage: '',
@@ -1387,7 +1378,6 @@ export default {
       portalImporting: false,
       portalImportProjectOptions: [],
 
-      clientBoardOpen: false,
       clientBoardLoading: false,
       clientBoardSaving: false,
       clientBoardMessage: '',
@@ -1473,6 +1463,28 @@ export default {
     },
     homeSpotlightPageCount () {
       return this.homeHasDailySlide ? 2 : 1
+    },
+    homeL1LeadText () {
+      const d = this.homeLatestDailySummary
+      if (d && (d.title || '').trim()) {
+        const t = (d.title || '').trim()
+        return t.length > 240 ? t.slice(0, 237) + '…' : t
+      }
+      return this.$t('collabTable.homeL1Empty')
+    },
+    homeKpiCards () {
+      const repo = (this.projectRepoId || '').trim() || '—'
+      const branch = (this.homeRepoDefaultBranch || '').trim() || '—'
+      const commits = (this.homeLatestDailySummary && this.homeLatestDailySummary.commitCount != null)
+        ? String(this.homeLatestDailySummary.commitCount)
+        : '—'
+      const risks = String((this.homeSpotlightRiskItems || []).length)
+      return [
+        { label: this.$t('collabTable.homeKpiRepo'), value: repo },
+        { label: this.$t('collabTable.homeKpiBranch'), value: branch },
+        { label: this.$t('collabTable.homeKpiDailyCommits'), value: commits },
+        { label: this.$t('collabTable.homeKpiRiskWatch'), value: risks }
+      ]
     },
     homeSpotlightHeading () {
       return this.homeSpotlightIndex === 0
@@ -1736,10 +1748,6 @@ export default {
         this.tablePurpose = 'issue_tracking'
       }
     },
-    toggleMailNotifyOpen () {
-      this.mailNotifyOpen = !this.mailNotifyOpen
-      if (this.mailNotifyOpen && !this.mailNotifyConfig) this.loadMailNotifyConfig()
-    },
     async loadMailNotifyConfig () {
       if (!this.hasAdminSession) return
       if (!this.projectId) return
@@ -1820,10 +1828,6 @@ export default {
         this.mailNotifySendingTest = false
       }
     },
-    toggleAiLinkageOpen () {
-      this.aiLinkageOpen = !this.aiLinkageOpen
-      if (this.aiLinkageOpen) this.loadAiLinkageConfig()
-    },
     async loadAiLinkageConfig () {
       if (!this.hasAdminSession) return
       if (!this.projectId) return
@@ -1866,9 +1870,6 @@ export default {
       } finally {
         this.aiLinkageSaving = false
       }
-    },
-    toggleClientBoardOpen () {
-      this.clientBoardOpen = !this.clientBoardOpen
     },
     async loadClientBoard () {
       if (!this.projectId) return
@@ -3829,98 +3830,23 @@ export default {
   min-height: 100vh;
 }
 
+.collab-table-layout--topnav {
+  display: block;
+}
+
+.collab-table-layout--topnav .collab-table-main {
+  min-height: 100vh;
+}
+
 .collab-table-main {
   flex: 1;
   min-width: 0;
 }
 
-/* ===================== Sidebar ===================== */
-
-.collab-sidebar {
-  width: 208px;
-  flex-shrink: 0;
-  padding: var(--space-lg) var(--space-md);
-  border-right: 1px solid var(--border-primary);
-  background: var(--bg-page);
-}
-
-.collab-sidebar.collapsed {
-  width: 64px;
-  padding: var(--space-lg) var(--space-sm);
-}
-
-.collab-sidebar-collapse {
-  width: 100%;
-  margin-bottom: 10px;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  padding: 6px 0;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: var(--transition-fast);
-}
-
-.collab-sidebar-collapse:hover {
-  background: var(--bg-hover);
-}
-
-.collab-sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.collab-sidebar-link {
-  display: block;
-  padding: 10px var(--space-md);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-size: var(--font-size-base);
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  transition: var(--transition-fast);
-}
-
-.collab-sidebar-link:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.collab-sidebar-link.active {
-  background: var(--brand-blue-light);
-  color: var(--brand-blue);
-  font-weight: var(--font-weight-semibold);
-}
-
-.collab-sidebar-hint {
-  margin-top: var(--space-md);
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  line-height: 1.4;
-}
-
-.collab-sidebar.collapsed .collab-sidebar-hint {
-  display: none;
-}
-
-.collab-sidebar-link-btn {
-  width: 100%;
-  text-align: left;
-}
-
-.collab-sidebar.collapsed .collab-sidebar-link {
-  padding: 10px var(--space-sm);
-  font-size: var(--font-size-sm);
-  text-align: center;
-}
-
-.collab-sidebar.collapsed .collab-sidebar-link-btn {
-  text-align: center;
+.collab-table-subnav-hint {
+  padding: 0 var(--space-md) 10px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 /* ===================== Table Header / Toolbar ===================== */
@@ -5209,6 +5135,132 @@ export default {
   margin: 0 auto;
 }
 
+.home-l1-snapshot {
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-page) 100%);
+}
+
+.home-l1-snapshot__head {
+  margin-bottom: 8px;
+}
+
+.home-l1-snapshot__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.home-l1-snapshot__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.home-l2-kpi__heading {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.home-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 900px) {
+  .home-kpi-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.home-kpi-card {
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-page);
+  padding: 14px 16px;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.home-kpi-card__label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.home-kpi-card__value {
+  margin: 6px 0 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  word-break: break-all;
+}
+
+.collab-l4-details {
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-card);
+  padding: 0;
+}
+
+.collab-l4-details__summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.collab-l4-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.collab-l4-details__title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.collab-l4-details__chev::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 4px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s;
+}
+
+.collab-l4-details[open] .collab-l4-details__chev::before {
+  transform: rotate(90deg);
+}
+
+.collab-l4-details__muted {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  flex: 1 1 200px;
+  line-height: 1.4;
+}
+
+.collab-l4-details__body {
+  padding: 0 12px 16px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.collab-l4-details .home-settings-grid {
+  margin-top: 8px;
+}
+
 .home-surface {
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
@@ -5355,14 +5407,52 @@ export default {
 }
 
 /* 首页：合并顶栏 + 摘要/轮播 50-50 */
-.collab-home-chrome {
+.collab-layout-chrome {
   position: sticky;
   top: 0;
   z-index: 25;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border-primary);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  margin-bottom: var(--space-md, 12px);
+  margin: 0 calc(-1 * var(--space-md)) var(--space-md);
+}
+
+.collab-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px 10px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.collab-view-tabs__btn {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 14px;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.collab-view-tabs__btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.collab-view-tabs__btn.is-active {
+  color: var(--brand-blue);
+  background: var(--bg-page);
+  border-color: var(--border-primary);
+  border-bottom-color: var(--bg-page);
+  margin-bottom: -1px;
+  font-weight: 600;
 }
 
 .collab-home-topbar-inner {
