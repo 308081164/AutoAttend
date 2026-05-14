@@ -14,7 +14,14 @@ export default {
     sidebarProjects: 'Projects',
     sidebarNexus: 'Quick ops',
     sidebarLab: 'Lab',
-    memberNexusDesigningToast: 'Member quick ops is under design'
+    memberNexusDesigningToast: 'Member quick ops is under design',
+    sidebarExpand: 'Expand sidebar',
+    sidebarCollapse: 'Collapse sidebar',
+    betaModalTitle: 'Beta feature notice',
+    betaModalBody:
+      'This area is in internal beta. It may be unstable or behave unexpectedly. Please back up and protect your business data; avoid relying on it for critical production workflows.',
+    betaModalConfirm: 'I understand, continue',
+    betaModalCancel: 'Cancel'
   },
   clientBoardPage: {
     loading: 'Loading board…',
@@ -49,6 +56,39 @@ export default {
     legendResolved: 'Done',
     legendUnresolved: 'Open',
     avgHours: 'Avg hours'
+  },
+  accountPage: {
+    navTitle: 'Account & security',
+    title: 'Account & security',
+    lead: 'View your signed-in identity, change password, or sign out.',
+    profileSection: 'Profile',
+    phone: 'Phone',
+    tenant: 'Organization',
+    manageTenantAdmins: 'Manage tenant admins',
+    passwordSection: 'Change password',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    newPasswordConfirm: 'Confirm new password',
+    savePassword: 'Save password',
+    passwordOk: 'Password updated. Use the new password next time you sign in.',
+    passwordFail: 'Could not update password. Check your current password and length rules.',
+    sessionSection: 'Session',
+    logoutHint: 'After signing out you must sign in again to use the console.'
+  },
+  assistant: {
+    fabLabel: 'Assistant',
+    openFab: 'Open assistant',
+    title: 'Assistant',
+    close: 'Close',
+    hint: 'Uses Qwen (DashScope) enabled in API settings; tokens are billed to your org. History is stored in this browser only.',
+    welcome: 'Hi, I am your assistant. Ask about using the console, collaboration, or delivery workflows.',
+    cleared: 'Local chat history cleared.',
+    placeholder: 'Type a message and press Enter to send…',
+    send: 'Send',
+    clearHistory: 'Clear local history',
+    roleUser: 'You',
+    roleAssistant: 'Assistant',
+    errorGeneric: 'Could not get a reply. Try again later or check Qwen configuration.'
   },
   landing: {
     navFeatures: 'Capabilities',

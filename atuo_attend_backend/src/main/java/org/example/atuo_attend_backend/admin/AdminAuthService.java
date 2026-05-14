@@ -212,6 +212,30 @@ public class AdminAuthService {
         return u;
     }
 
+    @Transactional
+    public void changeOwnPassword(String currentPassword, String newPassword, String newPasswordConfirm) {
+        if (newPassword == null || !newPassword.equals(newPasswordConfirm)) {
+            throw new IllegalArgumentException("两次输入的新密码不一致");
+        }
+        String npErr = validatePasswordForRegister(newPassword);
+        if (npErr != null) {
+            throw new IllegalArgumentException(npErr);
+        }
+        if (currentPassword == null || currentPassword.isEmpty()) {
+            throw new IllegalArgumentException("请输入当前密码");
+        }
+        AdminUser admin = currentAdmin();
+        TenantAdminUser user = tenantAdminUserMapper.findById(admin.getUserId());
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        if (!passwordService.verify(currentPassword, user.getPasswordHash())) {
+            throw new IllegalArgumentException("当前密码不正确");
+        }
+        tenantAdminUserMapper.updatePasswordHash(user.getId(), user.getTenantId(), passwordService.hash(newPassword));
+        collabAuthService.ensureBizUserForTenantAdmin(user.getPhone(), newPassword);
+    }
+
     private AdminAuthOutcome createSessionOutcome(TenantAdminUser user) {
         adminSessionMapper.deleteExpired();
         String token = UUID.randomUUID().toString();

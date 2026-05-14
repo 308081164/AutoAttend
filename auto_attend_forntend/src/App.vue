@@ -49,14 +49,25 @@
         <!-- LEFT SIDEBAR -->
         <div class="sidebar-wrapper">
           <aside class="app-sidebar" :class="{ 'is-open': sidebarOpen, 'is-collapsed': sidebarCollapsed }">
-            <!-- Logo area -->
-            <div class="sidebar-logo">
-              <div class="logo-icon" aria-hidden="true">
-                <img class="logo-icon-img" src="/brand-logo.svg" width="36" height="36" alt="">
-              </div>
-              <div class="logo-text" v-show="!sidebarCollapsed">
-                <span class="logo-brand">流帮</span>
-                <span class="logo-project">Project</span>
+            <div class="sidebar-shell-top">
+              <div class="sidebar-logo">
+                <div class="sidebar-logo-main">
+                  <div class="logo-icon" aria-hidden="true">
+                    <img class="logo-icon-img" src="/brand-logo.svg" width="36" height="36" alt="">
+                  </div>
+                  <div class="logo-text" v-show="!sidebarCollapsed">
+                    <span class="logo-brand">流帮</span>
+                    <span class="logo-project">Project</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="sidebar-collapse-inline"
+                  :aria-label="sidebarCollapsed ? $t('app.sidebarExpand') : $t('app.sidebarCollapse')"
+                  @click="toggleSidebar"
+                >
+                  <span class="collapse-icon" :class="{ 'is-flipped': sidebarCollapsed }">&#9654;</span>
+                </button>
               </div>
             </div>
 
@@ -108,18 +119,36 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">商务系统</span>
               </router-link>
-              <router-link v-if="quoteNavVisible" to="/quote/biz-dashboard" class="nav-item nav-item--indent" :class="{ 'is-active': $route.path === '/quote/biz-dashboard' }" @click.native="onNavClick">
+              <a
+                v-if="quoteNavVisible"
+                href="#"
+                class="nav-item nav-item--indent"
+                :class="{ 'is-active': $route.path === '/quote/biz-dashboard' }"
+                @click.prevent="openBetaThen('/quote/biz-dashboard')"
+              >
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">数据看板</span>
-              </router-link>
-              <router-link v-if="quoteNavVisible" to="/quote/customers" class="nav-item nav-item--indent" :class="{ 'is-active': isBizCustomersNavActive }" @click.native="onNavClick">
+              </a>
+              <a
+                v-if="quoteNavVisible"
+                href="#"
+                class="nav-item nav-item--indent"
+                :class="{ 'is-active': isBizCustomersNavActive }"
+                @click.prevent="openBetaThen('/quote/customers')"
+              >
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">客户管理</span>
-              </router-link>
-              <router-link v-if="quoteNavVisible" to="/quote/opportunities" class="nav-item nav-item--indent" :class="{ 'is-active': $route.path === '/quote/opportunities' }" @click.native="onNavClick">
+              </a>
+              <a
+                v-if="quoteNavVisible"
+                href="#"
+                class="nav-item nav-item--indent"
+                :class="{ 'is-active': $route.path === '/quote/opportunities' }"
+                @click.prevent="openBetaThen('/quote/opportunities')"
+              >
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">商机看板</span>
-              </router-link>
+              </a>
               <router-link to="/collab/projects" class="nav-item" :class="{ 'is-active': isNavActive('/collab/projects') }" @click.native="onNavClick">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">项目管理</span>
@@ -162,10 +191,15 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">增效实验室</span>
               </router-link>
-              <router-link to="/xianyu" class="nav-item" :class="{ 'is-active': isNavActive('/xianyu') }" @click.native="onNavClick">
+              <a
+                href="#"
+                class="nav-item"
+                :class="{ 'is-active': isNavActive('/xianyu') }"
+                @click.prevent="openBetaThen('/xianyu')"
+              >
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="2" y="2" width="20" height="20" rx="4"/><path d="M8 12h8M12 8v8"/></svg></span>
                 <span class="nav-label" v-show="!sidebarCollapsed">咸鱼值守</span>
-              </router-link>
+              </a>
             </div>
             </template>
           </nav>
@@ -186,14 +220,6 @@
             </button>
           </div>
         </aside>
-        <!-- Collapse toggle button (desktop only) -->
-        <button
-          class="sidebar-collapse-btn"
-          :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-          @click="toggleSidebar"
-        >
-          <span class="collapse-icon" :class="{ 'is-flipped': sidebarCollapsed }">&#9654;</span>
-        </button>
         </div>
 
         <!-- RIGHT AREA: header + content -->
@@ -218,12 +244,23 @@
               <select v-model="currentLocale" class="topbar-lang-select" @change="onLocaleChange">
                 <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
-              <div class="topbar-avatar" :class="{ 'topbar-avatar--logo': isAdmin }">
-                <template v-if="isAdmin">
-                  <img class="user-avatar-brand" src="/brand-logo.svg" alt="">
-                </template>
-                <template v-else>{{ (username || '?').charAt(0).toUpperCase() }}</template>
-              </div>
+              <router-link
+                v-if="isAdmin"
+                to="/account"
+                class="topbar-avatar topbar-avatar--square topbar-avatar--logo"
+                @click.native="onNavClick"
+              >
+                <img class="topbar-avatar-img" src="/brand-logo.svg" alt="">
+              </router-link>
+              <router-link
+                v-else-if="memberLayout"
+                to="/member"
+                class="topbar-avatar topbar-avatar--square"
+                @click.native="onNavClick"
+              >
+                {{ (username || '?').charAt(0).toUpperCase() }}
+              </router-link>
+              <div v-else class="topbar-avatar topbar-avatar--square">{{ (username || '?').charAt(0).toUpperCase() }}</div>
             </div>
           </header>
 
@@ -234,6 +271,19 @@
             </keep-alive>
           </main>
         </div>
+
+        <div v-if="betaModalOpen" class="beta-modal-overlay" role="dialog" aria-modal="true" @click.self="cancelBetaNav">
+          <div class="beta-modal-card">
+            <h3 class="beta-modal-title">{{ $t('app.betaModalTitle') }}</h3>
+            <p class="beta-modal-body">{{ $t('app.betaModalBody') }}</p>
+            <div class="beta-modal-actions">
+              <button type="button" class="secondary-button" @click="cancelBetaNav">{{ $t('app.betaModalCancel') }}</button>
+              <button type="button" class="primary-button" @click="confirmBetaNav">{{ $t('app.betaModalConfirm') }}</button>
+            </div>
+          </div>
+        </div>
+        <assistant-dock v-if="assistantFabVisible" />
+
       </div>
     </template>
   </div>
@@ -243,10 +293,12 @@
 import { localeOptions, setLocale } from './locales'
 import { subscribeAuthSession, notifyAuthSessionChanged } from './utils/authSession'
 import { SHELL_KEEP_ALIVE_EXCLUDE } from './utils/keepAliveShell'
+import AssistantDock from './components/AssistantDock.vue'
 import './assets/theme.css'
 
 export default {
   name: 'App',
+  components: { AssistantDock },
   data () {
     return {
       /** 与 localStorage 会话键联动，使 isAdmin/memberLayout 等计算属性在 token 变更后重新求值 */
@@ -260,7 +312,9 @@ export default {
       appToastTimer: null,
       /** 工作台偏好：侧栏是否展示「报价系统」 */
       quoteNavVisible: true,
-      shellKeepAliveExclude: SHELL_KEEP_ALIVE_EXCLUDE
+      shellKeepAliveExclude: SHELL_KEEP_ALIVE_EXCLUDE,
+      betaModalOpen: false,
+      pendingBetaPath: ''
     }
   },
   computed: {
@@ -280,6 +334,10 @@ export default {
       void this.authSessionTick
       const admin = (window.localStorage.getItem('autoattend_token') || '').trim()
       return !!(window.localStorage.getItem('autoattend_collab_token') || '').trim() && !admin
+    },
+    assistantFabVisible () {
+      if (!this.isAdmin || this.memberLayout) return false
+      return this.$route.path === '/console' || this.$route.name === 'dashboard'
     },
     sidebarUserLabel () {
       if (this.isAdmin) return this.$t('app.adminLabel') || '管理员'
@@ -311,6 +369,7 @@ export default {
       }
       const map = {
         '/console': '工作台',
+        '/account': this.$t('accountPage.navTitle'),
         '/quote/config': '商务配置',
         '/quote/customers': '客户管理',
         '/quote/opportunities': '商机看板',
@@ -413,6 +472,26 @@ export default {
     onNavClick () {
       if (window.innerWidth < 768) {
         this.sidebarOpen = false
+      }
+    },
+    openBetaThen (path) {
+      this.pendingBetaPath = path || ''
+      this.betaModalOpen = true
+      if (window.innerWidth < 768) {
+        this.sidebarOpen = false
+      }
+    },
+    cancelBetaNav () {
+      this.betaModalOpen = false
+      this.pendingBetaPath = ''
+    },
+    confirmBetaNav () {
+      const p = this.pendingBetaPath
+      this.betaModalOpen = false
+      this.pendingBetaPath = ''
+      if (p) {
+        this.$router.push(p).catch(() => {})
+        this.onNavClick()
       }
     },
     onLocaleChange () {
@@ -552,12 +631,15 @@ body {
   background: var(--bg-sidebar, #1F2329);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   z-index: 999;
   transition: width var(--transition-slow, all 0.3s ease),
               min-width var(--transition-slow, all 0.3s ease),
               transform var(--transition-slow, all 0.3s ease);
+}
+
+.sidebar-shell-top {
+  flex-shrink: 0;
 }
 
 .app-sidebar.is-collapsed {
@@ -565,11 +647,11 @@ body {
   min-width: var(--sidebar-collapsed-width, 64px);
 }
 
-.app-sidebar::-webkit-scrollbar {
+.sidebar-nav::-webkit-scrollbar {
   width: 4px;
 }
 
-.app-sidebar::-webkit-scrollbar-thumb {
+.sidebar-nav::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
@@ -578,17 +660,54 @@ body {
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 20px 20px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
   min-height: 72px;
 }
 
+.sidebar-logo-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .app-sidebar.is-collapsed .sidebar-logo {
   justify-content: center;
-  padding: 20px 0 16px;
+  padding: 20px 10px 16px;
   gap: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-logo-main {
+  justify-content: center;
+}
+
+.sidebar-collapse-inline {
+  display: none;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.sidebar-collapse-inline:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.app-sidebar.is-collapsed .sidebar-collapse-inline {
+  margin-top: 4px;
 }
 
 .logo-icon {
@@ -628,31 +747,6 @@ body {
   font-size: 11px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.5);
-}
-
-/* --- Collapse toggle button --- */
-.sidebar-collapse-btn {
-  display: none;
-  position: absolute;
-  right: -14px;
-  top: 28px;
-  width: 24px;
-  height: 24px;
-  background: var(--bg-sidebar, #1F2329);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
-  cursor: pointer;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  z-index: 1000;
-  transition: background 0.2s, border-color 0.2s;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-
-.sidebar-collapse-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .collapse-icon {
@@ -1020,23 +1114,34 @@ body {
 }
 
 .topbar-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
   background: var(--brand-blue, #1456F0);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .topbar-avatar--logo {
-  border-radius: 8px;
   padding: 0;
-  overflow: hidden;
+}
+
+.topbar-avatar-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 /* ========== MAIN CONTENT ========== */
@@ -1051,9 +1156,49 @@ body {
   padding: 0;
 }
 
+.beta-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.beta-modal-card {
+  max-width: 440px;
+  width: 100%;
+  background: #fff;
+  border-radius: 12px;
+  padding: 22px 24px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+
+.beta-modal-title {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.beta-modal-body {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary, #4b5563);
+}
+
+.beta-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 /* ========== Responsive: Desktop (>=1024px) ========== */
 @media (min-width: 1024px) {
-  .sidebar-collapse-btn {
+  .sidebar-collapse-inline {
     display: flex;
   }
 }
@@ -1094,7 +1239,7 @@ body {
     padding-left: 56px;
   }
 
-  .sidebar-collapse-btn {
+  .sidebar-collapse-inline {
     display: none;
   }
 }
@@ -1174,7 +1319,7 @@ body {
     height: 18px;
   }
 
-  .sidebar-collapse-btn {
+  .sidebar-collapse-inline {
     display: none;
   }
 

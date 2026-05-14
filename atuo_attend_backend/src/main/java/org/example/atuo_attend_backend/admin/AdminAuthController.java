@@ -153,6 +153,19 @@ public class AdminAuthController {
         return ApiResponse.ok(admin);
     }
 
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(@RequestBody AdminChangePasswordRequest body) {
+        try {
+            adminAuthService.changeOwnPassword(
+                    body != null ? body.getCurrentPassword() : null,
+                    body != null ? body.getNewPassword() : null,
+                    body != null ? body.getNewPasswordConfirm() : null);
+            return ApiResponse.ok(null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40000, e.getMessage());
+        }
+    }
+
     @GetMapping("/collab-token")
     public ApiResponse<AdminLoginResponse> collabToken(HttpServletRequest request) {
         adminAuthService.currentAdmin();

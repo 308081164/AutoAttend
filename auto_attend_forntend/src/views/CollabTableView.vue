@@ -19,15 +19,6 @@
                 </button>
               </div>
             </div>
-            <div class="collab-home-topbar-row-sub">
-              <div class="collab-home-session" aria-label="session">
-                <div class="collab-home-avatar" aria-hidden="true">{{ homeUserInitial }}</div>
-                <div class="collab-home-session-meta">
-                  <div class="collab-home-session-name">{{ (currentUser && currentUser.name) ? currentUser.name : '—' }}</div>
-                  <div class="collab-home-session-hint">{{ hasAdminSession ? $t('collabTable.homeSessionAdmin') : $t('collabTable.homeSessionMember') }}</div>
-                </div>
-              </div>
-            </div>
           </div>
         </header>
         <nav class="collab-view-tabs" role="tablist" :aria-label="$t('collabTable.viewTabsLabel')">
@@ -51,7 +42,7 @@
     <div v-if="!showHomeDashboard && projectId" class="collab-table-subnav-hint text-muted small">
       {{ tablePurpose === 'feature_backlog' ? $t('collabTable.sidebarHintFeature') : $t('collabTable.sidebarHintIssue') }}
     </div>
-    <div v-else class="table-header">
+    <div v-if="!showHomeDashboard" class="table-header">
       <div class="header-left">
         <div class="title-block">
           <div class="title-row">
@@ -1433,10 +1424,6 @@ export default {
     homeHeaderSubtitle () {
       const r = (this.projectRepoId || '').trim()
       return r || this.$t('collabTable.homeMergedSubtitle')
-    },
-    homeUserInitial () {
-      const n = (this.currentUser && this.currentUser.name) ? String(this.currentUser.name).trim() : ''
-      return n ? n.charAt(0).toUpperCase() : '?'
     },
     formatProjectCreatedAt () {
       return this.formatTime(this.projectCreatedAt) || '—'

@@ -84,6 +84,11 @@ const routes = [
     component: SubscriptionBillingView
   },
   {
+    path: '/account',
+    name: 'admin-account',
+    component: () => import('../views/AdminAccountView.vue')
+  },
+  {
     path: '/member',
     name: 'member-home',
     component: MemberHomeView,
@@ -286,7 +291,8 @@ router.beforeEach(async (to, from, next) => {
       p.startsWith('/marketplace') ||
       p.startsWith('/nexus') ||
       p.startsWith('/tenant-admins') ||
-      p.startsWith('/xianyu')
+      p.startsWith('/xianyu') ||
+      p === '/account' || p.startsWith('/account/')
     ) {
       next({ name: 'member-home' })
       return

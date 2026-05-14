@@ -14,7 +14,13 @@ export default {
     sidebarProjects: '项目管理',
     sidebarNexus: '快捷运维',
     sidebarLab: '增效实验室',
-    memberNexusDesigningToast: '针对成员的快捷运维设计中'
+    memberNexusDesigningToast: '针对成员的快捷运维设计中',
+    sidebarExpand: '展开侧栏',
+    sidebarCollapse: '收起侧栏',
+    betaModalTitle: '内测功能提示',
+    betaModalBody: '该功能当前为 Beta 内测版本，可能存在不稳定或数据异常风险。请妥善备份并保护您的业务与数据资产，谨慎在生产环境依赖其结果。',
+    betaModalConfirm: '我已了解，继续进入',
+    betaModalCancel: '取消'
   },
   clientBoardPage: {
     loading: '加载看板中…',
@@ -49,6 +55,39 @@ export default {
     legendResolved: '已完成',
     legendUnresolved: '未完成',
     avgHours: '平均小时'
+  },
+  accountPage: {
+    navTitle: '账号与安全',
+    title: '账号与安全',
+    lead: '查看当前登录身份、修改登录密码或退出会话。',
+    profileSection: '账号信息',
+    phone: '手机号',
+    tenant: '组织名称',
+    manageTenantAdmins: '管理租户管理员',
+    passwordSection: '修改密码',
+    currentPassword: '当前密码',
+    newPassword: '新密码',
+    newPasswordConfirm: '确认新密码',
+    savePassword: '保存新密码',
+    passwordOk: '密码已更新，请使用新密码登录。',
+    passwordFail: '修改失败，请检查当前密码与长度要求。',
+    sessionSection: '会话',
+    logoutHint: '退出后需重新登录才能访问控制台。'
+  },
+  assistant: {
+    fabLabel: '小助理',
+    openFab: '打开小助理',
+    title: '小助理',
+    close: '关闭',
+    hint: '对话使用企业在「API 配置」中启用的通义千问（DashScope），会产生 Token 消耗；内容保存在本机浏览器。',
+    welcome: '你好，我是小助理。可以问我关于控制台使用、协作与研发流程的问题。',
+    cleared: '已清空本机对话记录。',
+    placeholder: '输入消息后按 Enter 发送…',
+    send: '发送',
+    clearHistory: '清空本机对话',
+    roleUser: '你',
+    roleAssistant: '小助理',
+    errorGeneric: '暂时无法获取回复，请稍后重试或检查通义配置。'
   },
   landing: {
     navFeatures: '产品能力',
