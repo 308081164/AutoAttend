@@ -216,10 +216,12 @@ public class AdminQuoteController {
     }
 
     @PutMapping("/projects/{id}")
-    public ApiResponse<Void> updateProject(@PathVariable long id, @RequestBody QuoteProjectSaveDto body) {
+    public ApiResponse<Map<String, Object>> updateProject(@PathVariable long id, @RequestBody QuoteProjectSaveDto body) {
         try {
             quoteService.updateProject(id, body);
-            return ApiResponse.ok(null);
+            Map<String, Object> data = new HashMap<>();
+            data.put("success", true);
+            return ApiResponse.ok(data);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(40000, e.getMessage());
         }

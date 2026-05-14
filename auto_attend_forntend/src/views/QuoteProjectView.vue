@@ -137,6 +137,41 @@
       </section>
 
       <party-b-profile-edit-modal :visible="showPartyBModal" @close="showPartyBModal = false" @saved="onPartyBProfileSaved" />
+      <div v-if="showSaveValidationModal" class="quote-modal-root" role="dialog" aria-modal="true" @click.self="showSaveValidationModal = false">
+        <div class="quote-modal-card">
+          <h3>{{ $t('quote.saveValidationTitle') }}</h3>
+          <ul class="quote-validation-list">
+            <li v-for="(line, i) in saveValidationErrors" :key="'ve-' + i">{{ line }}</li>
+          </ul>
+          <p class="hint">{{ $t('quote.saveValidationHint') }}</p>
+          <button type="button" class="btn primary" @click="showSaveValidationModal = false">{{ $t('quote.saveValidationClose') }}</button>
+        </div>
+      </div>
+      <div v-if="showPriceRegenModal" class="quote-modal-root" role="dialog" aria-modal="true" @click.self="closePriceRegenModal">
+        <div class="quote-modal-card quote-modal-card--wide">
+          <h3>{{ $t('quote.priceRegenModalTitle') }}</h3>
+          <p class="hint">{{ $t('quote.priceRegenModalBody') }}</p>
+          <ul class="quote-regen-task-list">
+            <li v-for="t in requiredPriceRegenTasks" :key="t.key" :class="{ 'is-done': outputRegenAck[t.key] }">
+              <span class="quote-regen-task-label">{{ t.label }}</span>
+              <span v-if="outputRegenAck[t.key]" class="ok-tag">{{ $t('quote.priceRegenAcked') }}</span>
+              <button v-else type="button" class="btn secondary btn-sm-pad" @click="runPriceRegenTask(t.key)">{{ $t('quote.priceRegenGoAction') }}</button>
+            </li>
+          </ul>
+          <p class="hint">{{ $t('quote.priceRegenTip') }}</p>
+          <div class="quote-modal-actions">
+            <button type="button" class="btn secondary" @click="closePriceRegenModal">{{ $t('quote.priceRegenClose') }}</button>
+          </div>
+        </div>
+      </div>
+      <div v-if="showQuoteErrorGuideModal" class="quote-modal-root" role="dialog" aria-modal="true" @click.self="showQuoteErrorGuideModal = false">
+        <div class="quote-modal-card">
+          <h3>{{ quoteErrorGuideTitle }}</h3>
+          <pre class="quote-error-pre">{{ quoteErrorGuideBody }}</pre>
+          <p v-if="quoteErrorGuideHint" class="hint">{{ quoteErrorGuideHint }}</p>
+          <button type="button" class="btn primary" @click="showQuoteErrorGuideModal = false">{{ $t('quote.saveValidationClose') }}</button>
+        </div>
+      </div>
 
       <section class="card solution-modules-card">
         <h2>{{ isSolutionMode ? '解决方案 · 功能清单' : '功能清单' }}</h2>
@@ -709,7 +744,7 @@
       </section>
         </div>
 
-        <aside v-if="projectId" class="quote-output-sidebar" :class="{ collapsed: outputSidebarCollapsed }">
+        <aside v-if="projectId" class="quote-output-sidebar" :class="{ collapsed: outputSidebarCollapsed, 'price-stale': priceOutputsNeedRefreshHighlight }">
           <button
             type="button"
             class="sidebar-edge-toggle"
@@ -888,6 +923,8 @@
           <div class="quote-save-bar-left">
             <span v-if="autoSaveStatus === 'saved'" class="ok autosave-msg">{{ $t('quote.autoSaveSaved') }}</span>
             <span v-else-if="autoSaveStatus === 'error'" class="err autosave-msg">{{ $t('quote.autoSaveError') }}</span>
+            <span v-else-if="autoSaveStatus === 'invalid'" class="warn autosave-msg">{{ $t('quote.autoSaveInvalid') }}</span>
+            <span v-else-if="autoSaveStatus === 'stale_price_outputs'" class="warn autosave-msg">{{ $t('quote.autoSaveStalePrice') }}</span>
             <span v-if="saveMsg && !saveAllMsg" :class="saveOk ? 'ok' : 'err'">{{ saveMsg }}</span>
             <span v-if="saveAllMsg" :class="saveAllOk ? 'ok' : 'err'">{{ saveAllMsg }}</span>
           </div>
@@ -1210,6 +1247,16 @@ export default {
       saving: false,
       saveMsg: '',
       saveOk: false,
+      showSaveValidationModal: false,
+      saveValidationErrors: [],
+      showPriceRegenModal: false,
+      outputRegenAck: {},
+      lastPersistedPriceFingerprint: null,
+      priceBaselineCapturedForSession: false,
+      showQuoteErrorGuideModal: false,
+      quoteErrorGuideTitle: '',
+      quoteErrorGuideBody: '',
+      quoteErrorGuideHint: '',
       contract: { clientName: '', companyName: '', templateType: 'software_dev', editedContent: '' },
       contractGenLoading: false,
       contractMsg: '',
@@ -1459,6 +1506,34 @@ export default {
         g.indices.push(i)
       }
       return order.map(key => byKey.get(key))
+    },
+    requiredPriceRegenTasks () {
+      if (!this.calcResult || !this.priceAmountsChangedSincePersisted) return []
+      const ar = this.artifactReady || {}
+      const tasks = []
+      if (ar.quoteHtml || ar.quotePdf || ar.quoteDocx) {
+        tasks.push({ key: 'quote', label: this.$t('quote.priceRegenTaskQuote') })
+      }
+      if (ar.attFunction) tasks.push({ key: 'attFunction', label: this.$t('quote.priceRegenTaskAttFunction') })
+      if (ar.attAcceptance) tasks.push({ key: 'attAcceptance', label: this.$t('quote.priceRegenTaskAttAcceptance') })
+      if (ar.attMilestones) tasks.push({ key: 'attMilestones', label: this.$t('quote.priceRegenTaskAttMilestones') })
+      if (ar.contractAi || ar.contractBodySaved || ar.contractHtml || ar.contractPdf || ar.contractDocx) {
+        tasks.push({ key: 'contract', label: this.$t('quote.priceRegenTaskContract') })
+      }
+      return tasks
+    },
+    priceAmountsChangedSincePersisted () {
+      const cur = this.computePriceFingerprint()
+      if (cur == null || this.lastPersistedPriceFingerprint == null) return false
+      return cur !== this.lastPersistedPriceFingerprint
+    },
+    priceOutputsNeedRefreshHighlight () {
+      return this.requiredPriceRegenTasks.length > 0
+    },
+    allPriceRegenAcked () {
+      const tasks = this.requiredPriceRegenTasks
+      if (!tasks.length) return true
+      return tasks.every(t => this.outputRegenAck[t.key])
     }
   },
   created () {
@@ -1484,6 +1559,9 @@ export default {
   },
   watch: {
     '$route.params.id' () {
+      this.lastPersistedPriceFingerprint = null
+      this.priceBaselineCapturedForSession = false
+      this.outputRegenAck = {}
       this.init()
     },
     moduleEntryMode (val) {
@@ -1562,6 +1640,66 @@ export default {
     closeTableHintOnOutside () {
       this.openTableHint = null
       this.slaHintOpen = false
+    },
+    computePriceFingerprint () {
+      const c = this.calcResult
+      if (!c) return null
+      const rawB = c.baselineFinalAmount != null ? c.baselineFinalAmount : c.finalAmount
+      const rawA = c.adjustedFinalAmount != null ? c.adjustedFinalAmount : c.finalAmount
+      const b = Number(rawB)
+      const a = Number(rawA)
+      if (!Number.isFinite(b) || !Number.isFinite(a)) return null
+      return JSON.stringify({ b, a })
+    },
+    validateProjectPayload () {
+      const errs = []
+      const name = (this.form.name || '').trim()
+      if (!name) errs.push(this.$t('quote.valErrName'))
+      else if (name.length > 255) errs.push(this.$t('quote.valErrNameLen'))
+      const mods = this.normalizeAiModules(this.modules)
+      if (!mods.length) errs.push(this.$t('quote.valErrModules'))
+      const sm = this.form.quoteSubjectMode
+      if (sm && !['legal_entity', 'natural_person', 'manual'].includes(sm)) {
+        errs.push(this.$t('quote.valErrSubject'))
+      }
+      const qk = this.form.quoteKind
+      if (qk && qk !== 'single' && qk !== 'solution') {
+        errs.push(this.$t('quote.valErrKind'))
+      }
+      return { ok: errs.length === 0, errors: errs }
+    },
+    persistPriceFingerprintAfterSave () {
+      this.lastPersistedPriceFingerprint = this.computePriceFingerprint()
+      this.outputRegenAck = {}
+    },
+    touchPriceRegenAck (scopeKey) {
+      if (!scopeKey) return
+      this.$set(this.outputRegenAck, scopeKey, true)
+    },
+    async runPriceRegenTask (key) {
+      if (!this.projectId || !this.calcResult) return
+      try {
+        if (key === 'quote') await this.previewQuoteHtml()
+        else if (key === 'attFunction') await this.previewAttachmentFunctionList()
+        else if (key === 'attAcceptance') await this.previewAttachmentAcceptance()
+        else if (key === 'attMilestones') await this.previewAttachmentMilestones()
+        else if (key === 'contract') await this.runGenContract()
+      } catch (e) {
+        this.showQuoteError(
+          this.$t('quote.priceRegenActionFailTitle'),
+          (e.response && e.response.data && e.response.data.message) || (e.message || String(e)),
+          this.$t('quote.priceRegenActionFailHint')
+        )
+      }
+    },
+    closePriceRegenModal () {
+      this.showPriceRegenModal = false
+    },
+    showQuoteError (title, body, hint) {
+      this.quoteErrorGuideTitle = title || this.$t('quote.errorGuideTitle')
+      this.quoteErrorGuideBody = body || ''
+      this.quoteErrorGuideHint = hint || ''
+      this.showQuoteErrorGuideModal = true
     },
     /** 侧边栏滚动跟随：当侧边栏顶部滚出视口时切换为 fixed 定位 */
     _handleSidebarScroll () {
@@ -1766,6 +1904,9 @@ export default {
           this.aiMultiDeliverableMode = false
           this.resetCalcPrefsUi()
           this.resetArtifactReady()
+          this.priceBaselineCapturedForSession = false
+          this.lastPersistedPriceFingerprint = null
+          this.outputRegenAck = {}
           if (q.fromWizard === '1') {
             this.applyWizardPayload()
           }
@@ -1885,6 +2026,10 @@ export default {
             this.restoringCalcPrefs = false
             this.lastAutoSavedSnapshot = JSON.stringify(this.payload())
             this.restoringProject = false
+            if (!this.isNew && this.projectId && !this.priceBaselineCapturedForSession) {
+              this.lastPersistedPriceFingerprint = this.computePriceFingerprint()
+              this.priceBaselineCapturedForSession = true
+            }
           }
         } else {
           this.restoringProject = false
@@ -2319,6 +2464,15 @@ export default {
     async flushProjectAutoSave () {
       // #2 修复：添加互斥锁检查，防止与计算/调价竞态
       if (this.pageLoading || this.restoringProject || !this.projectId || this.saving || this.calculating || this.priceAdjusting) return
+      const v = this.validateProjectPayload()
+      if (!v.ok) {
+        this.autoSaveStatus = 'invalid'
+        return
+      }
+      if (this.requiredPriceRegenTasks.length > 0 && !this.allPriceRegenAcked) {
+        this.autoSaveStatus = 'stale_price_outputs'
+        return
+      }
       const body = this.payload()
       const snap = JSON.stringify(body)
       if (snap === this.lastAutoSavedSnapshot) return
@@ -2326,6 +2480,7 @@ export default {
         await this.$http.put('/admin/quote/projects/' + this.projectId, body)
         this.lastAutoSavedSnapshot = snap
         this.autoSaveStatus = 'saved'
+        this.persistPriceFingerprintAfterSave()
         setTimeout(() => {
           if (this.autoSaveStatus === 'saved') this.autoSaveStatus = ''
         }, 2500)
@@ -2352,6 +2507,20 @@ export default {
         clearTimeout(this.autoSaveDebounceTimer)
         this.autoSaveDebounceTimer = null
       }
+      const v = this.validateProjectPayload()
+      if (!v.ok) {
+        this.saveValidationErrors = v.errors
+        this.showSaveValidationModal = true
+        this.saveOk = false
+        this.saveMsg = ''
+        return
+      }
+      if (!this.isNew && this.requiredPriceRegenTasks.length > 0 && !this.allPriceRegenAcked) {
+        this.showPriceRegenModal = true
+        this.saveOk = false
+        this.saveMsg = ''
+        return
+      }
       this.saving = true
       this.saveMsg = ''
       try {
@@ -2366,27 +2535,36 @@ export default {
             this.form.id = newId
             this.isNew = false
             await this.$router.replace({ name: 'quote-project', params: { id: String(newId) } })
-            // 同步更新快照，避免 $nextTick 竞态窗口内触发多余的自动保存
             this.lastAutoSavedSnapshot = JSON.stringify(body)
+            await this.loadProject(newId)
+            this.persistPriceFingerprintAfterSave()
           } else {
             this.saveOk = false
             this.saveMsg = (resp.data && resp.data.message) || '失败'
+            this.showQuoteError(this.$t('quote.saveServerFailTitle'), this.saveMsg, this.$t('quote.saveServerFailHint'))
           }
         } else {
           const resp = await this.$http.put('/admin/quote/projects/' + this.projectId, body)
           if (resp.data && resp.data.code === 0) {
             this.saveOk = true
             this.saveMsg = '已保存'
-            // 同步更新快照，避免 $nextTick 竞态窗口内触发多余的自动保存
             this.lastAutoSavedSnapshot = JSON.stringify(body)
+            await this.loadProject(this.projectId)
+            this.persistPriceFingerprintAfterSave()
           } else {
             this.saveOk = false
             this.saveMsg = (resp.data && resp.data.message) || '失败'
+            this.showQuoteError(this.$t('quote.saveServerFailTitle'), this.saveMsg, this.$t('quote.saveServerFailHint'))
           }
         }
       } catch (e) {
         this.saveOk = false
-        this.saveMsg = (e.response && e.response.data && e.response.data.message) || '网络错误'
+        const msg = (e.response && e.response.data && e.response.data.message) || '网络错误'
+        this.saveMsg = msg
+        const hint = (e.response && e.response.status === 400)
+          ? this.$t('quote.saveHttp400Hint')
+          : this.$t('quote.saveNetworkHint')
+        this.showQuoteError(this.$t('quote.saveServerFailTitle'), msg, hint)
       } finally {
         this.saving = false
       }
@@ -3015,6 +3193,7 @@ export default {
           // 不在此处设置 calcResult，避免双重渲染闪烁
           // loadProject 会从服务端获取最新数据（含调价后的 modules 和 calcResult）
           await this.loadProject(pid)
+          this.outputRegenAck = {}
         } else {
           alert((resp.data && resp.data.message) || '调价失败')
         }
@@ -3062,6 +3241,7 @@ export default {
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           // 不在此处设置 calcResult，避免双重渲染闪烁
           await this.loadProject(pid)
+          this.outputRegenAck = {}
           await this.loadContractIfAny()
           await this.syncArtifactReadyFromServer()
         } else {
@@ -3087,6 +3267,7 @@ export default {
           a.click()
           URL.revokeObjectURL(a.href)
           await this.syncArtifactReadyFromServer()
+          this.touchPriceRegenAck('quote')
         }
       } catch (e) {
         alert('生成失败')
@@ -3104,6 +3285,7 @@ export default {
           window.open(u, '_blank', 'noopener')
           setTimeout(() => URL.revokeObjectURL(u), 120000)
           await this.syncArtifactReadyFromServer()
+          this.touchPriceRegenAck('quote')
         }
       } catch (e) {
         alert('生成失败')
@@ -3122,6 +3304,9 @@ export default {
         a.click()
         URL.revokeObjectURL(a.href)
         if (artifactKey) this.markArtifactReady(artifactKey)
+        if (artifactKey === 'attFunction' || artifactKey === 'attAcceptance' || artifactKey === 'attMilestones') {
+          this.touchPriceRegenAck(artifactKey)
+        }
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -3137,6 +3322,7 @@ export default {
         window.open(u, '_blank', 'noopener')
         setTimeout(() => URL.revokeObjectURL(u), 120000)
         await this.syncArtifactReadyFromServer()
+        this.touchPriceRegenAck('quote')
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -3149,6 +3335,7 @@ export default {
         null
       )
       await this.syncArtifactReadyFromServer()
+      this.touchPriceRegenAck('quote')
     },
     async downloadQuoteDocx () {
       if (!this.projectId || !this.calcResult) return
@@ -3158,6 +3345,7 @@ export default {
         null
       )
       await this.syncArtifactReadyFromServer()
+      this.touchPriceRegenAck('quote')
     },
     previewSelectedQuoteDoc () {
       if (this.quoteDocType === 'quoteHtml') return this.previewQuoteHtml()
@@ -3216,6 +3404,9 @@ export default {
           a.click()
           URL.revokeObjectURL(a.href)
           if (artifactKey) this.markArtifactReady(artifactKey)
+          if (artifactKey === 'attFunction' || artifactKey === 'attAcceptance' || artifactKey === 'attMilestones') {
+            this.touchPriceRegenAck(artifactKey)
+          }
         } else {
           alert(this.$t('quote.attachmentFail'))
         }
@@ -3233,6 +3424,9 @@ export default {
           window.open(u, '_blank', 'noopener')
           setTimeout(() => URL.revokeObjectURL(u), 120000)
           if (artifactKey) this.markArtifactReady(artifactKey)
+          if (artifactKey === 'attFunction' || artifactKey === 'attAcceptance' || artifactKey === 'attMilestones') {
+            this.touchPriceRegenAck(artifactKey)
+          }
         } else {
           alert(this.$t('quote.attachmentFail'))
         }
@@ -3249,6 +3443,9 @@ export default {
         window.open(u, '_blank', 'noopener')
         setTimeout(() => URL.revokeObjectURL(u), 120000)
         if (artifactKey) this.markArtifactReady(artifactKey)
+        if (artifactKey === 'attFunction' || artifactKey === 'attAcceptance' || artifactKey === 'attMilestones') {
+          this.touchPriceRegenAck(artifactKey)
+        }
       } catch (e) {
         alert(this.$t('quote.attachmentFail'))
       }
@@ -3264,6 +3461,9 @@ export default {
         a.click()
         URL.revokeObjectURL(a.href)
         if (artifactKey) this.markArtifactReady(artifactKey)
+        if (artifactKey === 'attFunction' || artifactKey === 'attAcceptance' || artifactKey === 'attMilestones') {
+          this.touchPriceRegenAck(artifactKey)
+        }
       } catch (e) {
         alert(this.$t('quote.attachmentFail'))
       }
@@ -3385,6 +3585,7 @@ export default {
               this.contractOk = true
               this.contractMsg = '已生成'
               this.markArtifactReady('contractAi')
+              this.touchPriceRegenAck('contract')
               return
             }
             if (payload.status === 'failed') {
@@ -3415,6 +3616,7 @@ export default {
           this.contractOk = true
           this.contractMsg = '已保存'
           this.markArtifactReady('contractBodySaved')
+          this.touchPriceRegenAck('contract')
         } else {
           this.contractOk = false
           this.contractMsg = (resp.data && resp.data.message) || '失败'
@@ -3434,6 +3636,7 @@ export default {
           window.open(u, '_blank', 'noopener')
           setTimeout(() => URL.revokeObjectURL(u), 120000)
           await this.syncArtifactReadyFromServer()
+          this.touchPriceRegenAck('contract')
         }
       } catch (e) {
         alert('导出失败')
@@ -3451,6 +3654,7 @@ export default {
           a.click()
           URL.revokeObjectURL(a.href)
           await this.syncArtifactReadyFromServer()
+          this.touchPriceRegenAck('contract')
         }
       } catch (e) {
         alert('导出失败')
@@ -3466,6 +3670,7 @@ export default {
         window.open(u, '_blank', 'noopener')
         setTimeout(() => URL.revokeObjectURL(u), 120000)
         await this.syncArtifactReadyFromServer()
+        this.touchPriceRegenAck('contract')
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -3483,6 +3688,7 @@ export default {
         a.click()
         URL.revokeObjectURL(a.href)
         await this.syncArtifactReadyFromServer()
+        this.touchPriceRegenAck('contract')
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -3500,6 +3706,7 @@ export default {
         a.click()
         URL.revokeObjectURL(a.href)
         await this.syncArtifactReadyFromServer()
+        this.touchPriceRegenAck('contract')
       } catch (e) {
         alert((e.response && e.response.data && e.response.data.message) || this.$t('quote.exportFail'))
       }
@@ -5073,4 +5280,67 @@ label.block {
 .agent-bg-att-label:hover { background: #f7f8fa; }
 .agent-bg-att-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-bg-att-meta { flex-shrink: 0; font-size: 12px; color: #8f959e; }
+.quote-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.quote-modal-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px 24px 20px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 86vh;
+  overflow: auto;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+}
+.quote-modal-card--wide { max-width: 640px; }
+.quote-modal-card h3 { margin: 0 0 12px; font-size: 17px; color: #0f172a; }
+.quote-validation-list,
+.quote-regen-task-list {
+  margin: 12px 0 0;
+  padding-left: 1.2rem;
+  color: #334155;
+  line-height: 1.55;
+  font-size: 14px;
+}
+.quote-regen-task-list { list-style: none; padding-left: 0; }
+.quote-regen-task-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+}
+.quote-regen-task-list li.is-done { border-color: #bbf7d0; background: #ecfdf5; }
+.quote-regen-task-label { flex: 1; min-width: 140px; }
+.ok-tag { font-size: 12px; color: #047857; font-weight: 600; }
+.quote-modal-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+.quote-error-pre {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0 0;
+  max-height: 40vh;
+  overflow: auto;
+}
+.quote-output-sidebar.price-stale {
+  box-shadow: inset 0 0 0 2px rgba(245, 158, 11, 0.65);
+  border-radius: 12px;
+}
+.autosave-msg.warn { color: #b45309; }
 </style>

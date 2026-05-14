@@ -102,6 +102,7 @@ public class QuoteService {
     @Transactional(rollbackFor = Exception.class)
     public long createProject(QuoteProjectSaveDto dto) {
         tenantResourceQuotaService.assertCanCreateQuoteProject(tid());
+        validateProjectForSave(dto);
         QuoteProject p = toProject(dto);
         assertCustomerBelongsToTenant(p.getCustomerId());
         if (p.getName() == null || p.getName().isBlank()) throw new IllegalArgumentException("项目名称不能为空");
@@ -120,6 +121,7 @@ public class QuoteService {
 
     @Transactional(rollbackFor = Exception.class)
     public void updateProject(long id, QuoteProjectSaveDto dto) {
+        validateProjectForSave(dto);
         QuoteProject existing = projectMapper.findById(tid(), id);
         if (existing == null) throw new IllegalArgumentException("项目不存在");
         QuoteProject p = toProject(dto);
@@ -162,6 +164,74 @@ public class QuoteService {
         }
         moduleMapper.deleteByProjectId(tid(), id);
         saveModules(id, dto.getModules(), snapCache, adjCache);
+    }
+
+    /**
+     * 保存项目前的结构校验：与前端校验对齐，多条错误以换行拼接便于弹窗展示。
+     */
+    private void validateProjectForSave(QuoteProjectSaveDto dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("请求体不能为空");
+        }
+        List<String> errs = new ArrayList<>();
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            errs.add("项目名称不能为空。请在页面顶部填写「项目名称」后再保存。");
+        } else if (dto.getName().trim().length() > 255) {
+            errs.add("项目名称过长，请控制在 255 字以内。");
+        }
+        List<QuoteModuleSaveDto> modules = dto.getModules();
+        if (modules == null || modules.isEmpty()) {
+            errs.add("至少需要保留一个功能模块。可点击「添加模块」后在各模块下填写功能点。");
+        } else {
+            boolean anyValid = false;
+            int mi = 0;
+            for (QuoteModuleSaveDto m : modules) {
+                mi++;
+                String mn = m.getName() != null ? m.getName().trim() : "";
+                if (mn.isEmpty()) {
+                    if (!isModuleStructurallyEmpty(m)) {
+                        errs.add("第 " + mi + " 个模块缺少名称：请填写模块名称，或删除仅含空功能点的空模块。");
+                    }
+                    continue;
+                }
+                List<QuoteItemSaveDto> items = m.getItems();
+                if (items == null || items.stream().noneMatch(it -> it.getName() != null && !it.getName().isBlank())) {
+                    errs.add("模块「" + mn + "」下至少需要一条有名称的功能点。");
+                } else {
+                    anyValid = true;
+                }
+            }
+            if (!anyValid) {
+                errs.add("请至少完善一个功能模块：填写模块名称，并为该模块添加至少一条有名称的功能点。");
+            }
+        }
+        if (dto.getQuoteSubjectMode() != null && !dto.getQuoteSubjectMode().isBlank()) {
+            String sm = dto.getQuoteSubjectMode().trim();
+            if (!"legal_entity".equals(sm) && !"natural_person".equals(sm) && !"manual".equals(sm)) {
+                errs.add("报价出具主体仅支持：法人/组织(legal_entity)、自然人(natural_person) 或本项目单独填写(manual)。");
+            }
+        }
+        if (dto.getQuoteKind() != null && !dto.getQuoteKind().isBlank()) {
+            String k = dto.getQuoteKind().trim();
+            if (!"single".equals(k) && !"solution".equals(k)) {
+                errs.add("报价形态 quoteKind 仅支持 single（单轨）或 solution（解决方案多交付物）。");
+            }
+        }
+        if (!errs.isEmpty()) {
+            throw new IllegalArgumentException(String.join("\n", errs));
+        }
+    }
+
+    private static boolean isModuleStructurallyEmpty(QuoteModuleSaveDto m) {
+        if (m.getItems() == null) {
+            return true;
+        }
+        for (QuoteItemSaveDto it : m.getItems()) {
+            if (it.getName() != null && !it.getName().isBlank()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private QuoteProject toProject(QuoteProjectSaveDto dto) {
@@ -501,6 +571,8 @@ public class QuoteService {
         if (req.getRiskKeys() != null && req.getRiskKeys().contains("standard_cycle") && req.isUrgencyRush()) {
             hints.add(0, "已同时勾选「标准交付周期（降价）」与「加急」，逻辑上可能矛盾，请人工复核最终报价。");
         }
+        // 每次重算仅保留一条结果：删除旧行（级联删除该结果下的报价单/合同 HTML 等落库产出，需重新生成）
+        resultMapper.deleteByProjectId(tid(), projectId);
         QuoteResult r = new QuoteResult();
         r.setQuoteProjectId(projectId);
         r.setTotalDays(totalDays);
@@ -509,12 +581,14 @@ public class QuoteService {
         r.setRiskAmount(riskAmount);
         r.setFinalAmount(finalAmount);
         r.setConfidenceScore(confidence);
-        r.setAuditChecklistJson(objectMapper.writeValueAsString(req.getAuditChecklist() != null ? req.getAuditChecklist() : Map.of()));
-        r.setSelectedRisksJson(objectMapper.writeValueAsString(applied));
+        // 不在结果表重复持久化勾选/风险明细（已写入项目 quote_calc_prefs_json）；仅保留占位以满足表结构
+        r.setAuditChecklistJson(objectMapper.writeValueAsString(Map.of()));
+        r.setSelectedRisksJson(objectMapper.writeValueAsString(List.of()));
         r.setPricePerDayUsed(pricePerDay);
         r.setDurationCoefficientUsed(durationCoeff);
         r.setEstimatedDurationDays(estimatedDuration);
         r.setRegionLabelUsed(regionLabel);
+        // 模型原价（基线总价）与商务调价后对外价：首次计算二者相同
         r.setBaselineFinalAmount(finalAmount);
         r.setPriceScaleFactor(BigDecimal.ONE);
         r.setAdjustedFinalAmount(finalAmount);
