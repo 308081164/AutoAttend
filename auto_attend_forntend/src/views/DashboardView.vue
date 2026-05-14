@@ -925,6 +925,7 @@ import { Chart as ChartJS, registerables } from 'chart.js'
 import MarkdownIt from 'markdown-it'
 import { compressImageFile, IMAGE_COMPRESS_PRESETS } from '@/utils/imageCompress'
 import { subscribeAuthSession, notifyAuthSessionChanged } from '@/utils/authSession'
+import { coerceQuoteNavVisible } from '@/utils/quoteNavPrefs'
 
 ChartJS.register(...registerables)
 
@@ -1606,9 +1607,13 @@ export default {
     },
     async loadWorkspacePrefs () {
       try {
-        const resp = await this.$http.get('/admin/workspace/prefs')
-        if (resp.data && resp.data.code === 0 && resp.data.data) {
-          this.workspacePrefs = { quoteNavVisible: resp.data.data.quoteNavVisible !== false }
+        const resp = await this.$http.get('/admin/workspace/prefs', {
+          params: { _: Date.now() },
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+        })
+        if (resp.data && resp.data.code === 0) {
+          const d = resp.data.data || {}
+          this.workspacePrefs = { quoteNavVisible: coerceQuoteNavVisible(d.quoteNavVisible) }
         } else {
           this.workspacePrefs = { quoteNavVisible: true }
         }
@@ -1619,7 +1624,10 @@ export default {
     async saveWorkspacePrefs () {
       if (!this.workspacePrefs) return
       try {
-        await this.$http.patch('/admin/workspace/prefs', { prefs: { quoteNavVisible: !!this.workspacePrefs.quoteNavVisible } })
+        const resp = await this.$http.patch('/admin/workspace/prefs', { prefs: { quoteNavVisible: !!this.workspacePrefs.quoteNavVisible } })
+        if (resp.data && resp.data.code === 0 && resp.data.data) {
+          this.workspacePrefs = { quoteNavVisible: coerceQuoteNavVisible(resp.data.data.quoteNavVisible) }
+        }
         window.dispatchEvent(new CustomEvent('autoattend-workspace-prefs-changed'))
       } catch (e) { /* ignore */ }
     },

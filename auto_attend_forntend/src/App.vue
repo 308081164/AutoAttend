@@ -293,6 +293,7 @@
 import { localeOptions, setLocale } from './locales'
 import { subscribeAuthSession, notifyAuthSessionChanged } from './utils/authSession'
 import { SHELL_KEEP_ALIVE_EXCLUDE } from './utils/keepAliveShell'
+import { coerceQuoteNavVisible } from './utils/quoteNavPrefs'
 import AssistantDock from './components/AssistantDock.vue'
 import './assets/theme.css'
 
@@ -426,10 +427,15 @@ export default {
     async loadWorkspacePrefs () {
       if (!this.isAdmin) return
       try {
-        const resp = await this.$http.get('/admin/workspace/prefs')
-        if (resp.data && resp.data.code === 0 && resp.data.data) {
-          const v = resp.data.data.quoteNavVisible
-          this.quoteNavVisible = v !== false
+        const resp = await this.$http.get('/admin/workspace/prefs', {
+          params: { _: Date.now() },
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+        })
+        if (resp.data && resp.data.code === 0) {
+          const d = resp.data.data || {}
+          this.quoteNavVisible = coerceQuoteNavVisible(d.quoteNavVisible)
+        } else {
+          this.quoteNavVisible = true
         }
       } catch (e) {
         this.quoteNavVisible = true

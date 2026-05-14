@@ -61,6 +61,7 @@ public class TenantBillingService {
         } catch (Exception ignored) {
             // keep defaults
         }
+        m.put("quoteNavVisible", coerceQuoteNavVisible(m.get("quoteNavVisible")));
         return m;
     }
 
@@ -74,8 +75,13 @@ public class TenantBillingService {
             if (e.getKey() == null || e.getKey().isBlank()) {
                 continue;
             }
-            cur.put(e.getKey(), e.getValue());
+            Object val = e.getValue();
+            if ("quoteNavVisible".equals(e.getKey())) {
+                val = coerceQuoteNavVisible(val);
+            }
+            cur.put(e.getKey(), val);
         }
+        cur.put("quoteNavVisible", coerceQuoteNavVisible(cur.get("quoteNavVisible")));
         try {
             tenantMapper.updateWorkspacePrefsJson(tenantId, objectMapper.writeValueAsString(cur));
         } catch (Exception e) {
@@ -232,5 +238,34 @@ public class TenantBillingService {
         LocalDateTime newEnd = baseStart.plusDays(days);
         tenantMapper.updatePlanSubscriptionAndBaseline(tenantId, effectivePlan, newEnd, baseline);
         return newEnd;
+    }
+
+    /**
+     * 侧栏商务入口开关：兼容历史 JSON 中的字符串/数字，并保证写入为严格布尔语义。
+     */
+    private static boolean coerceQuoteNavVisible(Object o) {
+        if (o == null) {
+            return true;
+        }
+        if (o instanceof Boolean b) {
+            return b;
+        }
+        if (o instanceof Number n) {
+            return n.intValue() != 0;
+        }
+        if (o instanceof String s) {
+            String t = s.trim();
+            if (t.isEmpty()) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(t) || "0".equals(t) || "no".equalsIgnoreCase(t) || "off".equalsIgnoreCase(t)) {
+                return false;
+            }
+            if ("true".equalsIgnoreCase(t) || "1".equals(t) || "yes".equalsIgnoreCase(t) || "on".equalsIgnoreCase(t)) {
+                return true;
+            }
+            return true;
+        }
+        return true;
     }
 }

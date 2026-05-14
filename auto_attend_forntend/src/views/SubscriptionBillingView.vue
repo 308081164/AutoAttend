@@ -77,65 +77,6 @@
     </nav>
 
     <div v-show="billingTab === 'purchase'">
-    <section class="sub-invite sub-card sub-card--panel">
-      <h2 class="sub-h2">{{ $t('subscriptionPage.inviteRedeemTitle') }}</h2>
-      <p class="sub-desc">{{ $t('subscriptionPage.inviteRedeemHint') }}</p>
-      <div class="sub-invite-row">
-        <input v-model="redeemCode" type="text" class="sub-invite-input" :disabled="status.inviteCodeRedeemed" :placeholder="'ABC12345'">
-        <button type="button" class="sub-btn primary" :disabled="redeeming || status.inviteCodeRedeemed" @click="redeemInvite">
-          {{ redeeming ? $t('subscriptionPage.paying') : $t('subscriptionPage.inviteRedeemBtn') }}
-        </button>
-      </div>
-      <p v-if="status.inviteCodeRedeemed" class="sub-muted">{{ $t('subscriptionPage.inviteRedeemedNote') }}</p>
-    </section>
-
-    <section class="sub-official sub-card sub-card--panel">
-      <h2 class="sub-h2">{{ $t('subscriptionPage.officialApiTitle') }}</h2>
-      <p class="sub-desc">{{ $t('subscriptionPage.officialApiHint') }}</p>
-      <dl class="sub-dl">
-        <div>
-          <dt>{{ $t('subscriptionPage.officialApiBalance') }}</dt>
-          <dd class="sub-dd-strong">{{ formatOfficialYuan(status.officialApiCnyBalance) }}</dd>
-        </div>
-      </dl>
-      <div class="sub-invite-row">
-        <input
-          v-model="officialRedeemCode"
-          type="text"
-          class="sub-invite-input"
-          :placeholder="$t('subscriptionPage.officialApiPlaceholder')"
-        >
-        <button
-          type="button"
-          class="sub-btn primary"
-          :disabled="officialRedeeming"
-          @click="redeemOfficialApi"
-        >
-          {{ officialRedeeming ? $t('subscriptionPage.paying') : $t('subscriptionPage.officialApiRedeemBtn') }}
-        </button>
-      </div>
-    </section>
-
-    <section class="sub-invite sub-card sub-card--panel">
-      <h3 class="sub-h3 sub-h3--sm">{{ $t('subscriptionPage.myInviteCode') }}</h3>
-      <p class="sub-invite-user-hint">{{ $t('subscriptionPage.myInviteCodeHint') }}</p>
-      <p v-if="myInviteLoading" class="sub-muted">…</p>
-      <template v-else>
-        <div class="sub-my-code-box">
-          <span class="sub-my-code-text">{{ myInviteCode || '—' }}</span>
-          <button
-            v-if="myInviteCode"
-            type="button"
-            class="sub-btn sub-btn-copy"
-            @click="copyMyInvite"
-          >
-            {{ copyInviteLabel }}
-          </button>
-        </div>
-        <button type="button" class="sub-btn secondary small" @click="loadMyInvite">{{ $t('subscriptionPage.refreshInvite') }}</button>
-      </template>
-    </section>
-
     <section class="sub-compare sub-card sub-card--panel">
       <h2 class="sub-h2">{{ $t('subscriptionPage.compareTitle') }}</h2>
       <div class="sub-compare-grid sub-compare-grid--4">
@@ -222,6 +163,65 @@
     </div>
 
     <div v-show="billingTab === 'referral'" class="sub-referral-wrap">
+    <section class="sub-invite sub-card sub-card--panel">
+      <h2 class="sub-h2">{{ $t('subscriptionPage.inviteRedeemTitle') }}</h2>
+      <p class="sub-desc">{{ $t('subscriptionPage.inviteRedeemHint') }}</p>
+      <div class="sub-invite-row">
+        <input v-model="redeemCode" type="text" class="sub-invite-input" :disabled="status.inviteCodeRedeemed" :placeholder="'ABC12345'">
+        <button type="button" class="sub-btn primary" :disabled="redeeming || status.inviteCodeRedeemed" @click="redeemInvite">
+          {{ redeeming ? $t('subscriptionPage.paying') : $t('subscriptionPage.inviteRedeemBtn') }}
+        </button>
+      </div>
+      <p v-if="status.inviteCodeRedeemed" class="sub-muted">{{ $t('subscriptionPage.inviteRedeemedNote') }}</p>
+    </section>
+
+    <section class="sub-official sub-card sub-card--panel">
+      <h2 class="sub-h2">{{ $t('subscriptionPage.officialApiTitle') }}</h2>
+      <p class="sub-desc">{{ $t('subscriptionPage.officialApiHint') }}</p>
+      <dl class="sub-dl">
+        <div>
+          <dt>{{ $t('subscriptionPage.officialApiBalance') }}</dt>
+          <dd class="sub-dd-strong">{{ formatOfficialYuan(status.officialApiCnyBalance) }}</dd>
+        </div>
+      </dl>
+      <div class="sub-invite-row">
+        <input
+          v-model="officialRedeemCode"
+          type="text"
+          class="sub-invite-input"
+          :placeholder="$t('subscriptionPage.officialApiPlaceholder')"
+        >
+        <button
+          type="button"
+          class="sub-btn primary"
+          :disabled="officialRedeeming"
+          @click="redeemOfficialApi"
+        >
+          {{ officialRedeeming ? $t('subscriptionPage.paying') : $t('subscriptionPage.officialApiRedeemBtn') }}
+        </button>
+      </div>
+    </section>
+
+    <section class="sub-invite sub-card sub-card--panel">
+      <h3 class="sub-h3 sub-h3--sm">{{ $t('subscriptionPage.myInviteCode') }}</h3>
+      <p class="sub-invite-user-hint">{{ $t('subscriptionPage.myInviteCodeHint') }}</p>
+      <p v-if="myInviteLoading" class="sub-muted">…</p>
+      <template v-else>
+        <div class="sub-my-code-box">
+          <span class="sub-my-code-text">{{ myInviteCode || '—' }}</span>
+          <button
+            v-if="myInviteCode"
+            type="button"
+            class="sub-btn sub-btn-copy"
+            @click="copyMyInvite"
+          >
+            {{ copyInviteLabel }}
+          </button>
+        </div>
+        <button type="button" class="sub-btn secondary small" @click="loadMyInvite">{{ $t('subscriptionPage.refreshInvite') }}</button>
+      </template>
+    </section>
+
       <section class="sub-card sub-card--panel sub-referral-block">
         <h2 class="sub-h2">{{ $t('subscriptionPage.cofounderTitle') }}</h2>
         <p class="sub-desc">{{ $t('subscriptionPage.cofounderHint') }}</p>
