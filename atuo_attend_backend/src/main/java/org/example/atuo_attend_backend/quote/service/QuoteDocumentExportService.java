@@ -263,14 +263,28 @@ public class QuoteDocumentExportService {
             return false;
         }
         File primary = fontFiles.get(0);
+        if (log.isInfoEnabled()) {
+            log.info("PDF CJK: 使用主字体文件 {} (共 {} 个备选文件)", primary.getAbsolutePath(), fontFiles.size());
+        }
         String[] families = {
                 "sans-serif",
+                "serif",
+                "monospace",
+                "Arial",
+                "Helvetica",
+                "Helvetica Neue",
+                "PingFang SC",
+                "Hiragino Sans GB",
                 "Microsoft YaHei",
+                "Microsoft Yahei",
                 "Noto Sans SC",
                 "Noto Sans CJK SC",
+                "Noto Sans CJK JP",
                 "SimHei",
                 "SimSun",
-                "serif"
+                "NSimSun",
+                "WenQuanYi Micro Hei",
+                "Droid Sans Fallback"
         };
         for (String family : families) {
             builder.useFont(primary, family);
@@ -353,6 +367,10 @@ public class QuoteDocumentExportService {
                 "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf",
+                "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+                "/usr/share/fonts/noto/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSansCJKsc-Bold.otf",
                 "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
                 "/usr/share/fonts/truetype/arphic/uming.ttc"
         };

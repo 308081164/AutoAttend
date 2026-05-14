@@ -28,6 +28,8 @@
     </scm>
     <properties>
         <java.version>17</java.version>
+        <!-- 为离线构建设为 true 时跳过字体下载（需自行提供 target/generated-resources/fonts 或运行时 quote.export.cjk-font-path） -->
+        <quote.skip.font.download>false</quote.skip.font.download>
     </properties>
     <dependencies>
         <dependency>
@@ -184,7 +186,44 @@
     </dependencies>
 
     <build>
+        <!-- 构建时下载 Noto CJK 到 target/generated-resources/fonts，合并进 classpath:fonts/（不提交大文件） -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.build.directory}/generated-resources/fonts</directory>
+                <targetPath>fonts</targetPath>
+                <includes>
+                    <include>*.otf</include>
+                    <include>*.ttf</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <id>fetch-noto-cjk-font</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${quote.skip.font.download:false}</skip>
+                            <executable>sh</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>${project.basedir}/scripts/fetch-noto-cjk-font.sh</argument>
+                                <argument>${project.build.directory}/generated-resources/fonts</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

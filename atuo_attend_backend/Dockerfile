@@ -1,5 +1,10 @@
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
+# 构建阶段下载 Noto CJK 字体（Maven generate-resources 脚本依赖 curl）
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl ca-certificates; \
+    rm -rf /var/lib/apt/lists/*
 
 # CI 使用 Maven Central（阿里云镜像在 GitHub Actions 上易遇 302 导致 go-offline 失败）
 COPY pom.xml .
@@ -29,7 +34,7 @@ RUN set -eux; \
       echo "apt-get update retry $n/8 in 20s..."; \
       sleep 20; \
     done; \
-    apt-get install -y --no-install-recommends git ca-certificates mysql-client curl; \
+    apt-get install -y --no-install-recommends git ca-certificates mysql-client curl fonts-noto-cjk; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/target/*.jar app.jar
