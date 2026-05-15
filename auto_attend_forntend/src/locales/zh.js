@@ -76,9 +76,13 @@ export default {
   },
   assistant: {
     fabLabel: '小助理',
+    alphaBadge: 'Alpha',
     openFab: '打开小助理',
+    openFabAlpha: '打开小助理（Alpha 内测）',
     title: '小助理',
     close: '关闭',
+    alphaNotice:
+      '小助理当前处于 Alpha 内测阶段：回答可能不完整、延迟或与预期不符；请勿用于关键生产或合规决策。对话依赖企业在「API 配置」中的通义千问能力并会产生 Token 消耗。',
     hint: '对话使用企业在「API 配置」中启用的通义千问（DashScope），会产生 Token 消耗；内容保存在本机浏览器。',
     welcome: '你好，我是小助理。可以问我关于控制台使用、协作与研发流程的问题。',
     cleared: '已清空本机对话记录。',

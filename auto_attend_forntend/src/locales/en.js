@@ -77,9 +77,13 @@ export default {
   },
   assistant: {
     fabLabel: 'Assistant',
+    alphaBadge: 'Alpha',
     openFab: 'Open assistant',
+    openFabAlpha: 'Open assistant (alpha preview)',
     title: 'Assistant',
     close: 'Close',
+    alphaNotice:
+      'This assistant is in alpha preview: answers may be incomplete, slow, or inaccurate. Do not rely on it for critical production or compliance decisions. It uses your org’s Qwen (DashScope) settings and consumes tokens.',
     hint: 'Uses Qwen (DashScope) enabled in API settings; tokens are billed to your org. History is stored in this browser only.',
     welcome: 'Hi, I am your assistant. Ask about using the console, collaboration, or delivery workflows.',
     cleared: 'Local chat history cleared.',

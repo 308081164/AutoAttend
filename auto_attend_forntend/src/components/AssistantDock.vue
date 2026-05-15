@@ -3,9 +3,14 @@
     <button
       type="button"
       class="assistant-fab"
-      :aria-label="$t('assistant.openFab')"
+      :aria-label="$t('assistant.openFabAlpha')"
       @click="open = true"
-    >{{ $t('assistant.fabLabel') }}</button>
+    >
+      <span class="assistant-fab-label-row">
+        <span class="assistant-fab-text">{{ $t('assistant.fabLabel') }}</span>
+        <span class="assistant-fab-alpha" aria-hidden="true">{{ $t('assistant.alphaBadge') }}</span>
+      </span>
+    </button>
 
     <transition name="assistant-backdrop-fade">
       <div v-if="open" class="assistant-backdrop" @click.self="open = false" />
@@ -14,9 +19,15 @@
     <transition name="assistant-drawer-slide">
       <aside v-if="open" class="assistant-drawer" role="dialog" :aria-label="$t('assistant.title')">
         <header class="assistant-head">
-          <h2 class="assistant-title">{{ $t('assistant.title') }}</h2>
+          <h2 class="assistant-title">
+            {{ $t('assistant.title') }}
+            <span class="assistant-title-alpha">{{ $t('assistant.alphaBadge') }}</span>
+          </h2>
           <button type="button" class="assistant-close" @click="open = false" :aria-label="$t('assistant.close')">×</button>
         </header>
+        <div class="assistant-alpha-notice" role="status">
+          {{ $t('assistant.alphaNotice') }}
+        </div>
         <p class="assistant-hint">{{ $t('assistant.hint') }}</p>
         <div class="assistant-messages" ref="scrollBox">
           <div
@@ -153,6 +164,23 @@ export default {
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(20, 86, 240, 0.35);
 }
+.assistant-fab-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.assistant-fab-alpha {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  line-height: 1.2;
+}
 .assistant-fab:hover {
   filter: brightness(1.05);
 }
@@ -186,6 +214,30 @@ export default {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.assistant-title-alpha {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+.assistant-alpha-notice {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #92400e;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
 }
 .assistant-close {
   border: none;
