@@ -1,6 +1,7 @@
 package org.example.atuo_attend_backend.quote.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.atuo_attend_backend.collab.CollabTablePurpose;
 import org.example.atuo_attend_backend.collab.domain.BizProject;
 import org.example.atuo_attend_backend.collab.domain.BizProjectTable;
 import org.example.atuo_attend_backend.collab.service.CollabRecordService;
@@ -196,7 +197,7 @@ public class QuoteProvisionService {
             if (syncCollab) {
                 BizProjectTable table = collabSyncService.ensureFeatureBacklogTable(project.getId());
                 if (table == null) throw new IllegalStateException("创建待开发功能清单表失败");
-                Map<String, Object> tableWithCols = collabTableService.getTableWithColumns(table.getId());
+                Map<String, Object> tableWithCols = collabTableService.getTableWithColumns(project.getId(), CollabTablePurpose.FEATURE_BACKLOG);
                 int createdCount = syncQuoteItemsToFeatureBacklogTable(table.getId(), tableWithCols, quoteProjectId);
                 syncedToCollab = 1;
                 syncedAt = LocalDateTime.now();
