@@ -83,6 +83,19 @@ public class QuoteProvisionService {
         return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
     }
 
+    /**
+     * 将报价功能点写入指定协作项目的「待开发功能清单」表（表不存在时会先创建）。
+     * 供「导入多维表格」等与创建仓库流程解耦的入口调用。
+     */
+    public int syncQuoteItemsToFeatureBacklog(long collabProjectId, long quoteProjectId) {
+        BizProjectTable table = collabSyncService.ensureFeatureBacklogTable(collabProjectId);
+        if (table == null) {
+            throw new IllegalStateException("创建待开发功能清单表失败");
+        }
+        Map<String, Object> tableWithCols = collabTableService.getTableWithColumns(collabProjectId, CollabTablePurpose.FEATURE_BACKLOG);
+        return syncQuoteItemsToFeatureBacklogTable(table.getId(), tableWithCols, quoteProjectId);
+    }
+
     public Map<String, Object> provision(long quoteProjectId, QuoteProvisionRequest req, HttpServletRequest httpReq) {
         QuoteProject qp = quoteProjectMapper.findById(tid(), quoteProjectId);
         if (qp == null) throw new IllegalArgumentException("报价项目不存在");
@@ -195,10 +208,7 @@ public class QuoteProvisionService {
             steps.add(stepOk("ensureCollabProject", "已创建/复用协作项目", Map.of("projectId", project.getId(), "repoId", project.getRepoId())));
 
             if (syncCollab) {
-                BizProjectTable table = collabSyncService.ensureFeatureBacklogTable(project.getId());
-                if (table == null) throw new IllegalStateException("创建待开发功能清单表失败");
-                Map<String, Object> tableWithCols = collabTableService.getTableWithColumns(project.getId(), CollabTablePurpose.FEATURE_BACKLOG);
-                int createdCount = syncQuoteItemsToFeatureBacklogTable(table.getId(), tableWithCols, quoteProjectId);
+                int createdCount = syncQuoteItemsToFeatureBacklog(project.getId(), quoteProjectId);
                 syncedToCollab = 1;
                 syncedAt = LocalDateTime.now();
                 steps.add(stepOk("syncCollabRecords", "已同步到多维表", Map.of("createdCount", createdCount)));

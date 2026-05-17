@@ -1007,7 +1007,7 @@ export default {
     linkTableApplyOk: '已导入 {n} 条功能点到报价模块。',
     linkTableApplyFail: '导入失败',
     linkTableLoadFail: '加载多维表记录失败',
-    importFeatureOk: '已创建或已存在「待开发功能清单」表，将跳转到该表。',
+    importFeatureOk: '「待开发功能清单」表已就绪；本次已同步写入 {n} 条功能点记录，即将跳转。',
     importFeatureFail: '创建待开发功能清单失败，请确认已关联仓库并完成协作项目。',
     outputSidebarTitle: '产出物与仓库',
     outputSidebarHint: '在本页成功生成或下载过的条目会显示为绿色；刷新后仅合同草稿等可由服务端恢复的仍为绿色。',

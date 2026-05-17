@@ -488,7 +488,9 @@ public class AdminQuoteController {
         }
     }
 
-    /** 为关联仓库的协作项目创建「待开发功能清单」多维表（幂等） */
+    /**
+     * 为关联仓库的协作项目确保「待开发功能清单」多维表存在，并将报价功能点同步写入该表。
+     */
     @PostMapping("/projects/{id}/collab/import-feature-table")
     public ApiResponse<Map<String, Object>> importCollabFeatureTable(@PathVariable long id) {
         try {

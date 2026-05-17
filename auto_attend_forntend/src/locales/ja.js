@@ -312,7 +312,7 @@ export default {
     linkTableApplyOk: '{n} 件を取り込みました。',
     linkTableApplyFail: '失敗',
     linkTableLoadFail: '読み込み失敗',
-    importFeatureOk: '機能バックログ表を開きます。',
+    importFeatureOk: '機能バックログ表を用意しました。{n} 件を同期しました。',
     importFeatureFail: '作成に失敗'
   },
   collabTable: {

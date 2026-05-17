@@ -2147,7 +2147,8 @@ export default {
         const resp = await this.$http.post('/admin/quote/projects/' + this.projectId + '/collab/import-feature-table')
         if (resp.data && resp.data.code === 0 && resp.data.data) {
           const cp = resp.data.data.collabProjectId
-          alert(this.$t('quote.importFeatureOk'))
+          const n = resp.data.data.syncedCount != null ? resp.data.data.syncedCount : 0
+          alert(this.$t('quote.importFeatureOk', { n }))
           this.$router.push({ name: 'collab-table', params: { projectId: String(cp) }, query: { purpose: 'feature_backlog' } })
         } else {
           alert((resp.data && resp.data.message) || this.$t('quote.importFeatureFail'))

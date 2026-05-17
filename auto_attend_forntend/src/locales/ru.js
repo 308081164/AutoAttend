@@ -310,7 +310,7 @@ export default {
     linkTableApplyOk: 'Импортировано: {n}.',
     linkTableApplyFail: 'Ошибка',
     linkTableLoadFail: 'Не удалось загрузить',
-    importFeatureOk: 'Таблица бэклога готова.',
+    importFeatureOk: 'Таблица бэклога готова. Записано строк: {n}.',
     importFeatureFail: 'Ошибка создания'
   },
   collabTable: {

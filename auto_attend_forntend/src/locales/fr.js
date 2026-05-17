@@ -310,7 +310,7 @@ export default {
     linkTableApplyOk: '{n} ligne(s) importée(s).',
     linkTableApplyFail: 'Échec',
     linkTableLoadFail: 'Chargement impossible',
-    importFeatureOk: 'Table « backlog » prête.',
+    importFeatureOk: 'Table backlog prête. {n} ligne(s) synchronisée(s).',
     importFeatureFail: 'Échec création'
   },
   collabTable: {

@@ -8,7 +8,6 @@ import org.example.atuo_attend_backend.collab.mapper.BizProjectMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizProjectTableMapper;
 import org.example.atuo_attend_backend.collab.mapper.BizTableColumnMapper;
 import org.example.atuo_attend_backend.collab.service.CollabRecordService;
-import org.example.atuo_attend_backend.collab.service.CollabSyncService;
 import org.example.atuo_attend_backend.quote.domain.QuoteItem;
 import org.example.atuo_attend_backend.quote.domain.QuoteModule;
 import org.example.atuo_attend_backend.quote.domain.QuoteProject;
@@ -36,7 +35,7 @@ public class QuoteCollabLinkService {
     private final BizProjectTableMapper bizProjectTableMapper;
     private final BizTableColumnMapper bizTableColumnMapper;
     private final CollabRecordService collabRecordService;
-    private final CollabSyncService collabSyncService;
+    private final QuoteProvisionService quoteProvisionService;
 
     public QuoteCollabLinkService(QuoteProjectMapper quoteProjectMapper,
                                   QuoteModuleMapper quoteModuleMapper,
@@ -45,7 +44,7 @@ public class QuoteCollabLinkService {
                                   BizProjectTableMapper bizProjectTableMapper,
                                   BizTableColumnMapper bizTableColumnMapper,
                                   CollabRecordService collabRecordService,
-                                  CollabSyncService collabSyncService) {
+                                  QuoteProvisionService quoteProvisionService) {
         this.quoteProjectMapper = quoteProjectMapper;
         this.quoteModuleMapper = quoteModuleMapper;
         this.quoteItemMapper = quoteItemMapper;
@@ -53,7 +52,7 @@ public class QuoteCollabLinkService {
         this.bizProjectTableMapper = bizProjectTableMapper;
         this.bizTableColumnMapper = bizTableColumnMapper;
         this.collabRecordService = collabRecordService;
-        this.collabSyncService = collabSyncService;
+        this.quoteProvisionService = quoteProvisionService;
     }
 
     private static long tid() {
@@ -242,7 +241,7 @@ public class QuoteCollabLinkService {
     }
 
     /**
-     * 为关联协作项目创建「待开发功能清单」多维表（幂等）。
+     * 为关联协作项目确保「待开发功能清单」多维表存在，并将当前报价功能点同步写入该表（幂等建表；行数据每次调用会追加写入）。
      */
     public Map<String, Object> ensureCollabFeatureTable(long quoteProjectId) {
         QuoteProject qp = quoteProjectMapper.findById(tid(), quoteProjectId);
@@ -250,12 +249,17 @@ public class QuoteCollabLinkService {
             throw new IllegalArgumentException("报价项目不存在");
         }
         long collabProjectId = resolveCollabProjectId(qp);
-        BizProjectTable t = collabSyncService.ensureFeatureBacklogTable(collabProjectId);
+        int syncedCount = quoteProvisionService.syncQuoteItemsToFeatureBacklog(collabProjectId, quoteProjectId);
+        BizProjectTable t = bizProjectTableMapper.findByProjectIdAndPurpose(collabProjectId, CollabTablePurpose.FEATURE_BACKLOG);
+        if (t == null) {
+            throw new IllegalStateException("待开发功能清单表不存在");
+        }
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("collabProjectId", collabProjectId);
         data.put("tableId", t.getId());
         data.put("purpose", t.getPurpose());
         data.put("name", t.getName());
+        data.put("syncedCount", syncedCount);
         return data;
     }
 

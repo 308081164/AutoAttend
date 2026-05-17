@@ -998,7 +998,7 @@ export default {
     linkTableApplyOk: 'Imported {n} line item(s) into the quote.',
     linkTableApplyFail: 'Import failed',
     linkTableLoadFail: 'Failed to load collab rows',
-    importFeatureOk: '“Feature backlog” table is ready. Opening it now.',
+    importFeatureOk: 'Feature backlog is ready. Synced {n} row(s); opening the table.',
     importFeatureFail: 'Could not create feature backlog—ensure repo is linked.',
     outputSidebarTitle: 'Outputs & repository',
     outputSidebarHint: 'Rows turn green after a successful generate/download this session; after refresh, only items restored from the server (e.g. contract text) stay green.',
