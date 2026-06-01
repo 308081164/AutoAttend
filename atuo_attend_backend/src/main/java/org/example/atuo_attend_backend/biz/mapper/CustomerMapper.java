@@ -12,7 +12,7 @@ public interface CustomerMapper {
             INSERT INTO aa_customer (tenant_id, name, company, phone, email, source, stage, tags, assigned_to, last_contacted_at)
             VALUES (#{tenantId}, #{name}, #{company}, #{phone}, #{email}, #{source}, #{stage}, #{tags}, #{assignedTo}, #{lastContactedAt})
             """)
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(Customer c);
 
     @Update("""

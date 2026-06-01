@@ -106,16 +106,28 @@ export default {
       }
     },
     async saveCreate () {
-      if (!this.form.name.trim()) return
+      if (!this.form.name.trim()) {
+        window.alert('请填写客户姓名')
+        return
+      }
       this.saving = true
       try {
         const resp = await this.$http.post('/admin/biz/customers', this.form)
-        if (resp.data && resp.data.code === 0 && resp.data.data && resp.data.data.id) {
+        const payload = resp.data
+        if (payload && payload.code === 0) {
           this.showModal = false
-          this.$router.push('/quote/customers/' + resp.data.data.id)
+          await this.load()
+          const newId = payload.data && payload.data.id
+          if (newId) {
+            this.$router.push('/quote/customers/' + newId)
+          }
+          return
         }
+        window.alert((payload && payload.message) ? payload.message : '保存失败，请稍后重试')
       } catch (e) {
         console.error(e)
+        const msg = e.response && e.response.data && e.response.data.message
+        window.alert(msg || '保存失败，请检查网络或稍后重试')
       } finally {
         this.saving = false
       }
