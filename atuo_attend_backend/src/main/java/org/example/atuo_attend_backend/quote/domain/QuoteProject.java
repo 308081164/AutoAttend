@@ -32,6 +32,8 @@ public class QuoteProject {
     private String quoteSubjectMode;
     /** single=单体项目报价；solution=解决方案级报价 */
     private String quoteKind;
+    /** 获客链接在套餐超量时创建：租户未回到档位前不可查看 */
+    private Boolean quotaLocked;
     /** GitHub provision：仓库 full_name（owner/repo） */
     private String githubRepoFullName;
     /** GitHub provision：仓库页面 URL */
@@ -95,6 +97,8 @@ public class QuoteProject {
     public void setQuoteSubjectMode(String quoteSubjectMode) { this.quoteSubjectMode = quoteSubjectMode; }
     public String getQuoteKind() { return quoteKind; }
     public void setQuoteKind(String quoteKind) { this.quoteKind = quoteKind; }
+    public Boolean getQuotaLocked() { return quotaLocked; }
+    public void setQuotaLocked(Boolean quotaLocked) { this.quotaLocked = quotaLocked; }
     public String getGithubRepoFullName() { return githubRepoFullName; }
     public void setGithubRepoFullName(String githubRepoFullName) { this.githubRepoFullName = githubRepoFullName; }
     public String getGithubRepoHtmlUrl() { return githubRepoHtmlUrl; }

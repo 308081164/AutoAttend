@@ -90,6 +90,24 @@ public class QuoteService {
         return TenantContext.getTenantIdOrDefault(TenantConstants.DEFAULT_TENANT_ID);
     }
 
+
+    private int stillOverQuotaFlag() {
+        boolean over = tenantResourceQuotaService.isOverPlanAgentSessionLimit(tid())
+                || tenantResourceQuotaService.isOverPlanQuoteProjectLimit(tid());
+        return over ? 1 : 0;
+    }
+
+    private QuoteProject requireVisibleProject(long id) {
+        QuoteProject p = projectMapper.findById(tid(), id);
+        if (p == null) {
+            throw new IllegalArgumentException("项目不存在");
+        }
+        if (!tenantResourceQuotaService.isQuoteProjectVisibleToTenant(p)) {
+            throw new IllegalArgumentException("该项目因套餐用量超量暂不可查看，请升级套餐后再访问");
+        }
+        return p;
+    }
+
     private void assertCustomerBelongsToTenant(Long customerId) {
         if (customerId == null) {
             return;
@@ -122,11 +140,11 @@ public class QuoteService {
     @Transactional(rollbackFor = Exception.class)
     public void updateProject(long id, QuoteProjectSaveDto dto) {
         validateProjectForSave(dto);
-        QuoteProject existing = projectMapper.findById(tid(), id);
-        if (existing == null) throw new IllegalArgumentException("项目不存在");
+        QuoteProject existing = requireVisibleProject(id);
         QuoteProject p = toProject(dto);
         p.setId(id);
         p.setTenantId(tid());
+        p.setQuotaLocked(existing.getQuotaLocked());
         assertCustomerBelongsToTenant(p.getCustomerId());
         if (dto.getQuoteCalcPrefs() == null) {
             p.setQuoteCalcPrefsJson(existing.getQuoteCalcPrefsJson());
@@ -342,8 +360,12 @@ public class QuoteService {
     }
 
     public Map<String, Object> getProjectDetail(long id) {
-        QuoteProject p = projectMapper.findById(tid(),id);
-        if (p == null) return null;
+        QuoteProject p;
+        try {
+            p = requireVisibleProject(id);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
         Map<String, Object> out = projectToMap(p);
         List<Map<String, Object>> moduleList = new ArrayList<>();
         for (QuoteModule m : moduleMapper.listByProjectId(tid(),id)) {
@@ -459,9 +481,10 @@ public class QuoteService {
         page = Math.max(1, page);
         pageSize = Math.min(Math.max(pageSize, 1), 100);
         int offset = (page - 1) * pageSize;
-        long total = projectMapper.countAll(tid());
+        int stillOver = stillOverQuotaFlag();
+        long total = projectMapper.countVisibleForTenant(tid(), stillOver);
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (QuoteProject p : projectMapper.listPaged(tid(),offset, pageSize)) {
+        for (QuoteProject p : projectMapper.listPagedVisibleForTenant(tid(), stillOver, offset, pageSize)) {
             rows.add(projectToListItemMap(p));
         }
         Map<String, Object> data = new HashMap<>();
@@ -478,8 +501,7 @@ public class QuoteService {
      */
     @Transactional
     public void deleteProject(long id) {
-        QuoteProject existing = projectMapper.findById(tid(),id);
-        if (existing == null) throw new IllegalArgumentException("项目不存在");
+        requireVisibleProject(id);
 
         // 先清理业务树：modules/items
         List<QuoteModule> modules = moduleMapper.listByProjectId(tid(),id);

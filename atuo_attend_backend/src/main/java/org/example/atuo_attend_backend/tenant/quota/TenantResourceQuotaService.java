@@ -21,6 +21,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class TenantResourceQuotaService {
 
+    /** 获客链接超量时，仍允许创建且对租户隐藏的超量报价项目数量上限 */
+    public static final int AGENT_PUBLIC_QUICK_START_OVERAGE_BUFFER = 5;
+
     private final TenantBillingService tenantBillingService;
     private final SystemConfigService systemConfigService;
     private final QuoteProjectMapper quoteProjectMapper;
@@ -131,6 +134,57 @@ public class TenantResourceQuotaService {
             throw new IllegalArgumentException("Agent 需求引导会话数已达当前套餐上限（" + plan.maxAgentSessions()
                     + "），仅限制新建会话；已有会话可继续使用。请升级套餐后再新建。");
         }
+    }
+
+
+    /**
+     * 获客链接创建 Agent 会话：不占用管理端严格上限；超量时允许最多 {@link #AGENT_PUBLIC_QUICK_START_OVERAGE_BUFFER} 个
+     * 对租户隐藏的报价项目，缓冲用尽后拒绝新客户进入。
+     */
+    public void assertCanCreateAgentSessionViaPublicQuickStart(long tenantId) {
+        Tenant t = tenantBillingService.ensureCurrent(tenantId);
+        if (t == null) {
+            throw new IllegalArgumentException("租户不存在");
+        }
+        if ("suspended".equalsIgnoreCase(t.getStatus())) {
+            throw new IllegalArgumentException("组织已暂停服务，请联系平台支持");
+        }
+        if (!isOverPlanAgentSessionLimit(tenantId) && !isOverPlanQuoteProjectLimit(tenantId)) {
+            return;
+        }
+        long locked = quoteProjectMapper.countQuotaLockedByTenant(tenantId);
+        if (locked >= AGENT_PUBLIC_QUICK_START_OVERAGE_BUFFER) {
+            throw new IllegalArgumentException("获客链接暂不可用：超量隐藏的报价项目已达上限（"
+                    + AGENT_PUBLIC_QUICK_START_OVERAGE_BUFFER + " 个），请升级套餐后再接收新客户。");
+        }
+    }
+
+    public boolean isOverPlanAgentSessionLimit(long tenantId) {
+        var plan = effectivePlan(tenantId);
+        return agentSessionMapper.countByTenant(tenantId) >= plan.maxAgentSessions();
+    }
+
+    public boolean isOverPlanQuoteProjectLimit(long tenantId) {
+        var plan = effectivePlan(tenantId);
+        return quoteProjectMapper.countAll(tenantId) >= plan.maxQuoteProjects();
+    }
+
+    public boolean shouldQuotaLockNewQuickStartProject(long tenantId) {
+        return isOverPlanAgentSessionLimit(tenantId) || isOverPlanQuoteProjectLimit(tenantId);
+    }
+
+    public boolean isQuoteProjectVisibleToTenant(org.example.atuo_attend_backend.quote.domain.QuoteProject project) {
+        if (project == null) {
+            return false;
+        }
+        if (!Boolean.TRUE.equals(project.getQuotaLocked())) {
+            return true;
+        }
+        long tenantId = project.getTenantId() != null ? project.getTenantId() : 0L;
+        if (tenantId <= 0) {
+            return true;
+        }
+        return !isOverPlanAgentSessionLimit(tenantId) && !isOverPlanQuoteProjectLimit(tenantId);
     }
 
     public void assertCanCreateCollabProject(long tenantId) {

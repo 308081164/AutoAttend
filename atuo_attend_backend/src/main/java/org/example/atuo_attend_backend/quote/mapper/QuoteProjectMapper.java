@@ -11,10 +11,10 @@ public interface QuoteProjectMapper {
     @Insert("""
             INSERT INTO biz_quote_project (tenant_id, name, project_type, tech_stack, design_type, data_migration,
                 concurrency, security_level, deploy_type, status, link_table_id, customer_id, prd_summary, quote_calc_prefs_json, quote_contract_context_json,
-                ai_requirement_text, quote_vendor_name, quote_contact_info, quote_validity_note, quote_subject_mode, quote_kind)
+                ai_requirement_text, quote_vendor_name, quote_contact_info, quote_validity_note, quote_subject_mode, quote_kind, quota_locked)
             VALUES (#{tenantId}, #{name}, #{projectType}, #{techStack}, #{designType}, #{dataMigration},
                 #{concurrency}, #{securityLevel}, #{deployType}, #{status}, #{linkTableId}, #{customerId}, #{prdSummary}, #{quoteCalcPrefsJson}, #{quoteContractContextJson},
-                #{aiRequirementText}, #{quoteVendorName}, #{quoteContactInfo}, #{quoteValidityNote}, #{quoteSubjectMode}, #{quoteKind})
+                #{aiRequirementText}, #{quoteVendorName}, #{quoteContactInfo}, #{quoteValidityNote}, #{quoteSubjectMode}, #{quoteKind}, #{quotaLocked})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(QuoteProject p);
@@ -27,7 +27,7 @@ public interface QuoteProjectMapper {
                 quote_contract_context_json=#{quoteContractContextJson},
                 ai_requirement_text=#{aiRequirementText},
                 quote_vendor_name=#{quoteVendorName}, quote_contact_info=#{quoteContactInfo}, quote_validity_note=#{quoteValidityNote},
-                quote_subject_mode=#{quoteSubjectMode}, quote_kind=#{quoteKind},
+                quote_subject_mode=#{quoteSubjectMode}, quote_kind=#{quoteKind}, quota_locked=#{quotaLocked},
                 updated_at=CURRENT_TIMESTAMP
             WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
@@ -39,7 +39,7 @@ public interface QuoteProjectMapper {
             "quote_contract_context_json AS quoteContractContextJson, " +
             "ai_requirement_text AS aiRequirementText, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
-            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, " +
+            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, quota_locked AS quotaLocked, " +
             "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
             "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
             "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
@@ -54,7 +54,7 @@ public interface QuoteProjectMapper {
             "quote_contract_context_json AS quoteContractContextJson, " +
             "ai_requirement_text AS aiRequirementText, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
-            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, " +
+            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, quota_locked AS quotaLocked, " +
             "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
             "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
             "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
@@ -69,7 +69,7 @@ public interface QuoteProjectMapper {
             "quote_contract_context_json AS quoteContractContextJson, " +
             "ai_requirement_text AS aiRequirementText, " +
             "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
-            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, " +
+            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, quota_locked AS quotaLocked, " +
             "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
             "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
             "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
@@ -104,9 +104,33 @@ public interface QuoteProjectMapper {
     @Select("SELECT COUNT(*) FROM biz_quote_project WHERE tenant_id = #{tenantId}")
     long countAll(@Param("tenantId") long tenantId);
 
-    /** 已绑定 GitHub 仓库的报价项目数（用于套餐 GitHub 仓库配额） */
     @Select("SELECT COUNT(*) FROM biz_quote_project WHERE tenant_id = #{tenantId} AND github_repo_full_name IS NOT NULL AND TRIM(github_repo_full_name) <> ''")
     long countGithubLinkedByTenant(@Param("tenantId") long tenantId);
+
+    @Select("SELECT COUNT(*) FROM biz_quote_project WHERE tenant_id = #{tenantId} AND quota_locked = 1")
+    long countQuotaLockedByTenant(@Param("tenantId") long tenantId);
+
+    @Select("SELECT COUNT(*) FROM biz_quote_project WHERE tenant_id = #{tenantId} AND (COALESCE(quota_locked, 0) = 0 OR #{stillOverQuota} = 0)")
+    long countVisibleForTenant(@Param("tenantId") long tenantId, @Param("stillOverQuota") int stillOverQuota);
+
+    @Select("SELECT id, tenant_id AS tenantId, name, project_type AS projectType, tech_stack AS techStack, design_type AS designType, " +
+            "data_migration AS dataMigration, concurrency, security_level AS securityLevel, deploy_type AS deployType, " +
+            "status, link_table_id AS linkTableId, customer_id AS customerId, prd_summary AS prdSummary, quote_calc_prefs_json AS quoteCalcPrefsJson, " +
+            "quote_contract_context_json AS quoteContractContextJson, " +
+            "ai_requirement_text AS aiRequirementText, " +
+            "quote_vendor_name AS quoteVendorName, quote_contact_info AS quoteContactInfo, quote_validity_note AS quoteValidityNote, " +
+            "quote_subject_mode AS quoteSubjectMode, quote_kind AS quoteKind, quota_locked AS quotaLocked, " +
+            "github_repo_full_name AS githubRepoFullName, github_repo_html_url AS githubRepoHtmlUrl, " +
+            "github_webhook_id AS githubWebhookId, github_webhook_secret AS githubWebhookSecret, " +
+            "provision_status AS provisionStatus, provision_last_error AS provisionLastError, " +
+            "provision_synced_to_collab AS provisionSyncedToCollab, provision_synced_at AS provisionSyncedAt, " +
+            "created_at AS createdAt, updated_at AS updatedAt " +
+            "FROM biz_quote_project WHERE tenant_id = #{tenantId} AND (COALESCE(quota_locked, 0) = 0 OR #{stillOverQuota} = 0) " +
+            "ORDER BY updated_at DESC LIMIT #{limit} OFFSET #{offset}")
+    List<QuoteProject> listPagedVisibleForTenant(@Param("tenantId") long tenantId,
+                                                 @Param("stillOverQuota") int stillOverQuota,
+                                                 @Param("offset") int offset,
+                                                 @Param("limit") int limit);
 
     @Delete("DELETE FROM biz_quote_project WHERE tenant_id = #{tenantId} AND id = #{id}")
     int deleteById(@Param("tenantId") long tenantId, @Param("id") long id);
@@ -114,7 +138,6 @@ public interface QuoteProjectMapper {
     @Update("UPDATE biz_quote_project SET quote_calc_prefs_json = #{json}, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = #{tenantId} AND id = #{id}")
     int updateQuoteCalcPrefs(@Param("tenantId") long tenantId, @Param("id") long id, @Param("json") String json);
 
-    /** link_table_id 存协作项目 biz_project.id，便于报价与多维表关联 */
     @Update("UPDATE biz_quote_project SET link_table_id=#{linkTableId}, updated_at=CURRENT_TIMESTAMP WHERE tenant_id=#{tenantId} AND id=#{id}")
     int updateLinkTableId(@Param("tenantId") long tenantId, @Param("id") long id, @Param("linkTableId") long linkTableId);
 }

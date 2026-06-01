@@ -1,12 +1,10 @@
 package org.example.atuo_attend_backend.agent.controller;
 
 import org.example.atuo_attend_backend.agent.domain.AgentSession;
-import org.example.atuo_attend_backend.agent.dto.AgentModels.BackgroundTextItem;
 import org.example.atuo_attend_backend.agent.service.AgentSessionService;
+import org.example.atuo_attend_backend.agent.service.PublicAgentQuickStartService;
 import org.example.atuo_attend_backend.common.ApiResponse;
 import org.example.atuo_attend_backend.config.SystemConfigService;
-import org.example.atuo_attend_backend.quote.domain.QuoteProject;
-import org.example.atuo_attend_backend.quote.mapper.QuoteProjectMapper;
 import org.example.atuo_attend_backend.report.service.MailSenderService;
 import org.example.atuo_attend_backend.tenant.domain.Tenant;
 import org.example.atuo_attend_backend.tenant.mapper.TenantMapper;
@@ -31,20 +29,20 @@ public class PublicAgentController {
     private static final Logger log = LoggerFactory.getLogger(PublicAgentController.class);
 
     private final AgentSessionService sessionService;
+    private final PublicAgentQuickStartService quickStartService;
     private final TenantMapper tenantMapper;
-    private final QuoteProjectMapper projectMapper;
     private final MailSenderService mailSenderService;
     private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PublicAgentController(AgentSessionService sessionService,
+                                PublicAgentQuickStartService quickStartService,
                                 TenantMapper tenantMapper,
-                                QuoteProjectMapper projectMapper,
                                 MailSenderService mailSenderService,
                                 SystemConfigService systemConfigService) {
         this.sessionService = sessionService;
+        this.quickStartService = quickStartService;
         this.tenantMapper = tenantMapper;
-        this.projectMapper = projectMapper;
         this.mailSenderService = mailSenderService;
         this.systemConfigService = systemConfigService;
     }
@@ -85,50 +83,23 @@ public class PublicAgentController {
 
         Long tenantId = tenant.getId();
 
-        // 3. 创建报价项目
-        QuoteProject project = new QuoteProject();
-        project.setTenantId(tenantId);
-        project.setName(projectName);
-        project.setProjectType("other");
-        project.setTechStack("vue_node");
-        project.setDesignType("need_design");
-        project.setDataMigration("none");
-        project.setConcurrency("lt100");
-        project.setSecurityLevel("normal");
-        project.setDeployType("cloud");
-        project.setStatus("draft");
-        project.setQuoteKind(quoteKind);
-        project.setQuoteSubjectMode("legal_entity");
-        projectMapper.insert(project);
-        Long projectId = project.getId();
+        try {
+            PublicAgentQuickStartService.QuickStartResult created = quickStartService.quickStart(
+                    tenantId, projectName, quoteKind);
 
-        // 4. 创建 Agent 会话
-        List<BackgroundTextItem> backgrounds = new ArrayList<>();
-        BackgroundTextItem bt1 = new BackgroundTextItem();
-        bt1.setLabel("项目名称");
-        bt1.setContent(projectName);
-        backgrounds.add(bt1);
-        BackgroundTextItem bt2 = new BackgroundTextItem();
-        bt2.setLabel("报价模式");
-        bt2.setContent("single".equals(quoteKind) ? "单体应用" : "解决方案级");
-        backgrounds.add(bt2);
+            Map<String, Object> result = new HashMap<>();
+            result.put("projectId", created.projectId());
+            result.put("publicToken", created.publicToken());
+            result.put("agentUrl", "/agent/" + created.publicToken());
+            result.put("projectName", created.projectName());
+            result.put("quoteKind", created.quoteKind());
 
-        AgentSession session = sessionService.createSession(
-                tenantId, projectId, null, backgrounds, null
-        );
+            sendQuickQuoteNotification(tenantId, tenant.getName(), projectName, quoteKind, created.projectId());
 
-        // 5. 返回结果
-        Map<String, Object> result = new HashMap<>();
-        result.put("projectId", projectId);
-        result.put("publicToken", session.getPublicToken());
-        result.put("agentUrl", "/agent/" + session.getPublicToken());
-        result.put("projectName", projectName);
-        result.put("quoteKind", quoteKind);
-
-        // 6. 异步发送来单通知邮件
-        sendQuickQuoteNotification(tenantId, tenant.getName(), projectName, quoteKind, projectId);
-
-        return ApiResponse.ok(result);
+            return ApiResponse.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(40300, e.getMessage() != null ? e.getMessage() : "当前无法创建需求引导会话");
+        }
     }
 
     /**

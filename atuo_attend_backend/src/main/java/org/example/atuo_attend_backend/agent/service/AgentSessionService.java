@@ -155,9 +155,21 @@ public class AgentSessionService {
     public AgentSession createSession(Long tenantId, Long projectId, String projectContext,
                                       List<BackgroundTextItem> backgroundTexts,
                                       List<Long> backgroundAttachmentIds) {
-        log.info("Creating agent session: tenantId={}, projectId={}", tenantId, projectId);
+        return createSession(tenantId, projectId, projectContext, backgroundTexts, backgroundAttachmentIds, false);
+    }
 
-        tenantResourceQuotaService.assertCanCreateAgentSession(tenantId);
+    @Transactional(rollbackFor = Exception.class)
+    public AgentSession createSession(Long tenantId, Long projectId, String projectContext,
+                                      List<BackgroundTextItem> backgroundTexts,
+                                      List<Long> backgroundAttachmentIds,
+                                      boolean publicQuickStart) {
+        log.info("Creating agent session: tenantId={}, projectId={}, publicQuickStart={}", tenantId, projectId, publicQuickStart);
+
+        if (publicQuickStart) {
+            tenantResourceQuotaService.assertCanCreateAgentSessionViaPublicQuickStart(tenantId);
+        } else {
+            tenantResourceQuotaService.assertCanCreateAgentSession(tenantId);
+        }
 
         backgroundAttachmentIds = validateAndNormalizeBackgroundAttachmentIds(tenantId, projectId, backgroundAttachmentIds);
 
