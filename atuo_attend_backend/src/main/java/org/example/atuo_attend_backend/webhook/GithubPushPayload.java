@@ -59,6 +59,7 @@ public class GithubPushPayload {
         this.commits = commits;
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class GithubRepository {
         private String name;
         private String full_name;
