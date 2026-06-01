@@ -1,7 +1,11 @@
 package org.example.atuo_attend_backend.webhook;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.List;
 
+/** GitHub push webhook 载荷；忽略未建模字段，避免 GitHub 增字段导致 400。 */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GithubPushPayload {
 
     private String ref;
@@ -90,6 +94,7 @@ public class GithubPushPayload {
         }
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class GithubPusher {
         private String name;
         private String email;
@@ -111,6 +116,7 @@ public class GithubPushPayload {
         }
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class GithubPushCommit {
         private String id;
         private String message;
@@ -186,6 +192,7 @@ public class GithubPushPayload {
             this.removed = removed;
         }
 
+        @JsonIgnoreProperties(ignoreUnknown = true)
         public static class Author {
             private String name;
             private String email;
@@ -208,4 +215,3 @@ public class GithubPushPayload {
         }
     }
 }
-
