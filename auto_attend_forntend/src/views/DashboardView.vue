@@ -348,267 +348,6 @@
           </div>
         </div>
 
-        <div v-if="!collabDataBoardOnly" class="hub-modules-head">
-          <h2 class="hub-modules-title">{{ $t('dashboard.workbenchModulesTitle') }}</h2>
-          <p class="hub-modules-lead">{{ $t('dashboard.workbenchModulesLead') }}</p>
-        </div>
-        <div v-if="!collabDataBoardOnly" class="hub-grid dash-module-grid">
-          <section class="hub-card console-elevated hub-quote">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-quote" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubQuoteTitle') }}</h2>
-              <router-link to="/quote" class="hub-card-more">{{ $t('dashboard.hubQuoteViewAll') }} →</router-link>
-            </div>
-            <div class="hub-metric-row">
-              <div class="hub-metric">
-                <span class="hub-metric-value">{{ quoteHub.loading ? '—' : quoteHub.total }}</span>
-                <span class="hub-metric-label">{{ $t('dashboard.hubQuoteTotal') }}</span>
-              </div>
-              <div class="hub-quick-actions">
-                <router-link to="/quote/new" class="hub-pill hub-pill-primary">{{ $t('dashboard.hubQuoteNew') }}</router-link>
-                <router-link to="/quote/config" class="hub-pill">{{ $t('dashboard.hubQuoteConfig') }}</router-link>
-              </div>
-            </div>
-            <div class="hub-subhead">
-              <span>{{ $t('dashboard.hubQuoteRecent') }}</span>
-            </div>
-            <div v-if="quoteHub.loading" class="hub-placeholder">{{ $t('collab.loading') }}</div>
-            <ul v-else-if="quoteHub.items.length" class="hub-list">
-              <li v-for="row in quoteHub.items" :key="row.id">
-                <router-link :to="'/quote/' + row.id" class="hub-list-link">
-                  <span class="hub-list-name">{{ row.name || ('#' + row.id) }}</span>
-                  <span class="hub-list-meta">#{{ row.id }}<template v-if="row.techStack"> · {{ row.techStack }}</template></span>
-                </router-link>
-              </li>
-            </ul>
-            <p v-else class="hub-placeholder muted">{{ $t('dashboard.hubQuoteEmpty') }}</p>
-          </section>
-
-          <section v-if="marketplaceVisible" class="hub-card console-elevated hub-marketplace">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-quote" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('marketplace.title') }}</h2>
-              <router-link to="/marketplace" class="hub-card-more">{{ $t('dashboard.hubQuoteViewAll') }} →</router-link>
-            </div>
-            <p class="hub-desc">{{ $t('marketplace.desc') }}</p>
-            <div class="hub-quick-actions">
-              <router-link to="/marketplace" class="hub-pill hub-pill-primary">{{ $t('marketplace.title') }}</router-link>
-            </div>
-          </section>
-
-          <section class="hub-card console-elevated hub-api">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-api" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubApiTitle') }}</h2>
-              <router-link to="/api-config" class="hub-card-more">{{ $t('dashboard.hubApiOpenConfig') }} →</router-link>
-            </div>
-            <div v-if="aiHub.loading" class="hub-placeholder">{{ $t('dashboard.hubApiLoading') }}</div>
-            <template v-else>
-              <div class="hub-provider-rows">
-                <div class="hub-provider-row">
-                  <span class="hub-provider-name">{{ $t('dashboard.hubApiDeepSeek') }}</span>
-                  <span class="hub-provider-status" :class="{ ok: aiHubDeepseekOk }">{{ aiHubDeepseekLine }}</span>
-                </div>
-                <div class="hub-provider-row">
-                  <span class="hub-provider-name">{{ $t('dashboard.hubApiQwen') }}</span>
-                  <span class="hub-provider-status" :class="{ ok: aiHubQwenOk }">{{ aiHubQwenLine }}</span>
-                </div>
-              </div>
-              <div class="hub-quick-actions hub-quick-actions-foot">
-                <router-link to="/test" class="hub-pill hub-pill-primary">{{ $t('dashboard.hubApiOpenTest') }}</router-link>
-                <router-link to="/api-config" class="hub-pill">{{ $t('aiConfig.navTitle') }}</router-link>
-              </div>
-            </template>
-          </section>
-
-          <section class="hub-card console-elevated hub-team">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-team" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubTeamTitle') }}</h2>
-              <router-link to="/team" class="hub-card-more">{{ $t('dashboard.hubTeamOpen') }} →</router-link>
-            </div>
-            <div class="hub-metric-row">
-              <div class="hub-metric">
-                <span class="hub-metric-value">{{ teamHubDisplay }}</span>
-                <span class="hub-metric-label">{{ $t('dashboard.hubTeamMembers') }}</span>
-              </div>
-            </div>
-            <p class="hub-desc">{{ $t('dashboard.hubTeamDesc') }}</p>
-            <div class="team-hub-toolbar">
-              <button type="button" class="link-button" @click="openTeamPickerModal">
-                展示设置
-              </button>
-              <div class="team-activity-legend">
-                <span class="legend-item"><span class="activity-dot dot-active"></span>{{ $t('dashboard.todayActive') }}</span>
-                <span class="legend-item"><span class="activity-dot dot-inactive"></span>{{ $t('dashboard.todayInactive') }}</span>
-              </div>
-            </div>
-
-            <div v-if="teamMembersLoading" class="placeholder">{{ $t('collab.loading') }}</div>
-            <div v-else class="team-hub-members">
-              <div v-if="!displayedTeamMembers.length" class="placeholder">{{ $t('dashboard.teamEmpty') }}</div>
-              <div v-else class="team-hub-member-list">
-                <div v-for="m in displayedTeamMembers" :key="m.id" class="team-hub-member">
-                  <span class="activity-dot"
-                        :class="m.activeToday ? 'dot-active' : 'dot-inactive'"></span>
-                  <div class="member-avatar-wrap">
-                    <img
-                      v-if="memberAvatarUrl(m)"
-                      :src="memberAvatarUrl(m)"
-                      class="member-avatar"
-                      alt=""
-                    >
-                    <span v-else class="member-avatar member-avatar-placeholder">{{ memberInitial(m) }}</span>
-                  </div>
-                  <div class="member-meta">
-                    <div class="member-name">
-                      {{ (m.name || m.email || '—') }}
-                    </div>
-                    <div class="member-subline">
-                      <span class="member-role-tag" :class="teamRoleTagClass(m.role)">{{ teamRoleLabel(m.role) }}</span>
-                      <span v-if="m.jobTitle" class="member-job-title-inline">{{ m.jobTitle }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-if="teamMembersTotalPages > 1" class="team-hub-pagination">
-                <button type="button" class="link-button page-btn" :disabled="teamMembersDisplayPage <= 1" @click="teamMembersDisplayPrev">
-                  {{ $t('dashboard.pagePrev') || '上一页' }}
-                </button>
-                <span class="page-info">{{ teamMembersDisplayPage }} / {{ teamMembersTotalPages }}</span>
-                <button type="button" class="link-button page-btn" :disabled="teamMembersDisplayPage >= teamMembersTotalPages" @click="teamMembersDisplayNext">
-                  {{ $t('dashboard.pageNext') || '下一页' }}
-                </button>
-              </div>
-            </div>
-
-          </section>
-
-          <section class="hub-card console-elevated hub-project">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-project" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubProjectTitle') }}</h2>
-              <router-link to="/collab/projects" class="hub-card-more">{{ $t('dashboard.hubProjectCollab') }} →</router-link>
-            </div>
-            <p class="hub-desc">{{ $t('dashboard.hubProjectHint') }}</p>
-
-            <div class="repo-filter hub-repo-filter">
-              <button
-                type="button"
-                class="link-button"
-                :disabled="webhookModalLoading"
-                @click="openWebhookModal"
-              >
-                {{ webhookModalLoading ? '…' : $t('dashboard.viewWebhookLink') }}
-              </button>
-              <label v-if="!fixedRepoFullName">{{ $t('dashboard.project') }}</label>
-              <select v-if="!fixedRepoFullName" v-model="selectedRepo" @change="onRepoChange">
-                <option value="">{{ $t('dashboard.allProjects') }}</option>
-                <option v-for="repo in repos" :key="repo" :value="repo">{{ repo }}</option>
-              </select>
-            </div>
-            <div v-if="!selectedRepo && statsOverview" class="hub-mini-overview">
-              <span class="hub-subhead-text">{{ $t('dashboard.hubProjectMiniOverview') }}</span>
-              <div class="hub-mini-metrics">
-                <div class="hub-mini-metric">
-                  <span class="hub-mini-val">{{ statsOverview.repoCount ?? 0 }}</span>
-                  <span class="hub-mini-lbl">{{ $t('dashboard.repoCount') }}</span>
-                </div>
-                <div class="hub-mini-metric">
-                  <span class="hub-mini-val">{{ statsOverview.totalCommits ?? 0 }}</span>
-                  <span class="hub-mini-lbl">{{ $t('dashboard.totalCommits') }}</span>
-                </div>
-                <div class="hub-mini-metric">
-                  <span class="hub-mini-val">{{ statsOverview.authorCount ?? 0 }}</span>
-                  <span class="hub-mini-lbl">{{ $t('dashboard.authorCount') }}</span>
-                </div>
-              </div>
-            </div>
-            <div v-else-if="!selectedRepo && !statsOverview" class="hub-placeholder">{{ $t('collab.loading') }}</div>
-          </section>
-
-          <section class="hub-card console-elevated hub-ops hub-card-placeholder">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-ops" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09c-.658.003-1.25.396-1.51 1z"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubOpsTitle') }}</h2>
-            </div>
-            <p class="hub-desc">{{ $t('dashboard.hubOpsPlaceholder') }}</p>
-            <router-link to="/nexus" class="hub-card-more">进入 →</router-link>
-          </section>
-
-          <section class="hub-card console-elevated hub-cloud-dev">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-clouddev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubCloudDevTitle') }}</h2>
-            </div>
-            <p class="hub-desc">{{ $t('dashboard.hubCloudDevDesc') }}</p>
-            <router-link to="/cloud-dev" class="hub-card-more">{{ $t('dashboard.hubCloudDevLink') }}</router-link>
-          </section>
-
-          <section class="hub-card console-elevated hub-market hub-card-placeholder">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-market" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg></span>
-              <h2 class="hub-card-title">增效实验室</h2>
-            </div>
-            <p class="hub-desc">探索提升效率的前沿实验项目，帮助团队在真实场景中快速试用与验证。</p>
-            <div class="lab-mini-grid">
-              <div
-                v-for="t in labTabs"
-                :key="t.key"
-                class="lab-mini-card"
-              >
-                <div class="lab-mini-title">
-                  {{ t.label }}
-                </div>
-                <div class="lab-mini-tag">
-                  敬请期待
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="hub-card console-elevated hub-prototype">
-            <div class="hub-card-head">
-              <span class="hub-icon hub-icon-prototype" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
-              <h2 class="hub-card-title">{{ $t('dashboard.hubPrototypeTitle') }}</h2>
-              <router-link to="/prototype" class="hub-card-more">{{ $t('dashboard.hubPrototypeViewAll') }} →</router-link>
-            </div>
-            <div class="hub-metric-row">
-              <div class="hub-metric">
-                <span class="hub-metric-value">{{ prototypeHub.loading ? '—' : prototypeHub.total }}</span>
-                <span class="hub-metric-label">{{ $t('dashboard.hubPrototypeTotal') }}</span>
-              </div>
-              <div class="hub-quick-actions">
-                <router-link to="/prototype" class="hub-pill hub-pill-primary">{{ $t('dashboard.hubPrototypeOpenList') }}</router-link>
-                <router-link to="/prototype?create=1" class="hub-pill">{{ $t('dashboard.hubPrototypeNew') }}</router-link>
-              </div>
-            </div>
-            <p class="hub-desc">{{ $t('dashboard.hubPrototypeDesc') }}</p>
-            <div class="hub-subhead hub-subhead-filter">
-              <span>{{ $t('dashboard.hubPrototypeRecent') }}</span>
-              <input
-                v-model="prototypeHubFilter"
-                type="search"
-                class="hub-list-filter"
-                :placeholder="$t('dashboard.hubPrototypeFilterPlaceholder')"
-                autocomplete="off"
-              >
-            </div>
-            <div v-if="prototypeHub.loading" class="hub-placeholder">{{ $t('collab.loading') }}</div>
-            <ul v-else-if="prototypeHubListFiltered.length" class="hub-list">
-              <li v-for="row in prototypeHubListFiltered" :key="row.id">
-                <router-link :to="'/prototype/' + row.id" class="hub-list-link">
-                  <span class="hub-list-name">{{ row.name || ('#' + row.id) }}</span>
-                  <span class="hub-list-meta">#{{ row.id }}<template v-if="row.currentSpecVersion != null"> · v{{ row.currentSpecVersion }}</template></span>
-                </router-link>
-              </li>
-            </ul>
-            <p v-else-if="prototypeHub.items.length && prototypeHubFilter.trim()" class="hub-placeholder muted">{{ $t('dashboard.hubPrototypeNoMatch') }}</p>
-            <p v-else class="hub-placeholder muted">{{ $t('dashboard.hubPrototypeEmpty') }}</p>
-          </section>
-
-        </div>
-
         <template v-if="!suppressBoardHeader">
           <header class="dash-board-header">
             <p class="dash-board-eyebrow">{{ $t('dashboard.consoleDataBoardHint') }}</p>
@@ -618,7 +357,24 @@
 
         <!-- 研发遥测：选中仓库时展示项目档案；全局指标已在指挥中心 KPI 呈现 -->
     <section class="section overview-section dash-glass-panel">
-      <h2 class="section-title dash-section-title">{{ selectedRepo ? $t('dashboard.projectInfoTitle') : $t('dashboard.telemetrySectionTitle') }}</h2>
+      <div class="section-header overview-section-head">
+        <h2 class="section-title dash-section-title">{{ selectedRepo ? $t('dashboard.projectInfoTitle') : $t('dashboard.telemetrySectionTitle') }}</h2>
+        <div v-if="!collabDataBoardOnly" class="repo-filter hub-repo-filter">
+          <button
+            type="button"
+            class="link-button"
+            :disabled="webhookModalLoading"
+            @click="openWebhookModal"
+          >
+            {{ webhookModalLoading ? '…' : $t('dashboard.viewWebhookLink') }}
+          </button>
+          <label v-if="!fixedRepoFullName">{{ $t('dashboard.project') }}</label>
+          <select v-if="!fixedRepoFullName" v-model="selectedRepo" @change="onRepoChange">
+            <option value="">{{ $t('dashboard.allProjects') }}</option>
+            <option v-for="repo in repos" :key="repo" :value="repo">{{ repo }}</option>
+          </select>
+        </div>
+      </div>
       <div v-if="selectedRepo" class="project-info-cards" :class="{ 'project-info-cards-compact': embeddedCompact }">
         <div v-if="repoInfoLoading" class="placeholder">{{ $t('collab.loading') }}</div>
         <template v-else>
@@ -2999,41 +2755,9 @@ export default {
   text-decoration: underline;
 }
 
-.hub-modules-head {
-  margin-bottom: calc(var(--space-sm) * -1);
-}
-
-.hub-modules-title {
-  margin: 0 0 var(--space-xs);
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-}
-
-.hub-modules-lead {
-  margin: 0 0 var(--space-md);
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  line-height: 1.5;
-  max-width: 48rem;
-}
-
-.dash-module-grid .hub-card {
-  min-height: 0;
-  padding: var(--space-md) var(--space-lg) var(--space-lg);
-  border-radius: 14px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  transition: box-shadow 0.2s, border-color 0.2s;
-}
-
-.dash-module-grid .hub-card:hover {
-  border-color: rgba(99, 102, 241, 0.22);
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
-}
-
-.dash-module-grid .hub-card-head {
-  margin-bottom: var(--space-md);
+.overview-section-head {
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }
 
 .dash-board-header {
